@@ -7984,7 +7984,7 @@ to the values shown below) or hand-edit the YAML, then install it with
 <tr>
 <td><code>name</code></td>
 <td><code>dc-gwy01</code></td>
-<td>Process name echoed in <code>WELCOME</code></td>
+<td>Process name echoed in <code>WELCOME</code> as <code>GW</code>. Must not be empty or contain <code>\|</code> or a line break</td>
 </tr>
 <tr>
 <td><code>bind_address</code></td>
@@ -8058,8 +8058,8 @@ a reverse proxy (nginx, stunnel, or similar).</p>
 </tr>
 <tr>
 <td><code>--engine-dc-pub ADDR</code></td>
-<td>from config / <code>tcp://127.0.0.1:5557</code></td>
-<td>Override the engine drop-copy PUB address this gateway subscribes to</td>
+<td><code>tcp://$EDUMATCHER_ENGINE_HOST:5557</code> (<code>127.0.0.1</code> when unset)</td>
+<td>Override the engine drop-copy PUB address this gateway subscribes to; there is no config key for it</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -8074,7 +8074,7 @@ a reverse proxy (nginx, stunnel, or similar).</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit <code>WARNING</code> level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -8127,7 +8127,7 @@ against a configuration the others have not seen. Install one with
     G--&gt;&gt;C: WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
     Note over C,G: Session active — no further commands needed
     D--&gt;&gt;G: drop_copy.event.TRADER01 {fill payload}
-    G--&gt;&gt;C: DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..
+    G--&gt;&gt;C: DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..|TS=..|TRADE_ID=..
     C-&gt;&gt;G: PING
     G--&gt;&gt;C: PONG|TS=...
     C-&gt;&gt;G: EXIT
@@ -8182,7 +8182,11 @@ port-5557 socket itself. See
 </code></pre></div>
 <p>The gateway subscribes this session to <code>drop_copy.event.TRADER01</code> on its
 internal SUB socket (refcounted — sharing the ZMQ subscription across every
-connected session watching the same gateway ID) before sending <code>WELCOME</code>.</p>
+connected session watching the same gateway ID) before sending <code>WELCOME</code>.
+The SUB subscribes to watched IDs only, so other participants' fills do not
+reach the gateway (ZeroMQ matches by prefix, so <code>TRADER1</code> also brings in
+<code>TRADER10</code>'s fills; the gateway drops those, since only an exact <code>ID</code> match
+is relayed).</p>
 <h3 id="step-3-receive-fills">Step 3 — Receive fills<a class="headerlink" href="#step-3-receive-fills" title="Permanent link">&para;</a></h3>
 <p>No further command is needed. Every fill published on <code>drop_copy.event.&lt;ID&gt;</code>
 for the requested <code>ID</code> arrives as an unsolicited <code>DC_FILL</code> line for as long
@@ -8191,6 +8195,15 @@ as the session stays connected.</p>
 <p>Send <code>EXIT</code> for a graceful close, or simply close the TCP connection. The
 gateway decrements the internal subscription refcount and, if no other
 session still wants that gateway ID, unsubscribes from the topic.</p>
+<p>Closing only the client's sending side (a half-close, as
+<code>printf 'HELLO|…\n' | nc host 5590</code> does when <code>printf</code> ends) also ends the
+session: the gateway reads end-of-file and disconnects with reason
+<code>peer_closed</code>, before any fill. A client that wants fills keeps its sending
+side open.</p>
+<p>When <code>pm-dc-gwy</code> is stopped (<code>SIGINT</code>/<code>SIGTERM</code>), every session receives
+<code>EXIT|REASON=shutdown|TS=…</code> after the lines already queued for it, and is
+then closed. A client that is not reading gets at most one second to take
+them before its connection is closed regardless.</p>
 <h2 id="protocol-reference">Protocol reference<a class="headerlink" href="#protocol-reference" title="Permanent link">&para;</a></h2>
 <p>All messages follow the same line format as ALF/RALF/CALF:
 <code>MSGTYPE|FIELD=VALUE|FIELD=VALUE\n</code>. DC1 is intentionally the simplest of
@@ -8241,7 +8254,7 @@ model, and no replay-by-sequence.</p>
 </tr>
 <tr>
 <td><code>DC_FILL</code></td>
-<td><code>SEQ</code>, <code>ORDER_ID</code>, <code>SYMBOL</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>LIQUIDITY</code></td>
+<td><code>SEQ</code>, <code>ORDER_ID</code>, <code>SYMBOL</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>LIQUIDITY</code>, <code>TS</code>, <code>TRADE_ID</code></td>
 <td>Unsolicited, one per fill for the session's gateway ID</td>
 </tr>
 <tr>
@@ -8255,20 +8268,77 @@ model, and no replay-by-sequence.</p>
 <td>Heartbeat every <code>HBINT</code> seconds</td>
 </tr>
 <tr>
+<td><code>EXIT</code></td>
+<td><code>REASON</code>, <code>TS</code></td>
+<td>The gateway is closing the session: <code>auth_timeout</code>, <code>idle_timeout</code> or <code>shutdown</code>. The connection closes after it</td>
+</tr>
+<tr>
 <td><code>ERR</code></td>
 <td><code>CODE</code>, <code>DETAIL</code></td>
 <td>See <a href="#error-codes">Error codes</a></td>
 </tr>
 </tbody>
 </table>
-<p><code>DC_FILL</code> fields map directly from the drop-copy payload — see
+<p>Each <code>DC_FILL</code> field is one field of the drop-copy payload — see
 <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/#orderfill-event">Drop Copy → order.fill event</a> for the
-full source payload and field semantics. <code>SEQ</code> and <code>LIQUIDITY</code>
-(<code>MAKER</code>/<code>TAKER</code>) come from the drop-copy envelope; <code>DC_FILL</code> does not carry
-order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
+full source payload and field semantics:</p>
+<table>
+<thead>
+<tr>
+<th><code>DC_FILL</code> field</th>
+<th>Payload field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SEQ</code></td>
+<td><code>seq</code></td>
+<td>The engine's own counter for this gateway ID, passed through: a jump means fills were lost on the way, a drop to 1 an engine restart. See <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/#sequence-numbers">Sequence numbers</a></td>
+</tr>
+<tr>
+<td><code>ORDER_ID</code></td>
+<td><code>order_id</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>SYMBOL</code></td>
+<td><code>symbol</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>FILL_QTY</code></td>
+<td><code>fill_qty</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>FILL_PRICE</code></td>
+<td><code>fill_price</code></td>
+<td>Display price</td>
+</tr>
+<tr>
+<td><code>LIQUIDITY</code></td>
+<td><code>liquidity_flag</code></td>
+<td><code>MAKER</code> or <code>TAKER</code></td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td><code>timestamp</code></td>
+<td>When the engine published the fill, ISO-8601 UTC with milliseconds</td>
+</tr>
+<tr>
+<td><code>TRADE_ID</code></td>
+<td><code>trade_ids</code></td>
+<td>The public trade id (<code>trade.executed</code> <code>id</code>, RALF <code>EXEC_ID</code>); several are comma-joined. Its prefix is the engine run, so it also shows a restart</td>
+</tr>
+</tbody>
+</table>
+<p>The payload's <code>gateway_id</code> is the session's own <code>ID</code> and its <code>event_type</code> is
+always <code>order.fill</code>, so neither is repeated. <code>DC_FILL</code> carries no side and no
+order state such as <code>REMAINING</code>/<code>STATUS</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>&gt; HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER|TS=2026-11-15T09:31:02.417Z|TRADE_ID=000003-000000017
 </code></pre></div>
 <h2 id="error-codes">Error codes<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h2>
 <p>Every error arrives as <code>ERR|CODE=&lt;CODE&gt;|DETAIL=&lt;message&gt;</code>.</p>
@@ -8301,7 +8371,8 @@ order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 <p><code>SLOW_CLIENT</code> and the idle timeout end the connection even for a client that
 has stopped reading: the gateway tries to deliver the final line, then closes
 the connection after at most 5 seconds. On idle timeout the final line is
-<code>EXIT|REASON=idle_timeout</code>.</p>
+<code>EXIT|REASON=idle_timeout</code>; when the gateway is stopped it is
+<code>EXIT|REASON=shutdown</code>.</p>
 <h2 id="minimal-zero-dependency-client-python">Minimal zero-dependency client (Python)<a class="headerlink" href="#minimal-zero-dependency-client-python" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">socket</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
@@ -8395,7 +8466,12 @@ count it in <code>gwy.disconnects</code>. A client is logged (<code>client conne
 <h3 id="test-the-tcp-connection-from-the-command-line">Test the TCP connection from the command line<a class="headerlink" href="#test-the-tcp-connection-from-the-command-line" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=test|PROTO=DC1|ID=TRADER01\nEXIT\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5590</span>
 </code></pre></div>
-<p>Expected output: <code>WELCOME|...</code> followed by a clean connection close.</p>
+<p>Expected output: <code>WELCOME|...</code> followed by a clean connection close. Without
+the <code>EXIT</code> the session still ends straight after <code>WELCOME</code>: when <code>printf</code>
+finishes, <code>nc</code> half-closes the connection, and a half-close ends a DC1
+session (see <a href="#step-4-disconnect">Step 4</a>). To watch fills from the command
+line, use the interactive <code>nc 127.0.0.1 5590</code> of the
+<a href="#quick-connect-test">Quick connect test</a>.</p>
 <h3 id="common-problems">Common problems<a class="headerlink" href="#common-problems" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8418,8 +8494,18 @@ count it in <code>gwy.disconnects</code>. A client is logged (<code>client conne
 </tr>
 <tr>
 <td><code>WELCOME</code> arrives but no <code>DC_FILL</code> ever does</td>
-<td>No fills have occurred for that gateway ID yet, or <code>pm-engine</code>'s drop-copy publisher failed to bind</td>
-<td>Check <code>pm-engine</code> logs for drop-copy bind warnings; confirm trades are occurring for that gateway ID</td>
+<td>The <code>ID</code> in <code>HELLO</code> is not a participant's gateway ID (any <code>ID</code> is welcomed — there is no check), no fills have occurred for that ID yet, or <code>pm-engine</code>'s drop-copy publisher failed to bind</td>
+<td>Compare the <code>ID</code> echoed in <code>WELCOME</code> with the participant list (<code>pm-config-show</code>); check <code>pm-engine</code> logs for drop-copy bind warnings; confirm trades are occurring for that gateway ID</td>
+</tr>
+<tr>
+<td><code>DC_FILL</code> <code>SEQ</code> jumps (for example 41, then 45)</td>
+<td>Fills were lost between <code>pm-engine</code> and <code>pm-dc-gwy</code>, or the client missed lines</td>
+<td>If <code>pm-dc-gwy</code> logged <code>drop-copy feed lost …</code> (and <code>gwy.feed_gaps</code> rose, a <code>dc_feed_gaps</code> breach on the dashboard), the loss was before the gateway; reconcile those fills as in <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/#sequence-numbers">Drop Copy → Sequence numbers</a>. <code>SEQ</code> back to 1 is an engine restart, not a loss</td>
+</tr>
+<tr>
+<td><code>EXIT\|REASON=shutdown</code></td>
+<td><code>pm-dc-gwy</code> was stopped</td>
+<td>Reconnect when it is back; fills from the outage are not replayed</td>
 </tr>
 <tr>
 <td><code>EXIT\|REASON=idle_timeout</code></td>

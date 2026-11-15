@@ -9793,7 +9793,7 @@ four <code>*_addr</code> fields of <code>ApiGwyProcSpec</code> (§6.5).</p>
 <td><code>Str</code></td>
 <td style="text-align: center;">–</td>
 <td><code>"ralf-gwy01"</code></td>
-<td></td>
+<td>non-empty; no <code>\|</code>, CR or LF; echoed in <code>WELCOME</code></td>
 </tr>
 <tr>
 <td><code>bind_address</code></td>
@@ -9849,7 +9849,7 @@ four <code>*_addr</code> fields of <code>ApiGwyProcSpec</code> (§6.5).</p>
 <td><code>List&lt;Str&gt;</code></td>
 <td style="text-align: center;">–</td>
 <td><code>[CLEARING, DROP_COPY, AUDIT]</code></td>
-<td>values upper-cased</td>
+<td>non-empty; values upper-cased, each <code>CLEARING</code>, <code>DROP_COPY</code> or <code>AUDIT</code></td>
 </tr>
 </tbody>
 </table>
@@ -10055,7 +10055,7 @@ schema tree (§3).</p>
 <td><code>Str</code></td>
 <td style="text-align: center;">–</td>
 <td><code>"dc-gwy01"</code></td>
-<td>non-empty; echoed in <code>WELCOME</code></td>
+<td>non-empty; no <code>\|</code>, CR or LF; echoed in <code>WELCOME</code></td>
 </tr>
 <tr>
 <td><code>bind_address</code></td>

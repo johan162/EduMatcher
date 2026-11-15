@@ -7801,9 +7801,11 @@ beside the other GUIs (<code>edumatcher-clearing-gui</code>, published on
   Fills are written in batches (100 trades or 5 seconds), so up to 5 seconds
   of lag is normal; minutes mean <code>pm-clearing</code> is stalled or not receiving.</li>
 <li><em>Feed gap</em> (red alert): <code>pm-clearing</code> saw the engine's trade ids jump on
-  the latest session date — trades it never received. Positions and P&amp;L may
-  be missing them. Run a reconciliation and check the audit trail. No gap
-  does not prove the feed was complete; it is only the absence of evidence.</li>
+  the latest session date — trades it never received, either lost on the bus
+  while it ran or made while it was not running (<code>pm-clearing-cli gaps</code> shows
+  the reason, <code>feed</code> or <code>restart</code>). Positions and P&amp;L are missing them.
+  Check the audit trail for the missing ids. No gap does not prove the feed
+  was complete: trades lost at the very end of an engine run cannot be seen.</li>
 <li><em>Health</em>: two separate lines. <strong>Database</strong> — whether <code>clearing.db</code> could be
   read, its journal mode and row counts. <strong>pm-clearing process</strong> — whether
   its receive loop answered a ping. A readable database with a silent

@@ -7805,7 +7805,7 @@ handshake to succeed, but you will not see any live data until it is.</p>
 <tr>
 <td><code>--resume</code></td>
 <td><em>(none)</em></td>
-<td>One-shot <code>CH:SYM:LASTSEQ</code>, e.g. <code>TOP:AAPL:1042</code> — requests single-stream replay just after the handshake (sends <code>RESUME\|CH=..\|SYM=..\|LASTSEQ=..</code>)</td>
+<td>One-shot <code>CH:SYM:LASTSEQ:EPOCH</code>, e.g. <code>TRADE:AAPL:1042:3f9a01bc</code> — requests single-stream replay just after the handshake (sends <code>RESUME\|CH=..\|SYM=..\|LASTSEQ=..\|EPOCH=..</code>). <code>EPOCH</code> is the <code>WELCOME\|EPOCH=</code> of the gateway run <code>LASTSEQ</code> was seen on (shown on the spy's <code>WELCOME</code> line); a restarted gateway answers <code>REPLAY_MISS</code></td>
 </tr>
 </tbody>
 </table>
@@ -7880,7 +7880,7 @@ channel (colour-coded so several interleaved channels stay visually
 distinct), the symbol, the sequence number, and the remaining fields as
 <code>KEY=VALUE</code> pairs, sorted for stable reading:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>◆ pm-calf-spy connected to 127.0.0.1:5570 as calf-spy-40213 (Ctrl-C to stop)
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>10:02:17.041  WELCOME   CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE GW=md-gwy01 HBINT=1 PROTO=CALF1 REPLAY=30 SYMBOLS=AAPL,MSFT
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>10:02:17.041  WELCOME   CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE EPOCH=3f9a01bc GW=md-gwy01 HBINT=1 PROTO=CALF1 REPLAY=30 SYMBOLS=AAPL,MSFT
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>10:02:17.048  SNAP     TOP      AAPL       #1      ASK=150.12 ASKSZ=900 BID=150.10 BIDSZ=1200 LAST=150.11 LASTSZ=300
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>10:02:17.512  MD       TOP      AAPL       #2      BID=150.11 BIDSZ=1400
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>10:02:18.203  TRADE    TRADE    AAPL       #44     PX=150.12 QTY=200 SIDE=BUY

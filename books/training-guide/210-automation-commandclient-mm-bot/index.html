@@ -6634,28 +6634,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-empty-book-bootstrap-drill" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 5: Empty-Book Bootstrap Drill
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-6-build-a-combined-automation-flow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 6: Build a Combined Automation Flow
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7765,7 +7743,7 @@ operations often require deterministic automation:</p>
 <div class="admonition warning">
 <p class="admonition-title">Close <code>pm-admin</code> and the MM console first</p>
 <p><code>ExchangeCommandClient("GW_ADMIN")</code> logs on as <code>GW_ADMIN</code>, and the bot in
-Exercises 4–5 as <code>MM_AAPL_01</code>. The engine allows one connection per
+Exercise 4 as <code>MM_AAPL_01</code>. The engine allows one connection per
 participant, so leave any open <code>pm-admin --id GW_ADMIN</code> and
 <code>pm-alf-console --id MM_AAPL_01</code> (<code>Ctrl-C</code>) before running the scripts.
 If you forget, <code>connect()</code> does <strong>not</strong> raise: it returns
@@ -7787,37 +7765,48 @@ something fail. A script that matters should check <code>auth["accepted"]</code>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s">    print("session:", state)</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s">PY</span>
 </code></pre></div>
+<p>Expected:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>auth: {'gateway_id': 'GW_ADMIN', 'accepted': True, 'reason': '', 'description': ''}
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>symbols: ['AAPL', 'MSFT', 'TSLA']
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>session: {'state': 'CONTINUOUS', 'sessions_enabled': True}
+</code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can connect, read symbols, and read session status programmatically.</p>
 <h2 id="exercise-2-script-a-safe-symbol-protection-runbook">Exercise 2: Script a Safe Symbol-Protection Runbook<a class="headerlink" href="#exercise-2-script-a-safe-symbol-protection-runbook" title="Permanent link">&para;</a></h2>
 <p>Run a scripted sequence:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="s">from edumatcher.commands import ExchangeCommandClient</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">with ExchangeCommandClient("GW_ADMIN") as c:</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">    c.connect()</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">    c.symbol_halt("AAPL")</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">    c.cancel_symbol("AAPL")</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">    book = c.book_depth("AAPL")</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">    print("AAPL bids:", len(book.get("bids", [])), "asks:", len(book.get("asks", [])))</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s">    c.symbol_resume("AAPL")</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s">    print("AAPL resumed")</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s">PY</span>
-</code></pre></div>
-<p>This is easier to run consistently than a manual multi-step console sequence.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can automate halt/cancel/verify/resume for one symbol.</p>
-<h2 id="exercise-3-automate-gateway-exposure-cleanup">Exercise 3: Automate Gateway Exposure Cleanup<a class="headerlink" href="#exercise-3-automate-gateway-exposure-cleanup" title="Permanent link">&para;</a></h2>
-<p>Use API methods to clear one participant and verify no resting orders remain:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="s">from edumatcher.commands import ExchangeCommandClient</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s">target = "TRADER02"</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="s">with ExchangeCommandClient("GW_ADMIN") as c:</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="s">    c.connect()</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s">    c.kill_switch(target)</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s">    orders = c.order_list(target)</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s">    print("remaining orders for", target, ":", len(orders))</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="s">PY</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s">with ExchangeCommandClient("GW_ADMIN") as c:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="s">    c.connect()</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="s">    c.symbol_halt("AAPL")</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="s">    c.cancel_symbol("AAPL")</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s">    book = c.book_depth("AAPL")</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s">    print("AAPL bids:", len(book.get("bids", [])), "asks:", len(book.get("asks", [])))</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s">    c.symbol_resume("AAPL")</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="s">    print("AAPL resumed")</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="s">PY</span>
+</code></pre></div>
+<p>It prints <code>AAPL bids: 0 asks: 0</code> and <code>AAPL resumed</code>. This is easier to run
+consistently than a manual multi-step console sequence.</p>
+<p>Now run it a second time, straight away. A runbook script is run again
+whenever someone is unsure whether the first run finished, so it must be
+<strong>idempotent</strong>: the second run must end in the same state (AAPL trading, its
+book empty) and must not fail just because there is nothing left to cancel.
+This one is, because every step it takes is safe to repeat.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can automate halt/cancel/verify/resume for one symbol, and the script runs twice in a row with the same result.</p>
+<h2 id="exercise-3-automate-gateway-exposure-cleanup">Exercise 3: Automate Gateway Exposure Cleanup<a class="headerlink" href="#exercise-3-automate-gateway-exposure-cleanup" title="Permanent link">&para;</a></h2>
+<p>Use API methods to clear one participant and verify no resting orders remain:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s">from edumatcher.commands import ExchangeCommandClient</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="s">target = "TRADER02"</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="s">with ExchangeCommandClient("GW_ADMIN") as c:</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="s">    c.connect()</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="s">    c.kill_switch(target)</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="s">    orders = c.order_list(target)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="s">    print("remaining orders for", target, ":", len(orders))</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="s">PY</span>
 </code></pre></div>
 <p>Optional extension:</p>
 <ul>
@@ -7830,18 +7819,18 @@ something fail. A script that matters should check <code>auth["accepted"]</code>
 with no range to draw a price from stops with
 <code>startup failed: no reference price available</code>, and the last trade price saved
 from an earlier session does not count, so the command gives it a start range:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-mm-bot<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>--initial_min<span class="w"> </span><span class="m">149</span>.00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--initial_max<span class="w"> </span><span class="m">151</span>.00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--startup-session-timeout-sec<span class="w"> </span><span class="m">5</span>.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>--bootstrap-timeout-sec<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>--qlegs-reconcile-interval-sec<span class="w"> </span><span class="m">15</span>.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-mm-bot<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--initial_min<span class="w"> </span><span class="m">149</span>.00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>--initial_max<span class="w"> </span><span class="m">151</span>.00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>--startup-session-timeout-sec<span class="w"> </span><span class="m">5</span>.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span>--bootstrap-timeout-sec<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span>--qlegs-reconcile-interval-sec<span class="w"> </span><span class="m">15</span>.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span>-v
 </code></pre></div>
-<p>Observe startup logs for:</p>
+<p>Its log is long; look for:</p>
 <ul>
 <li>Bootstrap reference resolution (existing quote adopted, or a random-range
   price).</li>
@@ -7852,17 +7841,33 @@ from an earlier session does not count, so the command gives it a start range:</
 <p>Every bot log line is prefixed with the bot's gateway ID (<code>[&lt;gateway_id&gt;]</code>),
 and per-symbol lines add a <code>[&lt;symbol&gt;]</code> tag. Representative startup lines
 (after the usual timestamp/level/logger prefix):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[MM_AAPL_01] [AAPL] bootstrap from random range: 150.37
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>[MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>[MM_AAPL_01] [AAPL] book mid=None
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>[MM_AAPL_01] [AAPL] bootstrap from random range: 149.12
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>[MM_AAPL_01] [AAPL] QUOTE sent bid=149.07 ask=149.17
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>[MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>[MM_AAPL_01] [AAPL] quote ACK id=MM_AAPL_01-AAPL-…
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>[MM_AAPL_01] [AAPL] quote.status: ACTIVE
 </code></pre></div>
-<p>The <code>bootstrap from random range</code> line only appears when the price came from
-<code>--initial_min</code>/<code>--initial_max</code> (Exercise 5); with a live book the reference
-comes from the book and <code>-v</code> shows it as <code>[&lt;symbol&gt;] reference from book/trade: &lt;price&gt;</code>. There is no
-per-quote <code>INFO</code> line — use <code>QLEGS|SYM=AAPL</code> on the MM gateway to confirm the
-quote is live.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify and tune the timeout knobs that control startup behavior.</p>
+<p>At startup the bot asks the engine for the AAPL book. <code>book mid=None</code> means
+it was empty (Exercise 2 cleared it), so the price came from the
+<code>--initial_min</code>/<code>--initial_max</code> range. With quotes or orders on both sides
+of the book, the bot takes the book's mid instead, and the <code>bootstrap from
+random range</code> line does not appear.</p>
+<p><strong>Now without the range.</strong> Stop the bot (<code>Ctrl-C</code>; it cancels its quote on
+the way out, so the book is empty again) and start it with no price source
+at all:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>-v
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[MM_AAPL_01] [AAPL] book mid=None
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[MM_AAPL_01] startup warning: [AAPL] startup failed: no reference price available (no book, no trade, no bootstrap, no random range)
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>[MM_AAPL_01] startup warning: startup failed: no symbol survived startup checks
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>pm-mm-bot exiting with code 1
+</code></pre></div>
+<p>It fails fast and says why. On a fresh exchange, give a bot a range; on a
+busy one, the book is enough.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify the timeout knobs that control startup, and say which price source a bot uses on an empty and on a busy book.</p>
 <div class="admonition note">
 <p class="admonition-title">Most of these knobs can differ per symbol</p>
 <p><code>--bootstrap-timeout-sec</code> and <code>--qlegs-reconcile-interval-sec</code> are
@@ -7881,60 +7886,6 @@ startup log, not one — so a <code>--bootstrap-timeout-sec</code> tuned down
 aggressively for a fast classroom demo is a budget applied to <em>each</em>
 symbol's round trip in turn, not split across them.</p>
 </div>
-<h2 id="exercise-5-empty-book-bootstrap-drill">Exercise 5: Empty-Book Bootstrap Drill<a class="headerlink" href="#exercise-5-empty-book-bootstrap-drill" title="Permanent link">&para;</a></h2>
-<p>Simulate sparse startup conditions and run bot with explicit bootstrap range:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">149</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">151</span>.00<span class="w"> </span>-v
-</code></pre></div>
-<p>Then compare behavior with and without range configured (stop the first bot
-with <code>Ctrl-C</code> before you start the next; it cancels its quote on the way out).</p>
-<p>Expected understanding:</p>
-<ul>
-<li>With range: bot can start quoting on fresh books.</li>
-<li>Without any bootstrap source: bot fails fast with clear reason.</li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Fails fast per symbol, not necessarily for the whole process</p>
-<p>On a <code>--symbols</code> bot, "without any bootstrap source" excludes <em>that</em>
-symbol from quoting rather than stopping the process outright, as long
-as at least one other symbol resolves a reference price — see
-<a href="../../participant-guide/part-3-market-making/030-the-market-maker-bot/#per-symbol-failure-isolation">Per-symbol failure isolation</a>.
-The single-symbol case in this exercise is the special case where there
-is no "other symbol" left, so the process-level failure you'll observe
-here is the same behavior applied to a symbol set of one. <code>--initial_min</code>/
-<code>--initial_max</code> are per-symbol settings too: give them once before any
-<code>--symbol</code> and every symbol draws from that one range (expect a different
-random price per symbol), or scope them to a single symbol to give a
-volatile name a range of its own.</p>
-</div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can choose a bootstrap strategy appropriate for your environment.</p>
-<h2 id="exercise-6-build-a-combined-automation-flow">Exercise 6: Build a Combined Automation Flow<a class="headerlink" href="#exercise-6-build-a-combined-automation-flow" title="Permanent link">&para;</a></h2>
-<p>Design a short automation script that:</p>
-<ol>
-<li>Checks session status.</li>
-<li>Halts one symbol if needed.</li>
-<li>Clears that symbol's resting orders.</li>
-<li>Resumes symbol.</li>
-<li>Verifies top-of-book depth.</li>
-</ol>
-<p>Use <code>ExchangeCommandClient</code> methods only (no manual prompt commands).</p>
-<p>Acceptance criteria — your script passes if all of the following hold:</p>
-<ul>
-<li><strong>Correct halt response</strong>: the halt call returns a success/ack response for
-  the target symbol (not a generic exception or timeout).</li>
-<li><strong>Book actually empties</strong>: after the clear step, a book query for that
-  symbol shows zero resting orders on both sides before you resume it.</li>
-<li><strong>Correct resume response</strong>: the resume call returns success and a
-  subsequent <code>SYMBOL_STATUS</code>-style query (or equivalent client method) shows
-  the symbol back in a tradeable state.</li>
-<li><strong>Idempotent rerun</strong>: running the entire script a second time immediately
-  afterward produces the same end state (symbol active, book empty of the
-  orders your script itself cleared) without raising an error — halting an
-  already-halted symbol or clearing an already-empty book must not crash the
-  script.</li>
-<li><strong>No orphaned state</strong>: after the script finishes, no test order placed by
-  the script remains resting outside of what step 5 intentionally verifies.</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> your script is deterministic, idempotent, and easy to rerun during drills, and satisfies all five acceptance criteria above.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have advanced operational coverage for:</p>
 <ul>

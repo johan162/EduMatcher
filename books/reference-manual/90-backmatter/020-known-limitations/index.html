@@ -7774,7 +7774,7 @@ explains the detail.</p>
 </tr>
 <tr>
 <td><strong>BALF 1.0.0</strong></td>
-<td>No OCO, no multi-leg combos, no market-data broadcast, no sequence recovery (reconnect on a gap), symbols of at most 8 ASCII characters</td>
+<td>No OCO, no multi-leg combos, no market-data broadcast, no sequence recovery (reconnect on a gap), no order query, symbols of at most 8 ASCII characters; a <code>pm-balf-gwy</code> restart forgets the <code>order_id</code>s of orders left on the book</td>
 <td>Use ALF for OCO and combos, <code>pm-md-gwy</code> for market data. See <a href="../../../operator-guide/part-5-gateways/020-balf-gateway/">BALF Gateway</a></td>
 </tr>
 <tr>

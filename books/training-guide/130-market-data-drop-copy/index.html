@@ -6156,10 +6156,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-1-open-a-live-book-viewer" class="md-nav__link">
+  <a href="#exercise-1-watch-the-public-stream-with-pm-audit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 1: Open a Live Book Viewer
+        Exercise 1: Watch the Public Stream with pm-audit
       
     </span>
   </a>
@@ -6167,10 +6167,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-2-run-the-cross-gateway-order-monitor" class="md-nav__link">
+  <a href="#exercise-2-watch-the-drop-copy-feed-with-pm-dc-spy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 2: Run the Cross-Gateway Order Monitor
+        Exercise 2: Watch the Drop-Copy Feed with pm-dc-spy
       
     </span>
   </a>
@@ -6178,10 +6178,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-3-capture-events-with-pm-audit" class="md-nav__link">
+  <a href="#exercise-3-subscribe-to-the-raw-socket" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 3: Capture Events with pm-audit
+        Exercise 3: Subscribe to the Raw Socket
       
     </span>
   </a>
@@ -6189,54 +6189,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-4-confirm-the-drop-copy-feed-is-bound" class="md-nav__link">
+  <a href="#exercise-4-compare-public-events-and-drop-copy-purpose" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 4: Confirm the Drop-Copy Feed Is Bound
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-5-watch-the-drop-copy-feed-with-pm-dc-spy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 5: Watch the Drop-Copy Feed with pm-dc-spy
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-5b-subscribe-to-the-raw-socket" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 5b: Subscribe to the Raw Socket
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-6-compare-public-events-and-drop-copy-purpose" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 6: Compare Public Events and Drop-Copy Purpose
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-7-launch-the-market-board" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 7: Launch the Market Board
+        Exercise 4: Compare Public Events and Drop-Copy Purpose
       
     </span>
   </a>
@@ -7768,7 +7724,9 @@ where the engine's drop-copy feed fits into the architecture.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–12 completed.</li>
-<li>Engine and at least one trader gateway active so events are visible.</li>
+<li>Engine and at least one trader gateway active so events are visible, and
+  the AAPL market maker of chapter 12 still quoting, so the market orders
+  below have something to trade with.</li>
 </ul>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>EduMatcher publishes two event streams from <code>pm-engine</code>:</p>
@@ -7779,44 +7737,32 @@ where the engine's drop-copy feed fits into the architecture.</p>
 </ul>
 <p>There is no separate <code>pm-drop-copy</code> process. The engine binds the drop-copy feed
 itself when it starts.</p>
-<h2 id="exercise-1-open-a-live-book-viewer">Exercise 1: Open a Live Book Viewer<a class="headerlink" href="#exercise-1-open-a-live-book-viewer" title="Permanent link">&para;</a></h2>
-<p>Start a live viewer for AAPL:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--depth<span class="w"> </span><span class="m">10</span>
-</code></pre></div>
-<p>In a trader gateway, place or cancel a resting order and watch the viewer update:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
-</code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-viewer</code> changes when the book changes.</p>
-<h2 id="exercise-2-run-the-cross-gateway-order-monitor">Exercise 2: Run the Cross-Gateway Order Monitor<a class="headerlink" href="#exercise-2-run-the-cross-gateway-order-monitor" title="Permanent link">&para;</a></h2>
-<p>Start the order monitor:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-orders
-</code></pre></div>
-<p>Now place orders from both <code>TRADER01</code> and <code>TRADER02</code>. The monitor should show
-resting order state across gateways.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-orders</code> shows orders from multiple gateways.</p>
-<h2 id="exercise-3-capture-events-with-pm-audit">Exercise 3: Capture Events with pm-audit<a class="headerlink" href="#exercise-3-capture-events-with-pm-audit" title="Permanent link">&para;</a></h2>
+<p>This chapter looks at the two streams from the outside. The viewers that
+turn the public stream into screens (<code>pm-viewer</code>, <code>pm-orders</code>, <code>pm-board</code>,
+<code>pm-ticker</code>) get a chapter of their own,
+<a href="../180-exchange-observer-processes/">18 — Exchange Observer Processes</a>.</p>
+<h2 id="exercise-1-watch-the-public-stream-with-pm-audit">Exercise 1: Watch the Public Stream with pm-audit<a class="headerlink" href="#exercise-1-watch-the-public-stream-with-pm-audit" title="Permanent link">&para;</a></h2>
 <p>Start the audit logger in terminal mode:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-audit<span class="w"> </span>--terminal
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-audit<span class="w"> </span>--terminal
 </code></pre></div>
 <p>Execute a trade:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
-<p>Watch <code>pm-audit</code> print the resulting events. This is the easiest training-safe
-way to observe the event stream without writing a custom ZMQ subscriber.</p>
+<p>Watch <code>pm-audit</code> print the resulting events, one line each:
+<code>[order.fill.TRADER01]</code>, <code>[order.fill.MM_AAPL_01]</code>, <code>[trade.executed]</code>,
+then <code>[book.AAPL]</code> and <code>[depth.AAPL]</code> as the book changes, plus the market
+maker's quote traffic. Note that both traders' fills are on this public
+stream — every subscriber can see them. That is what the drop-copy feed
+below is <em>not</em>.</p>
+<p><code>pm-audit</code> also writes every line to its audit trail (<code>/data/audit.log</code> in
+the container), which chapter 18 returns to. Stop it with <code>Ctrl-C</code> when you
+have seen enough. This is the easiest way to observe the event stream
+without writing a custom ZMQ subscriber.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit output shows the trade/order lifecycle events.</p>
-<h2 id="exercise-4-confirm-the-drop-copy-feed-is-bound">Exercise 4: Confirm the Drop-Copy Feed Is Bound<a class="headerlink" href="#exercise-4-confirm-the-drop-copy-feed-is-bound" title="Permanent link">&para;</a></h2>
-<p>Restart <code>pm-engine --verbose</code> (and then your trader and operator consoles, and
-reopen the market) and look for this startup line in the engine output
-(preceded by the usual timestamp, level and logger name):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Drop copy PUB bound on port 5557
-</code></pre></div>
-<p>That confirms the drop-copy publisher is active. It is intended for external
-risk/compliance subscribers and publishes topics such as
-<code>drop_copy.event.&lt;gateway_id&gt;</code>.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify the drop-copy socket in engine startup output.</p>
-<h2 id="exercise-5-watch-the-drop-copy-feed-with-pm-dc-spy">Exercise 5: Watch the Drop-Copy Feed with <code>pm-dc-spy</code><a class="headerlink" href="#exercise-5-watch-the-drop-copy-feed-with-pm-dc-spy" title="Permanent link">&para;</a></h2>
-<p><code>pm-audit</code>, <code>pm-viewer</code> and <code>pm-orders</code> all read the <em>public</em> feed on port
-5556 — none of them show the drop-copy feed. EduMatcher ships two tools for
+<h2 id="exercise-2-watch-the-drop-copy-feed-with-pm-dc-spy">Exercise 2: Watch the Drop-Copy Feed with <code>pm-dc-spy</code><a class="headerlink" href="#exercise-2-watch-the-drop-copy-feed-with-pm-dc-spy" title="Permanent link">&para;</a></h2>
+<p><code>pm-audit</code> reads the <em>public</em> feed on port 5556 and does not show the
+drop-copy feed. The engine binds that one on port 5557 when it starts
+(<code>pm-engine --verbose</code> logs <code>Drop copy PUB bound on port 5557</code>). EduMatcher ships two tools for
 that, and it is worth knowing both:</p>
 <table>
 <thead>
@@ -7840,43 +7786,53 @@ that, and it is worth knowing both:</p>
 </tbody>
 </table>
 <p>Start the spy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-dc-spy<span class="w"> </span>--format<span class="w"> </span>human
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-dc-spy<span class="w"> </span>--format<span class="w"> </span>human
 </code></pre></div>
-<p>Then submit a trade from a trader console and watch the fill events appear.</p>
+<p>Then submit a trade from a trader console and watch the fill events appear,
+one per side of the trade:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>18:34:55.156  FILL     TRADER01   AAPL       #2      100@149.51       TAKER order_id=… trade_ids=['000012-000000002']
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>18:34:55.157  FILL     MM_AAPL_01 AAPL       #2      100@149.51       MAKER order_id=… trade_ids=['000012-000000002']
+</code></pre></div>
+<p><code>#2</code> is that gateway's own drop-copy sequence number; <code>TAKER</code>/<code>MAKER</code> says
+which side took liquidity.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-dc-spy</code> prints a fill
 event for a trade you caused, and you can say why an external consumer would
 use <code>pm-dc-gwy</code> on 5590 instead of subscribing to 5557 directly.</p>
-<h2 id="exercise-5b-subscribe-to-the-raw-socket">Exercise 5b: Subscribe to the Raw Socket<a class="headerlink" href="#exercise-5b-subscribe-to-the-raw-socket" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-3-subscribe-to-the-raw-socket">Exercise 3: Subscribe to the Raw Socket<a class="headerlink" href="#exercise-3-subscribe-to-the-raw-socket" title="Permanent link">&para;</a></h2>
 <p>Understanding what the tools do for you is worth one level down. Connect a
 minimal ZMQ subscriber to the same socket <code>pm-dc-spy</code> reads:</p>
-<p>The snippet needs the <code>zmq</code> Python package (<code>pyzmq</code>); in a container shell or a Poetry checkout use <code>python</code>/<code>poetry run python</code>, and with <code>pipx</code> use <code>pipx runpip edumatcher</code>'s interpreter or <code>pip install pyzmq</code> in a virtual environment.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s">import json</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s">import zmq</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="s">ctx = zmq.Context()</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="s">sock = ctx.socket(zmq.SUB)</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s">sock.connect("tcp://127.0.0.1:5557")</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="s">sock.subscribe(b"drop_copy.event.")</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="s">print("listening on drop_copy.event.*")</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="s">for _ in range(10):</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="s">    msg = json.loads(payload)</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="s">    print(topic.decode(), "seq=", msg.get("seq"), "gateway=", msg.get("gateway_id"),</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="s">            "event_type=", msg.get("event_type"), "trade_ids=", msg.get("trade_ids"))</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="s">PY</span>
+<p>The snippet needs the <code>zmq</code> Python package (<code>pyzmq</code>). The container shell's
+<code>python</code> has it; in a Poetry checkout use <code>poetry run python</code>, and with
+<code>pipx</code> use <code>pipx runpip edumatcher</code>'s interpreter or <code>pip install pyzmq</code> in a
+virtual environment. Stop <code>pm-dc-spy</code> first (<code>Ctrl-C</code>) or run this in another
+terminal.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s">import json</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s">import zmq</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s">ctx = zmq.Context()</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s">sock = ctx.socket(zmq.SUB)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="s">sock.connect("tcp://127.0.0.1:5557")</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="s">sock.subscribe(b"drop_copy.event.")</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="s">print("listening on drop_copy.event.*")</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="s">for _ in range(10):</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="s">    msg = json.loads(payload)</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="s">    print(topic.decode(), "seq=", msg.get("seq"), "gateway=", msg.get("gateway_id"),</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="s">            "event_type=", msg.get("event_type"), "trade_ids=", msg.get("trade_ids"))</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="s">PY</span>
 </code></pre></div>
 <p>While this is running, execute a trade from <code>TRADER01</code> in another terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>You should see one <code>drop_copy.event.&lt;gateway_id&gt;</code> message per participant on
 each side of the trade, stamped with a <code>seq</code> that counts that gateway's own events (each gateway has its own counter starting at 1, so the two sides of one trade carry numbers from different streams).
 Each message also carries <code>trade_ids</code>, the durable public trade ID that lets a
 risk or clearing consumer correlate its private execution with <code>trade.executed</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received at least one drop-copy message directly from port 5557, distinct from anything <code>pm-audit</code> printed on port 5556.</p>
-<h2 id="exercise-6-compare-public-events-and-drop-copy-purpose">Exercise 6: Compare Public Events and Drop-Copy Purpose<a class="headerlink" href="#exercise-6-compare-public-events-and-drop-copy-purpose" title="Permanent link">&para;</a></h2>
-<p>Execute another trade and compare what each consumer is for:</p>
+<h2 id="exercise-4-compare-public-events-and-drop-copy-purpose">Exercise 4: Compare Public Events and Drop-Copy Purpose<a class="headerlink" href="#exercise-4-compare-public-events-and-drop-copy-purpose" title="Permanent link">&para;</a></h2>
+<p>Put the two side by side:</p>
 <table>
 <thead>
 <tr>
@@ -7887,37 +7843,28 @@ risk or clearing consumer correlate its private execution with <code>trade.execu
 </thead>
 <tbody>
 <tr>
-<td><code>pm-viewer</code></td>
-<td>PUB :5556</td>
-<td>Human-readable book view</td>
-</tr>
-<tr>
-<td><code>pm-orders</code></td>
-<td>PUB :5556</td>
-<td>Cross-gateway resting order monitor</td>
-</tr>
-<tr>
 <td><code>pm-audit --terminal</code></td>
 <td>PUB :5556</td>
 <td>Full event stream for inspection/logging</td>
 </tr>
 <tr>
-<td>External drop-copy client</td>
+<td><code>pm-viewer</code>, <code>pm-orders</code>, <code>pm-board</code> (chapter 18)</td>
+<td>PUB :5556</td>
+<td>Screens built from the public stream</td>
+</tr>
+<tr>
+<td><code>pm-dc-spy</code>, your raw subscriber</td>
 <td>PUB :5557</td>
 <td>Per-participant fill feed for risk/compliance</td>
+</tr>
+<tr>
+<td><code>pm-dc-gwy</code></td>
+<td>TCP :5590</td>
+<td>The same feed for an external back office</td>
 </tr>
 </tbody>
 </table>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why drop-copy is separate from the public market-data stream.</p>
-<h2 id="exercise-7-launch-the-market-board">Exercise 7: Launch the Market Board<a class="headerlink" href="#exercise-7-launch-the-market-board" title="Permanent link">&para;</a></h2>
-<p>Start the multi-symbol dashboard:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">8</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">10</span>
-</code></pre></div>
-<p><code>pm-board</code> is a pure market-data subscriber: it builds its table from the live
-<code>book.*</code> and <code>trade.executed</code> topics only and does not read <code>stats.db</code>. It
-auto-rotates pages every <code>--interval</code> seconds; Enter, PgUp and PgDn page
-manually.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> board shows AAPL, MSFT, and TSLA in one view.</p>
 <h2 id="key-architecture">Key Architecture<a class="headerlink" href="#key-architecture" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
     E[pm-engine]

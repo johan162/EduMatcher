@@ -7844,10 +7844,7 @@ lines. RALF is <strong>read-only</strong>: clients subscribe and receive; they n
 <code>RALF1</code>: framing, message set, fields, roles, sequencing, timeouts, and errors. The
 key words <strong>MUST</strong>, <strong>MUST NOT</strong>, <strong>SHOULD</strong>, and <strong>MAY</strong> are used per RFC 2119.
 A conforming client or gateway MUST implement the message set in §6 with the field
-constraints in §6 and §10. Behaviour not stated here is unspecified. Where the
-current implementation deviates from what a robust protocol would require, the
-deviation is called out with a <strong>⚠ Known deviation</strong> note and tracked in the
-project's suspected-bugs report.</p>
+constraints in §6 and §10. Behaviour not stated here is unspecified.</p>
 <h2 id="3-transport-session-model">3. Transport &amp; session model<a class="headerlink" href="#3-transport-session-model" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -7897,6 +7894,11 @@ any other message; a non-<code>HELLO</code> first message is rejected with
 <code>ERR|CODE=AUTH_REQUIRED</code>. A connection that sends no <code>HELLO</code> within 5 seconds
 receives <code>EXIT|REASON=auth_timeout</code> and is closed. Once the gateway has sent
 the line that ends a session, it ignores anything more the client sends.</p>
+<p>A client that closes its sending side (a TCP half-close, as
+<code>printf 'HELLO|…\nSUB|…\n' | nc host 5580</code> does once its input ends) ends the
+session: the gateway disconnects it when it reads the end of input, so it
+receives only what was already sent. A read-only client MUST keep its
+sending side open — the same rule as in <code>pm-md-gwy</code> and <code>pm-dc-gwy</code>.</p>
 <h2 id="4-wire-format">4. Wire format<a class="headerlink" href="#4-wire-format" title="Permanent link">&para;</a></h2>
 <p>Every message is one line:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
@@ -7907,6 +7909,9 @@ the line that ends a session, it ignores anything more the client sends.</p>
 <li>A parser MUST ignore unknown fields (forward compatibility) except where a field
   is required for validation.</li>
 <li>Values do not contain <code>|</code> or <code>\n</code>.</li>
+<li>Field order is not significant: a parser MUST look fields up by key. (The
+  gateway appends <code>SEQ</code> last; the examples in this document may show it
+  elsewhere.)</li>
 </ul>
 <p><strong>Reserved cross-message keys</strong> (present on most messages):</p>
 <table>
@@ -7978,12 +7983,12 @@ the line that ends a session, it ignores anything more the client sends.</p>
 <tr>
 <td><code>EOD</code></td>
 <td>gw → client</td>
-<td>end-of-day per-symbol summary marker</td>
+<td>per-symbol summary when the engine stops (§6)</td>
 </tr>
 <tr>
 <td><code>HB</code></td>
 <td>gw → client</td>
-<td>heartbeat when the stream is quiet</td>
+<td>heartbeat every <code>HBINT</code> seconds</td>
 </tr>
 <tr>
 <td><code>PING</code> / <code>PONG</code></td>
@@ -8038,11 +8043,17 @@ the line that ends a session, it ignores anything more the client sends.</p>
 <td style="text-align: center;">–</td>
 <td>replay checkpoint; requests events with <code>SEQ &gt; LASTSEQ</code> (see §8)</td>
 </tr>
+<tr>
+<td><code>EPOCH</code></td>
+<td>string</td>
+<td style="text-align: center;">with <code>LASTSEQ &gt; 0</code></td>
+<td>the <code>WELCOME\|EPOCH</code> of the gateway run <code>LASTSEQ</code> came from (see §8)</td>
+</tr>
 </tbody>
 </table>
 <p>Missing <code>CLIENT</code>/<code>PROTO</code>/<code>ROLE</code> → <code>ERR|CODE=AUTH_REQUIRED</code>. A <code>ROLE</code> outside
-<code>allowed_roles</code> → <code>ERR|CODE=ENTITLEMENT_DENIED</code>. A non-integer <code>LASTSEQ</code> →
-<code>ERR|CODE=BAD_MESSAGE</code>.</p>
+<code>allowed_roles</code> → <code>ERR|CODE=ENTITLEMENT_DENIED</code>. A non-integer <code>LASTSEQ</code>, or a
+<code>LASTSEQ</code> above 0 without <code>EPOCH</code> → <code>ERR|CODE=BAD_MESSAGE</code>; each ends the session.</p>
 <h3 id="welcome-gateway-client"><code>WELCOME</code> (gateway → client)<a class="headerlink" href="#welcome-gateway-client" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8059,6 +8070,10 @@ the line that ends a session, it ignores anything more the client sends.</p>
 <tr>
 <td><code>GW</code></td>
 <td>gateway id (<code>post_trade_gateway.name</code>)</td>
+</tr>
+<tr>
+<td><code>EPOCH</code></td>
+<td>this gateway run's identity: 8 hex digits, new at every start of <code>pm-ralf-gwy</code>; store it with the checkpoint</td>
 </tr>
 <tr>
 <td><code>ROLE</code></td>
@@ -8103,7 +8118,10 @@ the line that ends a session, it ignores anything more the client sends.</p>
 </tbody>
 </table>
 <p>A subscription is the set of <code>(channel, symbol)</code> pairs. <code>SUB</code> is cumulative; <code>UNSUB</code>
-removes matching pairs and is idempotent. After a <code>SUB</code>, the gateway emits one <code>SNAP</code>.
+removes exactly the pairs it names and is idempotent (<code>UNSUB</code> of one symbol does not
+narrow a <code>SYM=*</code> pair). After a <code>SUB</code>, the gateway emits one <code>SNAP</code>;
+in a session whose <code>HELLO</code> carried a checkpoint, the replay for the pairs the <code>SUB</code>
+added (or <code>ERR|CODE=REPLAY_MISS</code>) comes first, in the same reply (§8).
 A missing/empty <code>CH</code> → <code>ERR|CODE=INVALID_CHANNEL</code>; an unknown channel →
 <code>ERR|CODE=INVALID_CHANNEL</code>; a channel the role may not access →
 <code>ERR|CODE=ENTITLEMENT_DENIED</code>.</p>
@@ -8144,7 +8162,7 @@ state</strong> — it is a sequence baseline only.</p>
 </tr>
 <tr>
 <td><code>SIDE</code></td>
-<td>aggressor side (<code>BUY</code>/<code>SELL</code>)</td>
+<td>aggressor side (<code>BUY</code>/<code>SELL</code>); <code>AUCTION</code> for an uncross print, where both sides rested</td>
 </tr>
 <tr>
 <td><code>QTY</code></td>
@@ -8159,7 +8177,9 @@ state</strong> — it is a sequence baseline only.</p>
 <p>A single trade is emitted <strong>once per channel</strong> (<code>CLEARING</code>, <code>DROP_COPY</code>, <code>AUDIT</code>),
 each copy consuming its own <code>SEQ</code> (§8).</p>
 <h3 id="eod-gateway-client"><code>EOD</code> (gateway → client)<a class="headerlink" href="#eod-gateway-client" title="Permanent link">&para;</a></h3>
-<p>Per-symbol end-of-day marker, derived from the engine <code>system.eod</code> broadcast.</p>
+<p>Per-symbol summary, derived from the engine <code>system.eod</code> broadcast. The engine
+sends that broadcast in its shutdown sequence, whenever it stops (mid-session
+included), not at a fixed end of the trading day; a killed engine sends none.</p>
 <table>
 <thead>
 <tr>
@@ -8169,12 +8189,16 @@ each copy consuming its own <code>SEQ</code> (§8).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>CH</code> <code>SYM</code> <code>SEQ</code> <code>TS</code></td>
+<td><code>CH</code> <code>SYM</code> <code>SEQ</code></td>
 <td>envelope</td>
 </tr>
 <tr>
+<td><code>TS</code></td>
+<td>when the gateway received <code>system.eod</code> (the broadcast carries no time)</td>
+</tr>
+<tr>
 <td><code>TRADE_COUNT</code></td>
-<td>trades executed for the symbol since the previous <code>EOD</code> (the counter resets to zero at every <code>EOD</code>, not just once per session)</td>
+<td>trades for the symbol that <strong>this gateway run</strong> disseminated since it started or since its previous <code>EOD</code> (the counter resets to zero at every <code>EOD</code> and when <code>pm-ralf-gwy</code> restarts). It counts the <code>EXEC</code> lines sent, so trades lost before the gateway are not in it</td>
 </tr>
 <tr>
 <td><code>EXEC_COUNT</code></td>
@@ -8187,7 +8211,9 @@ each copy consuming its own <code>SEQ</code> (§8).</p>
 <h3 id="hb-pingpong-exit"><code>HB</code>, <code>PING</code>/<code>PONG</code>, <code>EXIT</code><a class="headerlink" href="#hb-pingpong-exit" title="Permanent link">&para;</a></h3>
 <p><code>HB|TS=…</code> is sent to every authenticated client every <code>HBINT</code> seconds. A client
 MAY send <code>PING</code>; the gateway replies <code>PONG|TS=…</code>. <code>EXIT|REASON=…|TS=…</code> signals
-gateway-initiated termination (<code>idle_timeout</code>, <code>auth_timeout</code>). A client MAY send
+gateway-initiated termination (<code>idle_timeout</code>, <code>auth_timeout</code>, or <code>shutdown</code>
+when <code>pm-ralf-gwy</code> is stopped: lines already queued are sent before it, for up
+to 1 s). A client MAY send
 a bare <code>EXIT</code> to end its session; the gateway closes after flushing — as
 <code>pm-md-gwy</code> and <code>pm-dc-gwy</code> do.</p>
 <h2 id="7-roles-entitlements">7. Roles &amp; entitlements<a class="headerlink" href="#7-roles-entitlements" title="Permanent link">&para;</a></h2>
@@ -8224,25 +8250,37 @@ Only roles listed in <code>post_trade_gateway.allowed_roles</code> may authentic
   ordered or globally unique.</li>
 <li>Clients MUST do gap detection and ordering <strong>within a given <code>CH</code> stream</strong>, not
   across mixed channels.</li>
+<li>A <code>SEQ</code> jump is a gap only on a <code>SYM=*</code> subscription: with a symbol filter,
+  the channel's <code>SEQ</code> also moves for every other symbol's events. A filtered
+  client still keeps the last <code>SEQ</code> as its replay checkpoint.</li>
+<li>The gateway numbers what it emits: an engine message that never reached the
+  gateway leaves no gap in any channel. The gateway counts such losses for the
+  operator (<code>gwy.bus_gaps</code>); they cannot be replayed.</li>
 </ul>
+<p>Sequences and the replay journal live in the gateway's memory: they begin again
+at 1 when <code>pm-ralf-gwy</code> restarts. <code>WELCOME|EPOCH</code> names the run, and a checkpoint
+is the pair (<code>EPOCH</code>, <code>LASTSEQ</code>). A client that resumes MUST send both; a
+checkpoint from another run is a <code>REPLAY_MISS</code> whatever its <code>LASTSEQ</code>.</p>
 <p><code>LASTSEQ</code> in <code>HELLO</code> is a single integer checkpoint. The gateway applies that same
-threshold to each entitled channel independently and replays events where
+threshold to each channel independently and replays events where
 <code>event.SEQ &gt; LASTSEQ</code> for that event's channel.</p>
-<p><strong>Replay.</strong> If <code>HELLO</code> carries <code>LASTSEQ</code>, the gateway attempts to resend journalled
-events with <code>SEQ &gt; LASTSEQ</code> (per channel, as above) and only for channels the role
-is entitled to receive (§7). If <code>LASTSEQ</code> predates the retained journal window for
-any entitled channel (<code>replay_retention_sec</code>) — including a channel whose
-journal has aged out entirely — or is ahead of any entitled channel, as after a
-gateway restart, the gateway emits
-<code>ERR|CODE=REPLAY_MISS</code> followed by a <code>SNAP</code> baseline; the client MUST reset to that
-baseline.</p>
-<div class="admonition warning">
-<p class="admonition-title">⚠ Known deviation — replay is entitlement-filtered but not subscription-filtered</p>
-<p>Replay happens during <code>HELLO</code>, before any <code>SUB</code> is processed, so replay cannot
-apply symbol/channel subscription state from the current connection. The current
-gateway filters replay by role entitlement (§7), but does <strong>not</strong> filter by
-subscriptions.</p>
-</div>
+<p><strong>Replay.</strong> <code>HELLO</code> only records the checkpoint; <code>WELCOME</code> is followed by nothing
+until the client subscribes. Each <code>SUB</code> then answers, in this order and in one
+pass, so no event falls between them:</p>
+<ol>
+<li>the journalled events with <code>SEQ &gt; LASTSEQ</code> that the pairs this <code>SUB</code> added
+   want and the session's earlier pairs did not (so a channel is replayed once,
+   and only the subscribed symbols), in journal order;</li>
+<li>the <code>SNAP</code>, whose <code>SEQ</code> is the last of them; live events follow it.</li>
+</ol>
+<p>If the checkpoint's <code>EPOCH</code> is not this run's, or <code>LASTSEQ</code> predates the retained
+journal window (<code>replay_retention_sec</code>) for a channel of the <code>SUB</code> — including a
+channel whose journal has aged out entirely — or is ahead of one, the <code>SUB</code> is
+answered with <code>ERR|CODE=REPLAY_MISS</code> and then its <code>SNAP</code>; the client MUST reset to
+that baseline. A <code>HELLO</code> with a checkpoint and no <code>SUB</code> receives nothing beyond
+<code>WELCOME</code> (and heartbeats): nothing was subscribed.</p>
+<p>Replayed lines do not count towards <code>max_client_queue</code> (§9): a client that resumes
+from far back is not a slow client while it takes the replay.</p>
 <h2 id="9-liveness-timeouts">9. Liveness &amp; timeouts<a class="headerlink" href="#9-liveness-timeouts" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8276,7 +8314,8 @@ in <strong>both</strong> directions — a line received, or a line the client ac
 off the socket — so a client that keeps reading is never idle: the heartbeats
 alone keep it alive. In practice the idle timeout fires only when writes to a
 client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</code>. A client whose outbound queue exceeds
-<code>max_client_queue</code> receives <code>ERR|CODE=SLOW_CLIENT</code> and is disconnected.</p>
+<code>max_client_queue</code> beyond the replayed lines it has still to take (§8) receives
+<code>ERR|CODE=SLOW_CLIENT</code> and is disconnected.</p>
 <h2 id="10-error-codes">10. Error codes<a class="headerlink" href="#10-error-codes" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8292,7 +8331,7 @@ client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</co
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
-<td>unparseable line, unsupported message type, or malformed field (e.g. non-integer <code>LASTSEQ</code>); an oversized line (<code>DETAIL=line exceeds 4096 bytes</code>) also ends the session</td>
+<td>unparseable line, unsupported message type, or malformed field (e.g. non-integer <code>LASTSEQ</code>, or <code>LASTSEQ</code> without <code>EPOCH</code>; both end the session); an oversized line (<code>DETAIL=line exceeds 4096 bytes</code>) also ends the session</td>
 </tr>
 <tr>
 <td><code>INVALID_CHANNEL</code></td>
@@ -8304,7 +8343,7 @@ client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</co
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>requested <code>LASTSEQ</code> is older than the retained journal window, or ahead of the channel (e.g. after a gateway restart)</td>
+<td>the checkpoint's <code>EPOCH</code> is not this gateway run's, or <code>LASTSEQ</code> is older than the retained journal window or ahead of the channel</td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
@@ -8330,7 +8369,7 @@ client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</co
 <tr>
 <td><code>name</code></td>
 <td><code>ralf-gwy01</code></td>
-<td>gateway id in <code>WELCOME\|GW=</code></td>
+<td>gateway id in <code>WELCOME\|GW=</code>; non-empty, without <code>\|</code> or line breaks</td>
 </tr>
 <tr>
 <td><code>bind_address</code></td>
@@ -8370,7 +8409,7 @@ client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</co
 <tr>
 <td><code>allowed_roles</code></td>
 <td><code>[CLEARING, DROP_COPY, AUDIT]</code></td>
-<td>roles permitted to authenticate</td>
+<td>roles permitted to authenticate; a non-empty list of those three</td>
 </tr>
 </tbody>
 </table>
@@ -8384,8 +8423,7 @@ client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</co
 <li>MUST enforce the §7 entitlement matrix on <code>SUB</code> (live path).</li>
 <li>MUST apply per-channel <code>SEQ</code> semantics from §8 (no global <code>SEQ</code> stream).</li>
 <li>MUST advertise <code>REPLAY</code>/<code>HBINT</code> in <code>WELCOME</code> matching its configuration.</li>
-<li>SHOULD treat replay as role-entitled but pre-<code>SUB</code> (therefore not
-  subscription-filtered) on reconnect.</li>
+<li>MUST replay on <code>SUB</code>, for the pairs that <code>SUB</code> adds, before its <code>SNAP</code> (§8).</li>
 </ul>
 <p>Future revisions may add <code>CORRECT</code>, <code>BUST</code>, <code>ALLOC</code>, and <code>SETTLE</code> event families as
 the corresponding engine events become available; they are <strong>not</strong> part of <code>RALF1</code>.</p>

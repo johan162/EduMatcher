@@ -8029,11 +8029,14 @@ preset, while the full one does not?</p>
 <p>List Tornfalk on your exchange and trade it.</p>
 <ol>
 <li>
-<p>Stop the exchange and list the priced IPO:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-opctl-cli<span class="w"> </span>stop
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-opctl-cli<span class="w"> </span>start
+<p>Stop the exchange — <code>Ctrl-C</code> every <code>pm-*</code> program you started by hand;
+   <code>pm-opctl-cli stop</code> stops any that <code>pm-opctl-cli</code> started — and list the
+   priced IPO:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list
 </code></pre></div>
+<p>Then start <code>pm-engine</code>, the operator console and two trader consoles
+again, as in every earlier chapter, and open the market yourself
+(<code>SESSION|STATE=PRE_OPEN</code>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[output]
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Listed TORN in …/engine_config.yaml: IPO price 105.00, 158095238 shares outstanding
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>  seed quote MM01: 1000 @ 104.90 / 1000 @ 105.10 (DAY)
@@ -8082,10 +8085,10 @@ auction does with nothing but your classmates' orders.</p>
 where the examples live; with a container or <code>pipx</code> install they are inside the
 package: replace <code>docs/examples</code> below by <code>$EX</code>, with
 <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-opctl-cli<span class="w"> </span>stop
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>cp<span class="w"> </span>docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml<span class="w"> </span>classroom.yaml
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-config-deploy<span class="w"> </span>classroom.yaml
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list
+<p>Stop the exchange again as in Exercise 7, then:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>cp<span class="w"> </span>docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml<span class="w"> </span>classroom.yaml
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-config-deploy<span class="w"> </span>classroom.yaml
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[output]
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding

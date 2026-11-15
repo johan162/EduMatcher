@@ -9209,9 +9209,9 @@ a marker redundant, and <code>ubuntu-latest</code> ships a compiler.</p>
 <a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>
 <a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="n">publisher</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
 </code></pre></div>
-<p><code>make_*</code> returns <strong>exactly two frames</strong>: topic and payload. Everything behind
-them is added at publish time by the wrappers in <code>messaging/bus.py</code>, never by
-<code>make_*</code> — adding either here would double-stamp every message:</p>
+<p><code>make_*</code> returns <strong>exactly two frames</strong>: topic and payload. The third is added
+at publish time by the wrappers in <code>messaging/bus.py</code>, never by <code>make_*</code> —
+adding it here would double-stamp every message:</p>
 <table>
 <thead>
 <tr>
@@ -9228,19 +9228,14 @@ them is added at publish time by the wrappers in <code>messaging/bus.py</code>, 
 </tr>
 <tr>
 <td>2</td>
-<td><code>SequencedPublisher</code></td>
-<td>per-topic sequence number</td>
-</tr>
-<tr>
-<td>3</td>
-<td><code>CausalPublisher</code></td>
-<td>causal envelope (<code>msg_id</code>, <code>causation_id</code>, <code>correlation_id</code>)</td>
+<td><code>CausalPublisher</code>, then <code>SequencedPublisher</code> in front</td>
+<td><code>seq</code>|<code>eseq</code>|<code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
 </tr>
 </tbody>
 </table>
-<p>On the PUSH side there is no sequence, so <code>CausalPusher</code> puts the envelope at
-frame 2 instead. Readers find it by shape rather than by index — see
-<code>models/message.py::decode_envelope</code>.</p>
+<p>On the PUSH side there is no sequence, so <code>CausalPusher</code>'s frame 2 is the
+envelope alone. <code>models/message.py</code> reads both shapes:
+<code>decode_sequence</code>, <code>decode_publisher_sequence</code> and <code>decode_envelope</code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Missing and mistyped arguments</p>
 <p><code>make_*</code> takes keyword arguments and routes them through <code>from_dict</code>, so it

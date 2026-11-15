@@ -9228,7 +9228,7 @@ must be run from <code>~/.edumatcher</code>, where rule 4 finds <code>./data</co
 <tr>
 <td><strong>pm-audit-cli</strong></td>
 <td><code>pm-audit-cli &lt;command&gt; [options]</code></td>
-<td>Read-only query interface for audit JSONL log files</td>
+<td>Read-only query interface for the audit log files</td>
 <td>Optional</td>
 </tr>
 <tr>
@@ -9618,7 +9618,7 @@ uses the web and bridge ports. They follow one scheme: <code>809N</code>, <code>
 <tr>
 <td><strong>pm-mm-bot</strong></td>
 <td><code>pm-mm-bot --symbol SYM</code></td>
-<td>Autonomous <a href="../../../participant-guide/part-3-market-making/030-the-market-maker-bot/">market-maker bot</a> for a single symbol</td>
+<td>Autonomous <a href="../../../participant-guide/part-3-market-making/030-the-market-maker-bot/">market-maker bot</a> for one or more symbols</td>
 <td>No</td>
 </tr>
 </tbody>
@@ -10556,7 +10556,7 @@ or redirected the viewer behaves exactly as it always did.</p>
 </table>
 <h2 id="pm-audit-event-logger">pm-audit - Event Logger<a class="headerlink" href="#pm-audit-event-logger" title="Permanent link">&para;</a></h2>
 <p>Records every message on the bus to a day-closing log file; closed days are compressed to one zstd archive each.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-file-mb<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--keep-days<span class="w"> </span><span class="m">0</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-file-mb<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--keep-days<span class="w"> </span><span class="m">0</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--fsync-interval<span class="w"> </span><span class="m">1</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -10586,7 +10586,7 @@ or redirected the viewer behaves exactly as it always did.</p>
 <tr>
 <td><code>--flush-interval</code></td>
 <td>10.0</td>
-<td>Maximum seconds to wait before flushing buffer to disk</td>
+<td>Maximum seconds a buffered message waits for the disk</td>
 </tr>
 <tr>
 <td><code>--max-file-mb</code></td>
@@ -10597,6 +10597,11 @@ or redirected the viewer behaves exactly as it always did.</p>
 <td><code>--keep-days</code></td>
 <td>0</td>
 <td>Delete daily archives older than N days (0 keeps all)</td>
+</tr>
+<tr>
+<td><code>--fsync-interval</code></td>
+<td>1.0</td>
+<td>Sync the active file to disk at most this often; <code>0</code> syncs every flush</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -10642,15 +10647,21 @@ or redirected the viewer behaves exactly as it always did.</p>
 to disk in batches. The buffer is flushed to disk when either:</p>
 <ul>
 <li>The buffer reaches <code>--buffer-size</code> messages (e.g., 100 messages), or</li>
-<li><code>--flush-interval</code> seconds have elapsed since the last flush (e.g., 10 seconds)</li>
+<li>the oldest buffered message has waited <code>--flush-interval</code> seconds (e.g., 10 seconds)</li>
 </ul>
 <p>On shutdown (Ctrl-C, SIGINT, or SIGTERM), any remaining buffered messages are
-automatically flushed to disk before the process exits, ensuring no data is lost.</p>
-<p><strong>Log format</strong> (one entry per line):
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[2026-04-29T14:32:01.123] [trade.executed] {"id": "...", "symbol": "AAPL", ...}
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[2026-04-29T14:32:01.125] [book.AAPL] {"bids": [...], "asks": [...], ...}
+automatically flushed to disk before the process exits, ensuring no data is lost.
+A failed write (disk full) keeps its lines in memory, counts
+<code>audit.write_errors</code> and is retried; a receive loop that dies of anything
+else ends the process with exit status 1.</p>
+<p><strong>Log format</strong> (one entry per line: receive time in UTC, topic, sequence and
+causal envelope, JSON payload; comment lines start with <code>#</code>):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[2026-04-29T14:32:01.123+00:00] [trade.executed] [seq=12 eseq=4711 msg=01J… cause=01J… chain=01J…] {"id": "000001-000000042", "symbol": "AAPL", ...}
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[2026-04-29T14:32:01.125+00:00] [book.AAPL] [seq=88 eseq=4712 msg=01J… cause=01J… chain=01J…] {"bids": [...], "asks": [...], ...}
 </code></pre></div></p>
-<p>Log files rotate at 10 MB with 5 backups kept.</p>
+<p>The active <code>audit.log</code> holds one trading day; at the date change, or at
+<code>--max-file-mb</code>, it is closed as <code>audit/audit-YYYY-MM-DD.N.log</code>, and closed
+days are compressed to one <code>audit/audit-YYYY-MM-DD.log.zst</code> each.</p>
 <p>Use <code>--terminal</code> during demos so the class can see every event in real time.
 Use <code>-vv</code> or <code>--log-level DEBUG</code> when you want aggregated operational summaries
 about buffering, flushes, decode errors, and broad topic-family mix without
@@ -10684,7 +10695,7 @@ changing the raw event log format.</p>
 </tbody>
 </table>
 <h2 id="pm-audit-cli-audit-log-query-cli">pm-audit-cli — Audit Log Query CLI<a class="headerlink" href="#pm-audit-cli-audit-log-query-cli" title="Permanent link">&para;</a></h2>
-<p><code>pm-audit-cli</code> is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for <code>health</code>, which pings the running <code>pm-audit</code> on port <code>5562</code>.</p>
+<p><code>pm-audit-cli</code> is a read-only offline tool: it reads the audit files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for <code>health</code>, which pings the running <code>pm-audit</code> on port <code>5562</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-dir<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span><span class="o">[</span>--use-index<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Global options:</strong></p>
@@ -10715,12 +10726,12 @@ changing the raw event log format.</p>
 <tr>
 <td><code>--no-header</code></td>
 <td>off</td>
-<td>Suppress header row in CSV output</td>
+<td>Suppress the header row of table and CSV output</td>
 </tr>
 <tr>
 <td><code>--use-index PATH</code></td>
-<td>auto-detected</td>
-<td>Path to SQLite index file (auto-detected from <code>--log-dir</code> when not specified; ignored for commands that don't support it)</td>
+<td>none</td>
+<td>Answer <code>events</code> from this SQLite index (never used unless given; not with <code>--follow</code> or <code>--date</code>); stderr says how far it reaches</td>
 </tr>
 <tr>
 <td><code>--version</code></td>
@@ -10785,14 +10796,20 @@ changing the raw event log format.</p>
 <tr>
 <td><code>index</code></td>
 <td style="text-align: right;">—</td>
-<td>Build or update the optional SQLite index for faster queries</td>
-<td><code>--output PATH</code></td>
+<td>Build the optional SQLite index from scratch, or add to it</td>
+<td><code>--output PATH</code>, <code>--incremental</code>, <code>--days N</code>, <code>--from</code>, <code>--to</code></td>
 </tr>
 <tr>
 <td><code>archive</code></td>
 <td style="text-align: right;">—</td>
 <td>Compress closed days' parts into one verified <code>audit-D.log.zst</code> per day</td>
 <td><code>--date D</code> or <code>--pending</code>, <code>--level N</code> (default 9), <code>--keep-days N</code></td>
+</tr>
+<tr>
+<td><code>verify</code></td>
+<td style="text-align: right;">—</td>
+<td>Check the archived days against the evidence manifest's hash chain; exit <code>1</code> on any problem</td>
+<td><code>--date D</code> (that day's archive only; the chain is always checked whole)</td>
 </tr>
 <tr>
 <td><code>health</code></td>
@@ -10804,10 +10821,13 @@ changing the raw event log format.</p>
 </table>
 <p><strong>No-row behaviour:</strong></p>
 <ul>
-<li><code>table</code>: prints <code>No rows found.</code></li>
+<li><code>table</code>: prints <code>No matching events found.</code></li>
 <li><code>json</code>: prints <code>[]</code></li>
 <li><code>csv</code>: prints only header row unless <code>--no-header</code> is set</li>
 </ul>
+<p><code>--from</code>/<code>--to</code> are inclusive; a bare date, and a time without an offset, are
+UTC, and a bare date in <code>--to</code> means the end of that day. <code>events</code>/<code>timeline
+--follow</code> first print the newest <code>--limit</code> matching entries, like <code>tail -f</code>.</p>
 <h2 id="pm-audit-replay-audit-replay">pm-audit-replay — Audit Replay<a class="headerlink" href="#pm-audit-replay-audit-replay" title="Permanent link">&para;</a></h2>
 <p>Reconstructs the causal structure of the audit trail and narrates it: which
 order caused which trade, which kill switch cancelled what, where the log
@@ -11024,8 +11044,8 @@ recovered, what each anomaly means and worked examples.</p>
 </tr>
 <tr>
 <td><code>--print-every</code></td>
-<td><code>100</code></td>
-<td>Print in-memory P&amp;L snapshot every N trades (<code>0</code> disables)</td>
+<td><code>0</code></td>
+<td>Print a P&amp;L table of every position every N trades (<code>0</code> disables, the default)</td>
 </tr>
 <tr>
 <td><code>--retention-days</code></td>
@@ -12126,32 +12146,32 @@ in <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Cl
 <tr>
 <td><code>--only STEP</code></td>
 <td>all steps</td>
-<td>Re-run just <code>report</code>, <code>audit</code>, <code>logs</code> or <code>backup</code> for an already settled date. Not recorded in the run history.</td>
+<td>Re-run just <code>report</code>, <code>audit</code>, <code>logs</code> or <code>backup</code> for an already settled date. Not recorded in the run history. Cannot be combined with <code>--redo</code>, <code>--force</code> or <code>--dry-run</code>.</td>
 </tr>
 <tr>
 <td><code>--force</code></td>
 <td>off</td>
-<td>Do not require the <code>CLOSED</code> session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply.</td>
+<td>Skip the "has the day closed?" test (for exchanges without a scheduler). The close snapshot and reconcile checks still apply.</td>
 </tr>
 <tr>
 <td><code>--redo</code></td>
 <td>off</td>
-<td>Recompute the date: deletes its settlement <strong>and the settlement of every later date</strong>, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted).</td>
+<td>Recompute the date: deletes its settlement <strong>and the settlement of every later date</strong>, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). The <code>settlement/</code> folders of the dropped dates are removed.</td>
 </tr>
 <tr>
 <td><code>--dry-run</code></td>
 <td>off</td>
-<td>Run the gate and compute the amounts, print them, write nothing. Cannot be combined with <code>--only</code>.</td>
+<td>Run the gate and settle into an in-memory copy of the ledger; print the amounts (with the <code>EXCHANGE</code> line when not zero), write nothing. Refuses what a real run refuses; with <code>--pending</code>, each date is measured from the previous date's dry result. Cannot be combined with <code>--only</code>.</td>
 </tr>
 <tr>
 <td><code>--log-keep-days N</code></td>
 <td><code>14</code></td>
-<td>Delete compressed fallback logs older than N days</td>
+<td>Delete compressed fallback logs older than N days (N ≥ 0)</td>
 </tr>
 <tr>
 <td><code>--backup-keep-days N</code></td>
 <td><code>7</code></td>
-<td>Delete backup folders older than N days</td>
+<td>Delete backup folders older than N days (N ≥ 0)</td>
 </tr>
 <tr>
 <td><code>--backup-skip NAME</code></td>
@@ -12162,13 +12182,21 @@ in <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Cl
 </table>
 <p><strong><code>status</code> options:</strong> <code>-q</code> / <code>--quiet</code> prints nothing and exits 0 when no closed
 date is waiting (a closed date whose run failed counts as waiting) and 1
-otherwise; <code>--limit N</code> (default 30) caps the number of runs shown.</p>
+otherwise, including when there is no <code>clearing.db</code> (a wrong <code>--datapath</code>);
+<code>--limit N</code> (default 30) caps the number of runs shown. <code>status</code>, <code>balances</code> and
+<code>show</code> only read <code>eod.db</code> and never create it.</p>
+<p><strong>A settled date run again</strong> (no <code>--redo</code>, no <code>--only</code>) skips the gate: nothing
+is settled, only the report and housekeeping run. If that rerun fails, it is
+printed but not recorded, so an <code>ok</code> day stays <code>ok</code>.</p>
 <p><strong><code>balances</code> options:</strong> <code>--date</code> shows balances as of that date; <code>--gateway</code>
 filters to one trader (case-insensitive); <code>--check</code> verifies that every settled
 date sums to exactly zero and exits 1 if one does not.</p>
 <p><strong>Exit codes of <code>run</code>:</strong> <code>0</code> clean · <code>1</code> the gate, the settlement or the report
-failed · <code>2</code> only housekeeping warnings. A second <code>pm-eod</code> started while one is
-running exits 1 (lock file <code>&lt;data&gt;/.pm-eod.lock</code>).</p>
+failed · <code>2</code> usage error (nothing was done) · <code>3</code> settled and reported, but a
+step warned (a housekeeping step, or the <code>settle</code> note that a settled date's
+snapshot changed). A second <code>pm-eod</code> started while one is running exits 1
+(lock file <code>&lt;data&gt;/.pm-eod.lock</code>). Any database or file error outside a step
+is printed as <code>pm-eod: &lt;error&gt;</code> and exits 1.</p>
 <p><strong>Reads:</strong> <code>clearing.db</code> (trades, positions, <code>position_close_snapshot</code>,
 <code>session_events</code>), <code>stats.db</code> (optional, for the summary's market table),
 <code>ref_data/roster.yaml</code> (optional).
@@ -12228,7 +12256,7 @@ It binds no port and sends no message.</p>
 </tr>
 <tr>
 <td><code>statements/&lt;gateway&gt;.json</code></td>
-<td>The same, with <code>amount_minor</code> / <code>balance_minor</code> as integers in minor units</td>
+<td>The same, with <code>amount_minor</code> / <code>balance_minor</code> as integers in minor units, and <code>since</code>: <code>null</code>, or the last settled date before this one when the amount covers more than one closed day (the <code>.md</code> then says <em>Result since the close of <date></em>)</td>
 </tr>
 <tr>
 <td><code>statements/&lt;gateway&gt;.csv</code></td>
@@ -12268,6 +12296,16 @@ It binds no port and sends no message.</p>
 <td><code>trade_date</code>, <code>status</code>, <code>started_at</code>, <code>finished_at</code>, <code>steps_json</code></td>
 <td>One row per date run. <code>status</code> is <code>ok</code>, <code>failed</code> or <code>report-failed</code>.</td>
 </tr>
+<tr>
+<td><code>eod_close_equity</code></td>
+<td><code>trade_date</code>, <code>gateway_id</code>, <code>symbol</code>, <code>equity</code></td>
+<td>One row per position per settled date: the cumulative equity (decimal string, display currency) the date was settled at. The next date is measured from these rows.</td>
+</tr>
+<tr>
+<td><code>eod_close_source</code></td>
+<td><code>trade_date</code>, <code>clearing_instance</code></td>
+<td>One row per settled date: the <code>instance_id</code> (in <code>clearing.db</code>'s <code>clearing_meta</code>) of the <code>clearing.db</code> it was settled from. A different one at the next date means <code>clearing.db</code> was replaced (<code>pm-opctl-cli clear --state</code>), so that date is measured from zero.</td>
+</tr>
 </tbody>
 </table>
 <p>Balances are not stored: they are the sum of <code>amount_minor</code> plus the roster's
@@ -12276,11 +12314,18 @@ opening balance. The full DDL is in the generated
 <h3 id="settlement-rules-reference">Settlement rules (reference)<a class="headerlink" href="#settlement-rules-reference" title="Permanent link">&para;</a></h3>
 <ul>
 <li>A date's amount for a gateway is the sum over its symbols of
-  <code>(realized_pnl + unrealized_pnl)</code> at this date's <code>position_close_snapshot</code>
-  minus the same at the snapshot of the latest earlier <strong>settled</strong> date (0 if
-  there is none, or if <code>clearing.db</code> no longer has that date's snapshot), each
-  converted from ticks to currency with the symbol's own <code>tick_decimals</code>. Any
-  unsettled snapshot dates in between are part of the one interval.</li>
+  <code>(realized_pnl + unrealized_pnl)</code> at this date's <code>position_close_snapshot</code>,
+  converted from ticks to currency with the symbol's own <code>tick_decimals</code>,
+  minus the same at the close of the latest earlier <strong>settled</strong> date. That
+  baseline is the equity recorded in <code>eod_close_equity</code> when the earlier date
+  was settled, not its snapshot in <code>clearing.db</code>, which changes if the date
+  closes again (a reopen, or another shutdown without a scheduler); the
+  <code>settle</code> step then warns and the difference is booked on this date. The
+  baseline is 0 if no date is settled yet, if <code>clearing.db</code> no longer has the
+  earlier date's snapshot (it was reset), or if it is a different
+  <code>clearing.db</code> than the earlier date was settled from (reset, and that date
+  traded again; the <code>settle</code> step warns). Any unsettled snapshot dates in
+  between are part of the one interval.</li>
 <li>A date <strong>has closed</strong> when its latest <code>session_events</code> <code>PHASE</code> row is
   <code>CLOSED</code> and an earlier <code>PHASE</code> row of the same date is not, so the market
   was open that day. The <code>CLOSED</code> an engine announces when it starts, before
@@ -12288,7 +12333,9 @@ opening balance. The full DDL is in the generated
 <li>Dates settle in order: a date is refused while an earlier date has closed
   (with a snapshot) but is not settled.</li>
 <li>Rounded to 2 decimals with the largest-remainder method; the exact total must
-  be within <code>0.01</code> per position of zero, otherwise the settlement fails.</li>
+  be within <code>0.01</code> per position whose equity changed since the baseline (at
+  least <code>0.01</code>) of zero, otherwise the settlement fails. A non-zero rounding
+  line is named in the <code>settle</code> step's message with the day's exact total.</li>
 <li>A position present in the earlier snapshot but missing from this date's is
   ignored.</li>
 <li>The gate requires: the date has closed (skipped by <code>--force</code>); a close
@@ -13737,7 +13784,7 @@ same key in a <code>--config</code> file in the same scope.</p>
 <tr>
 <td><code>--bootstrap-timeout-sec</code></td>
 <td><code>1.0</code></td>
-<td>Max wait for QBOOT reply</td>
+<td>Max wait for each startup reply (QBOOT, QLEGS, position); the longest value of any symbol applies</td>
 </tr>
 <tr>
 <td><code>--cancel-timeout-sec</code></td>
@@ -13787,7 +13834,7 @@ same key in a <code>--config</code> file in the same scope.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit <code>WARNING</code> (same as the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -13841,7 +13888,7 @@ be pre-registered in <code>engine_config.yaml</code> with <code>role: MARKET_MAK
 </tr>
 <tr>
 <td><code>passive</code></td>
-<td>a backstop: steps <code>behind_ticks</code> behind other traders' best price, never tighter than its home price nor outside the <code>retreat_ticks</code> band, and fades <code>fade_ticks</code> for <code>fade_sec</code> after a fill. The mid comes from <em>other</em> traders' book only, so the bot never chases its own quote. If the symbol has a market-maker spread obligation, the band is narrowed so the widest quote still meets it</td>
+<td>a backstop: steps <code>behind_ticks</code> behind other traders' best price, never tighter than its home price nor outside the <code>retreat_ticks</code> band, and fades <code>fade_ticks</code> for <code>fade_sec</code> after a fill. The mid comes from <em>other</em> traders' book only, so the bot never chases its own quote. If the engine enforces a market-maker spread obligation for the symbol, the band is narrowed so the widest quote still meets it</td>
 <td>the five <code>passive</code> flags</td>
 </tr>
 </tbody>
@@ -14169,8 +14216,8 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 </tr>
 <tr>
 <td><code>--engine-pub</code></td>
-<td><code>tcp://127.0.0.1:5556</code></td>
-<td>Engine PUB address consumed by the gateway</td>
+<td><code>tcp://$EDUMATCHER_ENGINE_HOST:5556</code> (<code>127.0.0.1</code> when unset)</td>
+<td>Engine PUB address consumed by the gateway; no config key</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -14185,7 +14232,7 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit <code>WARNING</code> (same as the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -14276,7 +14323,7 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 </tr>
 <tr>
 <td><code>EXIT</code></td>
-<td>Session termination reason</td>
+<td>Gateway-initiated close (<code>auth_timeout</code>, <code>idle_timeout</code>, <code>shutdown</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -14441,8 +14488,8 @@ live fills for as long as it stays connected.</p>
 </tr>
 <tr>
 <td><code>--engine-dc-pub</code></td>
-<td><code>tcp://127.0.0.1:5557</code></td>
-<td>Engine drop-copy PUB address consumed by the gateway</td>
+<td><code>tcp://$EDUMATCHER_ENGINE_HOST:5557</code> (<code>127.0.0.1</code> when unset)</td>
+<td>Engine drop-copy PUB address consumed by the gateway; no config key</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -14457,7 +14504,7 @@ live fills for as long as it stays connected.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit <code>WARNING</code> (same as the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -14528,6 +14575,10 @@ requested by connected clients):</p>
 <tr>
 <td><code>PONG</code></td>
 <td>Ping reply</td>
+</tr>
+<tr>
+<td><code>EXIT</code></td>
+<td>Gateway-initiated close (<code>auth_timeout</code>, <code>idle_timeout</code>, <code>shutdown</code>)</td>
 </tr>
 <tr>
 <td><code>ERR</code></td>
@@ -17029,7 +17080,7 @@ dropping it as an idle client.</p>
 <tr>
 <td><code>--resume</code></td>
 <td><em>(none)</em></td>
-<td>One-shot <code>CH:SYM:LASTSEQ</code> — requests single-stream replay on connect</td>
+<td>One-shot <code>CH:SYM:LASTSEQ:EPOCH</code> — requests single-stream replay on connect; <code>EPOCH</code> is the <code>WELCOME\|EPOCH=</code> of the gateway run <code>LASTSEQ</code> was seen on</td>
 </tr>
 <tr>
 <td><code>--ping-interval</code></td>
@@ -17414,7 +17465,7 @@ control and does not participate in the ZeroMQ runtime message bus.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <p><strong>Participant Guide:</strong></p>
 <ul>
-<li><a href="../../../participant-guide/part-3-market-making/030-the-market-maker-bot/">Market-Maker Bot</a> — autonomous quoting process for a single symbol</li>
+<li><a href="../../../participant-guide/part-3-market-making/030-the-market-maker-bot/">Market-Maker Bot</a> — autonomous quoting process for one or more symbols</li>
 </ul>
 <p><strong>Operator's Guide:</strong></p>
 <ul>

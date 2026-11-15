@@ -6280,6 +6280,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Exercise 9: Stop the Swarm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#back-to-your-own-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Back to your own configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -7859,7 +7876,12 @@ them. A headline has a public <em>sentiment</em> (−1 bad to 1 good) and a secr
 <em>impact</em> on the value. A <strong>rumour</strong> carries a <em>credibility</em> and moves no value
 until it is <strong>confirmed</strong>; a <strong>retracted</strong> rumour never moves anything.</p>
 <h2 id="exercise-1-deploy-an-example-with-ai-traders">Exercise 1: Deploy an Example with AI Traders<a class="headerlink" href="#exercise-1-deploy-an-example-with-ai-traders" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-deploy<span class="w"> </span>--example<span class="w"> </span>s150-nominal
+<p>Stop everything you started in the earlier chapters (<code>pm-engine</code>, consoles,
+bots, <code>pm-clearing</code>, <code>pm-audit</code>; <code>Ctrl-C</code> in each). The orders, prices and
+positions they left behind belong to participants the example does not
+have, so clear them first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state<span class="w"> </span>--yes
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-config-deploy<span class="w"> </span>--example<span class="w"> </span>s150-nominal
 </code></pre></div>
 <p>This <strong>replaces</strong> the configuration you have built since chapter 01. From here
 on the participants are the ones the example defines — <code>TRADER01</code>–<code>TRADER10</code>,
@@ -7902,7 +7924,8 @@ Check it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI001<span class="w"> </span>--preset<span class="w"> </span>noise-retail<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>-v
 </code></pre></div>
 <p>The trader logs on, reads the AAPL book and starts resting small orders near
-the touch. Watch them arrive with <code>BOOK|SYM=AAPL</code> in the operator console.
+the touch. Watch them arrive with <code>ORDERS|GW=AI001</code> in the operator console
+(or in the AAPL book with <code>BOOK|SYM=AAPL</code>).
 Stop it with Ctrl+C: its session closes and the participant's
 <code>disconnect_behaviour</code> (<code>CANCEL_ALL</code>) removes its orders.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AI001's orders appear in the AAPL book and disappear when you stop it.</p>
@@ -7933,6 +7956,8 @@ symbols at the top change, and large gaps rarely last.</p>
 the News view of TapeDeck, <code>pm-ticker</code>, or simply</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-news<span class="w"> </span>list
 </code></pre></div>
+<p><code>pm-news list</code> keeps running and prints each headline as it is published;
+stop it with <code>Ctrl-C</code> at the end of the chapter.</p>
 <p>Then the instructor plays the first scenario:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/news/earnings-surprise.yaml"</span>
 </code></pre></div>
@@ -7990,6 +8015,18 @@ credibility of 0.7 is high, and a fire never turns out to be good news. At
 sessions, which cancels their orders. Stop <code>pm-market-sim</code> with Ctrl+C too:
 it saves its values and continues from them next time.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> no <code>AI0xx</code> orders left in the books; the market maker's quotes remain.</p>
+<h3 id="back-to-your-own-configuration">Back to your own configuration<a class="headerlink" href="#back-to-your-own-configuration" title="Permanent link">&para;</a></h3>
+<p>The rest of the guide uses the configuration you built in chapters 01–11
+(<code>GW_ADMIN</code>, <code>TRADER03</code>, the <code>MM_*_01</code> market makers). Stop every process of
+this chapter (<code>pm-mm-bot</code>, <code>pm-alf-gwy</code>, <code>pm-admin</code>, <code>pm-engine</code>, any
+<code>pm-news list</code>), clear the example's orders and prices, and deploy yours
+again:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state<span class="w"> </span>--yes
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Start <code>pm-engine</code>, <code>pm-admin --id GW_ADMIN</code> and your trader consoles, and
+reopen the market (<code>SESSION|STATE=PRE_OPEN</code>, then <code>SESSION|STATE=CONTINUOUS</code>).
+The engine places the chapter 02 seed quotes again.</p>
 <h2 id="classroom-tips">Classroom Tips<a class="headerlink" href="#classroom-tips" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Your own headlines need no scenario:

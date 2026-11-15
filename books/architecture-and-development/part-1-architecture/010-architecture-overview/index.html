@@ -8597,9 +8597,9 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
     MD --&gt;|"CALF / TCP"| ExtMD
     PT --&gt;|"RALF / TCP"| ExtPT</code></pre>
 <h2 id="message-topics">Message Topics<a class="headerlink" href="#message-topics" title="Permanent link">&para;</a></h2>
-<p>Messages are multipart ZMQ. The first two frames are the message; the frames
-behind them are the <strong>envelope</strong> — metadata about the message rather than
-content of it.</p>
+<p>Messages are multipart ZMQ. The first two frames are the message; the frame
+behind them is the <strong>envelope</strong> — metadata about the message rather than
+content of it, as <code>|</code>-separated ASCII fields.</p>
 <table>
 <thead>
 <tr>
@@ -8621,26 +8621,24 @@ content of it.</p>
 </tr>
 <tr>
 <td>2</td>
-<td>per-topic sequence number</td>
-<td>causal envelope</td>
-</tr>
-<tr>
-<td>3</td>
-<td>causal envelope</td>
-<td>—</td>
+<td><code>seq</code>|<code>eseq</code>|<code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
+<td><code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
 </tr>
 </tbody>
 </table>
+<p>One frame rather than one per field, because ZeroMQ charges per frame.</p>
 <p><strong>Why the envelope is not in the payload.</strong> Keeping it in frames means the hot
 publish path never decodes and re-encodes a message to stamp it, and the same
 three fields do not have to be declared on each of the 121 message types in
 <code>spec/messages/</code> — and re-declared on every type added later. <code>decode()</code> reads
 only frames 0 and 1, so a consumer that does not care is unaffected.</p>
-<p><strong>Frame 2 (PUB) — per-topic sequence.</strong> ZeroMQ PUB/SUB drops silently once a
+<p><strong><code>seq</code> and <code>eseq</code> (PUB) — sequences.</strong> ZeroMQ PUB/SUB drops silently once a
 subscriber falls behind its high-water mark, and nothing in the delivered
 message reveals it. A monotonic counter, counted <em>per topic</em> so that filtering
 by topic prefix does not produce phantom gaps, lets any subscriber notice a
-hole. Read it with <code>decode_sequence</code>.</p>
+hole. Read it with <code>decode_sequence</code>. <code>eseq</code> counts every message the socket
+published, so a subscriber that takes every topic (pm-audit) can prove the
+whole stream complete; read it with <code>decode_publisher_sequence</code>.</p>
 <p><strong>The causal envelope</strong> — <code>msg_id</code>, <code>causation_id</code>, <code>correlation_id</code>; see
 <code>models/envelope.py</code> and <a href="#causal-envelope">Causal envelope</a> below. Read it
 with <code>decode_envelope</code> (PUB) or <code>decode_push_envelope</code> (PUSH).</p>

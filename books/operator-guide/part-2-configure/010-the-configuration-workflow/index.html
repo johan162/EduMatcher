@@ -8270,12 +8270,12 @@ for each MM quote seed at generation time.</p>
 <tr>
 <td><code>--symbols SYM [SYM ...]</code></td>
 <td>Repeatable tokens</td>
-<td>Symbol universe (uppercased on parse)</td>
+<td>Symbol universe (uppercased on parse; a name given twice is an error). Repeating the option adds to the list</td>
 </tr>
 <tr>
 <td><code>--participants GW_SPEC [GW_SPEC ...]</code></td>
 <td>Repeatable tokens</td>
-<td>Gateway specs as <code>ID[:ROLE[:DISCONNECT]]</code>; see the <code>--participants</code> format below</td>
+<td>Gateway specs as <code>ID[:ROLE[:DISCONNECT]]</code>; see the <code>--participants</code> format below. Repeating the option adds to the list</td>
 </tr>
 <tr>
 <td><code>--participant-desc GW_ID:TEXT</code></td>
@@ -8320,7 +8320,7 @@ for each MM quote seed at generation time.</p>
 <td><code>--schedule</code> / <code>--no-schedule</code></td>
 <td>Flag pair</td>
 <td>auto</td>
-<td>Force include/exclude <code>schedule</code>; auto emits when sessions are enabled</td>
+<td>Write / leave out <code>schedule</code>. It is written by default with <code>--sessions-enabled</code> and never without it</td>
 </tr>
 <tr>
 <td><code>--pre-open HH:MM</code></td>
@@ -8376,20 +8376,14 @@ for each MM quote seed at generation time.</p>
 <td><code>10:00</code>, <code>10:25</code>, <code>10:30</code>, <code>14:00</code>, <code>14:05</code></td>
 <td>The five bank-holiday times; only used with <code>--holidays</code></td>
 </tr>
-<tr>
-<td><code>--country COUNTRY</code></td>
-<td>String</td>
-<td>unset</td>
-<td>Writes <code>locale.country</code>: a country name (<code>Sweden</code>) or ISO code (<code>SE</code>). Unset: no value written, so the engine default <code>Sweden</code> applies</td>
-</tr>
-<tr>
-<td><code>--session-timezone TZ</code></td>
-<td>String</td>
-<td>unset</td>
-<td>Writes <code>locale.session_timezone</code>, an IANA name such as <code>America/New_York</code>. Unset: no value written, so the engine default <code>Europe/Stockholm</code> applies. Schedule times are interpreted in this timezone</td>
-</tr>
 </tbody>
 </table>
+<p><code>--schedule</code>, <code>--weekend</code>, <code>--holidays</code> and every time option need
+<code>--sessions-enabled</code>, and cannot be combined with <code>--no-schedule</code>: without a
+schedule in the file they would have no effect, so <code>pm-config-gen</code> refuses them
+(exit 2) rather than writing a file that ignores them.
+| <code>--country COUNTRY</code>                            | String    | unset   | Writes <code>locale.country</code>: a country name (<code>Sweden</code>) or ISO code (<code>SE</code>). Unset: no value written, so the engine default <code>Sweden</code> applies |
+| <code>--session-timezone TZ</code>                        | String    | unset   | Writes <code>locale.session_timezone</code>, an IANA name such as <code>America/New_York</code>. Unset: no value written, so the engine default <code>Europe/Stockholm</code> applies. Schedule times are interpreted in this timezone |</p>
 <p>Core engine and risk options:</p>
 <table>
 <thead>
@@ -8493,9 +8487,9 @@ for each MM quote seed at generation time.</p>
 </tr>
 <tr>
 <td><code>--cb-levels NAME:SHIFT[:HALT_MINS] ...</code></td>
-<td>List</td>
-<td>built-in ladder</td>
-<td>Circuit-breaker level specs</td>
+<td>List, repeatable</td>
+<td>none: no <code>circuit_breaker_defaults</code> is written</td>
+<td>Circuit-breaker level specs; <code>HALT_MINS</code> &gt; 0, omit it for a rest-of-day halt</td>
 </tr>
 <tr>
 <td><code>--cb-window-ns NS</code></td>
@@ -8537,8 +8531,9 @@ for each MM quote seed at generation time.</p>
 </table>
 <p>The <code>--no-ace</code> and <code>--ace-*</code> options shape the <code>reopening</code> block of
 <code>circuit_breaker_defaults</code>, which <code>pm-config-gen</code> writes when <code>--cb-levels</code> is
-given. Without <code>--cb-levels</code> they have no effect. The per-symbol forms are the
-<code>ace_*</code> keys of <code>--symbol-opts</code> below.</p>
+given. Without <code>--cb-levels</code> they, and <code>--cb-window-ns</code>, would have no effect,
+so <code>pm-config-gen</code> refuses them (exit 2). The per-symbol forms are the <code>ace_*</code>
+keys of <code>--symbol-opts</code> below.</p>
 <p>Market-maker and symbol defaults:</p>
 <table>
 <thead>
@@ -9458,10 +9453,10 @@ warning (<code>M031</code>).</p>
 <td>Write one key for each listed participant to <code>api_keys.yaml</code> beside <code>--output</code> and point the API gateway at it with <code>credentials_file</code>; needs <code>--output</code> or <code>--dry-run</code>, and a single API gateway. See <a href="#keys-for-many-participants">Keys for many participants</a></td>
 </tr>
 <tr>
-<td><code>--api-gateway-readonly-key</code></td>
-<td>Flag</td>
-<td>off</td>
-<td>Generate an additional read-only key with <code>gateway_id: null</code></td>
+<td><code>--api-gateway-readonly-key</code> / <code>--no-api-gateway-readonly-key</code></td>
+<td>Flag pair</td>
+<td>on</td>
+<td>Generate an additional read-only key with <code>gateway_id: null</code> for the dashboards (<code>M032</code> warns when an API gateway has none). <code>--api-gateway-readonly-key</code> on its own also writes the <code>api_gateways</code> section</td>
 </tr>
 <tr>
 <td><code>--api-gateway-rate-limit-writes-per-second N</code></td>
@@ -9741,8 +9736,8 @@ invalid IDs or as unrecognised arguments.</p>
 </tr>
 <tr>
 <td><code>cb_halt_l1</code> / <code>cb_halt_l2</code> / <code>cb_halt_l3</code></td>
-<td>int <code>&gt;= 0</code> minutes</td>
-<td>Override CB halt duration (<code>0</code> means rest-of-day)</td>
+<td>int <code>&gt; 0</code> minutes</td>
+<td>Override CB halt duration (omit it for a rest-of-day halt)</td>
 </tr>
 <tr>
 <td><code>ace_enabled</code></td>
@@ -9807,12 +9802,14 @@ global form of them (see <a href="../../part-4-run-a-market/040-risk-controls/">
 </code></pre></div>
 <p><code>--symbol-risk-level</code> is a convenience alias for <code>--symbol-opts SYM:level=...</code>.
 It writes <code>symbols.&lt;SYM&gt;.level</code> and uses the same runtime validation rules.</p>
-<p>Unknown symbols/keys or invalid values in <code>--symbol-opts</code> are reported as
-warnings and ignored.</p>
-<p>The generated <code>symbols:</code> section also includes an <code>outstanding_shares</code> field
-for every symbol. Use that as the slow-changing input for statistics and future
-index-style consumers; market capitalization can then be derived from it and
-the latest price instead of being stored as a separate static field.</p>
+<p>An unknown symbol or key, a token without <code>=</code>, or an invalid value in
+<code>--symbol-opts</code> is an error (exit 2), as it is for the dedicated per-symbol
+flags.</p>
+<p>With <code>--outstanding-shares SYM:N</code> the generated <code>symbols:</code> section also
+includes an <code>outstanding_shares</code> field for that symbol. Use that as the
+slow-changing input for statistics and future index-style consumers; market
+capitalization can then be derived from it and the latest price instead of
+being stored as a separate static field.</p>
 <h3 id="-combo-format"><code>--combo</code> format<a class="headerlink" href="#-combo-format" title="Permanent link">&para;</a></h3>
 <p><code>--combo</code> seeds one <code>market_maker_combos</code> entry per flag:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>ID:TYPE:TIF:LEG[,LEG,...]
@@ -9974,11 +9971,17 @@ check. Always write the price as the quote shows it, with its decimals:
 <a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span>--seed-last-prices-from-mm<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>After generation, validate manually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'</span>
+<p><code>pm-config-gen</code> checks every file it writes with the same gate as
+<code>pm-config-deploy --check</code> (the verifier's errors, then every loader), and
+writes nothing when that gate refuses it. After generation, check and install
+it as usual:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>If MM gateways are present and you do not use <code>--seed-mm-mid-range</code>, fill all <code>market_maker_quotes</code> prices first, then
-run the validation command.</p>
+<p>The one exception is the market-maker stub template: if MM gateways are
+present and you do not use <code>--seed-mm-mid-range</code>, the file is written with
+<code>null</code> quote prices, which <code>pm-cverifier</code> reports as <code>S014</code> errors. Fill them
+in before deploying.</p>
 <p>Post-trade gateway config with explicit RALF listener settings:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>

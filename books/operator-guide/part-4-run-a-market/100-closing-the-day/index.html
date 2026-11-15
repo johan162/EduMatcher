@@ -3646,10 +3646,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#housekeeping-warnings-exit-code-2" class="md-nav__link">
+  <a href="#warnings-exit-code-3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Housekeeping warnings (exit code 2)
+        Warnings (exit code 3)
       
     </span>
   </a>
@@ -9034,7 +9034,8 @@ so no event can trigger <code>pm-eod</code>, and you decide when a "day" is over
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-02<span class="w"> </span>--force
 </code></pre></div>
 <p><code>--force</code> skips <em>only</em> the closed-day test. The other checks (a close snapshot
-exists; the books reconcile) still apply. The snapshot comes from <code>pm-clearing</code>
+exists; the books reconcile) still apply, and the gate line says <code>not checked
+(--force), snapshot present, reconciled</code>. The snapshot comes from <code>pm-clearing</code>
 only on the end-of-day message or on <code>CLOSED</code>, so a market that is simply
 left running has nothing to settle from.</p>
 <p>A crontab line that settles yesterday every morning at 06:00, for an exchange
@@ -9051,9 +9052,14 @@ date that <em>was</em> settled, so it covers both days in one amount.</p>
 <p class="admonition-title">Stopping the engine more than once a day</p>
 <p>Each graceful shutdown replaces that date's snapshot, so if you stop the
 engine at lunch and again in the evening, the evening one is settled and
-the afternoon's trading counts for that day. (On an exchange <em>with</em> a
-scheduler, the snapshot taken at the real market close is final: a later
-shutdown or restart that day never replaces it.)</p>
+the afternoon's trading counts for that day. If you had already settled
+the lunchtime snapshot, nothing is lost either: <code>pm-eod</code> remembers what
+it settled, so the afternoon is booked on the <em>next</em> date you settle, and
+that date's <code>settle</code> line warns that the snapshot changed (exit code 3).
+Run <code>pm-eod run --date &lt;date&gt; --redo</code> if you want it on its own day
+instead. (On an exchange <em>with</em> a scheduler, the snapshot taken at the
+real market close is final: a later shutdown or restart that day never
+replaces it.)</p>
 </div>
 <h3 id="where-everything-lives">Where everything lives<a class="headerlink" href="#where-everything-lives" title="Permanent link">&para;</a></h3>
 <p>Everything is under the <strong>data directory</strong> (<code>EDUMATCHER_DATA_DIR</code>, see
@@ -9169,7 +9175,7 @@ after the close.</p>
 <tbody>
 <tr>
 <td><code>ok</code></td>
-<td>Settled <strong>and</strong> reported. (Housekeeping warnings do not change this; they are listed in <code>steps</code>.)</td>
+<td>Settled <strong>and</strong> reported. (Warnings do not change this; they are listed in <code>steps</code>. Running an <code>ok</code> day again only reports it again, and a failure of that rerun is printed but not recorded, so the day stays <code>ok</code>.)</td>
 </tr>
 <tr>
 <td><code>report-failed</code></td>
@@ -9184,7 +9190,9 @@ after the close.</p>
 <p><code>pm-eod status</code> also prints <code>pending: &lt;dates&gt;</code> (on the error stream) when there
 are closed days that have not been done yet.</p>
 <p>For monitoring, <code>pm-eod status -q</code> prints nothing and returns <strong>exit code 0</strong>
-when no closed day is waiting to be done, and <strong>1</strong> otherwise. A closed day whose
+when no closed day is waiting to be done, and <strong>1</strong> otherwise, including when
+there is no <code>clearing.db</code> to judge (a mistyped <code>--datapath</code> is not healthy).
+<code>status</code>, <code>balances</code> and <code>show</code> only read: they never create <code>eod.db</code>. A closed day whose
 run failed still counts as waiting, so the check stays red until it is fixed. (A
 failed run for a date that never closed, such as a mistyped date, does not.) Use
 it from a health check or a cron alert.</p>
@@ -9244,7 +9252,12 @@ one date always add up to zero; a rounding residual, if any, sits on the
 </tr>
 <tr>
 <td><strong>2</strong></td>
-<td>Settled and reported, but a housekeeping step warned</td>
+<td>Usage error: a wrong or missing option; nothing was done</td>
+<td>Read the message and fix the command</td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td>Settled and reported, but a step warned (housekeeping, or the settle note that an earlier settled date's snapshot changed)</td>
 <td>Read the <code>[warn]</code> line; the statements are fine</td>
 </tr>
 </tbody>
@@ -9325,7 +9338,13 @@ that all traders together sum to exactly zero). <strong>Trade times are in UTC</
 the exchange's timezone. And the <strong>trade list comes from <code>trade_events</code></strong>, which <code>pm-clearing</code>
 prunes after 90 days by default. Settling a very old date later still gives the
 correct amounts (those come from the close snapshots, which are never pruned)
-but the trade list may be empty.</p>
+but the trade list may be empty, and the gate says <code>not reconciled: the day's
+raw trades were pruned</code> instead of comparing them with the daily totals.</p>
+<p>When a closed day in between was never settled (a skipped <code>--force</code> day, a
+day <code>pm-clearing</code> missed), the amount covers every day since the last settled
+one, and the statement says so: <em>Result since the close of 2026-10-30: …</em> in
+place of <em>Today's result</em>, with <code>since</code> set in the JSON. The trade list is
+still the date's own.</p>
 <h3 id="the-same-statement-as-json-and-csv">The same statement as JSON and CSV<a class="headerlink" href="#the-same-statement-as-json-and-csv" title="Permanent link">&para;</a></h3>
 <p><code>statements/GW_BOB.json</code> carries the same information for programs. Amounts
 appear twice: as whole minor units (<code>amount_minor</code>: <code>-2000</code>) for exact
@@ -9349,6 +9368,10 @@ arithmetic, and as text (<code>amount</code>: <code>"-20.00"</code>) for display
 <tr>
 <td><code>amount_minor</code> / <code>amount</code></td>
 <td>Today's settlement (positive = exchange owes the trader)</td>
+</tr>
+<tr>
+<td><code>since</code></td>
+<td><code>null</code>, or the last settled date before this one when the amount covers more than one closed day</td>
 </tr>
 <tr>
 <td><code>balance_minor</code> / <code>balance</code></td>
@@ -9507,7 +9530,9 @@ the step:</p>
 <li>Asks SQLite for a <strong>consistent online copy</strong> (SQLite's backup mechanism).
    This is safe while the exchange is running; you do not have to stop
    anything.</li>
-<li>Runs the database's <strong>integrity check</strong> on the copy.</li>
+<li>Runs SQLite's <strong>quick check</strong> on the copy (every page and record; the
+   slower full <code>integrity_check</code> also compares indexes with their tables,
+   which a fresh copy of a healthy database cannot get wrong).</li>
 <li>Compresses it to <code>backup/&lt;date&gt;/&lt;name&gt;.db.zst</code> and <strong>decompresses it again
    to compare</strong> — only a copy proven identical replaces anything.</li>
 <li>Deletes backup folders older than <code>--backup-keep-days</code> (default <strong>7</strong>).</li>
@@ -9558,18 +9583,24 @@ write it into the command: <code>--on-close "pm-eod run --pending --backup-keep-
 <h2 id="correcting-mistakes-and-special-situations">Correcting mistakes and special situations<a class="headerlink" href="#correcting-mistakes-and-special-situations" title="Permanent link">&para;</a></h2>
 <h3 id="run-a-day-again">Run a day again<a class="headerlink" href="#run-a-day-again" title="Permanent link">&para;</a></h3>
 <p><code>pm-eod run --date 2026-11-03</code> is always safe. A day that is already settled
-says <code>already settled</code> and is not counted twice; the report and housekeeping run
-again (replacing the folder). To run only one step of a settled day:</p>
+says <code>already settled</code> and is not counted twice; the gate is not checked again
+(<code>gate: already settled: not checked again (--redo recomputes)</code>), and the report
+and housekeeping run again (replacing the folder). To run only one step of a settled day:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--only<span class="w"> </span>report<span class="w">     </span><span class="c1"># rewrite the statements</span>
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--only<span class="w"> </span>backup<span class="w">     </span><span class="c1"># take the backup again</span>
 </code></pre></div>
-<p><code>--only</code> accepts <code>report</code>, <code>audit</code>, <code>logs</code> or <code>backup</code>. A step run with <code>--only</code>
-is not recorded in <code>pm-eod status</code>, so it can never mark a good day as bad.</p>
+<p><code>--only</code> accepts <code>report</code>, <code>audit</code>, <code>logs</code> or <code>backup</code>, and cannot be combined
+with <code>--redo</code>, <code>--force</code> or <code>--dry-run</code>. A step run with <code>--only</code> is not
+recorded in <code>pm-eod status</code>, so it can never mark a good day as bad.</p>
 <h3 id="look-before-you-leap-dry-run">Look before you leap: <code>--dry-run</code><a class="headerlink" href="#look-before-you-leap-dry-run" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--dry-run
 </code></pre></div>
 <p>runs the checks and prints the amounts that <em>would</em> be settled, writing nothing
-at all:</p>
+at all. It settles into an in-memory copy of the ledger with the same code as a
+real run, so it refuses what the real run would refuse (<code>already settled</code>, an
+earlier day still waiting), shows the <code>EXCHANGE</code> line when there is one, and with
+<code>--redo</code> names the dates it would drop. <code>--pending --dry-run</code> measures each day
+from the previous day's dry result:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>2026-11-03:
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>  [ok] gate: closed, snapshot present, reconciled
 <a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>  [ok] settle: would settle: GW_ALICE +20.00, GW_BOB -20.00, GW_CAROL +0.00
@@ -9628,25 +9659,33 @@ you do). To fix up earlier statements run <code>--only report</code> for those d
 <p>Balances are a running total, so correcting one day changes everything
 after it. <code>--redo</code> therefore <strong>deletes the settlement of that date <em>and every
 later date</em></strong> from the ledger, recomputes the first one, and leaves the later
-ones to the next <code>pm-eod run --pending</code>. Statement folders of the dropped
-dates stay on disk until they are overwritten. If the recomputation fails,
-nothing is deleted. Run <code>--dry-run</code> first and make sure you have a backup
+ones to the next <code>pm-eod run --pending</code>. The statement folders of the
+dropped dates are deleted with them (their balances would be wrong) and
+written again when those dates are settled again. If the recomputation
+fails, nothing is deleted. Run <code>--dry-run</code> first and make sure you have a backup
 (the <code>backup</code> step makes one every day).</p>
 </div>
 <h3 id="after-pm-opctl-cli-clear">After <code>pm-opctl-cli clear</code><a class="headerlink" href="#after-pm-opctl-cli-clear" title="Permanent link">&para;</a></h3>
 <p><code>pm-opctl-cli clear --state</code> wipes <code>clearing.db</code> — but it deliberately <strong>keeps</strong>
 <code>eod.db</code>, <code>settlement/</code> and <code>backup/</code>, because the balances should survive a
-reset of the working data. Only <code>clear --all</code> removes them. One consequence: if
-you reset and then trade again on the <em>same calendar date</em>, that date is
-already settled in the ledger and <code>pm-eod</code> will refuse to settle it again.
-Use <code>pm-eod run --date &lt;date&gt; --redo</code> to replace it.</p>
+reset of the working data. Only <code>clear --all</code> removes them. Each <code>clearing.db</code>
+carries its own id, and <code>pm-eod</code> records which one every date was settled from,
+so after a reset the next settled date starts from zero, as the new database
+does. If you reset and then trade again on the <em>same calendar date</em>, that date
+is already settled and is not settled again: its new trading is booked on the
+next date you settle, whose <code>settle</code> line warns <code>clearing.db was replaced after
+&lt;date&gt; was settled</code>. Do <strong>not</strong> <code>--redo</code> that date: the new <code>clearing.db</code> knows
+nothing of its trading before the reset, so a recomputation would lose it.</p>
 <h3 id="rehearsing-with-a-fast-clock">Rehearsing with a fast clock<a class="headerlink" href="#rehearsing-with-a-fast-clock" title="Permanent link">&para;</a></h3>
 <p>You can rehearse with <code>pm-scheduler --daily --speed 600</code>, which runs the
 timetable ten simulated minutes per second. The trading date comes from the
 <em>real</em> clock, though, so several fast simulated days all land on <strong>today's</strong>
-date and share one close snapshot. You will get one settlement per real calendar
-date, not one per simulated day. That is fine for checking the whole pipeline
-works end to end; use <code>--redo</code> to run it again on the same date.</p>
+date. The first fast day's close settles the date; every later fast day reopens
+it and rewrites its snapshot, but the date is not settled again (the scheduler's
+<code>--pending</code> says <code>nothing pending</code>). Nothing is lost: the next real date is
+measured from what was settled, so it includes the later fast days, and its
+<code>settle</code> line warns that the snapshot changed. To settle the rehearsal date as a
+whole, run <code>pm-eod run --date &lt;today&gt; --redo</code> after the last fast day.</p>
 <h3 id="weekends-and-holidays">Weekends and holidays<a class="headerlink" href="#weekends-and-holidays" title="Permanent link">&para;</a></h3>
 <p>On a day with no schedule the market never opens, so there is no <code>CLOSED</code> event,
 no snapshot and nothing to settle. A Friday-to-Monday gap is simply one longer
@@ -9686,7 +9725,7 @@ since the close of the last settled day, which is normally Friday.)</p>
 </tr>
 <tr>
 <td><code>clearing does not reconcile for &lt;date&gt; (N discrepancies; see pm-clearing-cli reconcile)</code></td>
-<td>The raw trade records and the daily totals disagree. Settling on inconsistent books would spread the error</td>
+<td>The raw trade records and the daily totals disagree. Settling on inconsistent books would spread the error. (A day whose raw trades were already pruned is not compared; its gate line says <code>not reconciled</code>.)</td>
 <td>Run <code>pm-clearing-cli reconcile --from &lt;date&gt; --to &lt;date&gt;</code> to see exactly which trader and symbol; fix the cause (a crash mid-write is the usual one) before settling</td>
 </tr>
 </tbody>
@@ -9702,7 +9741,7 @@ since the close of the last settled day, which is normally Friday.)</p>
 </thead>
 <tbody>
 <tr>
-<td><code>the day does not sum to zero: exact total X over N position(s)</code></td>
+<td><code>the day does not sum to zero: exact total X over N changed position(s)</code></td>
 <td>The amounts do not cancel out by more than rounding noise could explain — a real accounting inconsistency</td>
 <td>Nothing was written; do <strong>not</strong> try to force it. Run <code>pm-clearing-cli reconcile --from &lt;date&gt; --to &lt;date&gt;</code> and look at <code>pm-clearing-cli snapshots --date &lt;date&gt;</code> for a trader whose numbers are far off. This points at a bug or a damaged <code>clearing.db</code>: keep the files (the daily backup has a copy) and report it</td>
 </tr>
@@ -9740,7 +9779,7 @@ since the close of the last settled day, which is normally Friday.)</p>
 </tr>
 <tr>
 <td><code>roster.yaml: line N: …</code></td>
-<td>The roster file has an error on that line</td>
+<td>The roster file has an error on that line (<code>not valid YAML: …</code> for a syntax error), or a gateway that cannot be a file name</td>
 <td>Fix it; run the date again without <code>--only</code> (or wait for the next <code>--pending</code>)</td>
 </tr>
 <tr>
@@ -9773,7 +9812,7 @@ since the close of the last settled day, which is normally Friday.)</p>
 </tr>
 </tbody>
 </table>
-<h3 id="housekeeping-warnings-exit-code-2">Housekeeping warnings (exit code 2)<a class="headerlink" href="#housekeeping-warnings-exit-code-2" title="Permanent link">&para;</a></h3>
+<h3 id="warnings-exit-code-3">Warnings (exit code 3)<a class="headerlink" href="#warnings-exit-code-3" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -9782,6 +9821,14 @@ since the close of the last settled day, which is normally Friday.)</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>settle</code>: <code>clearing.db was replaced after &lt;D&gt; was settled …</code></td>
+<td><code>clearing.db</code> was reset (<code>pm-opctl-cli clear --state</code>) after D was settled, and D traded again in the new one. This date is measured from zero, as the new database is, so D's post-reset trading is booked here. Leave it: a <code>--redo</code> of D would lose D's pre-reset trading.</td>
+</tr>
+<tr>
+<td><code>settle</code>: <code>the close snapshot of &lt;D&gt; changed after it was settled …</code></td>
+<td>Date D closed again after it was settled (it was reopened, or the engine was stopped once more without a scheduler). The ledger keeps the equity D was settled at, so nothing is lost: the difference is booked on this date. To book it on D instead, run <code>pm-eod run --date &lt;D&gt; --redo</code>, then <code>pm-eod run --pending</code>.</td>
+</tr>
 <tr>
 <td><code>another archive run holds the lock</code></td>
 <td>A <code>pm-audit-cli archive</code> is running. Harmless; the next run retries.</td>

@@ -8073,10 +8073,14 @@ that checks sequences must compare the topic (or the payload's
 <p>Sequence numbers allow downstream consumers to:</p>
 <ol>
 <li><strong>Detect gaps</strong> — if the consumer receives <code>seq=5</code> after <code>seq=3</code>, it knows
-   <code>seq=4</code> was missed and should request a replay.</li>
-<li><strong>De-duplicate</strong> — if a message is received twice (due to a reconnect replay),
-   the consumer can discard the duplicate by checking whether the <code>seq</code> has
-   already been processed.</li>
+   <code>seq=4</code> was missed. No replay can be requested over ZeroMQ, DC1 or any
+   other external protocol (see <a href="#replay">Replay</a>), so the consumer
+   reconciles the missing fill from another record: the participant's own
+   <a href="../../part-2-specifications/060-rest-and-websocket/#get-apiv1historyfills"><code>GET /api/v1/history/fills</code></a>,
+   or <code>pm-clearing-cli trades --gateway &lt;ID&gt;</code> on the exchange host.</li>
+<li><strong>De-duplicate</strong> — if a message is received twice (an in-process
+   <a href="#replay">replay</a> re-sends buffered events), the consumer can discard the
+   duplicate by checking whether the <code>seq</code> has already been processed.</li>
 </ol>
 <h2 id="in-memory-buffer">In-memory buffer<a class="headerlink" href="#in-memory-buffer" title="Permanent link">&para;</a></h2>
 <p>The drop copy publisher maintains one <strong>circular in-memory buffer</strong> of the

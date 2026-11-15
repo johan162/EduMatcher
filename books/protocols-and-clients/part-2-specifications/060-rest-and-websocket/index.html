@@ -10645,7 +10645,7 @@ the order at a price the client never sent. See
 <td><code>wait</code></td>
 <td><code>Bool</code></td>
 <td>no</td>
-<td><code>?wait=ack</code> waits for <code>order.cancelled.*</code></td>
+<td><code>?wait=ack</code> waits for <code>order.cancelled.*</code> or the refusal (<code>order.ack</code> with <code>request: CANCEL</code>)</td>
 </tr>
 <tr>
 <td><code>request_tag</code></td>
@@ -10682,9 +10682,9 @@ the order at a price the client never sent. See
 </tr>
 </tbody>
 </table>
-<p>Without a <code>request_tag</code>, <code>?wait=ack</code> waits for <code>order.cancelled</code> alone, so a
-refused cancel shows as an ack timeout; pass a <code>request_tag</code> to get it as
-<code>REJECTED</code>.</p>
+<p>A refused cancel is <code>REJECTED</code> with or without a <code>request_tag</code>: the refusal is
+the <code>order.ack</code> whose <code>request</code> is <code>CANCEL</code>. A <code>request_tag</code> additionally tells
+two cancels of the same order apart.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -10753,7 +10753,7 @@ refused cancel shows as an ack timeout; pass a <code>request_tag</code> to get i
 <td><code>wait</code></td>
 <td><code>Bool</code></td>
 <td>no</td>
-<td><code>?wait=ack</code> waits for <code>order.amended.*</code></td>
+<td><code>?wait=ack</code> waits for <code>order.amended.*</code> or the refusal (<code>order.ack</code> with <code>request: AMEND</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -10978,7 +10978,7 @@ orders plus recently finished ones.</p>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
 <td><code>503</code></td>
-<td>The engine did not answer in time. There is no fallback to the gateway's cache; the private WebSocket <code>orders.snapshot</code> is the cached view</td>
+<td>The engine did not answer in time. There is no fallback to the gateway's cache</td>
 </tr>
 </tbody>
 </table>
@@ -16849,8 +16849,8 @@ restart the engine to apply configuration changes.</p>
 <ul>
 <li>Read-only dashboard keys can call reference and public history endpoints,
   but not trading or admin write endpoints.</li>
-<li><code>order_retention_sec</code> bounds the live order cache, the private
-  <code>orders.snapshot</code> frame, and <code>GET /api/v1/admin/orders</code>.</li>
+<li><code>order_retention_sec</code> bounds the live order cache, the finished orders in
+  the private <code>orders.snapshot</code> frame, and <code>GET /api/v1/admin/orders</code>.</li>
 <li><code>market_data_cache_sec</code> bounds the market-data stream cache that backs the
   snapshot-on-subscribe, <code>snapshot</code>, and <code>resume</code> controls on
   <code>WS /api/v1/ws/market-data</code> (latest <code>book</code>/<code>depth</code>/<code>auction</code> snapshots are kept

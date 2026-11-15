@@ -8465,17 +8465,16 @@ config file at all does the engine default to continuous trading.)</p>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>✓ YAML syntax: OK
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>✓ Schema: 0 errors
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>⚠ Semantic: 1 warning
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>⚠ Completeness: 5 advisories
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>✓ Semantic: 0 warnings
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>⚠ Completeness: 1 warning, 4 advisories
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>[M032] WARN  No read-only API credential (gateway_id: null) is defined under api_gateways.
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>[C001] WARN  No symbol has a reference price (last_buy_price / last_sell_price).
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>[C003] INFO  enforce_collars is true but no symbol has an effective collar ...
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>[C004] INFO  enforce_circuit_breakers is true but no circuit breaker is configured ...
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>[C007] INFO  snapshot_interval_sec is at the default of 0.5 seconds.
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>[C009] INFO  sessions_enabled is false and no schedule is configured. ...
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>Verdict:  ⚠ 2 WARNINGS, 4 ADVISORIES — engine can start but review warnings
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>[C001] WARN  No symbol has a reference price (last_buy_price / last_sell_price).
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>[C003] INFO  enforce_collars is true but no symbol has an effective collar ...
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>[C004] INFO  enforce_circuit_breakers is true but no circuit breaker is configured ...
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>[C007] INFO  snapshot_interval_sec is at the default of 0.5 seconds.
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>[C009] INFO  sessions_enabled is false and no schedule is configured. ...
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>Verdict:  ⚠ 1 WARNING, 4 ADVISORIES — engine can start but review warnings
 </code></pre></div>
 <p>(The full report also prints each suggestion and a <em>Risk Summary</em>; they are cut
 here for space.) Zero errors means the engine can start. The warnings and
@@ -10250,8 +10249,8 @@ creates it with mode <code>0600</code>).</p>
 has read this book knows. Use long random strings, and keep the deployed
 config readable only by the exchange's own user.
 <a href="../010-the-configuration-workflow/#generate-configs-with-pm-config-gen"><code>pm-config-gen</code></a>
-can generate keys for you. Add at least one read-only key
-(<code>gateway_id: null</code>): without it <code>pm-cverifier</code> warns (<code>M032</code>) and
+can generate keys for you, including a read-only key (<code>gateway_id:
+null</code>). Keep at least one: without it <code>pm-cverifier</code> warns (<code>M032</code>) and
 <code>pm-dash</code>, the terminal GUI and the book GUI have nothing to read with.</p>
 </div>
 <p>See <a href="../../part-5-gateways/050-api-gateway/">API Gateway</a>.</p>
@@ -10933,10 +10932,10 @@ beyond one informational note that <code>snapshot_interval_sec</code> is at its 
 <a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>Symbols          3  (AAPL, MSFT, TSLA)
 <a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>Gateways         5  (TRADER01: TRADER, TRADER02: TRADER, MM01: MARKET_MAKER, MM02: MARKET_MAKER … +1 more)
 <a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a>Sessions         enabled — 5 of 7 days scheduled
-<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a>Collars          enabled — L1: static=30%, dynamic=5%; L2: static=20%, dynamic=2%; L3: static=12%, dynamic=1%
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a>Collars          enabled — 3 of 3 symbols (AAPL: static 20%, dynamic 1.5%; MSFT: static 30%, dynamic 5%; TSLA: static 12%, dynamic 1%)
 <a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a>Order limits     AAPL: max qty 10000, max value 2000000
-<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a>Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day)
-<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a>MM obligations   enforced
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a>Circuit breakers enabled — 3 of 3 symbols (AAPL, MSFT: L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day); TSLA: L1=7% (10 min), L2=13% (30 min), L3=20% (rest-of-day))
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a>MM obligations   enforced — MM01, MM02
 <a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a>Admin gateway    OPS01
 <a id="__codelineno-20-18" name="__codelineno-20-18" href="#__codelineno-20-18"></a>Indices          1  (EDU100)
 <a id="__codelineno-20-19" name="__codelineno-20-19" href="#__codelineno-20-19"></a>

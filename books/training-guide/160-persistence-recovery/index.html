@@ -6342,10 +6342,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-2-create-a-gtc-order" class="md-nav__link">
+  <a href="#exercise-2-create-a-gtc-and-a-day-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 2: Create a GTC Order
+        Exercise 2: Create a GTC and a DAY Order
       
     </span>
   </a>
@@ -6357,39 +6357,6 @@
     <span class="md-ellipsis">
       
         Exercise 3: Restart the Engine
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-4-day-order-survives-a-same-day-restart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 4: DAY Order Survives a Same-Day Restart
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-5-persist-statistics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 5: Persist Statistics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-6-audit-to-disk" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 6: Audit to Disk
       
     </span>
   </a>
@@ -7744,7 +7711,9 @@ state across restart scenarios.</p>
 </div>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Chapters 01–15 completed.</li>
+<li>Chapters 01–15 completed, and back on your own configuration (the end of
+  chapter 14), with <code>pm-engine</code>, <code>pm-admin</code> and <code>TRADER01</code> running and the
+  market open.</li>
 <li>Consistent <code>EDUMATCHER_DATA_DIR</code> configured for all processes.</li>
 </ul>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
@@ -7762,7 +7731,7 @@ files include:</p>
 <p>Despite its name, <code>gtc_orders.json</code> also carries
 resting <code>TIF=DAY</code> orders across an <strong>engine restart</strong>, as long as the
 restart happens on the same business day the order was placed. The
-day-vs-restart distinction is the subject of Exercise 4 below — see
+day-vs-restart distinction is the subject of Exercise 3 below — see
 <a href="../../operator-guide/part-6-observe-and-recover/010-persistence/#impact-of-a-business-day-change">Persistence — Impact of a Business-Day Change</a>
 for the full rule.</p>
 </div>
@@ -7773,14 +7742,17 @@ for the full rule.</p>
 <p>If the variable is empty, revisit <a href="../000-installation/">00 — Installation &amp; Setup</a>
 and run <code>pm-setup</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can locate the persistent data directory.</p>
-<h2 id="exercise-2-create-a-gtc-order">Exercise 2: Create a GTC Order<a class="headerlink" href="#exercise-2-create-a-gtc-order" title="Permanent link">&para;</a></h2>
-<p>Start the exchange and place a GTC order away from the market:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
+<h2 id="exercise-2-create-a-gtc-and-a-day-order">Exercise 2: Create a GTC and a DAY Order<a class="headerlink" href="#exercise-2-create-a-gtc-and-a-day-order" title="Permanent link">&para;</a></h2>
+<p>Place two orders away from the market, one of each lifetime:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=145.00|TIF=GTC
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=DAY
 </code></pre></div>
-<p>Check the order is resting:</p>
+<p>(145.00 is as far from AAPL's 150.00 as chapter 11's <code>L2</code> collar of ±5%
+allows; 140.00 would be rejected with <code>COLLAR_BREACH</code>.) Check both are
+resting:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the GTC order is resting and visible.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both orders are resting and visible.</p>
 <h2 id="exercise-3-restart-the-engine">Exercise 3: Restart the Engine<a class="headerlink" href="#exercise-3-restart-the-engine" title="Permanent link">&para;</a></h2>
 <p>GTC persistence in EduMatcher is unconditional — there is no config flag to
 enable/disable it — but it only works correctly under these conditions:</p>
@@ -7797,36 +7769,24 @@ enable/disable it — but it only works correctly under these conditions:</p>
   the engine skips any persisted GTC order whose symbol is no longer in
   <code>engine_config.yaml</code>.</li>
 </ul>
-<p>With those three conditions met, stop <code>pm-engine</code> cleanly, then start it again
-with the same config and data dir:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine
+<p>With those three conditions met, stop <code>pm-engine</code> cleanly and start it again,
+this time with <code>--verbose</code>, so you can watch both halves:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
-<p>Reconnect <code>TRADER01</code> and inspect orders:</p>
+<p>The shutdown you just did ended with <code>Saved N resting order(s) to
+/data/gtc_orders.json</code>; the startup now prints a <code>Restored GTC order &lt;id&gt;
+(&lt;symbol&gt;)</code> line per order (the wording says GTC for same-day DAY orders
+too), then <code>Restored N resting order(s) from previous session.</code>. N includes
+the market makers' quote legs, so it is larger than your two orders. Because
+those quotes came back, the engine also skips its seed quotes
+(<code>Skipping seed quote for AAPL/MM_AAPL_01 (seed_once=true, an active quote
+was restored)</code>).</p>
+<p>Restart your consoles, reopen the market and look:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p>The GTC order should be restored — with <code>pm-engine --verbose</code> the engine also
-logs a line at shutdown confirming how many resting orders it saved
-(<code>Saved N resting order(s) to ...</code>; the count covers both GTC and same-day DAY
-orders), which you can check as a stable confirmation instead of relying on
-<code>ORDERS</code> output alone.</p>
-<p>Compare explicitly after restart:</p>
-<ul>
-<li>GTC orders restore from persistence (given the conditions above).</li>
-<li>Stats remain in <code>stats.db</code> if <code>pm-stats</code> was writing before restart.</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> verify whether the GTC order survives restart.</p>
-<h2 id="exercise-4-day-order-survives-a-same-day-restart">Exercise 4: DAY Order Survives a Same-Day Restart<a class="headerlink" href="#exercise-4-day-order-survives-a-same-day-restart" title="Permanent link">&para;</a></h2>
-<p>A resting <code>DAY</code> order is no longer tied to the engine process — it is tied to
-the business day. Place a DAY order at a non-marketable price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=DAY
-</code></pre></div>
-<p>Restart <code>pm-engine</code> cleanly, on the <strong>same calendar day</strong>, with the same data
-directory and config. Reconnect <code>TRADER01</code> and check:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; ORDERS
-</code></pre></div>
-<p>The DAY order should still be resting — restored exactly like the GTC order
-from Exercise 3, because the restart did not cross a business-day boundary.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the DAY order is still resting after a same-day restart.</p>
+<p>Both orders are resting again. The GTC order would always come back; the DAY
+order came back because the restart did not cross a business-day boundary.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both the GTC and the DAY order survived a same-day restart.</p>
 <div class="admonition note">
 <p class="admonition-title">Two separate ways a DAY order disappears</p>
 <p>Don't confuse these — they are driven by different things:</p>
@@ -7847,26 +7807,11 @@ to actually cross a calendar date between shutdown and restart — not
 practical to demonstrate live in this exercise, so take it as read from
 the Operator's Guide.</p>
 </div>
-<h2 id="exercise-5-persist-statistics">Exercise 5: Persist Statistics<a class="headerlink" href="#exercise-5-persist-statistics" title="Permanent link">&para;</a></h2>
-<p>Start <code>pm-stats</code>, execute a few trades, and inspect the stats database:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-stats
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span><span class="w">     </span><span class="c1"># the first five of the day, oldest first</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>ls<span class="w"> </span>-lh<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
-</code></pre></div>
-<p>You should see <code>stats.db</code> in the data directory once statistics have been
-recorded.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>stats.db</code> exists and contains recent trades.</p>
-<h2 id="exercise-6-audit-to-disk">Exercise 6: Audit to Disk<a class="headerlink" href="#exercise-6-audit-to-disk" title="Permanent link">&para;</a></h2>
-<p>Start audit logging to a file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-audit<span class="w"> </span>--audit-log-file<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log"</span><span class="w"> </span>--terminal
-</code></pre></div>
-<p>Execute a trade, then inspect the log:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>tail<span class="w"> </span>-20<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log"</span>
-</code></pre></div>
-<p><code>pm-audit</code> collects events in a buffer and writes them out in batches, at
-least every 10 seconds, so wait a few seconds after the trade before you look
-(and start <code>pm-audit</code> before you trade: it records only what it sees).</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit log contains events from your trading session.</p>
+<p>The other files in the data directory belong to the processes that write
+them, and survive any restart the same way: <code>stats.db</code> (chapter 15),
+<code>clearing.db</code> (chapter 12) and <code>audit.log</code> (chapter 13) are only ever
+appended to by <code>pm-stats</code>, <code>pm-clearing</code> and <code>pm-audit</code>. Only
+<code>pm-opctl-cli clear</code> removes them.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now understand:</p>
 <ul>
@@ -7874,7 +7819,7 @@ least every 10 seconds, so wait a few seconds after the trade before you look
 <li>Why GTC and DAY orders behave differently across session boundaries, and
   why that is a <em>different</em> question from how they behave across an engine
   restart.</li>
-<li>How stats and audit files survive beyond the current terminal session.</li>
+<li>Which other files live in the data directory, and what removes them.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>A resting <code>DAY</code> order and a live MM quote leg both now survive an engine

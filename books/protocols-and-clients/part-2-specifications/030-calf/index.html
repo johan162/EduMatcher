@@ -8519,7 +8519,8 @@ become known only after the <code>SUB</code> — via the same wildcard subscript
 <li>A wildcard subscription (<code>SYM=*</code>) counts as exactly one entry toward
   <code>max_symbols_per_client</code>, not one entry per known symbol.</li>
 <li>Re-subscribing an already active pair is idempotent.</li>
-<li>Maximum symbols per client are enforced by gateway config.</li>
+<li>Maximum symbols per client are enforced by gateway config, on <code>SUB</code> and on
+  <code>RESUME</code> alike (a <code>RESUME</code> for a stream not yet held adds it).</li>
 <li>If any requested <code>(CH,SYM)</code> pair is invalid, the gateway rejects the <code>SUB</code>
   request with <code>ERR</code> and leaves existing subscriptions unchanged.</li>
 <li>For non-<code>INDEX</code> channels, a non-wildcard <code>SYM</code> is validated against the
@@ -8528,7 +8529,9 @@ become known only after the <code>SUB</code> — via the same wildcard subscript
   <code>ERR|CODE=INVALID_SYMBOL</code>. <code>INDEX</code> is exempt from this check — index ids
   live in a separate namespace from tradable instrument symbols, so any
   non-empty id is accepted at <code>SUB</code> time regardless of whether a matching
-  index is actually configured. <code>AUCTION</code> and <code>CB</code> are not exempt: a
+  index is actually configured. The exemption is per pair: in
+  <code>SUB|CH=INDEX,TOP|SYM=X</code> the <code>(TOP, X)</code> pair is still checked, and an
+  unknown <code>X</code> rejects the whole <code>SUB</code>. <code>AUCTION</code> and <code>CB</code> are not exempt: a
   non-wildcard symbol for either is checked against the same known-instrument
   list as <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>DEPTH</code>.</li>
 <li>If the gateway's known-symbol list itself is empty (for example, engine
@@ -8666,7 +8669,7 @@ burst per symbol on subscribe.</p>
 <tr>
 <td><code>DEPTH</code></td>
 <td>Gateway -&gt; Client</td>
-<td>Incremental multi-level order book update</td>
+<td>Multi-level order book ladder (replaces the previous one)</td>
 </tr>
 <tr>
 <td><code>AUCTION</code></td>
@@ -8757,6 +8760,11 @@ after a reconnect. Replay now has its own repeatable
 <td>Replay window in seconds</td>
 </tr>
 <tr>
+<td><code>EPOCH</code></td>
+<td>Yes</td>
+<td>Identifies this run of the gateway process (8 hex digits, new at every start). Every stream's <code>SEQ</code> is counted within one run and begins again at 1 after a restart, so a <code>RESUME</code> names the run its <code>LASTSEQ</code> came from.</td>
+</tr>
+<tr>
 <td><code>SYMBOLS</code></td>
 <td>No</td>
 <td>Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after <code>WELCOME</code> is sent, as new <code>book.{SYMBOL}</code>/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new <code>WELCOME</code>.</td>
@@ -8773,7 +8781,7 @@ after a reconnect. Replay now has its own repeatable
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
 </code></pre></div>
 <p>A client that receives no <code>CH_SUPPORTED</code> field must assume only <code>TOP</code>,
 <code>TRADE</code>, and <code>STATE</code> are available and must not rely on <code>SYM=*</code> for <code>TOP</code>/
@@ -8825,8 +8833,8 @@ possible <code>ERR|CODE=INVALID_CHANNEL</code>/<code>INVALID_SYMBOL</code> respo
 <p><strong>Purpose:</strong> Subscribe to one stream and replay what was missed since
 <code>LASTSEQ</code>, instead of starting from a <code>SNAP</code>.</p>
 <p><strong>Response:</strong> replayed events in sequence order, or <code>ERR|CODE=REPLAY_MISS</code>
-when the gap is wider than the replay window or <code>LASTSEQ</code> is ahead of the
-stream. On the snapshot-backed channels
+when <code>EPOCH</code> is not this gateway run's, the gap is wider than the replay
+window, or <code>LASTSEQ</code> is ahead of the stream. On the snapshot-backed channels
 (<code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, <code>CB</code>) a fresh <code>SNAP</code> follows that error; on
 <code>TRADE</code> and <code>AUCTION</code> it does not, because a past print has no current state to
 snapshot. See "Reconnect behavior" below.</p>
@@ -8854,19 +8862,31 @@ snapshot. See "Reconnect behavior" below.</p>
 <td>Yes</td>
 <td>Last sequence the client received on that stream</td>
 </tr>
+<tr>
+<td><code>EPOCH</code></td>
+<td>Yes</td>
+<td><code>WELCOME\|EPOCH=</code> of the gateway run <code>LASTSEQ</code> was received from</td>
+</tr>
 </tbody>
 </table>
 <p>Send one <code>RESUME</code> per stream being recovered. Unlike <code>SUB</code>, this message
 takes no comma-separated lists: <code>LASTSEQ</code> describes a single stream's
 position, so a multi-stream <code>RESUME</code> would have no coherent meaning.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042|EPOCH=3f9a01bc
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88|EPOCH=3f9a01bc
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310|EPOCH=3f9a01bc
 </code></pre></div>
+<p>A client keeps the epoch with each stream position, not only the latest
+<code>WELCOME</code>'s: after reconnecting to a restarted gateway, a position from the
+old run must be resumed with the old run's epoch, so that the gateway answers
+<code>REPLAY_MISS</code> instead of replaying the new run's events as the missing ones.</p>
 <p>Validation rules:</p>
 <ul>
 <li><code>CH</code> or <code>SYM</code> carrying more than one value is <code>ERR|CODE=BAD_MESSAGE</code>.</li>
 <li>A missing or non-positive <code>LASTSEQ</code> is <code>ERR|CODE=BAD_MESSAGE</code>.</li>
+<li>A missing <code>EPOCH</code> is <code>ERR|CODE=BAD_MESSAGE</code>.</li>
+<li>A stream the session does not yet hold that would take it past
+  <code>max_symbols_per_client</code> is <code>ERR|CODE=SUB_LIMIT</code>, with nothing replayed.</li>
 <li>An unknown channel is <code>ERR|CODE=INVALID_CHANNEL</code>.</li>
 <li><code>SYM=*</code> is <code>ERR|CODE=INVALID_SYMBOL</code> on every channel — see
   "Reconnect behavior".</li>
@@ -9076,7 +9096,11 @@ and uses that symbol's own <code>(TOP, SYM)</code> sequence.</p>
 </table>
 <p><code>CH=INDEX</code> fields: identical field set to the <code>IDX</code> message — see that
 section below. Since CALF <code>1.0.0</code>, <code>SUB|CH=INDEX</code> sends a baseline <code>SNAP</code>
-before any live <code>IDX</code> updates, the same as <code>TOP</code>/<code>STATE</code>/<code>DEPTH</code>.</p>
+before any live <code>IDX</code> updates, the same as <code>TOP</code>/<code>STATE</code>/<code>DEPTH</code>. A <code>SNAP</code>
+with no <code>LEVEL</code> (and no <code>SESSION</code>) means the gateway has received no level
+for that id since it started: pm-index publishes on change, so this is normal
+outside trading hours and for an id that does not exist. Wait for the first
+<code>IDX</code>.</p>
 <p><code>CH=DEPTH</code> fields: identical field set to the <code>DEPTH</code> message — see that
 section below. <code>BIDS</code>/<code>ASKS</code> are omitted entirely (not sent as empty
 strings) when a symbol's book has no resting orders on that side yet.</p>
@@ -9485,8 +9509,9 @@ on elapsed time with no session check, so an L2 halt — 15 minutes by default
 </tr>
 </tbody>
 </table>
-<p><code>IDX</code> has no baseline <code>SNAP</code> variant in CALF <code>1.0.0</code>. Delivery starts from
-events that occur after the subscription becomes active.</p>
+<p>A new <code>INDEX</code> subscription starts with a baseline <code>SNAP</code> carrying the same
+fields (see <code>SNAP</code> above, including what a <code>SNAP</code> without <code>LEVEL</code> means);
+<code>IDX</code> events follow.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
 </code></pre></div>
 <h3 id="depth"><code>DEPTH</code><a class="headerlink" href="#depth" title="Permanent link">&para;</a></h3>
@@ -9861,6 +9886,16 @@ that also want the detail.</p>
 halt that just ended and are always omitted on a resume event
 (<code>STATUS=ACTIVE</code>) — only <code>SRC</code> carries over, since what caused the halt is
 meaningful on the way out as well as in.</p>
+<p><strong>Halts learnt from the engine's halt list.</strong> The gateway asks the engine for
+every halted symbol when it first hears from the engine and again after an
+engine restart. A halt it learns that way (the gateway started after the halt)
+is published as <code>STATE</code> and <code>CB</code> events like a live one, but carries only
+<code>LEVEL</code>, <code>RESUMEAT</code> and <code>SRC</code>: the engine's list has no trigger or reference
+price and no corridor, so <code>TRIGGERPX</code>, <code>REFPX</code>, <code>CORRLO</code>, <code>CORRHI</code> and <code>EXP</code>
+are absent until the next extension event. A symbol the gateway holds halted
+that the list omits (an engine restart ends every halt without publishing a
+resume) gets resume events: <code>STATE</code> to the current phase and
+<code>CB|STATUS=ACTIVE</code> without <code>SRC</code>.</p>
 <h4 id="ace-corridor-expansions">ACE corridor expansions<a class="headerlink" href="#ace-corridor-expansions" title="Permanent link">&para;</a></h4>
 <p>A halt does not necessarily end when <code>RESUMEAT</code> arrives. If the indicative
 uncross price falls outside <code>[CORRLO, CORRHI]</code>, the symbol stays halted, the
@@ -10033,7 +10068,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>Events after <code>LASTSEQ</code> are no longer in the replay window, or <code>LASTSEQ</code> is ahead of the stream (e.g. after a gateway restart); a <code>SNAP</code> follows on <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>, but not on <code>TRADE</code>/<code>AUCTION</code></td>
+<td><code>RESUME\|EPOCH=</code> names another gateway run (the gateway restarted), events after <code>LASTSEQ</code> are no longer in the replay window, or <code>LASTSEQ</code> is ahead of the stream; a <code>SNAP</code> follows on <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>, but not on <code>TRADE</code>/<code>AUCTION</code></td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
@@ -10061,7 +10096,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
   connection remains open. The client may retry once its send rate is back
   under <code>max_messages_per_second</code>.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>ERR|CODE=REPLAY_MISS|DETAIL=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
 </code></pre></div>
 <h3 id="exit"><code>EXIT</code><a class="headerlink" href="#exit" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Both</p>
@@ -10127,7 +10162,12 @@ there are streams to recover. Reconnect therefore looks like: <code>HELLO</code>
 one <code>RESUME</code> per stream the client was following, then a <code>SUB</code> for anything
 it wants that it has no sequence position for.</p>
 <ul>
-<li>Client supplies <code>CH</code>, <code>SYM</code>, and <code>LASTSEQ</code>.</li>
+<li>Client supplies <code>CH</code>, <code>SYM</code>, <code>LASTSEQ</code>, and the <code>EPOCH</code> of the gateway run
+  that <code>LASTSEQ</code> came from.</li>
+<li>An <code>EPOCH</code> that is not the current run's is answered <code>ERR|CODE=REPLAY_MISS</code>
+  (plus a <code>SNAP</code> where the channel has one): the gateway restarted, its
+  sequences began again at 1, and nothing it holds continues the old
+  position — even when its own stream has already passed <code>LASTSEQ</code>.</li>
 <li><code>CH</code> and <code>SYM</code> must each contain exactly one value.</li>
 <li><code>LASTSEQ</code> must be a positive base-10 integer.</li>
 <li>If missing events are inside replay window, gateway replays in order then
@@ -10158,8 +10198,7 @@ it wants that it has no sequence position for.</p>
   stream's current sequence, so nothing was missed. Every other case the
   gateway cannot serve is a <code>REPLAY_MISS</code> — including a stream whose
   retained events have all aged out, and a <code>LASTSEQ</code> ahead of the stream
-  (or on a stream this gateway has never emitted), which is what a client
-  holding a position from before a gateway restart sends.</li>
+  (or on a stream this gateway has never emitted).</li>
 <li><code>SYM=*</code> is always invalid for <code>RESUME</code>, for every channel, even for
   <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code> where <code>SYM=*</code> is otherwise allowed on
   <code>SUB</code>. <code>RESUME</code> has no equivalent of <code>SUB</code>'s per-symbol snapshot burst,
@@ -10179,11 +10218,11 @@ it wants that it has no sequence position for.</p>
     participant C as Client
     participant G as pm-md-gwy
 
-    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
+    Note over C,G: Last seen in run 3f9a01bc on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
     C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1
-    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
-    C-&gt;&gt;G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
-    C-&gt;&gt;G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
+    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc
+    C-&gt;&gt;G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042|EPOCH=3f9a01bc
+    C-&gt;&gt;G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88|EPOCH=3f9a01bc
 
     alt Replay hit
         G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
@@ -10212,7 +10251,7 @@ it wants that it has no sequence position for.</p>
 
     C-&gt;&gt;G: TCP connect
     C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1
-    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc
 
     C-&gt;&gt;G: SUB|CH=TOP,TRADE|SYM=AAPL
     G--&gt;&gt;C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
@@ -10341,7 +10380,8 @@ it wants that it has no sequence position for.</p>
 <li><code>max_messages_per_second</code> affects inbound <code>ERR|CODE=RATE_LIMITED</code>
   behavior; it is a non-terminal, per-client token bucket, unlike
   <code>max_client_queue</code>.</li>
-<li><code>max_symbols_per_client</code> affects <code>SUB</code> validation and <code>ERR|CODE=SUB_LIMIT</code>.</li>
+<li><code>max_symbols_per_client</code> affects <code>SUB</code> and <code>RESUME</code> validation and
+  <code>ERR|CODE=SUB_LIMIT</code>.</li>
 <li><code>max_client_queue</code> controls slow-client backpressure behavior.</li>
 <li><code>depth_levels</code> affects <code>DEPTH</code> message size and bandwidth; lower it on
   bandwidth-constrained deployments rather than expecting clients to request

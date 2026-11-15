@@ -7966,6 +7966,13 @@ unaffected and still produces the original timeout message:</p>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Timed<span class="w"> </span>out<span class="w"> </span>waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>pm-index:<span class="w"> </span>No<span class="w"> </span>ack<span class="w"> </span>with<span class="w"> </span>prefix<span class="w"> </span><span class="s1">'index.corp_action_ack.OPS01'</span><span class="w"> </span>within<span class="w"> </span><span class="m">3000</span><span class="w"> </span>ms
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Is<span class="w"> </span>pm-index<span class="w"> </span>running<span class="w"> </span>and<span class="w"> </span>reachable<span class="w"> </span>at<span class="w"> </span>tcp://127.0.0.1:59999?
 </code></pre></div>
+<p>A command is applied together with its records or not at all: <code>pm-index</code>
+writes the index's state file and the history record first, and only then
+changes the live index, publishes the new level and acknowledges. If either
+write fails (a full disk, say), the command is rejected with the error as the
+reason and nothing changes, so sending it again later applies it once. After
+a timeout, check with <code>history</code> whether the command landed before sending it
+again.</p>
 <h2 id="confirmation-prompts-and-dry-run">Confirmation prompts and <code>--dry-run</code><a class="headerlink" href="#confirmation-prompts-and-dry-run" title="Permanent link">&para;</a></h2>
 <p>Every mutating subcommand (<code>split</code>, <code>dividend</code>, <code>shares</code>, <code>add</code>, <code>delist</code>)
 prints a description of the action and asks <code>Continue? [y/N]</code> before sending
@@ -7976,9 +7983,7 @@ stderr and exits <code>1</code> rather than hanging — this matters for CI/cron
 <p><code>--dry-run</code> prints the exact outbound topic and JSON payload and exits <code>0</code>
 without sending the command or prompting (the payload carries no <code>command_id</code>;
 that is added only when a command is really sent). Use it to check a <code>--ratio</code>
-parse or a <code>--delta</code>-resolved share count before committing — note that
-<code>shares --delta --dry-run</code> still queries <code>pm-index</code> for the current share count,
-so <code>pm-index</code> must be running for it:</p>
+parse or the payload of a <code>shares</code> command before committing:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>--dry-run
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>DRY<span class="w"> </span>RUN<span class="w"> </span>—<span class="w"> </span>would<span class="w"> </span>send<span class="w"> </span><span class="nv">topic</span><span class="o">=</span><span class="s1">'index.corp_action'</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="o">{</span>
@@ -8087,27 +8092,20 @@ so <code>pm-index</code> must be running for it:</p>
 <tr>
 <td><code>--delta</code></td>
 <td>One of these two</td>
-<td>Signed change from the last known share count (negative for a buy-back, positive for an issuance)</td>
+<td>Signed change to the current share count (negative for a buy-back, positive for an issuance); not <code>0</code></td>
 </tr>
 </tbody>
 </table>
 <p><code>pm-index</code> has no dedicated <code>BUYBACK</code> action — only <code>SHARES_ISSUANCE</code>, which
-always sets an absolute share count regardless of direction (see
+takes either an absolute share count or a signed delta (see
 <a href="../070-market-index/#supported-corporate-actions">Market Index — Supported corporate actions</a>).
-<code>--delta</code> is a CLI-side convenience: it queries the index's whole history and
-takes the most recent share count recorded for that symbol — either an
-<code>ADD_CONSTITUENT</code> record's <code>shares_outstanding</code> or a <code>SHARES_ISSUANCE</code>
-corporate action — applies the signed delta, and shows the computed absolute
-value before sending. So it works right after <code>add</code>. Two caveats: a <code>SPLIT</code>
-recorded since then is <strong>not</strong> reflected (the share count it starts from is the
-pre-split one), and <code>ADD_CONSTITUENT</code> records written by older versions carry no
-<code>shares_outstanding</code>. If no share count can be found, the command prints
-<code>REJECTED  no prior shares_outstanding found for SYM in index IDX — pass --new-shares instead.</code>
-to stderr and exits <code>1</code>.</p>
+With <code>--delta</code>, <code>pm-index</code> applies the change to the share count it holds at
+that moment — after any split, rebalance or earlier issuance — and the reply
+reports the resulting count. A delta that would leave zero or fewer shares is
+rejected and changes nothing.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>shares<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--delta<span class="w"> </span>-800000000
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Last<span class="w"> </span>known<span class="w"> </span>shares_outstanding<span class="w"> </span><span class="k">for</span><span class="w"> </span>AAPL:<span class="w"> </span><span class="m">16</span>,000,000,000
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>This<span class="w"> </span>will<span class="w"> </span><span class="nb">set</span><span class="w"> </span>shares_outstanding<span class="w"> </span>to<span class="w"> </span><span class="m">15</span>,200,000,000<span class="w"> </span><span class="o">(</span>delta<span class="w"> </span>-800,000,000,<span class="w"> </span>a<span class="w"> </span>buy-back<span class="o">)</span>.<span class="w"> </span>Continue?<span class="w"> </span><span class="o">[</span>y/N<span class="o">]</span><span class="w"> </span>y
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>SHARES_ISSUANCE<span class="w"> </span>OK<span class="w">   </span>TECH10<span class="w">  </span>AAPL<span class="w">  </span><span class="nv">new_shares_outstanding</span><span class="o">=</span><span class="m">15</span>,200,000,000<span class="w">  </span><span class="nv">new_level</span><span class="o">=</span><span class="m">8401</span>.09<span class="w">  </span><span class="nv">new_divisor</span><span class="o">=</span><span class="m">118</span>.1187
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>This<span class="w"> </span>will<span class="w"> </span>change<span class="w"> </span>shares_outstanding<span class="w"> </span>of<span class="w"> </span>AAPL<span class="w"> </span><span class="k">in</span><span class="w"> </span>index<span class="w"> </span>TECH10<span class="w"> </span>by<span class="w"> </span>-800,000,000<span class="w"> </span><span class="o">(</span>a<span class="w"> </span>buy-back<span class="o">)</span>.<span class="w"> </span>Continue?<span class="w"> </span><span class="o">[</span>y/N<span class="o">]</span><span class="w"> </span>y
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>SHARES_ISSUANCE<span class="w"> </span>OK<span class="w">   </span>TECH10<span class="w">  </span>AAPL<span class="w">  </span><span class="nv">shares_outstanding</span><span class="o">=</span><span class="m">15</span>,200,000,000<span class="w">  </span><span class="nv">new_level</span><span class="o">=</span><span class="m">8401</span>.09<span class="w">  </span><span class="nv">new_divisor</span><span class="o">=</span><span class="m">118</span>.1187
 </code></pre></div>
 <h3 id="add-add-a-constituent"><code>add</code> — Add a constituent<a class="headerlink" href="#add-add-a-constituent" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>add<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>NVDA<span class="w"> </span>--shares<span class="w"> </span><span class="m">2470000000</span><span class="w"> </span>--price<span class="w"> </span><span class="m">118</span>.50
@@ -8144,16 +8142,13 @@ to stderr and exits <code>1</code>.</p>
 </tbody>
 </table>
 <div class="admonition warning">
-<p class="admonition-title">The symbol must already be tradeable</p>
-<p><code>pm-index</code> does not check that <code>--sym</code> is a configured, tradeable
-symbol in <code>engine_config.yaml</code> — it only tracks it as an index
-constituent. If the symbol doesn't exist elsewhere in the config, it
-will be added to the index but never receive live price updates. The
-confirmation prompt states this requirement, but <code>pm-index-admin-cli</code>
-has no <code>--config</code> flag and cannot verify it for you. A change made this
-way lives in <code>pm-index</code>'s state file and survives restarts, but not
-<code>--reset</code> — see <a href="../070-market-index/#state-file">Market Index — State file</a>
-for keeping the config in step.</p>
+<p class="admonition-title">The symbol must be a configured symbol</p>
+<p><code>pm-index</code> refuses to add a symbol the exchange is not configured to
+trade (<code>REJECTED  APPL is not a configured symbol</code>), so a typo cannot
+become a constituent that never moves. A change made this way lives in
+<code>pm-index</code>'s state file and survives restarts, but not <code>--reset</code> — see
+<a href="../070-market-index/#state-file">Market Index — State file</a> for keeping
+the config in step.</p>
 </div>
 <h3 id="delist-remove-a-constituent"><code>delist</code> — Remove a constituent<a class="headerlink" href="#delist-remove-a-constituent" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>XYZ
@@ -8228,7 +8223,7 @@ out explicitly.</p>
 <td><code>--limit</code></td>
 <td>No</td>
 <td><code>50</code></td>
-<td>Maximum rows shown — the oldest <code>N</code> of the matching, oldest-first list</td>
+<td>Maximum rows shown — the newest <code>N</code> of the matching records, listed oldest first</td>
 </tr>
 </tbody>
 </table>
@@ -8240,12 +8235,13 @@ Unlike <code>pm-index-cli events</code>, which reads the JSONL file directly fro
 and needs no running process, <code>history</code> here round-trips through the live
 <code>pm-index</code> process.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span><span class="nb">history</span><span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--from<span class="w"> </span><span class="m">1784000000</span><span class="w"> </span>--limit<span class="w"> </span><span class="m">3</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="m">1784106000000000000</span><span class="w">  </span>ADD_CONSTITUENT<span class="w"> </span>NVDA<span class="w">     </span><span class="nv">shares</span><span class="o">=</span><span class="m">2</span>,470,000,000<span class="w"> </span><span class="nv">price</span><span class="o">=</span><span class="m">118</span>.5
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="m">1784365200000000000</span><span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SHARES_ISSUANCE<span class="w"> </span><span class="nv">shares</span><span class="o">=</span><span class="m">16000000000</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8390</span>.02
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="m">1784451302000000000</span><span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SPLIT<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8452</span>.17
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="m">2026</span>-07-15T09:00:00+00:00<span class="w">  </span>ADD_CONSTITUENT<span class="w"> </span>NVDA<span class="w">     </span><span class="nv">shares</span><span class="o">=</span><span class="m">2</span>,470,000,000<span class="w"> </span><span class="nv">price</span><span class="o">=</span><span class="m">118</span>.5
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="m">2026</span>-07-18T09:00:00+00:00<span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SHARES_ISSUANCE<span class="w"> </span><span class="nv">shares</span><span class="o">=</span><span class="m">16000000000</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8390</span>.02
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="m">2026</span>-07-19T08:55:02+00:00<span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SPLIT<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8452</span>.17
 </code></pre></div>
-<p>The first column is the record's raw <code>ts_ns</code> (epoch nanoseconds), and records
-are listed oldest first. An empty result prints <code>No history records found.</code>
+<p>The first column is the record's time in UTC, and records are listed oldest
+first. A <code>REBALANCE</code> row lists each symbol's new share count, for example
+<code>AAPL=9,000,000,000,MSFT=7,400,000,000 -&gt; level=8460.40</code>. An empty result prints <code>No history records found.</code>
 <code>--format json</code> prints the raw record list instead:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="nb">history</span><span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--limit<span class="w"> </span><span class="m">3</span>
 </code></pre></div>

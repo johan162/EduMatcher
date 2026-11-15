@@ -7923,7 +7923,10 @@ cannot use <code>metrics.db</code>:</p>
 costs history, not monitoring: <code>pm-monitor</code> logs the error and runs on
 without history, and the <code>metrics_store_errors</code> rule (below) shows it
 DEGRADED until it is restarted with a usable data directory. A write that
-fails later is counted the same way.</p>
+fails later is counted the same way; while writes keep failing (a full
+disk), <code>pm-monitor</code> holds the last ten minutes of 1-minute rows for the
+next write that succeeds, and drops and counts older ones, so its memory
+stays bounded.</p>
 <p>With <code>monitor.enabled: false</code> it prints that monitoring is disabled and then
 <strong>idles</strong> until stopped (exit 0), binding nothing and writing nothing. It does
 not exit at once on purpose: the profiles run it, and the container restarts
@@ -8092,6 +8095,30 @@ and nothing is MISSING.</p>
 <td>—</td>
 </tr>
 <tr>
+<td><code>md_bus_gaps</code> (fixed) — engine or <code>pm-index</code> messages that never reached <code>pm-md-gwy</code> (dropped at its receive buffer), so no CALF client saw them; <code>md.bus_gaps</code> counts them by topic family</td>
+<td><code>pm-md-gwy</code></td>
+<td>any increase in 5 min</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>dc_feed_gaps</code> (fixed) — fills of a watched participant that never reached <code>pm-dc-gwy</code> (dropped at its receive buffer), so its DC1 clients saw a <code>SEQ</code> gap; <code>gwy.feed_gaps</code> counts them</td>
+<td><code>pm-dc-gwy</code></td>
+<td>any increase in 5 min</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ralf_bus_gaps</code> (fixed) — trades or end-of-day messages that never reached <code>pm-ralf-gwy</code> (dropped at its receive buffer); RALF numbers the lines it emits, so no client's <code>SEQ</code> shows the loss; <code>gwy.bus_gaps</code> counts them by engine topic</td>
+<td><code>pm-ralf-gwy</code></td>
+<td>any increase in 5 min</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>audit_write_errors</code> (fixed) — <code>pm-audit</code> could not write the trail (disk full, I/O error); the lines wait in memory and are retried every 300 ms</td>
+<td><code>pm-audit</code></td>
+<td>any increase in 5 min</td>
+<td>—</td>
+</tr>
+<tr>
 <td><code>metrics_store_errors</code> (fixed) — history <code>pm-monitor</code> could not write</td>
 <td><code>pm-monitor</code></td>
 <td>any increase in 5 min</td>
@@ -8177,14 +8204,19 @@ them into increments, so a process restart neither loses nor double-counts
 <li><strong>per minute now</strong> — the last 60 seconds;</li>
 <li><strong>average per minute</strong> — the last 60 minutes;</li>
 <li><strong>average per hour</strong> — today divided by the hours since the session opened
-  today (else since midnight);</li>
+  today (else since midnight). After a restart the opening time comes from
+  today's <code>SESSION</code> event in <code>metrics.db</code>;</li>
 <li><strong>average per day</strong> — the mean daily total over the last 7 trading days
   with data.</li>
 </ul>
-<p>When <code>pm-monitor</code> restarts it resumes from <code>metrics.db</code>: today's totals come
-back, and the first beacon of a process that kept running counts exactly what
-happened while <code>pm-monitor</code> was down. Only the very first start of a new
-<code>metrics.db</code> begins the day at zero for processes that started earlier.</p>
+<p>When <code>pm-monitor</code> restarts on the same trading date it resumes from
+<code>metrics.db</code>: today's totals come back, and the first beacon of a process
+that kept running counts exactly what happened while <code>pm-monitor</code> was down.
+When it was down across a trading-date change, there is no such point: what a
+process counted meanwhile is partly the earlier day's (and the engine resets
+its daily trade counters at PRE_OPEN), so <code>pm-monitor</code> begins the day at zero
+for processes that started on an earlier day, as on the first start of a new
+<code>metrics.db</code>. A process that started today counts in full.</p>
 <h2 id="metricsdb"><code>metrics.db</code><a class="headerlink" href="#metricsdb" title="Permanent link">&para;</a></h2>
 <p><code>&lt;data dir&gt;/metrics.db</code> (SQLite, WAL mode) holds:</p>
 <table>
@@ -8218,8 +8250,8 @@ happened while <code>pm-monitor</code> was down. Only the very first start of a 
 </tr>
 <tr>
 <td><code>counter_last</code></td>
-<td>The last value of every counter, for an exact restart</td>
-<td><code>minute_days</code></td>
+<td>The last value of every counter, for an exact restart on the same trading date; written when it changes and once a day</td>
+<td><code>minute_days</code> after the series was last heard</td>
 </tr>
 <tr>
 <td><code>events</code></td>
@@ -8476,10 +8508,15 @@ CPU, loop lag, seconds since its last beacon), and active breaches.
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>                      [--limit N] [--follow [--count N]]
 </code></pre></div>
 <p>The newest <code>--limit</code> (50) matching events from <code>metrics.db</code>, oldest first.
+<code>--since</code> takes any ISO-8601 date or time (<code>2026-10-19</code>,
+<code>2026-10-19T14:00:00Z</code>, <code>2026-10-19 16:00+02:00</code>); without an offset it is
+UTC, the time the <code>TS</code> column shows. Anything else is a usage error (exit 2).
 <code>--kind</code> is one of the kinds above; <code>--subject</code> matches part of the subject.
 <code>--follow</code> then prints live events as they happen until Ctrl-C (<code>--count N</code>:
 stop after N). No event is lost or repeated between the history and the live
-feed: a gap in the sequence numbers is filled from <code>metrics.db</code>.</p>
+feed: a gap in the sequence numbers is filled from <code>metrics.db</code>. When
+<code>pm-monitor</code> numbers its events anew (it runs without <code>metrics.db</code>, or with a
+new one), the follow carries on with the new numbers.</p>
 <h3 id="cookbook">Cookbook<a class="headerlink" href="#cookbook" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Is the exchange OK? (exit code for a script or a cron job)</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-monitor-cli<span class="w"> </span>status<span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"exchange not OPERATIONAL (</span><span class="nv">$?</span><span class="s2">)"</span>
@@ -8545,8 +8582,8 @@ feed: a gap in the sequence numbers is filled from <code>metrics.db</code>.</p>
 </tr>
 <tr>
 <td>Today's counts start from zero after a <code>pm-monitor</code> restart</td>
-<td>First start with this <code>metrics.db</code> (or it was cleared)</td>
-<td>Expected once; later restarts resume exactly</td>
+<td>First start with this <code>metrics.db</code> (or it was cleared), or <code>pm-monitor</code> was down across midnight in the session timezone</td>
+<td>Expected; later restarts on the same day resume exactly</td>
 </tr>
 <tr>
 <td><code>pm-monitor</code> DEGRADED by <code>metrics_store_errors</code></td>

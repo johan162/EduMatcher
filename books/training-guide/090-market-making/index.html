@@ -6099,10 +6099,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-cancel-a-single-leg-directly-and-see-why-you-shouldnt" class="md-nav__link">
+  <a href="#exercise-7-check-quote-bootstrap-state-qboot" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Cancel a Single Leg Directly — and See Why You Shouldn't
+        Exercise 7: Check Quote Bootstrap State (QBOOT)
       
     </span>
   </a>
@@ -6110,10 +6110,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-check-quote-bootstrap-state-qboot" class="md-nav__link">
+  <a href="#exercise-8-cancel-a-single-leg-directly-and-see-why-you-shouldnt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: Check Quote Bootstrap State (QBOOT)
+        Exercise 8: Cancel a Single Leg Directly — and See Why You Shouldn't
       
     </span>
   </a>
@@ -7808,7 +7808,7 @@ quoting AAPL, and clear the symbol from the operator console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[MM_MANUAL_01]&gt; QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q001
 </code></pre></div>
 <p>Expected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>QUOTE ACK   Q001  bid=&lt;bid_id&gt; ask=&lt;ask_id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>QUOTE ACK  Q001  bid=&lt;bid_id&gt; ask=&lt;ask_id&gt;
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>QUOTE ACTIVE  Q001
 </code></pre></div>
 <p>Note both leg IDs — you'll need them to identify fills.</p>
@@ -7883,7 +7883,7 @@ misread:</p>
   <code>ACTIVE</code>, <code>INACTIVE_BID_FILLED</code>, <code>INACTIVE_ASK_FILLED</code> or <code>CANCELLED</code>.
   There is no <code>ACTIVE</code> leg status — a resting, untouched leg shows <code>NEW</code>.</li>
 <li><strong>The <code>Order</code> column holds the full order ID</strong> — the same IDs the
-  <code>QUOTE ACK</code> line printed, ready for a <code>CANCEL</code> (but see Exercise 7 before
+  <code>QUOTE ACK</code> line printed, ready for a <code>CANCEL</code> (but see Exercise 8 before
   you cancel a single leg).</li>
 </ul>
 <p>Try the filters — <code>SHOW=</code> accepts <code>ALL</code>, <code>ACTIVE</code> or <code>RECENT</code>:</p>
@@ -7892,8 +7892,10 @@ misread:</p>
 </code></pre></div>
 <p><code>ACTIVE</code> keeps legs that are still working (an active status, or any remaining
 quantity); <code>RECENT</code> shows the complement — legs that are done. Right now
-<code>ACTIVE</code> should list both of your legs and <code>RECENT</code> should be empty; after
-Exercise 3 that flips.</p>
+<code>ACTIVE</code> should list both of your legs and <code>RECENT</code> should say
+<code>No quote legs match this filter.</code> Run both again after Exercise 3: the
+cancelled bid has moved to <code>RECENT</code>, while the partly filled ask (400 still
+resting) stays in <code>ACTIVE</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>QLEGS</code> shows both a <code>BUY</code> and a
 <code>SELL</code> row for <code>Q001</code>, each with <code>Leg status</code> <code>NEW</code> and <code>Quote status</code> <code>ACTIVE</code>,
 and you can say why no leg shows a status of <code>ACTIVE</code>.</p>
@@ -7924,7 +7926,7 @@ lines are the two legs of <code>Q002</code> being replaced):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>CANCELLED &lt;Q002 bid id&gt; reason=QUOTE_REPLACED
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>CANCELLED &lt;Q002 ask id&gt; reason=QUOTE_REPLACED
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>QUOTE CANCELLED  Q002  Replaced by new quote
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>QUOTE ACK   Q003  bid=&lt;bid_id&gt; ask=&lt;ask_id&gt;
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>QUOTE ACK  Q003  bid=&lt;bid_id&gt; ask=&lt;ask_id&gt;
 <a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>QUOTE ACTIVE  Q003
 </code></pre></div>
 <p>(In Exercise 4 the same thing happened more quietly: the engine cancelled the
@@ -7945,50 +7947,11 @@ reason=QUOTE_REPLACED</code> line.)</p>
 <p><code>QUOTE_CANCEL</code> is keyed by symbol, not by <code>quote_id</code>.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> quote fully cancelled.</p>
-<h2 id="exercise-7-cancel-a-single-leg-directly-and-see-why-you-shouldnt">Exercise 7: Cancel a Single Leg Directly — and See Why You Shouldn't<a class="headerlink" href="#exercise-7-cancel-a-single-leg-directly-and-see-why-you-shouldnt" title="Permanent link">&para;</a></h2>
-<p><code>QLEGS</code> gives you each leg's full order ID. Nothing stops you from feeding that ID straight into a plain
-<code>CANCEL</code>, bypassing <code>QUOTE_CANCEL</code> entirely. Try it.</p>
-<p>Submit a fresh quote and note the bid's full order ID from the <code>QUOTE ACK</code> line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[MM_MANUAL_01]&gt; QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q004
-</code></pre></div>
-<p>Now cancel <em>only</em> the bid leg, by order ID, with plain <code>CANCEL</code> — not
-<code>QUOTE_CANCEL</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[MM_MANUAL_01]&gt; CANCEL|ID=&lt;bid_id&gt;
-</code></pre></div>
-<p>Expected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>CANCELLED &lt;bid_id&gt;
-</code></pre></div>
-<p>That's it — no <code>QUOTE CANCELLED</code> line, no sibling cancel. Now inspect both views:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[MM_MANUAL_01]&gt; QLEGS|SYM=AAPL|SHOW=ALL
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[MM_MANUAL_01]&gt; QBOOT|SYM=AAPL
-</code></pre></div>
-<p>You should see the bid leg's <code>Leg status</code> as <code>CANCELLED</code>, but the ask leg is
-still <code>NEW</code> and resting, and <strong><code>Quote status</code> on both rows still reads
-<code>ACTIVE</code></strong> — <code>QBOOT</code> agrees, still showing <code>Q004</code> as the active slot for this
-symbol. Compare this with Exercise 3: a fill on one leg makes the engine
-cancel the sibling and publish <code>QUOTE INACTIVE_*_FILLED</code> for you. A manual
-<code>CANCEL</code> on one leg does not — the engine treats it as an ordinary,
-independent order cancel and never consults the quote it belongs to.</p>
-<div class="admonition warning">
-<p class="admonition-title">This is a real trap, not just an exercise</p>
-<p>The engine has no special handling for cancelling a single quote leg by
-order ID. Only <code>QUOTE_CANCEL</code> (whole quote, both legs) and a fill
-(subject to <code>quote_refresh_policy</code>) keep the quote's state consistent.
-If you cancel one leg manually, the other leg keeps resting — silently
-carrying one-sided market risk — while your own state and the engine's
-have quietly diverged. Always use <code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code> to pull a
-quote, never a bare <code>CANCEL</code> on one of its legs.</p>
-</div>
-<p>Clean up before moving on:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[MM_MANUAL_01]&gt; QUOTE_CANCEL|SYM=AAPL
-</code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have seen a single-leg
-<code>CANCEL</code> leave the sibling resting and both <code>Quote status</code> rows stuck on
-<code>ACTIVE</code>, and can explain why <code>QUOTE_CANCEL</code> is the only safe way to pull a
-whole quote.</p>
-<h2 id="exercise-8-check-quote-bootstrap-state-qboot">Exercise 8: Check Quote Bootstrap State (QBOOT)<a class="headerlink" href="#exercise-8-check-quote-bootstrap-state-qboot" title="Permanent link">&para;</a></h2>
-<p>After submitting a quote, inspect the bootstrap state:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[MM_MANUAL_01]&gt; QBOOT|SYM=AAPL
+<h2 id="exercise-7-check-quote-bootstrap-state-qboot">Exercise 7: Check Quote Bootstrap State (QBOOT)<a class="headerlink" href="#exercise-7-check-quote-bootstrap-state-qboot" title="Permanent link">&para;</a></h2>
+<p><code>QLEGS</code> is the leg-level history. <code>QBOOT</code> asks a narrower question: which
+quote is live for you right now? After Exercise 6 you have none, so start
+there:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[MM_MANUAL_01]&gt; QBOOT|SYM=AAPL
 </code></pre></div>
 <p>This shows the current active quote slot for your gateway+symbol — useful for
 verifying what the engine thinks your active quote is.</p>
@@ -7998,10 +7961,10 @@ whether a slot is already active so the new process can adopt or replace safely
 instead of creating duplicates.</p>
 <div class="admonition note">
 <p class="admonition-title">The engine, not just your bot, can restart between quotes</p>
-<p>Quote legs now persist across an <strong>engine</strong> restart the same way any
+<p>Quote legs persist across an <strong>engine</strong> restart the same way any
 other resting order does: unconditionally if <code>TIF=GTC</code>, or if <code>TIF=DAY</code>
 and the restart happens on the same business day. So <code>QBOOT</code> right after
-an engine restart can legitimately show your <code>Q001</code> slot still <code>ACTIVE</code>
+an engine restart can legitimately show your quote's slot still <code>ACTIVE</code>
 with the same leg IDs, even though you never resubmitted the quote — the
 engine restored it and re-registered it in its own <code>QuoteIndex</code>. Only a
 business-day rollover (or an explicit <code>QUOTE_CANCEL</code>/fill) clears a
@@ -8042,15 +8005,20 @@ for the full mechanics.</p>
 </table>
 <p>When there is nothing to report — no active quote for that gateway and symbol
 — you get a single dim line instead of a table:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>No active quote bootstrap entries returned.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>No active quote bootstrap entries returned.
 </code></pre></div>
 <p>That empty response is the useful one on startup: it means the slot is free
 and you can quote without first cancelling something.</p>
-<p>Run it in both states to see the difference. With a quote active, as <code>Q001</code>
-was after Exercise 1, you get a row. Once a fill has inactivated the quote, as
-in Exercise 3, <code>QBOOT</code> reports <strong>no entry at all</strong> — the slot is free again —
-even though <code>QLEGS|SYM=AAPL|SHOW=ALL</code> still lists the quote's legs with
-<code>Quote status</code> <code>INACTIVE_ASK_FILLED</code>. That is the difference between the two
+<p>You got that line just now. Quote again and ask once more:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[MM_MANUAL_01]&gt; QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q004
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[MM_MANUAL_01]&gt; QBOOT|SYM=AAPL
+</code></pre></div>
+<p>This time you get a row: <code>Q004</code>, <code>ACTIVE</code>, 149.90 / 150.10, 500 / 500. Leave
+<code>Q004</code> in place; Exercise 8 uses it.</p>
+<p>A quote that a fill has inactivated, like <code>Q001</code> in Exercise 3, is <strong>not</strong>
+listed either. The slot is free again, even though
+<code>QLEGS|SYM=AAPL|SHOW=ALL</code> still lists that quote's legs with <code>Quote status</code>
+<code>INACTIVE_ASK_FILLED</code>. That is the difference between the two
 commands: <code>QBOOT</code> answers "is there a live quote I must not duplicate?",
 <code>QLEGS</code> keeps the history.</p>
 <div class="admonition note">
@@ -8062,6 +8030,45 @@ know which slots are occupied.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have seen both responses —
 a table with a <code>State</code> of <code>ACTIVE</code>, and the "No active quote bootstrap entries"
 line — and can say which one tells a restarting bot it is safe to quote.</p>
+<h2 id="exercise-8-cancel-a-single-leg-directly-and-see-why-you-shouldnt">Exercise 8: Cancel a Single Leg Directly — and See Why You Shouldn't<a class="headerlink" href="#exercise-8-cancel-a-single-leg-directly-and-see-why-you-shouldnt" title="Permanent link">&para;</a></h2>
+<p><code>QLEGS</code> gives you each leg's full order ID. Nothing stops you from feeding that ID straight into a plain
+<code>CANCEL</code>, bypassing <code>QUOTE_CANCEL</code> entirely. Try it.</p>
+<p>Take the bid's full order ID from the <code>QUOTE ACK</code> line of <code>Q004</code>, the quote
+you left resting in Exercise 7. Now cancel <em>only</em> the bid leg, by order ID,
+with plain <code>CANCEL</code> — not <code>QUOTE_CANCEL</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[MM_MANUAL_01]&gt; CANCEL|ID=&lt;bid_id&gt;
+</code></pre></div>
+<p>Expected:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>CANCELLED &lt;bid_id&gt;
+</code></pre></div>
+<p>That's it — no <code>QUOTE CANCELLED</code> line, no sibling cancel. Now inspect both views:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[MM_MANUAL_01]&gt; QLEGS|SYM=AAPL|SHOW=ALL
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[MM_MANUAL_01]&gt; QBOOT|SYM=AAPL
+</code></pre></div>
+<p>You should see the bid leg's <code>Leg status</code> as <code>CANCELLED</code>, but the ask leg is
+still <code>NEW</code> and resting, and <strong><code>Quote status</code> on both rows still reads
+<code>ACTIVE</code></strong>. <code>QBOOT</code> agrees: it still lists <code>Q004</code> as <code>ACTIVE</code>, now with <code>-</code>
+under <code>Bid</code> and a <code>BidRem</code> of 0. Compare this with Exercise 3: a fill on one
+leg makes the engine cancel the sibling and publish <code>QUOTE INACTIVE_*_FILLED</code> for you. A manual
+<code>CANCEL</code> on one leg does not — the engine treats it as an ordinary,
+independent order cancel and never consults the quote it belongs to.</p>
+<div class="admonition warning">
+<p class="admonition-title">This is a real trap, not just an exercise</p>
+<p>The engine has no special handling for cancelling a single quote leg by
+order ID. Only <code>QUOTE_CANCEL</code> (whole quote, both legs) and a fill
+(subject to <code>quote_refresh_policy</code>) keep the quote's state consistent.
+If you cancel one leg manually, the other leg keeps resting — silently
+carrying one-sided market risk — while your own state and the engine's
+have quietly diverged. Always use <code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code> to pull a
+quote, never a bare <code>CANCEL</code> on one of its legs.</p>
+</div>
+<p>Clean up before moving on:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[MM_MANUAL_01]&gt; QUOTE_CANCEL|SYM=AAPL
+</code></pre></div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have seen a single-leg
+<code>CANCEL</code> leave the sibling resting and both <code>Quote status</code> rows stuck on
+<code>ACTIVE</code>, and can explain why <code>QUOTE_CANCEL</code> is the only safe way to pull a
+whole quote.</p>
 <h2 id="exercise-9-compare-inactivation-policies">Exercise 9: Compare Inactivation Policies<a class="headerlink" href="#exercise-9-compare-inactivation-policies" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8123,7 +8130,7 @@ before moving on, or note that you changed it.</p>
 <p>Two more ways a quote gets pulled that have nothing to do with <code>QUOTE_CANCEL</code>
 or a fill: your gateway disconnecting, and the self-service kill switch.
 Both matter for risk — a quote left resting after your process dies is the
-one-sided exposure Exercise 7 warned about, just caused by a dropped
+one-sided exposure Exercise 8 warned about, just caused by a dropped
 connection instead of a stray <code>CANCEL</code>.</p>
 <p><strong>Part A — disconnect behaviour.</strong> Recall the Prerequisites config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
@@ -8150,18 +8157,24 @@ additionally sweeps every plain resting order too, and <code>LEAVE_ALL</code> ca
 nothing at all, leaving both quotes and orders resting across the
 disconnect. Which one you want is a risk decision, not a technical one —
 <code>LEAVE_ALL</code> trusts the MM to reconcile via <code>QBOOT</code>/<code>QLEGS</code> on reconnect
-(Exercise 8's note on surviving quotes); <code>CANCEL_QUOTES_ONLY</code> assumes a
+(Exercise 7's note on surviving quotes); <code>CANCEL_QUOTES_ONLY</code> assumes a
 disconnected quoting engine can no longer manage its own risk and should not
 keep resting prices in the book; <code>CANCEL_ALL</code> extends that same assumption
 to every order, not just quotes.</p>
 <p><strong>Part B — self-service <code>KILL</code>.</strong> <code>QUOTE_CANCEL</code> is symbol-scoped and only
 touches quotes. When you need to pull everything for your own gateway in one
 shot — every active quote <em>and</em> every plain resting order, across every
-symbol — use <code>KILL</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>[MM_MANUAL_01]&gt; KILL
+symbol — use <code>KILL</code>. Put a quote back first, so there is something of both
+kinds to pull (the <code>MSFT</code> order from Part A is still resting):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>[MM_MANUAL_01]&gt; QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q021
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>[MM_MANUAL_01]&gt; KILL
 </code></pre></div>
-<p>Expected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[&lt;time&gt;] KILL ACK  orders=&lt;n&gt; quote_legs=&lt;n&gt;
+<p>Expected (each line also carries a <code>[HH:MM:SS.mmm]</code> time):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>CANCELLED &lt;bid_id&gt; reason=KILL_SWITCH
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>CANCELLED &lt;ask_id&gt; reason=KILL_SWITCH
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>QUOTE CANCELLED  Q021  Kill switch
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>CANCELLED &lt;msft_order_id&gt; reason=KILL_SWITCH
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>KILL ACK  orders=1 quote_legs=2
 </code></pre></div>
 <p><code>quote_legs</code> counts individual legs, not quote records, so a single
 two-sided quote contributes up to 2 to that count. Scope it to one symbol

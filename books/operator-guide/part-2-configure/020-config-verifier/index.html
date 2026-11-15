@@ -2530,10 +2530,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s131" class="md-nav__link">
+  <a href="#layer-2-schema-s001s133" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S131)
+        Layer 2 — Schema (S001–S133)
       
     </span>
   </a>
@@ -7810,7 +7810,9 @@ without comment.</p>
 deeply and produces a human-friendly report covering:</p>
 <ul>
 <li>every YAML syntax error that would prevent the file from being parsed</li>
-<li>every hard error that <code>load_engine_config()</code> would raise, plus additional ones</li>
+<li>every hard error that <code>pm-config-deploy</code> would refuse the file for, plus
+  additional ones: the verifier finishes by running the same loaders, so a
+  file it passes without an <code>ERROR</code> compiles</li>
 <li>completeness gaps — settings that are missing but probably should be present</li>
 <li>advisory suggestions for settings that are valid but likely to surprise</li>
 <li>a plain-English <strong>Risk Summary</strong> that shows what risk controls are actually active</li>
@@ -7872,10 +7874,13 @@ deeply and produces a human-friendly report covering:</p>
 </code></pre></div>
 <h2 id="verification-layers">Verification Layers<a class="headerlink" href="#verification-layers" title="Permanent link">&para;</a></h2>
 <p>The verifier runs checks in four sequential layers.  A hard error in Layer 1
-(unparseable file) or in Layer 2 (schema errors) stops the later layers, which
-are reported as <code>skipped (fix schema errors first)</code>.  Within a layer, every
-independent problem is reported, so a single pass surfaces as many issues as
-possible.</p>
+(unreadable or unparseable file) or in Layer 2 (schema errors) stops the later
+layers, which are reported as <code>skipped (fix the YAML error first)</code> or
+<code>skipped (fix schema errors first)</code>; a file that could not be read gets no
+Risk Summary.  Within a layer, every independent problem is reported, so a
+single pass surfaces as many issues as possible.  Each layer line counts its
+findings by severity (<code>⚠ Completeness: 1 warning, 3 advisories</code>), so the lines
+add up to the verdict.</p>
 <pre class="mermaid"><code>flowchart TD
     L1["Layer 1 — YAML Syntax\nCan the file be parsed?"]
     L2["Layer 2 — Schema\nDo all required fields exist\nand have the right types?"]
@@ -7912,8 +7917,8 @@ possible.</p>
 </tr>
 <tr>
 <td>4 — Completeness</td>
-<td>WARN or INFO</td>
-<td>Missing-but-recommended settings, default-value notices</td>
+<td>ERROR, WARN or INFO</td>
+<td>Missing-but-recommended settings, default-value notices; ERROR (<code>C008</code>) where a process would refuse to start</td>
 </tr>
 </tbody>
 </table>
@@ -7944,7 +7949,7 @@ possible.</p>
 <a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>Symbols          2  (AAPL, MSFT)
 <a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>Gateways         2  (TRADER01: TRADER, MM01: MARKET_MAKER)
 <a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>Sessions         disabled — always CONTINUOUS
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>Collars          enabled — DEFAULT: static=20%, dynamic=2%
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>Collars          enabled — 2 of 2 symbols (AAPL, MSFT: static 20%, dynamic 2%)
 <a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>Order limits     none configured
 <a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>Circuit breakers enabled — enabled but no circuit breaker configured ⚠
 <a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>MM obligations   not enforced
@@ -8013,7 +8018,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s131">Layer 2 — Schema (<code>S001</code>–<code>S131</code>)<a class="headerlink" href="#layer-2-schema-s001s131" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s133">Layer 2 — Schema (<code>S001</code>–<code>S133</code>)<a class="headerlink" href="#layer-2-schema-s001s133" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -8134,7 +8139,11 @@ the key if it appears on a risk level.</p>
 </tr>
 <tr>
 <td><code>S065</code></td>
-<td><code>symbols.&lt;SYMBOL&gt;.circuit_breaker</code> or <code>.levels</code> not a mapping — <strong>also reused</strong> for <code>locale.country</code> present but not a non-empty string (unrelated condition, same code)</td>
+<td><code>symbols.&lt;SYMBOL&gt;.circuit_breaker</code> or <code>.levels</code> not a mapping</td>
+</tr>
+<tr>
+<td><code>S134</code></td>
+<td><code>locale.country</code> present but not a non-empty string</td>
 </tr>
 <tr>
 <td><code>S122</code></td>
@@ -8517,6 +8526,30 @@ symbol's <code>tick_decimals</code>, not the combo's first leg: the legs of one 
 trade different instruments, which need not share a tick size. The check
 stands down for a symbol whose <code>tick_decimals</code> is itself invalid — <code>S010</code>
 reports that, and there is no grid to check against until it is fixed.</p>
+<p><strong>Engine loader backstop</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S132</code></td>
+<td>The engine loader refuses the file for a reason no other check reported. The message is the loader's own, the one <code>pm-config-deploy</code> would print</td>
+</tr>
+</tbody>
+</table>
+<p><code>S132</code> runs after the semantic layer, because several <code>M</code> codes describe a
+loader error more precisely, and only when no <code>ERROR</code> has been reported for
+the engine sections (everything except the gateway, <code>log_server</code>, <code>monitor</code>
+and <code>api_gateways</code> blocks): the loader stops at its first problem and would
+only restate one already reported. It is counted in the Semantic line.</p>
+<p>A key written with no value (<code>bid_price:</code> on its own, which YAML reads as
+<code>null</code>) is not the same as a missing key: the loaders refuse it. The field's
+own check reports it as "has no value (null)" — for example <code>S014</code> for the
+<code>null</code> price stubs <code>pm-config-gen</code> writes for a market maker.</p>
 <p><strong>API gateway sections</strong></p>
 <table>
 <thead>
@@ -8567,7 +8600,7 @@ collisions with the other configured listeners.</p>
 <tbody>
 <tr>
 <td><code>S081</code></td>
-<td><code>alf_gateway</code> section fails runtime-loader validation</td>
+<td><code>alf_gateway</code> is present and fails runtime-loader validation</td>
 </tr>
 <tr>
 <td><code>S082</code></td>
@@ -8641,7 +8674,11 @@ collisions with the other configured listeners.</p>
 </tr>
 <tr>
 <td><code>S094</code></td>
-<td><code>dc_gateway.heartbeat_interval_sec</code> or <code>.idle_timeout_sec</code> not a positive number</td>
+<td><code>dc_gateway.heartbeat_interval_sec</code> or <code>.idle_timeout_sec</code> not a positive whole number of seconds</td>
+</tr>
+<tr>
+<td><code>S133</code></td>
+<td><code>dc_gateway</code> fails runtime-loader validation for a reason not covered by <code>S090</code>–<code>S094</code> (drift safety net; only fires when none of those already reported)</td>
 </tr>
 </tbody>
 </table>
@@ -8798,8 +8835,8 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 </tr>
 <tr>
 <td><code>M006</code></td>
-<td>WARN</td>
-<td>Schedule times not in chronological order</td>
+<td>ERROR</td>
+<td>Schedule times not strictly increasing within a block (pm-scheduler refuses to start on it)</td>
 </tr>
 <tr>
 <td><code>M007</code></td>
@@ -8839,17 +8876,12 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M014</code></td>
 <td>WARN</td>
-<td>CB level thresholds not strictly increasing</td>
+<td><code>circuit_breaker_defaults.levels</code> not listed in ascending order of <code>price_shift_pct</code></td>
 </tr>
 <tr>
 <td><code>M015</code></td>
 <td>ERROR</td>
 <td>Combo leg references symbol not in <code>symbols</code></td>
-</tr>
-<tr>
-<td><code>M016</code></td>
-<td>WARN</td>
-<td><code>post_trade_gateway</code> configured but no ADMIN gateway</td>
 </tr>
 <tr>
 <td><code>M017</code></td>
@@ -8929,7 +8961,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M032</code></td>
 <td>WARN</td>
-<td>No read-only API credential (<code>gateway_id: null</code>) under <code>api_gateways</code>: pm-dash has no session schedule, terminal-gui no history and book-gui no data</td>
+<td>An <code>api_gateways</code> section has no read-only API credential (<code>gateway_id: null</code>): pm-dash has no session schedule, terminal-gui no history and book-gui no data. A file without <code>api_gateways</code> is not warned</td>
 </tr>
 <tr>
 <td><code>M033</code></td>
@@ -8986,8 +9018,8 @@ all is deliberately left quiet (confirmed by
 </tr>
 <tr>
 <td><code>C008</code></td>
-<td>WARN</td>
-<td>Index constituent has no reference price</td>
+<td>ERROR</td>
+<td>Index constituent has no reference price (pm-index refuses to start)</td>
 </tr>
 <tr>
 <td><code>C009</code></td>
@@ -9053,7 +9085,7 @@ actually do at runtime?"</em></p>
 </tr>
 <tr>
 <td>Collars</td>
-<td>Whether enforced and which levels are configured</td>
+<td>Whether enforced, and which symbols have a collar with which bands (<code>k of N symbols (AAPL, MSFT: static 20%, dynamic 2%; …)</code>; a group of more than three symbols is counted). <code>no reference price in the file</code> marks a collar the engine applies only if it starts with a price from a previous run</td>
 </tr>
 <tr>
 <td>Order limits</td>
@@ -9061,11 +9093,11 @@ actually do at runtime?"</em></p>
 </tr>
 <tr>
 <td>Circuit breakers</td>
-<td>Whether enforced and threshold summary; reads "no circuit breaker configured ⚠" when neither <code>circuit_breaker_defaults</code> nor any symbol <code>circuit_breaker</code> block exists</td>
+<td>Whether enforced, and which symbols have a breaker with which ladder, grouped like collars; reads "no circuit breaker configured ⚠" when no symbol has one</td>
 </tr>
 <tr>
 <td>MM obligations</td>
-<td>Whether enforcement is active</td>
+<td>Whether enforcement is active, and for which market makers (<code>MM01 on 2 of 3 symbols</code> when not every symbol)</td>
 </tr>
 <tr>
 <td>Admin gateway</td>
@@ -9080,10 +9112,17 @@ actually do at runtime?"</em></p>
 <p>A ⚠ next to a Risk Summary line marks a potentially risky or incomplete
 subsystem configuration (for example missing ADMIN gateway or missing collar
 configuration), even if the overall verdict is <code>OK</code>.</p>
+<p>The summary is built from what the engine loader makes of the file: levels,
+defaults and per-symbol blocks are already merged, so each line states what
+the engine will apply to each symbol. When the file does not load, the heading
+reads <code>Risk Summary (from the file as written; it does not load)</code> and the lines
+are a best-effort reading of the YAML.</p>
 <p>The JSON <code>risk_summary</code> object carries a few additional machine-readable
-fields not shown in the text table above, including <code>circuit_breakers_configured</code>
-(<code>false</code> when neither a <code>circuit_breaker_defaults</code> block nor a symbol
-<code>circuit_breaker</code> block exists, so no symbol will be halted).</p>
+fields not shown in the text table above: <code>collared_symbols</code>,
+<code>circuit_breaker_symbols</code> and <code>mm_obligation_gateways</code> (the symbols and market
+makers each control applies to), <code>circuit_breakers_configured</code> (<code>false</code> when no
+symbol has a breaker, so no symbol will be halted), and <code>loaded</code> (<code>false</code> for
+the best-effort reading).</p>
 <h2 id="relationship-to-other-tools">Relationship to Other Tools<a class="headerlink" href="#relationship-to-other-tools" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

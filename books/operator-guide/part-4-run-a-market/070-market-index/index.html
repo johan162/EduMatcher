@@ -8387,24 +8387,46 @@ yields a level close to the configured <code>base_value</code>. After the first 
 evolves only through explicit corporate-action adjustments.</p>
 <h3 id="update-trigger">Update trigger<a class="headerlink" href="#update-trigger" title="Permanent link">&para;</a></h3>
 <p><code>pm-index</code> recalculates after every <code>trade.executed</code> message for a constituent
-symbol. Trades in non-constituent symbols are ignored. The calculation is O(N)
-in the number of constituents — fast enough for any educational exchange.</p>
+symbol. Trades in non-constituent symbols are ignored. A trade adjusts the
+aggregate market cap by its own price change, so its cost does not grow with
+the number of constituents; a corporate action or constituent change
+recomputes the cap in full.</p>
 <h3 id="reference-prices">Reference prices<a class="headerlink" href="#reference-prices" title="Permanent link">&para;</a></h3>
-<p>When no trade has occurred for a constituent since startup, a reference price
-seeded from the engine config is used: the average of <code>last_buy_price</code> and
+<p>On a fresh start (no state file), each constituent starts at a reference
+price seeded from the engine config: the average of <code>last_buy_price</code> and
 <code>last_sell_price</code> when both are set, or whichever one is set if only one is
 present. A symbol with neither field set fails to load as an index
-constituent. Once the first real trade arrives the reference price is
-replaced by the actual trade price.</p>
+constituent. After a restart, the state file's last prices are used instead.</p>
+<p>Either way, <code>pm-index</code> then catches up: when the engine answers its
+session-status request — at start, and again after the engine has shut
+down (its <code>system.eod</code>) and come back; an engine that was killed sends no
+<code>system.eod</code> — <code>pm-index</code> asks the engine for every constituent's
+book and applies the book's last traded price as if it were a trade. Trades
+that happened while <code>pm-index</code> or the engine was down are therefore reflected
+straight away, not only when the constituent next trades. A book with no
+trade yet changes nothing. A caught-up price moves the level but does not
+open the day: before the session's first print it is the previous day's
+price.</p>
 <h3 id="publish-throttle">Publish throttle<a class="headerlink" href="#publish-throttle" title="Permanent link">&para;</a></h3>
 <p>Recalculation happens on every trade, but publishing is throttled to
 <code>publish_interval_sec</code> (default 1 s). The internal level is always up to date;
-the throttle controls only how often <code>index.update</code> messages are broadcast.</p>
+the throttle controls only how often <code>index.update</code> messages are broadcast. A
+level computed inside the interval is not lost: it is broadcast once the
+interval has passed (within a fifth of a second), so the last published level
+always catches up with the last trade. Corporate actions, constituent changes,
+the close and the reply to the engine's session status are published at once.</p>
 <h3 id="intraday-ohlc">Intraday OHLC<a class="headerlink" href="#intraday-ohlc" title="Permanent link">&para;</a></h3>
-<p><code>pm-index</code> tracks day open, high, and low internally. They are cleared at every
-<code>OPENING_AUCTION</code> or <code>CONTINUOUS</code> session transition and start again from the
-next level update; the day is finalised with a closing value when the session
-reaches <code>CLOSED</code>.</p>
+<p><code>pm-index</code> tracks day open, high, and low internally. A new day starts at
+<code>PRE_OPEN</code>, the only phase after <code>CLOSED</code>: the open/high/low are cleared and
+start again from the next level, which is normally the opening auction's
+print (the engine publishes an uncross's trades before the phase that
+follows it, so they count in the day). The day is finalised with a closing
+value when the session reaches <code>CLOSED</code>.</p>
+<p>The engine also sends <code>system.eod</code> whenever it stops, mid-session included.
+<code>pm-index</code> publishes a close then too, but when the engine comes back and
+reports a trading phase, the session goes on: the day is kept and the real
+<code>CLOSED</code> publishes the real close. A <code>pm-index</code> restart mid-session keeps the
+day as well (see <a href="#state-file">State file</a>).</p>
 <h2 id="corporate-actions">Corporate Actions<a class="headerlink" href="#corporate-actions" title="Permanent link">&para;</a></h2>
 <p>Corporate actions change a company's share structure without destroying value.
 Without divisor adjustment, a 2-for-1 stock split would make the index drop by
@@ -8445,8 +8467,8 @@ action</strong>. Future price movements then reflect real value changes.</p>
 <tr>
 <td>Shares issuance</td>
 <td><code>SHARES_ISSUANCE</code></td>
-<td><code>new_shares_outstanding</code></td>
-<td>Sets the new total share count outright (not a delta); divisor rescaled to preserve index level — typically upward for a genuine issuance, but the code does not require <code>new_shares_outstanding</code> to exceed the current count, so supplying a smaller value rescales the divisor downward instead</td>
+<td>exactly one of <code>new_shares_outstanding</code>, <code>shares_delta</code></td>
+<td>Sets the total share count outright, or changes the current count by a signed delta (negative for a buy-back); divisor rescaled to preserve index level. The acknowledgement reports the resulting count</td>
 </tr>
 </tbody>
 </table>
@@ -8467,10 +8489,17 @@ history file. See <a href="../080-index-administration/">Index Administration (<
 subcommand reference, <code>--dry-run</code> output, and exit codes.</p>
 <div class="admonition important">
 <p class="admonition-title">Apply corporate actions before the market opens</p>
-<p>It is safest to apply corporate actions during <code>PRE_OPEN</code> before trading
-starts for the day. Applying them during continuous trading means the index
-will have a brief moment where the pre-adjustment divisor is used for one
-more trade before the action takes effect.</p>
+<p>A split or dividend lowers the constituent's price <em>in the index</em> and
+adjusts the divisor so the level does not move. Nothing in EduMatcher
+lowers the price in the market: the engine, the market makers and
+<code>pm-market-sim</code> keep trading the symbol where it was. The next trade at
+the unchanged price therefore replaces the adjusted price and moves the
+index — after a 2:1 split of one of two equal constituents, a level of
+1000 becomes 1500. Apply a split or dividend only when the symbol will
+trade at the adjusted price from then on (for a simulation, change its
+reference price or the bots' anchor to match), ideally during
+<code>PRE_OPEN</code>. A shares issuance or a constituent change has no such
+effect.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Under the hood: <code>ExchangeCommandClient</code></p>
@@ -8542,9 +8571,10 @@ have moved since the last write. A trade does not write the file by itself.</p>
 <a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">  </span><span class="nt">"day_open"</span><span class="p">:</span><span class="w"> </span><span class="mf">1002.45</span><span class="p">,</span>
 <a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">  </span><span class="nt">"day_high"</span><span class="p">:</span><span class="w"> </span><span class="mf">1012.35</span><span class="p">,</span>
 <a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">  </span><span class="nt">"day_low"</span><span class="p">:</span><span class="w"> </span><span class="mf">998.4</span><span class="p">,</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">  </span><span class="nt">"last_level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1008.9195</span><span class="p">,</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">  </span><span class="nt">"last_updated"</span><span class="p">:</span><span class="w"> </span><span class="mf">1749760800.0</span>
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="p">}</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">  </span><span class="nt">"eod_finalized"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">  </span><span class="nt">"last_level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1008.9195</span><span class="p">,</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">  </span><span class="nt">"last_updated"</span><span class="p">:</span><span class="w"> </span><span class="mf">1749760800.0</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="p">}</span>
 </code></pre></div>
 <p>On restart, this file is the authority for the <strong>live</strong> index: the divisor,
 the constituent list, each constituent's share count and its last price. The
@@ -8555,9 +8585,12 @@ configured ones, <code>pm-index</code> logs a warning and keeps the persisted se
 <code>index_id</code> in the file does not match, <code>pm-index</code> exits with an error telling
 you to use <code>--reset</code>, which discards the file and returns to the configuration
 (including a new divisor). A crash can lose at most the price moves of the last
-30 seconds; they are replaced by the next trade in each constituent.
-<code>day_open</code>, <code>day_high</code> and <code>day_low</code> are diagnostics only: the session's
-open/high/low starts afresh in a new process.</p>
+30 seconds; the catch-up from the engine's books (see
+<a href="#reference-prices">Reference prices</a>) restores them when <code>pm-index</code> starts.
+<code>day_open</code>, <code>day_high</code> and <code>day_low</code> are restored as well while the session
+has not closed (<code>eod_finalized</code> is <code>false</code>), so a restart mid-session keeps
+the day's open, high and low. After the close they are not restored, and the
+next day starts at <code>PRE_OPEN</code>.</p>
 <h3 id="history-file">History file<a class="headerlink" href="#history-file" title="Permanent link">&para;</a></h3>
 <p>The JSONL history file is a <strong>structural/corporate-action audit log</strong>, not a
 level-history store. Only events that change an index's composition or
@@ -8732,7 +8765,7 @@ the wire is as shown, but clients should parse by key.</p>
 <tr>
 <td><code>OPEN</code></td>
 <td>decimal</td>
-<td>Day open level; omitted until the first level update after the day's open/high/low were last cleared (each <code>OPENING_AUCTION</code> / <code>CONTINUOUS</code> transition)</td>
+<td>Day open level; omitted from <code>PRE_OPEN</code> until the day's first level update</td>
 </tr>
 <tr>
 <td><code>HIGH</code></td>

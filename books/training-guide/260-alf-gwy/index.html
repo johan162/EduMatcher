@@ -7871,6 +7871,10 @@ CLI tools, the example parser libraries, and the interactive example clients.</p
   exercise is optional in the container image):</li>
 <li><code>python/alf_parser.py</code>, <code>python/alf_client.py</code></li>
 <li><code>c/alf_parser.h</code>, <code>c/alf_parser.c</code>, <code>c/alf_client.c</code>, <code>c/Makefile</code></li>
+<li>The container image has none of <code>ss</code>, <code>lsof</code>, <code>netstat</code>, <code>nc</code> or <code>telnet</code>.
+  Use the <code>tcp</code> helper of <a href="../220-ralf/">chapter 23</a> wherever this chapter
+  says <code>nc 127.0.0.1 5565</code>; Exercise 2 shows the container's way to check
+  the port.</li>
 </ul>
 <p>Recommended startup terminals:</p>
 <ol>
@@ -7931,7 +7935,7 @@ As always, nothing changes until you deploy it and restart the engine:
 </div>
 <p>Start processes with that config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-alf-gwy
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-alf-gwy<span class="w"> </span>-v
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Orders from earlier chapters are still in the data directory</p>
@@ -7944,7 +7948,8 @@ deletes <code>clearing.db</code> and <code>stats.db</code>). See
 <a href="../110-risk-controls/#starting-over">Starting over</a> for the reset matrix
 and preconditions.</p>
 </div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>pm-alf-gwy</code> starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>pm-alf-gwy -v</code> starts and logs
+<code>listening on 0.0.0.0:5565 (engine_pull=tcp://127.0.0.1:5555 engine_pub=tcp://127.0.0.1:5556 max_connections=1024)</code>.</p>
 <h2 id="exercise-2-verify-the-port-is-listening-with-cli-tools">Exercise 2: Verify the Port Is Listening with CLI Tools<a class="headerlink" href="#exercise-2-verify-the-port-is-listening-with-cli-tools" title="Permanent link">&para;</a></h2>
 <p>Before writing any client code, confirm the gateway is actually bound to the
 configured port using OS tools. This is the fastest way to rule out startup
@@ -7975,6 +7980,10 @@ failures, bind-address mismatches, and firewall issues.</p>
 <li>the port may differ from what you expect — re-run <code>grep -A5 'alf_gateway:' engine_config.yaml</code></li>
 <li><code>pm-engine</code> must be running before <code>pm-alf-gwy</code> can complete its ZMQ handshake</li>
 </ul>
+<p><strong>Container:</strong> the image has none of these tools, and on your computer they
+would show the container's port forwarding rather than the gateway. Inside the
+container, the <code>listening on 0.0.0.0:5565</code> line of <code>pm-alf-gwy -v</code> is the
+check, and the <code>HELLO</code> of the next exercise proves the port answers.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: at least one CLI command shows a process listening on port 5565.</p>
 <h2 id="exercise-3-manual-handshake-probe-with-nc">Exercise 3: Manual Handshake Probe with nc<a class="headerlink" href="#exercise-3-manual-handshake-probe-with-nc" title="Permanent link">&para;</a></h2>
 <p>Use <code>nc</code> (netcat) to open a raw TCP connection and type ALF lines by hand.
@@ -8003,7 +8012,7 @@ no code.</p>
 <p>Expected: <code>ORDERS|COUNT=0|GW=TRADER01</code> and <code>END|TYPE=ORDERS</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>nc</code> session reaches <code>WELCOME</code> and receives a valid <code>SYMBOLS</code> block and an <code>END|TYPE=ORDERS</code> line.</p>
 <h2 id="exercise-3b-telnet-and-non-interactive-one-liner">Exercise 3B: telnet and Non-Interactive One-Liner<a class="headerlink" href="#exercise-3b-telnet-and-non-interactive-one-liner" title="Permanent link">&para;</a></h2>
-<p><strong>telnet</strong> (macOS / Linux):</p>
+<p><strong>telnet</strong> (macOS / Linux; not in the container image):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>telnet<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>Type <code>HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01</code> and press Enter. <code>telnet</code>
@@ -8011,11 +8020,17 @@ echoes characters locally so the line looks doubled in the terminal — the
 <code>WELCOME</code> response confirms the gateway accepted it. Press <code>Ctrl-]</code>, then
 type <code>quit</code> to close.</p>
 <p><strong>Non-interactive probe — useful in scripts or CI pipelines:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\nEXIT\n'</span><span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="o">{</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n'</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'EXIT\n'</span><span class="p">;</span><span class="w"> </span><span class="o">}</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
-<p>Expected: the full session including <code>WELCOME</code>, <code>SYMBOLS</code> block, and
-<code>END|TYPE=SYMBOLS</code> is printed to stdout and the command exits cleanly.</p>
+<p>(In the container: the same with <code>| tcp 127.0.0.1 5565</code>.) Expected: the full
+session including <code>WELCOME</code>, <code>SYMBOLS</code> block, and <code>END|TYPE=SYMBOLS</code> is
+printed to stdout and the command exits cleanly.</p>
+<p>Two details make this work. Lines sent straight after <code>HELLO</code> are fine: the
+gateway holds them until the engine has accepted the logon, then handles
+them in order. But a script must not end before the replies have arrived —
+<code>EXIT</code>, or the end of the input, closes the session, and a reply still on its
+way from the engine is lost. Hence the <code>sleep 1</code> before <code>EXIT</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the one-liner prints <code>WELCOME</code> and <code>END|TYPE=SYMBOLS</code> without interaction.</p>
 <h2 id="exercise-4-submit-and-cancel-an-order-over-nc">Exercise 4: Submit and Cancel an Order over nc<a class="headerlink" href="#exercise-4-submit-and-cancel-an-order-over-nc" title="Permanent link">&para;</a></h2>
 <p>Open a new <code>nc</code> session and type all commands (press Enter after each line):</p>

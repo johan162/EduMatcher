@@ -7955,10 +7955,15 @@ not yet read them. See <a href="#flow-control">Flow control</a>.</p>
 <td><code>admin/monitor</code>, <code>admin/sim</code></td>
 <td><code>error</code> frame <code>"ADMIN role required"</code>, then close <code>1008</code></td>
 </tr>
+<tr>
+<td>The engine confirms the role in time</td>
+<td><code>admin/monitor</code>, <code>admin/sim</code></td>
+<td>close <code>1013</code> (no <code>error</code> frame)</td>
+</tr>
 </tbody>
 </table>
 <h3 id="close-codes">Close codes<a class="headerlink" href="#close-codes" title="Permanent link">&para;</a></h3>
-<p>The gateway itself closes a socket with exactly one code:</p>
+<p>The gateway itself closes a socket with one of two codes:</p>
 <table>
 <thead>
 <tr>
@@ -7970,6 +7975,10 @@ not yet read them. See <a href="#flow-control">Flow control</a>.</p>
 <tr>
 <td><code>1008</code></td>
 <td>Policy violation: authentication or authorisation failed (see above). The client MUST NOT reconnect with the same key without fixing the cause</td>
+</tr>
+<tr>
+<td><code>1013</code></td>
+<td>Try again later: the engine did not answer in time, either while the gateway built the opening snapshot (<code>/ws/private</code>; no snapshot was sent) or while it looked up the caller's role (<code>admin/monitor</code>, <code>admin/sim</code>). It is not a verdict on the key. The client SHOULD reconnect with backoff</td>
 </tr>
 </tbody>
 </table>
@@ -8137,13 +8146,27 @@ event is <strong>dropped for that socket</strong> and the socket stays open.</p>
 <tr>
 <td><code>orders.snapshot</code></td>
 <td><code>gateway_id</code>, <code>stream_seq</code>, <code>ts</code>, <code>data: {orders, positions, quote_legs}</code></td>
-<td>The gateway's view of the caller's orders, positions and quote legs, accurate as of <code>stream_seq</code></td>
+<td>The caller's orders and positions as the engine holds them, and its quote legs, accurate as of <code>stream_seq</code></td>
 </tr>
 </tbody>
 </table>
-<p>The event sink is registered before the snapshot is taken: the worst case is
-an event both in the snapshot and delivered live, never one in neither. Order
-state is idempotent, so a client MAY apply such a duplicate twice.</p>
+<p>The snapshot is asked from the engine on every connect, so it is complete
+after a gateway restart and for orders this gateway never saw (GTC orders
+from earlier days, orders entered over another gateway process):</p>
+<ul>
+<li><code>orders</code>: every order resting at the engine (its <code>order.orders</code> rows, with
+  <code>order_id</code> beside <code>id</code> and <code>client_tag</code> always present), plus this gateway's
+  cached finished orders (<code>FILLED</code>, <code>CANCELLED</code>, <code>EXPIRED</code>, <code>REJECTED</code>) for
+  <code>order_retention_sec</code>. An order this gateway believed working but the engine
+  no longer holds is left out.</li>
+<li><code>positions</code>: net quantity per symbol, non-zero only, from the engine.</li>
+<li><code>quote_legs</code>: this gateway's cached quote legs.</li>
+</ul>
+<p><code>stream_seq</code> is the stream position of the engine's <code>order.orders</code> reply the
+snapshot was cut at: every event numbered above it is newer than the snapshot
+and arrives live, and nothing at or below it is sent after the snapshot. If
+the engine does not answer within the gateway's <code>engine_reply_sec</code>, the
+socket is closed with <code>1013</code> and no snapshot is sent.</p>
 <h3 id="private-event-catalogue">Private event catalogue<a class="headerlink" href="#private-event-catalogue" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8271,10 +8294,15 @@ or refused, echoing the cancel's <code>request_tag</code>; the submit acks (<cod
 <code>combo.ack</code>, <code>quote.ack</code>) report submissions only.</p>
 <p>The <code>order.*</code> events carry the order's <code>client_tag</code>, and cancels and amends
 their <code>request_tag</code> (see the REST spec's
-<a href="../060-rest-and-websocket/#order-correlation-with-client_tag">order correlation</a>).</p>
+<a href="../060-rest-and-websocket/#order-correlation-with-client_tag">order correlation</a>).
+A refused cancel or amend arrives as <code>order.ack</code> with <code>accepted: false</code> and
+<code>request</code> <code>CANCEL</code> or <code>AMEND</code>: the order it targets is unchanged and still
+working. Only an <code>order.ack</code> refusal with <code>request: NEW</code> ends an order as
+<code>REJECTED</code>.</p>
 <h3 id="recovery">Recovery<a class="headerlink" href="#recovery" title="Permanent link">&para;</a></h3>
-<p>On reconnect the server sends a fresh <code>orders.snapshot</code>. A client MUST rebuild
-its order state from it, then apply live events with a higher <code>stream_seq</code>.
+<p>On reconnect the server sends a fresh <code>orders.snapshot</code>, built from the
+engine's state. A client MUST rebuild its order state from it, then apply live
+events with a higher <code>stream_seq</code>.
 There is no replay of missed private events: the snapshot is the recovery. For
 history, use <code>GET /api/v1/history/orders</code> and <code>GET /api/v1/history/fills</code>.</p>
 <h2 id="apiv1wsmarket-data"><code>/api/v1/ws/market-data</code><a class="headerlink" href="#apiv1wsmarket-data" title="Permanent link">&para;</a></h2>
@@ -8507,7 +8535,7 @@ everything that is sent stays contiguous.</p>
 <tr>
 <td><code>monitor.snapshot</code></td>
 <td><code>ts</code>, <code>data: {orders, halts, gateways, last_seq, incomplete}</code></td>
-<td>Current state: the gateway's cross-gateway order view, the engine's halts and gateway roster, each active gateway's <code>stream_seq</code>; names of any part that timed out in <code>incomplete</code></td>
+<td>Current state: the working orders (<code>PENDING</code>, <code>NEW</code>, <code>PARTIAL</code>, <code>AMENDED</code>) of the gateway's cross-gateway order view, the engine's halts and gateway roster, each active gateway's <code>stream_seq</code>; names of any part that timed out in <code>incomplete</code>. Finished orders are in <code>GET /api/v1/admin/orders</code> and the audit trail</td>
 </tr>
 </tbody>
 </table>
@@ -8534,18 +8562,21 @@ The opening frames above are single objects.</p>
 </tr>
 </tbody>
 </table>
-<p>Other engine topics (system replies addressed to any gateway, index and
-reference events) also arrive here, with <code>type</code> derived as in
-<a href="#event-types">Event types</a>. A monitor MUST ignore types it does not render.</p>
+<p>Other engine events also arrive here, with <code>type</code> derived as in
+<a href="#event-types">Event types</a>. Replies to one gateway's requests and acks of its
+admin commands (<code>system.reference.*</code>, <code>system.gateways.*</code>,
+<code>system.position_snapshot.*</code>, <code>risk.*_ack.*</code> and the like: every engine topic
+addressed to one gateway that is not on its private stream) do not; the
+command itself is reported as <code>admin.action</code>. A monitor MUST ignore types it
+does not render.</p>
 <h3 id="recovery_2">Recovery<a class="headerlink" href="#recovery_2" title="Permanent link">&para;</a></h3>
 <p>None by replay: on reconnect the snapshot is current state. History is the
 audit trail (<code>GET /api/v1/admin/orders/{order_id}/audit</code>, <code>pm-audit-cli</code>).</p>
 <p>A <code>seq</code> gap on a live connection means the gateway dropped events because this
 client's queue was full. A dropped fill or cancel leaves an order looking
 working. The monitor SHOULD repair its working-order view from
-<code>GET /api/v1/admin/orders?status=…</code> (one call per working status) rather than
-by reconnecting: the opening snapshot also carries every cached terminal order,
-which under the load that caused the gap is far larger than the working set.</p>
+<code>GET /api/v1/admin/orders?status=…</code> (one call per working status) or by
+reconnecting: both cost what is working, not what has finished.</p>
 <h2 id="apiv1wsadminsim"><code>/api/v1/ws/admin/sim</code><a class="headerlink" href="#apiv1wsadminsim" title="Permanent link">&para;</a></h2>
 <p><code>pm-market-sim</code>'s state and the model's true (hidden) fair values. ADMIN only.
 Frames carry <code>type</code> and <code>data</code> only, and are not numbered.</p>

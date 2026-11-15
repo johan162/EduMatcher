@@ -8096,13 +8096,15 @@
 </div>
 <h2 id="what-this-process-is">What this process is<a class="headerlink" href="#what-this-process-is" title="Permanent link">&para;</a></h2>
 <p><code>pm-md-gwy</code> is the CALF market-data gateway.  The matching engine publishes
-market events on an internal ZeroMQ PUB socket (<code>:5556</code>) that is not accessible
-to external clients.  <code>pm-md-gwy</code> bridges that gap: it subscribes to the engine
-PUB socket, normalises raw engine events into CALF lines, and re-publishes them
+market events on an internal ZeroMQ PUB socket (<code>:5556</code>), and <code>pm-index</code> its
+index levels on another (<code>:5558</code>); neither is accessible to external clients.
+<code>pm-md-gwy</code> bridges that gap: it subscribes to both PUB sockets, normalises
+their events into CALF lines, and re-publishes them
 over TCP (default port <code>5570</code>) in a format any language can consume with a plain
 socket and line-split logic.</p>
 <pre class="mermaid"><code>flowchart TB
-    E[pm-engine\nZMQ PUB :5556] --&gt;|"book.*, trade.executed\nsession.state\ncircuit_breaker.halt/resume/extend\nauction.result.*\nindex.*"| G
+    E[pm-engine\nZMQ PUB :5556] --&gt;|"book.*, trade.executed\nsession.state\ncircuit_breaker.halt/resume/extend\nauction.result.* / auction.indicative.*"| G
+    X[pm-index\nZMQ PUB :5558] --&gt;|"index.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]
         direction TB
@@ -8130,11 +8132,17 @@ socket and line-split logic.</p>
   availability without a protocol version bump</li>
 <li>enforces per-client subscription limits and disconnects slow clients</li>
 <li>asks the engine for its session phase every two seconds, over the engine's
-  PULL socket (<code>:5555</code>). This is the gateway's only traffic towards the engine.
-  The engine announces its phase only on a transition, so without the query a
-  gateway started after the last transition, or an exchange started outside
-  trading hours, would never learn it. Until the first answer arrives, <code>STATE</code>
-  reports <code>SESSION=UNKNOWN</code>.</li>
+  PULL socket (<code>:5555</code>). The engine announces its phase only on a transition,
+  so without the query a gateway started after the last transition, or an
+  exchange started outside trading hours, would never learn it. Until the
+  first answer arrives, <code>STATE</code> reports <code>SESSION=UNKNOWN</code>.</li>
+<li>on the first answer, and again when the answers show that the engine has
+  restarted, asks the engine for every known symbol's book and for the list of
+  halted symbols. The engine publishes a book only when it changes, so without
+  this a gateway started while the market is quiet would send <code>SNAP</code>s with no
+  bid or ask; and an engine restart ends every halt without publishing a
+  resume. The engine does not answer for a symbol it holds no book for: such
+  a symbol's <code>TOP</code> and <code>DEPTH</code> stay as they were until its first order.</li>
 </ul>
 <h2 id="the-feed-at-a-glance">The feed at a glance<a class="headerlink" href="#the-feed-at-a-glance" title="Permanent link">&para;</a></h2>
 <p>Everything a client needs to know in one place. Read this section first; the rest
@@ -8212,8 +8220,8 @@ code.</strong></p>
 <td>Open a session</td>
 </tr>
 <tr>
-<td><code>RESUME\|CH=..\|SYM=..\|LASTSEQ=..</code></td>
-<td>Replay one stream from a known sequence; send one per stream on reconnect</td>
+<td><code>RESUME\|CH=..\|SYM=..\|LASTSEQ=..\|EPOCH=..</code></td>
+<td>Replay one stream from a known sequence of the gateway run named by <code>EPOCH</code>; send one per stream on reconnect</td>
 </tr>
 <tr>
 <td><code>SUB\|CH=..\|SYM=..</code></td>
@@ -8487,7 +8495,7 @@ omitted. <code>pm-md-gwy</code> reads only this <code>market_data_gateway</code>
 <tr>
 <td><code>max_symbols_per_client</code></td>
 <td><code>200</code></td>
-<td>Cap on the number of <em>unique symbol strings</em> a client has subscribed to, counted once across all channels — <code>SYM=*</code> counts as a single entry; exceeding it returns <code>ERR\|CODE=SUB_LIMIT</code></td>
+<td>Cap on the number of <em>unique symbol strings</em> a client has subscribed to, counted once across all channels — <code>SYM=*</code> counts as a single entry; exceeding it, by <code>SUB</code> or by <code>RESUME</code>, returns <code>ERR\|CODE=SUB_LIMIT</code></td>
 </tr>
 <tr>
 <td><code>max_client_queue</code></td>
@@ -8514,12 +8522,15 @@ omitted. <code>pm-md-gwy</code> reads only this <code>market_data_gateway</code>
 <p>All values must be positive integers (<code>port</code>, the intervals, the limits); the
 gateway refuses to start otherwise.</p>
 <div class="admonition warning">
-<p class="admonition-title">If <code>engine_config.yaml</code> fails to load</p>
-<p>If <code>pm-md-gwy</code> cannot load the engine config's symbol list at startup (missing
-file, parse error, etc.), it silently falls back to an empty known-symbol set,
-which disables known-symbol validation gateway-wide — any non-wildcard symbol
-is then accepted on <code>SUB</code>, not just configured ones. Treat this as a
-misconfiguration to fix, not a supported mode.</p>
+<p class="admonition-title">If no configuration has been deployed</p>
+<p><code>pm-md-gwy</code> takes its symbol list from the compiled configuration that
+<code>pm-config-deploy</code> installs. If none is installed, it logs a WARNING
+("no compiled configuration at …") and starts with an empty known-symbol
+set, which disables known-symbol validation gateway-wide — any non-wildcard
+symbol is then accepted on <code>SUB</code>, not just configured ones — and sends no
+<code>SYMBOLS=</code> on <code>WELCOME</code>. Treat this as a misconfiguration to fix, not a
+supported mode. A deployed file that cannot be read stops the gateway
+instead ("failed to resolve configuration").</p>
 </div>
 <h2 id="start-the-gateway">Start the gateway<a class="headerlink" href="#start-the-gateway" title="Permanent link">&para;</a></h2>
 <p>Installed mode:</p>
@@ -8558,7 +8569,7 @@ misconfiguration to fix, not a supported mode.</p>
 <tr>
 <td><code>--index-pub ADDR</code></td>
 <td><code>tcp://127.0.0.1:5558</code></td>
-<td>Override index PUB socket address</td>
+<td>Override the <code>pm-index</code> PUB socket address — likewise not configurable via the YAML block</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -9214,7 +9225,7 @@ on your context.</p>
 
     C-&gt;&gt;G: TCP connect :5570
     C-&gt;&gt;G: HELLO|CLIENT=mybot|PROTO=CALF1
-    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
     C-&gt;&gt;G: SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
     G--&gt;&gt;C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
     G--&gt;&gt;C: SNAP|CH=TOP|SYM=MSFT|SEQ=55|...
@@ -9232,7 +9243,9 @@ the connection on protocol error.  Check the <code>SYMBOLS</code> field in <code
 the list of configured symbols — useful for building a dynamic subscription
 list.  <code>SYMBOLS</code> is <strong>omitted entirely</strong> if the gateway has not learned of any
 symbols yet, so treat a missing field the same as an empty list rather than an
-error.  Also check <code>CH_SUPPORTED</code>: if present, it lists every channel this
+error.  Keep <code>EPOCH</code>: it names this run of the gateway, and a later <code>RESUME</code>
+must quote the <code>EPOCH</code> its <code>LASTSEQ</code> came from (see "Gap detection and replay
+recovery").  Also check <code>CH_SUPPORTED</code>: if present, it lists every channel this
 gateway build actually supports (e.g. <code>AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE</code>).
 If <code>CH_SUPPORTED</code> is <strong>absent</strong>, assume a pre-<code>1.0.0</code> gateway that only
 supports <code>TOP</code>/<code>TRADE</code>/<code>STATE</code> and no <code>SYM=*</code> wildcard outside <code>STATE</code>;
@@ -9358,10 +9371,12 @@ Track <code>last_seq[(CH, SYM)]</code> on every received message and check:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>gap detected when:  received_seq != last_seq + 1
 </code></pre></div>
 <p><strong>Recovery option 1 — replay within window</strong></p>
-<p>Reconnect, then send one <code>RESUME</code> per stream you were following:</p>
+<p>Reconnect, then send one <code>RESUME</code> per stream you were following. <code>EPOCH</code> is
+the <code>WELCOME|EPOCH=</code> of the gateway run each <code>LASTSEQ</code> was received from, so
+keep it with your positions:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>HELLO|CLIENT=mybot|PROTO=CALF1
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>RESUME|CH=TOP|SYM=AAPL|LASTSEQ=99
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=41
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>RESUME|CH=TOP|SYM=AAPL|LASTSEQ=99|EPOCH=3f9a01bc
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=41|EPOCH=3f9a01bc
 </code></pre></div>
 <p>The gateway replays all events with <code>SEQ</code> greater than each <code>LASTSEQ</code> that are
 still inside the replay window (<code>replay_window_sec</code>, default 30 s), then
@@ -9377,11 +9392,14 @@ sides over it; a record with an unmarked gap is worse than one that admits it.</
 <p>The session stays open either way, so your other <code>RESUME</code> requests are
 unaffected.</p>
 <p><strong>Recovery option 3 — the gateway cannot place <code>LASTSEQ</code></strong></p>
-<p>If the buffer has aged out everything after <code>LASTSEQ</code>, or <code>LASTSEQ</code> is ahead
-of the stream — the gateway was restarted and numbers from 1 again, or has
-never emitted that <code>(CH, SYM)</code> — the answer is also <code>ERR|CODE=REPLAY_MISS</code>
-(with a <code>SNAP</code> on the snapshot-backed channels). Zero replay lines with no
-error mean only that you were already up to date.</p>
+<p>If <code>EPOCH</code> names another gateway run (the gateway restarted, so its
+sequences began again at 1 and nothing it holds continues your position),
+the buffer has aged out everything after <code>LASTSEQ</code>, or <code>LASTSEQ</code> is ahead of
+the stream (the gateway has never emitted that <code>(CH, SYM)</code> that far), the
+answer is also <code>ERR|CODE=REPLAY_MISS</code> (with a <code>SNAP</code> on the snapshot-backed
+channels). The epoch check holds even when the restarted gateway's own stream
+has already passed your <code>LASTSEQ</code>. Zero replay lines with no error mean only
+that you were already up to date.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>RESUME</code> is per stream, and repeatable</p>
 <p>Each <code>RESUME</code> recovers one <code>(CH, SYM)</code> stream, because <code>LASTSEQ</code> describes
@@ -9682,7 +9700,8 @@ index id rather than a symbol.</p>
 <a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a><span class="c1"># Send one explicit RESUME after the handshake, to see replay in isolation</span>
 <a id="__codelineno-33-16" name="__codelineno-33-16" href="#__codelineno-33-16"></a><span class="c1"># (gaps noticed while running are always resumed automatically, regardless</span>
 <a id="__codelineno-33-17" name="__codelineno-33-17" href="#__codelineno-33-17"></a><span class="c1"># of this flag)</span>
-<a id="__codelineno-33-18" name="__codelineno-33-18" href="#__codelineno-33-18"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--resume<span class="w"> </span>--resume-ch<span class="w"> </span>TOP<span class="w"> </span>--resume-sym<span class="w"> </span>AAPL<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1042</span>
+<a id="__codelineno-33-18" name="__codelineno-33-18" href="#__codelineno-33-18"></a><span class="c1"># (--epoch defaults to the run this connection reaches)</span>
+<a id="__codelineno-33-19" name="__codelineno-33-19" href="#__codelineno-33-19"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--resume<span class="w"> </span>--resume-ch<span class="w"> </span>TOP<span class="w"> </span>--resume-sym<span class="w"> </span>AAPL<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1042</span>
 </code></pre></div>
 <p>Run <code>python3 calf_subscriber.py --help</code> for the full flag list.</p>
 <p>For a C client (useful for latency-sensitive or dependency-free
@@ -9715,7 +9734,7 @@ process the message and whether to send a <code>RESUME</code>:</p>
 <a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">act</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">CALF_DROP</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span><span class="w">              </span><span class="c1">// replayed duplicate</span>
 <a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">act</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">CALF_RESUME</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[</span><span class="n">CALF_RESUME_LINE_LEN</span><span class="p">];</span>
-<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">    </span><span class="n">calf_recovery_build_resume</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">line</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">gap</span><span class="p">);</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">    </span><span class="n">calf_recovery_build_resume</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">line</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">gap</span><span class="p">,</span><span class="w"> </span><span class="n">epoch</span><span class="p">);</span><span class="w">  </span><span class="c1">// WELCOME|EPOCH=</span>
 <a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a><span class="w">    </span><span class="n">send_line</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span><span class="w"> </span><span class="n">line</span><span class="p">);</span>
 <a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a><span class="p">}</span>
 <a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">act</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">CALF_GAP_UNREPAIRABLE</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>

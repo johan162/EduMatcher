@@ -3267,6 +3267,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#what-eod-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What EOD means
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#channel-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8116,8 +8127,9 @@ It is a read-only event dissemination process.</p>
 <h3 id="2-start-the-ralf-gateway">2. Start the RALF gateway<a class="headerlink" href="#2-start-the-ralf-gateway" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-ralf-gwy
 </code></pre></div>
-<p>By default it reads <code>engine_config.yaml</code> from the same resolution path used by
-other <code>pm-*</code> processes.</p>
+<p>It reads its <code>post_trade_gateway</code> section from the deployed configuration
+(the compiled artifact <code>pm-config-deploy</code> installs), like other <code>pm-*</code>
+processes, and runs with the defaults when nothing has been deployed.</p>
 <h3 id="3-connect-an-external-client">3. Connect an external client<a class="headerlink" href="#3-connect-an-external-client" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SUB|CH=CLEARING|SYM=*
@@ -8165,8 +8177,8 @@ messages according to subscriptions.</p>
 </tr>
 <tr>
 <td><code>--engine-pub ADDR</code></td>
-<td>from config / <code>tcp://127.0.0.1:5556</code></td>
-<td>Override engine PUB socket address</td>
+<td><code>tcp://$EDUMATCHER_ENGINE_HOST:5556</code> (<code>127.0.0.1</code> when unset)</td>
+<td>Engine PUB socket address to subscribe to; there is no config key for it</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -8181,7 +8193,7 @@ messages according to subscriptions.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit <code>WARNING</code> log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -8241,12 +8253,12 @@ such as <code>0.0.0.0</code> and restrict access at the network boundary.</p>
 consumer.  A client's <code>ROLE</code> (declared in <code>HELLO</code>) determines which channels it
 may subscribe to.</p>
 <h3 id="channel-clearing-post-trade-clearing-data">Channel <code>CLEARING</code> — post-trade clearing data<a class="headerlink" href="#channel-clearing-post-trade-clearing-data" title="Permanent link">&para;</a></h3>
-<p><code>CLEARING</code> carries one <code>EXEC</code> line per matched trade plus an <code>EOD</code> summary for
-each symbol at end of day.  It is the primary channel for clearing and
-reconciliation systems.</p>
+<p><code>CLEARING</code> carries one <code>EXEC</code> line per matched trade plus an <code>EOD</code> line for
+each symbol when the engine stops (see <a href="#what-eod-means">What <code>EOD</code> means</a>).
+It is the primary channel for clearing and reconciliation systems.</p>
 <p><strong>When you get it:</strong> Subscribe with <code>CH=CLEARING|SYM=*</code> (or a specific symbol).
 The gateway immediately sends a <code>SNAP</code> baseline, then streams <code>EXEC</code> events as
-trades occur and <code>EOD</code> events at end of day.</p>
+trades occur and <code>EOD</code> events when the engine stops.</p>
 <p><strong>Typical use cases:</strong> trade reconciliation, position keeping, clearing
 obligation calculation.</p>
 <p><strong>Wire example:</strong></p>
@@ -8281,6 +8293,25 @@ audit file generation.</p>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>EOD|CH=AUDIT|SYM=AAPL|SEQ=2|TS=2026-06-30T16:00:00.000Z|TRADE_COUNT=1|EXEC_COUNT=1
 </code></pre></div>
 <hr />
+<h3 id="what-eod-means">What <code>EOD</code> means<a class="headerlink" href="#what-eod-means" title="Permanent link">&para;</a></h3>
+<p><code>EOD</code> is derived from the engine's <code>system.eod</code> broadcast, which <code>pm-engine</code>
+sends in its shutdown sequence — whenever it stops, mid-session included —
+not at a fixed end of the trading day. One <code>EOD</code> per symbol is sent on each
+of the three channels. Read its fields with that in mind:</p>
+<ul>
+<li><code>TRADE_COUNT</code> (and <code>EXEC_COUNT</code>, always equal) is the number of trades
+  <strong>this <code>pm-ralf-gwy</code> run</strong> disseminated for the symbol since it started or
+  since its previous <code>EOD</code>. An engine restart at noon gives an <code>EOD</code> at noon,
+  and the evening <code>EOD</code> counts only the afternoon; a killed engine sends none,
+  so the next <code>EOD</code> counts both periods; a <code>pm-ralf-gwy</code> restart starts the
+  count again at zero. It agrees with the <code>EXEC</code> lines the gateway sent, so it
+  is not a check against trades lost before the gateway (those show in
+  <code>gwy.bus_gaps</code>, see <a href="#operational-notes">Operational notes</a>).</li>
+<li><code>TS</code> is when the gateway received <code>system.eod</code>, not a trading-day close
+  time.</li>
+</ul>
+<p>For the day's authoritative trade count, reconcile against <code>pm-clearing</code> or
+the REST API.</p>
 <h3 id="channel-summary">Channel summary<a class="headerlink" href="#channel-summary" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8302,7 +8333,7 @@ audit file generation.</p>
 </tr>
 <tr>
 <td><code>DROP_COPY</code></td>
-<td><code>EXEC</code></td>
+<td><code>EXEC</code>, <code>EOD</code></td>
 <td>Yes</td>
 <td>Yes</td>
 <td>Risk, compliance drop-copy</td>
@@ -8364,7 +8395,7 @@ comparison table.</p>
 
     C-&gt;&gt;G: TCP connect :5580
     C-&gt;&gt;G: HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-    G--&gt;&gt;C: WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING|REPLAY=86400|HBINT=2
+    G--&gt;&gt;C: WELCOME|PROTO=RALF1|GW=ralf-gwy01|EPOCH=9f3c2a71|ROLE=CLEARING|REPLAY=86400|HBINT=2
     C-&gt;&gt;G: SUB|CH=CLEARING|SYM=*
     G--&gt;&gt;C: SNAP|CH=CLEARING|SYM=*|SEQ=42|TS=2026-06-30T09:30:00.000Z
     loop Live events
@@ -8376,7 +8407,8 @@ comparison table.</p>
 <h3 id="step-1-send-hello">Step 1 — Send <code>HELLO</code><a class="headerlink" href="#step-1-send-hello" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
 </code></pre></div>
-<p><code>CLIENT</code> is a free-text identifier (max 32 chars) used in gateway logs.
+<p><code>CLIENT</code> is a free-text identifier used in gateway logs (the gateway
+applies no length limit beyond the 4096-byte line).
 <code>PROTO</code> must be exactly <code>RALF1</code>.  <code>ROLE</code> declares your access tier —
 <code>CLEARING</code>, <code>DROP_COPY</code>, or <code>AUDIT</code>.  <code>LASTSEQ=0</code> means start from the current
 live position (no replay).  The gateway replies with <code>WELCOME</code> or closes the
@@ -8387,7 +8419,10 @@ line gateways (<code>pm-md-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy
 ended its session (a <code>HELLO</code> pipelined behind a refused first line, for
 example) are ignored.</p>
 <p>The <code>REPLAY</code> field in <code>WELCOME</code> tells you the journal retention window in
-seconds — use it to decide how far back you can safely request on reconnect.</p>
+seconds — use it to decide how far back you can safely request on reconnect.
+<code>EPOCH</code> names this run of <code>pm-ralf-gwy</code>: keep it with your last <code>SEQ</code>, because
+a reconnect that asks for replay must send both (see
+<a href="#gap-detection-and-replay">Gap detection and replay</a>).</p>
 <h3 id="step-2-subscribe">Step 2 — Subscribe<a class="headerlink" href="#step-2-subscribe" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>SUB|CH=CLEARING|SYM=*
 </code></pre></div>
@@ -8400,13 +8435,17 @@ who may subscribe to any channel.  Multiple <code>SUB</code> lines are cumulativ
 <h3 id="step-3-receive-the-snapshot">Step 3 — Receive the snapshot<a class="headerlink" href="#step-3-receive-the-snapshot" title="Permanent link">&para;</a></h3>
 <p>For each <code>SUB</code> line, the gateway sends <strong>one</strong> immediate <code>SNAP</code> covering the
 whole requested channel/symbol set (not one per <code>(channel, symbol)</code> pair).
-Store the <code>SEQ</code> — it is your baseline sequence number for that channel.</p>
+Store the <code>SEQ</code> — it is your baseline sequence number for that channel. When
+the <code>HELLO</code> carried a checkpoint, the replay for that <code>SUB</code> comes just before
+its <code>SNAP</code> (see <a href="#gap-detection-and-replay">Gap detection and replay</a>).</p>
 <h3 id="step-4-cancel-subscriptions">Step 4 — Cancel subscriptions<a class="headerlink" href="#step-4-cancel-subscriptions" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>UNSUB|CH=DROP_COPY|SYM=AAPL
 </code></pre></div>
-<p><code>UNSUB</code> is idempotent.</p>
+<p><code>UNSUB</code> removes exactly the <code>(channel, symbol)</code> pairs it names and is
+idempotent; it cannot narrow a <code>SYM=*</code> subscription to exclude one symbol.</p>
 <h3 id="step-5-handle-heartbeats">Step 5 — Handle heartbeats<a class="headerlink" href="#step-5-handle-heartbeats" title="Permanent link">&para;</a></h3>
-<p>When the stream is idle the gateway sends periodic <code>HB|TS=...</code> lines.  You can
+<p>Every <code>HBINT</code> seconds the gateway sends <code>HB|TS=...</code> to every authenticated
+client, whether or not other lines were sent in between.  You can
 probe with <code>PING</code>; the gateway replies <code>PONG|TS=…</code>.  The idle timeout counts
 traffic in both directions, so a client that keeps reading stays connected on
 heartbeats alone; only when writes to it have stopped succeeding for
@@ -8420,27 +8459,57 @@ the connection is closed after at most 5 seconds whether or not it was.</p>
 <h3 id="step-6-disconnect">Step 6 — Disconnect<a class="headerlink" href="#step-6-disconnect" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>EXIT
 </code></pre></div>
+<p>The gateway flushes what is queued, then closes. Closing only your sending
+side (a TCP half-close, as <code>printf '…' | nc 127.0.0.1 5580</code> does when its
+input ends) also ends the session: keep the connection open in both
+directions for as long as you want to receive. When <code>pm-ralf-gwy</code> itself is
+stopped, every session receives <code>EXIT|REASON=shutdown|TS=…</code> after the lines
+already queued for it (for up to 1 s), so a planned stop can be told from a
+crash or a network failure.</p>
 <h2 id="gap-detection-and-replay">Gap detection and replay<a class="headerlink" href="#gap-detection-and-replay" title="Permanent link">&para;</a></h2>
 <p>Every <strong>channel</strong> has an independent, monotonically increasing <code>SEQ</code> starting
 at 1 — shared across all symbols on that channel, not scoped per symbol.
-Track <code>last_seq[CH]</code> on every received message and check:</p>
+On a subscription to every symbol (<code>SYM=*</code>), track <code>last_seq[CH]</code> on every
+received message and check:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>gap detected when:  received_seq != last_seq + 1
 </code></pre></div>
+<p>With a symbol filter (<code>SYM=AAPL</code>) the check does not work: every trade in
+another symbol moves the channel's <code>SEQ</code> too, so a jump is normal. Keep the
+last <code>SEQ</code> as your checkpoint all the same — replay works on it for filtered
+subscriptions as well.</p>
+<p>Losses before the gateway (engine messages that never reached
+<code>pm-ralf-gwy</code>) do not show as a <code>SEQ</code> gap at all, because the gateway numbers
+the lines it emits; the operator sees them as <code>gwy.bus_gaps</code> (see
+<a href="#operational-notes">Operational notes</a>).</p>
 <p><strong>Recovery option 1 — replay within window</strong></p>
-<p>Reconnect with a non-zero <code>LASTSEQ</code> in <code>HELLO</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
+<p>Reconnect with a non-zero <code>LASTSEQ</code> in <code>HELLO</code>, and the <code>EPOCH</code> from the
+<code>WELCOME</code> of the session that <code>LASTSEQ</code> came from:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200|EPOCH=9f3c2a71
 </code></pre></div>
-<p>The gateway replays all journal events with <code>SEQ &gt; 1200</code> that are still inside
-the retention window (<code>replay_retention_sec</code>, default 86400 s — one full trading
-day), then continues live.</p>
+<p>A <code>LASTSEQ</code> above 0 without <code>EPOCH</code> is refused with <code>ERR|CODE=BAD_MESSAGE</code>.</p>
+<p>Nothing is replayed yet: <code>HELLO</code> only records the checkpoint. Each <code>SUB</code> you
+send then replays the journal events with <code>SEQ &gt; 1200</code> that it subscribes and
+your earlier <code>SUB</code> lines did not, still inside the retention window
+(<code>replay_retention_sec</code>, default 86400 s — one full trading day), then sends
+its <code>SNAP</code> and continues live. Trades that happen between <code>WELCOME</code> and your
+<code>SUB</code> are part of that replay, so it does not matter how long you take to
+subscribe. A long replay is not cut off as a slow client: the
+<code>max_client_queue</code> limit counts only what is queued beyond it.</p>
 <p><strong>Recovery option 2 — replay miss</strong></p>
-<p>If the requested <code>LASTSEQ</code> is older than the retained journal the gateway sends
-<code>ERR|CODE=REPLAY_MISS|...</code> followed by a fresh <code>SNAP</code>.  Accept the <code>SNAP</code> and
+<p>If the checkpoint is from another run of <code>pm-ralf-gwy</code> (its <code>EPOCH</code> differs:
+sequences start again at 1 after a gateway restart), or the requested
+<code>LASTSEQ</code> is older than the retained journal, the gateway answers your <code>SUB</code>
+with <code>ERR|CODE=REPLAY_MISS|...</code> followed by its <code>SNAP</code>.  Accept the <code>SNAP</code> and
 reset your local state for that stream.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>RALF's replay journal covers a full trading day by default (86 400 s),
-making intraday reconnects lossless in normal operation.</p>
+<p>RALF's replay journal covers a full trading day by default (86 400 s), so
+a client that reconnects to the same <code>pm-ralf-gwy</code> run with its
+checkpoint (<code>LASTSEQ</code> and <code>EPOCH</code>) and subscribes the same channels and
+symbols receives every line it missed, however long the replay. After a
+<code>pm-ralf-gwy</code> restart, or for trades lost before the gateway
+(<code>gwy.bus_gaps</code>), there is nothing to replay: reconcile from
+<code>pm-clearing</code> or the REST API.</p>
 </div>
 <h2 id="quick-connect-test">Quick connect test<a class="headerlink" href="#quick-connect-test" title="Permanent link">&para;</a></h2>
 <p>Use <code>nc</code> (or <code>telnet</code>) to validate the line protocol from the command line
@@ -8462,8 +8531,8 @@ hand-typing protocol messages: <code>pm-ralf-spy --role CLEARING</code>.</p>
 <li><code>WELCOME|PROTO=RALF1|GW=ralf-gwy01|...</code> — session open</li>
 <li><code>SNAP|CH=CLEARING|SYM=*|SEQ=...|TS=...</code> — baseline snapshot</li>
 <li><code>EXEC|...</code> when a trade executes</li>
-<li><code>EOD|...</code> at end of day</li>
-<li><code>HB|...</code> when the stream is idle</li>
+<li><code>EOD|...</code> when the engine stops</li>
+<li><code>HB|...</code> every <code>HBINT</code> seconds</li>
 </ol>
 <h2 id="python-subscriber-example">Python subscriber example<a class="headerlink" href="#python-subscriber-example" title="Permanent link">&para;</a></h2>
 <p>The <code>docs/examples/ralf/</code> directory contains ready-to-run Python and C libraries.</p>
@@ -8554,54 +8623,56 @@ highlight the key RALF patterns.</p>
 <a id="__codelineno-22-34" name="__codelineno-22-34" href="#__codelineno-22-34"></a>    <span class="n">welcome</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="n">reader</span><span class="o">.</span><span class="n">recv_line</span><span class="p">())</span>
 <a id="__codelineno-22-35" name="__codelineno-22-35" href="#__codelineno-22-35"></a>    <span class="k">assert</span> <span class="n">welcome</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"WELCOME"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"unexpected: </span><span class="si">{</span><span class="n">welcome</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-22-36" name="__codelineno-22-36" href="#__codelineno-22-36"></a>    <span class="n">replay_sec</span> <span class="o">=</span> <span class="n">welcome</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"REPLAY"</span><span class="p">,</span> <span class="s2">"?"</span><span class="p">)</span>
-<a id="__codelineno-22-37" name="__codelineno-22-37" href="#__codelineno-22-37"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Connected. Journal retention: </span><span class="si">{</span><span class="n">replay_sec</span><span class="si">}</span><span class="s2">s"</span><span class="p">)</span>
-<a id="__codelineno-22-38" name="__codelineno-22-38" href="#__codelineno-22-38"></a>
-<a id="__codelineno-22-39" name="__codelineno-22-39" href="#__codelineno-22-39"></a>    <span class="c1"># Subscribe — role must match allowed channels</span>
-<a id="__codelineno-22-40" name="__codelineno-22-40" href="#__codelineno-22-40"></a>    <span class="n">send</span><span class="p">(</span><span class="n">sock</span><span class="p">,</span> <span class="s2">"SUB"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"CH"</span><span class="p">:</span> <span class="s2">"CLEARING"</span><span class="p">,</span> <span class="s2">"SYM"</span><span class="p">:</span> <span class="s2">"*"</span><span class="p">})</span>
-<a id="__codelineno-22-41" name="__codelineno-22-41" href="#__codelineno-22-41"></a>
-<a id="__codelineno-22-42" name="__codelineno-22-42" href="#__codelineno-22-42"></a>    <span class="c1"># Per-channel sequence tracking — SEQ is shared across all symbols on</span>
-<a id="__codelineno-22-43" name="__codelineno-22-43" href="#__codelineno-22-43"></a>    <span class="c1"># one channel, not scoped per (channel, symbol) pair.</span>
-<a id="__codelineno-22-44" name="__codelineno-22-44" href="#__codelineno-22-44"></a>    <span class="n">last_seq</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># CH → last seen SEQ</span>
-<a id="__codelineno-22-45" name="__codelineno-22-45" href="#__codelineno-22-45"></a>
-<a id="__codelineno-22-46" name="__codelineno-22-46" href="#__codelineno-22-46"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-<a id="__codelineno-22-47" name="__codelineno-22-47" href="#__codelineno-22-47"></a>        <span class="n">msg</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="n">reader</span><span class="o">.</span><span class="n">recv_line</span><span class="p">())</span>
-<a id="__codelineno-22-48" name="__codelineno-22-48" href="#__codelineno-22-48"></a>
-<a id="__codelineno-22-49" name="__codelineno-22-49" href="#__codelineno-22-49"></a>        <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"EXEC"</span><span class="p">,</span> <span class="s2">"EOD"</span><span class="p">,</span> <span class="s2">"SNAP"</span><span class="p">):</span>
-<a id="__codelineno-22-50" name="__codelineno-22-50" href="#__codelineno-22-50"></a>            <span class="n">ch</span>  <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"CH"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-<a id="__codelineno-22-51" name="__codelineno-22-51" href="#__codelineno-22-51"></a>            <span class="n">sym</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"SYM"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-<a id="__codelineno-22-52" name="__codelineno-22-52" href="#__codelineno-22-52"></a>            <span class="n">seq</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"SEQ"</span><span class="p">,</span> <span class="s2">"0"</span><span class="p">))</span>
-<a id="__codelineno-22-53" name="__codelineno-22-53" href="#__codelineno-22-53"></a>
-<a id="__codelineno-22-54" name="__codelineno-22-54" href="#__codelineno-22-54"></a>            <span class="c1"># Gap check — reconnect with LASTSEQ={prev} to recover</span>
-<a id="__codelineno-22-55" name="__codelineno-22-55" href="#__codelineno-22-55"></a>            <span class="n">prev</span> <span class="o">=</span> <span class="n">last_seq</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
-<a id="__codelineno-22-56" name="__codelineno-22-56" href="#__codelineno-22-56"></a>            <span class="k">if</span> <span class="n">prev</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">!=</span> <span class="n">prev</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
-<a id="__codelineno-22-57" name="__codelineno-22-57" href="#__codelineno-22-57"></a>                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"GAP on </span><span class="si">{</span><span class="n">ch</span><span class="si">}</span><span class="s2">: expected </span><span class="si">{</span><span class="n">prev</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">seq</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-22-58" name="__codelineno-22-58" href="#__codelineno-22-58"></a>            <span class="n">last_seq</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">seq</span>
-<a id="__codelineno-22-59" name="__codelineno-22-59" href="#__codelineno-22-59"></a>
-<a id="__codelineno-22-60" name="__codelineno-22-60" href="#__codelineno-22-60"></a>            <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"SNAP"</span><span class="p">:</span>
-<a id="__codelineno-22-61" name="__codelineno-22-61" href="#__codelineno-22-61"></a>                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SNAP  </span><span class="si">{</span><span class="n">ch</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">sym</span><span class="si">}</span><span class="s2">: baseline SEQ=</span><span class="si">{</span><span class="n">seq</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-22-62" name="__codelineno-22-62" href="#__codelineno-22-62"></a>
-<a id="__codelineno-22-63" name="__codelineno-22-63" href="#__codelineno-22-63"></a>            <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"EXEC"</span><span class="p">:</span>
-<a id="__codelineno-22-64" name="__codelineno-22-64" href="#__codelineno-22-64"></a>                <span class="nb">print</span><span class="p">(</span>
-<a id="__codelineno-22-65" name="__codelineno-22-65" href="#__codelineno-22-65"></a>                    <span class="sa">f</span><span class="s2">"EXEC  </span><span class="si">{</span><span class="n">sym</span><span class="si">}</span><span class="s2">: PX=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'PX'</span><span class="p">]</span><span class="si">}</span><span class="s2"> "</span>
-<a id="__codelineno-22-66" name="__codelineno-22-66" href="#__codelineno-22-66"></a>                    <span class="sa">f</span><span class="s2">"QTY=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'QTY'</span><span class="p">]</span><span class="si">}</span><span class="s2"> SIDE=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'SIDE'</span><span class="p">]</span><span class="si">}</span><span class="s2"> "</span>
-<a id="__codelineno-22-67" name="__codelineno-22-67" href="#__codelineno-22-67"></a>                    <span class="sa">f</span><span class="s2">"BUY_GW=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'BUY_GW'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
-<a id="__codelineno-22-68" name="__codelineno-22-68" href="#__codelineno-22-68"></a>                    <span class="sa">f</span><span class="s2">"SELL_GW=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'SELL_GW'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-22-69" name="__codelineno-22-69" href="#__codelineno-22-69"></a>                <span class="p">)</span>
-<a id="__codelineno-22-70" name="__codelineno-22-70" href="#__codelineno-22-70"></a>
-<a id="__codelineno-22-71" name="__codelineno-22-71" href="#__codelineno-22-71"></a>            <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"EOD"</span><span class="p">:</span>
-<a id="__codelineno-22-72" name="__codelineno-22-72" href="#__codelineno-22-72"></a>                <span class="nb">print</span><span class="p">(</span>
-<a id="__codelineno-22-73" name="__codelineno-22-73" href="#__codelineno-22-73"></a>                    <span class="sa">f</span><span class="s2">"EOD   </span><span class="si">{</span><span class="n">sym</span><span class="si">}</span><span class="s2">: TRADE_COUNT=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'TRADE_COUNT'</span><span class="p">]</span><span class="si">}</span><span class="s2"> "</span>
-<a id="__codelineno-22-74" name="__codelineno-22-74" href="#__codelineno-22-74"></a>                    <span class="sa">f</span><span class="s2">"EXEC_COUNT=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'EXEC_COUNT'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-22-75" name="__codelineno-22-75" href="#__codelineno-22-75"></a>                <span class="p">)</span>
-<a id="__codelineno-22-76" name="__codelineno-22-76" href="#__codelineno-22-76"></a>
-<a id="__codelineno-22-77" name="__codelineno-22-77" href="#__codelineno-22-77"></a>        <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"HB"</span><span class="p">:</span>
-<a id="__codelineno-22-78" name="__codelineno-22-78" href="#__codelineno-22-78"></a>            <span class="k">pass</span>  <span class="c1"># heartbeat — ignore or use for liveness tracking</span>
-<a id="__codelineno-22-79" name="__codelineno-22-79" href="#__codelineno-22-79"></a>
-<a id="__codelineno-22-80" name="__codelineno-22-80" href="#__codelineno-22-80"></a>        <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"ERR"</span><span class="p">:</span>
-<a id="__codelineno-22-81" name="__codelineno-22-81" href="#__codelineno-22-81"></a>            <span class="n">code</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"CODE"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-<a id="__codelineno-22-82" name="__codelineno-22-82" href="#__codelineno-22-82"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ERR </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DETAIL'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-22-83" name="__codelineno-22-83" href="#__codelineno-22-83"></a>            <span class="k">if</span> <span class="n">code</span> <span class="o">==</span> <span class="s2">"SLOW_CLIENT"</span><span class="p">:</span>
-<a id="__codelineno-22-84" name="__codelineno-22-84" href="#__codelineno-22-84"></a>                <span class="k">break</span>  <span class="c1"># terminal — must reconnect</span>
+<a id="__codelineno-22-37" name="__codelineno-22-37" href="#__codelineno-22-37"></a>    <span class="n">epoch</span> <span class="o">=</span> <span class="n">welcome</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"EPOCH"</span><span class="p">]</span>  <span class="c1"># store with the last SEQ: the checkpoint</span>
+<a id="__codelineno-22-38" name="__codelineno-22-38" href="#__codelineno-22-38"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Connected. Journal retention: </span><span class="si">{</span><span class="n">replay_sec</span><span class="si">}</span><span class="s2">s"</span><span class="p">)</span>
+<a id="__codelineno-22-39" name="__codelineno-22-39" href="#__codelineno-22-39"></a>
+<a id="__codelineno-22-40" name="__codelineno-22-40" href="#__codelineno-22-40"></a>    <span class="c1"># Subscribe — role must match allowed channels</span>
+<a id="__codelineno-22-41" name="__codelineno-22-41" href="#__codelineno-22-41"></a>    <span class="n">send</span><span class="p">(</span><span class="n">sock</span><span class="p">,</span> <span class="s2">"SUB"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"CH"</span><span class="p">:</span> <span class="s2">"CLEARING"</span><span class="p">,</span> <span class="s2">"SYM"</span><span class="p">:</span> <span class="s2">"*"</span><span class="p">})</span>
+<a id="__codelineno-22-42" name="__codelineno-22-42" href="#__codelineno-22-42"></a>
+<a id="__codelineno-22-43" name="__codelineno-22-43" href="#__codelineno-22-43"></a>    <span class="c1"># Per-channel sequence tracking — SEQ is shared across all symbols on</span>
+<a id="__codelineno-22-44" name="__codelineno-22-44" href="#__codelineno-22-44"></a>    <span class="c1"># one channel, not scoped per (channel, symbol) pair, so the gap check</span>
+<a id="__codelineno-22-45" name="__codelineno-22-45" href="#__codelineno-22-45"></a>    <span class="c1"># below is valid only because this client subscribes SYM=*.</span>
+<a id="__codelineno-22-46" name="__codelineno-22-46" href="#__codelineno-22-46"></a>    <span class="n">last_seq</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># CH → last seen SEQ</span>
+<a id="__codelineno-22-47" name="__codelineno-22-47" href="#__codelineno-22-47"></a>
+<a id="__codelineno-22-48" name="__codelineno-22-48" href="#__codelineno-22-48"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-22-49" name="__codelineno-22-49" href="#__codelineno-22-49"></a>        <span class="n">msg</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="n">reader</span><span class="o">.</span><span class="n">recv_line</span><span class="p">())</span>
+<a id="__codelineno-22-50" name="__codelineno-22-50" href="#__codelineno-22-50"></a>
+<a id="__codelineno-22-51" name="__codelineno-22-51" href="#__codelineno-22-51"></a>        <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"EXEC"</span><span class="p">,</span> <span class="s2">"EOD"</span><span class="p">,</span> <span class="s2">"SNAP"</span><span class="p">):</span>
+<a id="__codelineno-22-52" name="__codelineno-22-52" href="#__codelineno-22-52"></a>            <span class="n">ch</span>  <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"CH"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+<a id="__codelineno-22-53" name="__codelineno-22-53" href="#__codelineno-22-53"></a>            <span class="n">sym</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"SYM"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+<a id="__codelineno-22-54" name="__codelineno-22-54" href="#__codelineno-22-54"></a>            <span class="n">seq</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"SEQ"</span><span class="p">,</span> <span class="s2">"0"</span><span class="p">))</span>
+<a id="__codelineno-22-55" name="__codelineno-22-55" href="#__codelineno-22-55"></a>
+<a id="__codelineno-22-56" name="__codelineno-22-56" href="#__codelineno-22-56"></a>            <span class="c1"># Gap check — reconnect with LASTSEQ={prev} and EPOCH={epoch}</span>
+<a id="__codelineno-22-57" name="__codelineno-22-57" href="#__codelineno-22-57"></a>            <span class="n">prev</span> <span class="o">=</span> <span class="n">last_seq</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+<a id="__codelineno-22-58" name="__codelineno-22-58" href="#__codelineno-22-58"></a>            <span class="k">if</span> <span class="n">prev</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">!=</span> <span class="n">prev</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+<a id="__codelineno-22-59" name="__codelineno-22-59" href="#__codelineno-22-59"></a>                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"GAP on </span><span class="si">{</span><span class="n">ch</span><span class="si">}</span><span class="s2">: expected </span><span class="si">{</span><span class="n">prev</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">seq</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-22-60" name="__codelineno-22-60" href="#__codelineno-22-60"></a>            <span class="n">last_seq</span><span class="p">[</span><span class="n">ch</span><span class="p">]</span> <span class="o">=</span> <span class="n">seq</span>
+<a id="__codelineno-22-61" name="__codelineno-22-61" href="#__codelineno-22-61"></a>
+<a id="__codelineno-22-62" name="__codelineno-22-62" href="#__codelineno-22-62"></a>            <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"SNAP"</span><span class="p">:</span>
+<a id="__codelineno-22-63" name="__codelineno-22-63" href="#__codelineno-22-63"></a>                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SNAP  </span><span class="si">{</span><span class="n">ch</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">sym</span><span class="si">}</span><span class="s2">: baseline SEQ=</span><span class="si">{</span><span class="n">seq</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-22-64" name="__codelineno-22-64" href="#__codelineno-22-64"></a>
+<a id="__codelineno-22-65" name="__codelineno-22-65" href="#__codelineno-22-65"></a>            <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"EXEC"</span><span class="p">:</span>
+<a id="__codelineno-22-66" name="__codelineno-22-66" href="#__codelineno-22-66"></a>                <span class="nb">print</span><span class="p">(</span>
+<a id="__codelineno-22-67" name="__codelineno-22-67" href="#__codelineno-22-67"></a>                    <span class="sa">f</span><span class="s2">"EXEC  </span><span class="si">{</span><span class="n">sym</span><span class="si">}</span><span class="s2">: PX=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'PX'</span><span class="p">]</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-22-68" name="__codelineno-22-68" href="#__codelineno-22-68"></a>                    <span class="sa">f</span><span class="s2">"QTY=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'QTY'</span><span class="p">]</span><span class="si">}</span><span class="s2"> SIDE=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'SIDE'</span><span class="p">]</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-22-69" name="__codelineno-22-69" href="#__codelineno-22-69"></a>                    <span class="sa">f</span><span class="s2">"BUY_GW=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'BUY_GW'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-22-70" name="__codelineno-22-70" href="#__codelineno-22-70"></a>                    <span class="sa">f</span><span class="s2">"SELL_GW=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'SELL_GW'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-22-71" name="__codelineno-22-71" href="#__codelineno-22-71"></a>                <span class="p">)</span>
+<a id="__codelineno-22-72" name="__codelineno-22-72" href="#__codelineno-22-72"></a>
+<a id="__codelineno-22-73" name="__codelineno-22-73" href="#__codelineno-22-73"></a>            <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"EOD"</span><span class="p">:</span>
+<a id="__codelineno-22-74" name="__codelineno-22-74" href="#__codelineno-22-74"></a>                <span class="nb">print</span><span class="p">(</span>
+<a id="__codelineno-22-75" name="__codelineno-22-75" href="#__codelineno-22-75"></a>                    <span class="sa">f</span><span class="s2">"EOD   </span><span class="si">{</span><span class="n">sym</span><span class="si">}</span><span class="s2">: TRADE_COUNT=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'TRADE_COUNT'</span><span class="p">]</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-22-76" name="__codelineno-22-76" href="#__codelineno-22-76"></a>                    <span class="sa">f</span><span class="s2">"EXEC_COUNT=</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'EXEC_COUNT'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-22-77" name="__codelineno-22-77" href="#__codelineno-22-77"></a>                <span class="p">)</span>
+<a id="__codelineno-22-78" name="__codelineno-22-78" href="#__codelineno-22-78"></a>
+<a id="__codelineno-22-79" name="__codelineno-22-79" href="#__codelineno-22-79"></a>        <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"HB"</span><span class="p">:</span>
+<a id="__codelineno-22-80" name="__codelineno-22-80" href="#__codelineno-22-80"></a>            <span class="k">pass</span>  <span class="c1"># heartbeat — ignore or use for liveness tracking</span>
+<a id="__codelineno-22-81" name="__codelineno-22-81" href="#__codelineno-22-81"></a>
+<a id="__codelineno-22-82" name="__codelineno-22-82" href="#__codelineno-22-82"></a>        <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"ERR"</span><span class="p">:</span>
+<a id="__codelineno-22-83" name="__codelineno-22-83" href="#__codelineno-22-83"></a>            <span class="n">code</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"CODE"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+<a id="__codelineno-22-84" name="__codelineno-22-84" href="#__codelineno-22-84"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ERR </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DETAIL'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-22-85" name="__codelineno-22-85" href="#__codelineno-22-85"></a>            <span class="k">if</span> <span class="n">code</span> <span class="o">==</span> <span class="s2">"SLOW_CLIENT"</span><span class="p">:</span>
+<a id="__codelineno-22-86" name="__codelineno-22-86" href="#__codelineno-22-86"></a>                <span class="k">break</span>  <span class="c1"># terminal — must reconnect</span>
 </code></pre></div>
 <h3 id="run-the-bundled-examples">Run the bundled examples<a class="headerlink" href="#run-the-bundled-examples" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
@@ -8616,7 +8687,7 @@ highlight the key RALF patterns.</p>
 <a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>
 <a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="c1"># Reconnect with replay from last known sequence</span>
 <a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--channels<span class="w"> </span>CLEARING<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="w">    </span>--symbols<span class="w"> </span><span class="s1">'*'</span><span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1200</span>
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="w">    </span>--symbols<span class="w"> </span><span class="s1">'*'</span><span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--epoch<span class="w"> </span>9f3c2a71
 </code></pre></div>
 <p>For a C client (useful for latency-sensitive environments):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make
@@ -8649,7 +8720,7 @@ highlight the key RALF patterns.</p>
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>Requested <code>LASTSEQ</code> is outside the journal window, or ahead of it after a gateway restart</td>
+<td>The checkpoint's <code>EPOCH</code> is from another gateway run, or <code>LASTSEQ</code> is outside the journal window</td>
 <td>Accept the recovery <code>SNAP</code> and reset local baseline</td>
 </tr>
 <tr>
@@ -8659,7 +8730,7 @@ highlight the key RALF patterns.</p>
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
-<td>Malformed line (parse failure, unsupported message type, or non-integer <code>LASTSEQ</code>)</td>
+<td>Malformed line (parse failure, unsupported message type, non-integer <code>LASTSEQ</code>, or <code>LASTSEQ</code> without <code>EPOCH</code>)</td>
 <td>Fix line syntax/framing</td>
 </tr>
 </tbody>
@@ -8673,7 +8744,16 @@ highlight the key RALF patterns.</p>
 <li>For local labs, bind to <code>127.0.0.1</code>; for multi-host deployments use a
   controlled network interface and perimeter security controls.</li>
 <li>The default replay retention (86 400 s) covers one full trading day.  Tune
-  <code>replay_retention_sec</code> for your memory budget.</li>
+  <code>replay_retention_sec</code> for your memory budget: the journal holds every line
+  of every channel for that long, about 1.3 KB per trade (129 MB for 10⁵
+  trades, measured), and each <code>SUB</code> that replays scans all of it (about
+  20–35 ms at that size, blocking the gateway's loop meanwhile).</li>
+<li><code>gwy.bus_gaps</code> counts <code>trade.executed</code> and <code>system.eod</code> messages that never
+  reached <code>pm-ralf-gwy</code> (its receive buffer overflowed), by topic; any
+  increase is a <code>ralf_bus_gaps</code> WARN on the dashboard, with a
+  <code>engine bus dropped …</code> WARNING in the log. RALF clients cannot see this
+  loss and no replay recovers it: tell them the time, and reconcile from
+  <code>pm-clearing</code> or the REST API.</li>
 </ul>
 <h2 id="dedicated-gateway-runbook-pm-ralf-gwy">Dedicated Gateway Runbook (pm-ralf-gwy)<a class="headerlink" href="#dedicated-gateway-runbook-pm-ralf-gwy" title="Permanent link">&para;</a></h2>
 <p>Use this section as a focused operator runbook for the running gateway process.</p>
@@ -8699,16 +8779,18 @@ highlight the key RALF patterns.</p>
 <li><code>WELCOME|...</code></li>
 <li><code>SNAP|...</code></li>
 <li>live <code>EXEC|...</code> / <code>EOD|...</code></li>
-<li>periodic <code>HB|...</code> while idle</li>
+<li><code>HB|...</code> every <code>HBINT</code> seconds</li>
 </ol>
 <h3 id="reconnect-replay-behavior">Reconnect replay behavior<a class="headerlink" href="#reconnect-replay-behavior" title="Permanent link">&para;</a></h3>
 <p>Resume from checkpoint:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200|EPOCH=9f3c2a71
 </code></pre></div>
 <p>Outcomes:</p>
 <ul>
-<li>replay hit: retained events with <code>SEQ &gt; LASTSEQ</code>, then live continuation</li>
-<li>replay miss: <code>ERR|CODE=REPLAY_MISS</code>, followed by recovery <code>SNAP</code></li>
+<li>replay hit: after each <code>SUB</code>, the retained events with <code>SEQ &gt; LASTSEQ</code>
+  that it subscribes, then its <code>SNAP</code>, then live continuation</li>
+<li>replay miss (another run's <code>EPOCH</code>, or outside retention):
+  <code>ERR|CODE=REPLAY_MISS</code>, followed by recovery <code>SNAP</code></li>
 </ul>
 <h3 id="fast-error-triage">Fast error triage<a class="headerlink" href="#fast-error-triage" title="Permanent link">&para;</a></h3>
 <table>
@@ -8737,7 +8819,7 @@ highlight the key RALF patterns.</p>
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>Replay point outside retention</td>
+<td>Replay point outside retention, or from another gateway run</td>
 <td>Accept <code>SNAP</code> and reset local baseline</td>
 </tr>
 <tr>

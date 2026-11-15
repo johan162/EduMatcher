@@ -7783,9 +7783,9 @@ earlier chapters introduced, so nothing you learned to use disappears.</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>--force</code> overwrites the configuration you have been building</p>
 <p>This command replaces <code>engine_config.yaml</code> outright. Everything you added
-by hand in earlier chapters — <code>MM_MANUAL_01</code> from Chapter 09, the <code>AI001</code>–
-<code>AI003</code> gateways from Chapter 14, any collar or circuit-breaker tuning from
-Chapter 11 — is gone unless the command below re-creates it.</p>
+by hand in earlier chapters — <code>TRADER03</code> from Chapter 10, the collars,
+circuit breaker and risk levels from Chapter 11 — is gone unless the
+command below re-creates it.</p>
 <p>Back it up first so you can compare, or return to it afterwards:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cp<span class="w"> </span>engine_config.yaml<span class="w"> </span>engine_config.pre-capstone.yaml
 </code></pre></div>
@@ -7818,13 +7818,11 @@ would make the collars and circuit breakers reject them.</p>
 <div class="admonition note">
 <p class="admonition-title">The configuration is new, the data directory is not</p>
 <p>The data directory still holds what earlier chapters left in it: resting
-GTC orders (such as chapter 16's bid at 140.00), same-day DAY orders and
-clearing history. They are restored when the engine starts, so a book may
-not be as empty as the text assumes. For a truly empty venue, stop every
-process and run <code>pm-opctl-cli clear --state --yes</code> before Exercise 3. It
-also deletes <code>clearing.db</code> and <code>stats.db</code>, which is what you want for a
-fresh venue. See <a href="../110-risk-controls/#starting-over">Starting over</a> for
-the complete reset matrix and preconditions.</p>
+GTC orders (such as chapter 16's bid at 145.00), same-day DAY orders and
+quote legs, and clearing history. They are restored when the engine
+starts, so the books would not be empty. Exercise 3 clears them first.
+See <a href="../110-risk-controls/#starting-over">Starting over</a> for the complete
+reset matrix.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> config contains 3 symbols,
 5 traders (<code>TRADER01</code>, <code>TRADER02</code>, <code>AI001</code>–<code>AI003</code>), 2 admins, and 4 market
@@ -7837,7 +7835,6 @@ this is the step that makes everything after it possible:</p>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-config-deploy<span class="w"> </span>--show<span class="w">               </span><span class="c1"># confirm where it landed</span>
 </code></pre></div>
 <p>Warnings and advisories are fine here; errors are not. Expect the warning
-<code>M032</code> (no read-only API credential — nothing in this venue uses one) and
 <code>C001</code> (no reference prices): the books have no price until the market makers
 quote, so the static collar only takes effect from the first trades on. If <code>pm-cverifier</code>
 reports an error, fix it before deploying — a refused deploy leaves the
@@ -7846,13 +7843,18 @@ exchange starts but has the wrong gateways.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-cverifier</code> reports 0
 errors and <code>pm-config-deploy</code> completes.</p>
 <h2 id="exercise-3-start-the-exchange-stack">Exercise 3: Start the Exchange Stack<a class="headerlink" href="#exercise-3-start-the-exchange-stack" title="Permanent link">&para;</a></h2>
-<p>Use separate terminals:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-stats
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-clearing
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>pm-audit<span class="w"> </span>--terminal
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>pm-alf-gwy<span class="w"> </span>-v
+<p>Stop every process still running from the earlier chapters, then empty the
+data directory's working state — orders, prices, statistics and clearing —
+so the venue really starts from nothing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state<span class="w"> </span>--yes
+</code></pre></div>
+<p>Then start the stack, one program per terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-stats
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pm-clearing
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pm-audit<span class="w"> </span>--terminal
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>pm-alf-gwy<span class="w"> </span>-v
 </code></pre></div>
 <p><code>pm-alf-gwy</code> is the TCP gateway that <code>pm-ai-trader</code> logs on through in Exercise 6
 (Chapter 14); without it the AI traders report <code>cannot reach ALF gateway</code>.</p>
@@ -7862,56 +7864,56 @@ time of day.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> every process starts cleanly and connects.</p>
 <h2 id="exercise-4-connect-gateways">Exercise 4: Connect Gateways<a class="headerlink" href="#exercise-4-connect-gateways" title="Permanent link">&para;</a></h2>
 <p>Open gateway terminals:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pm-admin<span class="w">        </span>--id<span class="w"> </span>GW_ADMIN<span class="w">          </span><span class="c1"># the operator console — a different program</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-admin<span class="w">        </span>--id<span class="w"> </span>GW_ADMIN<span class="w">          </span><span class="c1"># the operator console — a different program</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
 </code></pre></div>
 <p><code>MM_MANUAL_01</code> and <code>AI001</code>–<code>AI003</code> are configured but do not need a console of
 their own yet: <code>MM_MANUAL_01</code> is there if you want to repeat Chapter 09's
 manual quoting against this venue, and the AI gateways are driven by
 <code>pm-ai-trader</code> in Exercise 6 rather than typed at.</p>
 <p>Confirm the engine agrees with your configuration:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
 </code></pre></div>
-<p>All ten should be listed, with the six above showing as connected.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>GATEWAYS</code> lists all ten
+<p>All eleven should be listed, with the six above showing as connected.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>GATEWAYS</code> lists all eleven
 configured identities, and the six consoles you opened authenticate.</p>
 <h2 id="exercise-5-open-the-market-and-provide-liquidity">Exercise 5: Open the Market and Provide Liquidity<a class="headerlink" href="#exercise-5-open-the-market-and-provide-liquidity" title="Permanent link">&para;</a></h2>
 <p>Open the trading day from the operator console. You could stop in the opening
 auction on the way; here, go straight to continuous trading:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p>Then let each market maker quote its symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[MM_AAPL_01]&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-CAP-001
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[MM_MSFT_01]&gt; QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-CAP-001
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>[MM_TSLA_01]&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-CAP-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[MM_AAPL_01]&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-CAP-001
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>[MM_MSFT_01]&gt; QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-CAP-001
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>[MM_TSLA_01]&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-CAP-001
 </code></pre></div>
 <p>Verify with <code>QLEGS|SHOW=ALL</code> on each MM gateway (trader console) and <code>BOOK|SYM=...</code> in the operator console.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> every symbol has a live two-sided market.</p>
 <h2 id="exercise-6-generate-trades-and-amendments">Exercise 6: Generate Trades and Amendments<a class="headerlink" href="#exercise-6-generate-trades-and-amendments" title="Permanent link">&para;</a></h2>
 <p>From <code>TRADER01</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=419.50|TIF=DAY
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>[TRADER01]&gt; AMEND|ID=&lt;msft_order_id&gt;|PRICE=419.95|RTAG=CAP-AMD-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=419.50|TIF=DAY
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>[TRADER01]&gt; AMEND|ID=&lt;msft_order_id&gt;|PRICE=419.95|RTAG=CAP-AMD-001
 </code></pre></div>
 <p>The amendment improves TRADER01's bid to 419.95 — inside the market maker's
 419.90 / 420.10 spread — so it is now the <strong>best bid</strong>. From <code>TRADER02</code>, sell
 at that price; it trades with TRADER01, not with the market maker, whose bid
 is lower:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.95|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.95|TIF=DAY
 </code></pre></div>
 <p>Now add background flow, so the later P&amp;L and statistics exercises have more
 than a handful of hand-typed trades to work with. Start the three AI gateways
 you configured in Exercise 1, each with a different preset, in their own
 terminals:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI001<span class="w"> </span>--preset<span class="w"> </span>scalper<span class="w">  </span>--duration<span class="w"> </span><span class="m">300</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI002<span class="w"> </span>--preset<span class="w"> </span>contrarian<span class="w">    </span>--duration<span class="w"> </span><span class="m">300</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI003<span class="w"> </span>--preset<span class="w"> </span>noise-retail<span class="w">  </span>--duration<span class="w"> </span><span class="m">300</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI001<span class="w"> </span>--preset<span class="w"> </span>scalper<span class="w">  </span>--duration<span class="w"> </span><span class="m">300</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI002<span class="w"> </span>--preset<span class="w"> </span>contrarian<span class="w">    </span>--duration<span class="w"> </span><span class="m">300</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI003<span class="w"> </span>--preset<span class="w"> </span>noise-retail<span class="w">  </span>--duration<span class="w"> </span><span class="m">300</span>
 </code></pre></div>
 <p><code>--duration 300</code> stops them after five minutes, which is long enough for the
 rest of the capstone and short enough that you are not chasing runaway
@@ -7923,16 +7925,21 @@ fill, one amended order, one cross-trader fill, and a visible stream of AI
 trades in <code>pm-viewer</code> and <code>pm-audit</code>.</p>
 <h2 id="exercise-7-trigger-an-operator-action">Exercise 7: Trigger an Operator Action<a class="headerlink" href="#exercise-7-trigger-an-operator-action" title="Permanent link">&para;</a></h2>
 <p>From the admin gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; HALT_SYM|SYM=TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; HALT_SYM|SYM=TSLA
 </code></pre></div>
-<p>Try to trade TSLA from a trader gateway and confirm it is rejected. Then resume:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME_SYM|SYM=TSLA
+<p>The reply, <code>HALTED  TSLA  &lt;n&gt; quote leg(s) cancelled</code>, shows that the halt
+also pulled <code>MM_TSLA_01</code>'s quote. Try to trade TSLA from a trader gateway and
+confirm it is rejected (<code>code=INSTRUMENT_HALTED</code>). Then resume, and let the
+market maker quote again — the halt did not leave it a quote to come back
+to:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME_SYM|SYM=TSLA
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[MM_TSLA_01]&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-CAP-002
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol halt blocks trading and resume restores it.</p>
 <h2 id="exercise-8-inspect-pl-audit-and-stats">Exercise 8: Inspect P&amp;L, Audit, and Stats<a class="headerlink" href="#exercise-8-inspect-pl-audit-and-stats" title="Permanent link">&para;</a></h2>
 <p>Check the observer terminals and run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-stats-cli<span class="w"> </span>daily
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-stats-cli<span class="w"> </span>daily
 </code></pre></div>
 <p>(<code>trades</code> lists the day's trades oldest first, ten at a time; with the AI
 traders running there are more, and the output ends with a notice giving the
@@ -7950,12 +7957,12 @@ see <a href="../150-statistics-reporting/">15 — Statistics &amp; Reporting</a>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can trace one trade through all observers.</p>
 <h2 id="exercise-9-persistence-check">Exercise 9: Persistence Check<a class="headerlink" href="#exercise-9-persistence-check" title="Permanent link">&para;</a></h2>
 <p>Place a GTC order, restart the engine, and confirm whether it restores:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
 </code></pre></div>
 <p>Restart <code>pm-engine</code> (it comes back in <code>CLOSED</code>; reopen it with
 <code>SESSION|STATE=PRE_OPEN</code> and <code>SESSION|STATE=CONTINUOUS</code> if you want to keep
-trading), reconnect <code>TRADER01</code>, then run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; ORDERS
+trading), restart your consoles, then run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain what persisted and what expired.</p>
 <h2 id="final-review-questions">Final Review Questions<a class="headerlink" href="#final-review-questions" title="Permanent link">&para;</a></h2>

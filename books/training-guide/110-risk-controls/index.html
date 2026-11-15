@@ -6144,10 +6144,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-open-the-admin-console" class="md-nav__link">
+  <a href="#exercise-5-manual-symbol-halt-and-resume" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Open the Admin Console
+        Exercise 5: Manual Symbol Halt and Resume
       
     </span>
   </a>
@@ -6155,10 +6155,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-manual-symbol-halt-and-resume" class="md-nav__link">
+  <a href="#exercise-6-exchange-wide-halt-with-pm-admin-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Manual Symbol Halt and Resume
+        Exercise 6: Exchange-Wide Halt with pm-admin-cli
       
     </span>
   </a>
@@ -6166,10 +6166,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-exchange-wide-halt-with-pm-admin-cli" class="md-nav__link">
+  <a href="#exercise-7-query-and-manage-with-pm-admin-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Exchange-Wide Halt with pm-admin-cli
+        Exercise 7: Query and Manage with pm-admin-cli
       
     </span>
   </a>
@@ -6177,10 +6177,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-query-and-manage-with-pm-admin-cli" class="md-nav__link">
+  <a href="#exercise-8-kill-switch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: Query and Manage with pm-admin-cli
+        Exercise 8: Kill Switch
       
     </span>
   </a>
@@ -6188,32 +6188,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-9-exchange-wide-halt-from-the-admin-console" class="md-nav__link">
+  <a href="#exercise-9-named-risk-levels-one-policy-many-symbols" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 9: Exchange-Wide Halt from the Admin Console
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-10-kill-switch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 10: Kill Switch
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-11-named-risk-levels-one-policy-many-symbols" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 11: Named Risk Levels — One Policy, Many Symbols
+        Exercise 9: Named Risk Levels — One Policy, Many Symbols
       
     </span>
   </a>
@@ -7849,9 +7827,8 @@ override) or inherited from a named <code>risk_controls.levels</code> profile vi
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
 </code></pre></div>
 <p>Both fields are fractions in <code>(0, 1)</code>, not whole percentages — <code>0.10</code> means
-10%. Those built-in defaults (<code>static_band_pct: 0.20</code>, <code>dynamic_band_pct:
-0.02</code>) fill in a field that is <em>missing from a <code>collar:</code> block that is
-present</em>. Leave the whole <code>collar:</code> section out and the symbol gets <strong>no
+10%. A field you leave out of a <code>collar:</code> block gets a built-in default
+(<code>static_band_pct: 0.20</code>, <code>dynamic_band_pct: 0.02</code>). Leave the whole <code>collar:</code> section out and the symbol gets <strong>no
 collar at all</strong> — not a default one. <code>enforce_collars</code> (top-level, defaults to
 <code>true</code>) must also not be set to <code>false</code>.</p>
 <div class="admonition warning">
@@ -7867,11 +7844,24 @@ configuration seeds them; if you generated yours with <code>pm-config-gen</code>
 nothing, because every process reads the compiled artifact:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Then restart <code>pm-engine</code>.</p>
+<p>The collar and circuit-breaker exercises compare prices with the symbol's
+reference price and recent trades. After chapter 10 the engine remembers the
+last trades of those labs, so start from a clean slate. Stop every <code>pm-*</code>
+program you started — <code>pm-engine</code>, the consoles, any <code>pm-mm-bot</code>, and
+<code>pm-clearing</code> if it still runs from chapter 03 (<code>Ctrl-C</code> in each) — then
+clear the exchange's working state:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state
+</code></pre></div>
+<p>Answer <code>y</code>. This deletes the remembered prices, resting orders and the
+statistics and clearing databases, but not your configuration (see
+<a href="#starting-over">Starting over</a>). If it warns that <code>pm-*</code> processes are
+still running, one of them is still up: stop it and run the command again. Restart <code>pm-engine</code>, your consoles, and
+reopen the market. The reference prices are now 150.00, 420.00 and 250.00
+again, from your configuration.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine loads risk control configuration.</p>
 <h2 id="exercise-2-trigger-a-static-collar-rejection">Exercise 2: Trigger a Static Collar Rejection<a class="headerlink" href="#exercise-2-trigger-a-static-collar-rejection" title="Permanent link">&para;</a></h2>
 <p>Place an order far outside the allowed range:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=200.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=200.00|TIF=DAY
 </code></pre></div>
 <p>If the reference price is 150.00 and the static collar is ±10%, anything
 above 165.00 or below 135.00 is rejected.</p>
@@ -7884,19 +7874,19 @@ ticks of 0.01).</p>
 ladder, <code>circuit_breaker_defaults</code>, applied to every symbol unless a symbol
 defines its own <code>circuit_breaker.levels</code> override (see the <code>TSLA</code> pattern in
 <a href="../../operator-guide/part-2-configure/010-the-configuration-workflow/#risk-controls-and-collars">The Configuration Workflow</a>).
-Add a two-level ladder:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes — window the move is measured over</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span><span class="w">           </span><span class="c1"># halt if price moves ±5% within the window</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30000000000</span><span class="w">   </span><span class="c1"># 30 second halt</span>
+Add a one-level ladder:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes — window the move is measured over</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span><span class="w">           </span><span class="c1"># halt if price moves ±5% within the window</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30000000000</span><span class="w">   </span><span class="c1"># 30 second halt</span>
 </code></pre></div>
 <p><code>enforce_circuit_breakers</code> (top-level, defaults to <code>true</code>) must also not be
 set to <code>false</code>.</p>
 <p>Deploy the change, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Then restart <code>pm-engine</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> circuit breaker config loaded.</p>
@@ -7909,12 +7899,12 @@ the 5% dynamic collar from Exercise 1 stops any single jump of more than 5%.
 Walk the price up in steps.</p>
 <p>First give the two traders the book to themselves: stop any <code>pm-mm-bot</code> and
 clear AAPL so no market-maker quote trades in between:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
 </code></pre></div>
 <p>Then, for each price in turn — 154.00, 158.00, 161.00, 164.50 — let TRADER02
 offer 100 shares and TRADER01 buy them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=154.00|TIF=DAY
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=154.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=154.00|TIF=DAY
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=154.00|TIF=DAY
 </code></pre></div>
 <table>
 <thead>
@@ -7955,54 +7945,54 @@ offer 100 shares and TRADER01 buy them:</p>
 <p>The trade at 164.50 still happens; the halt applies from that moment on. The
 engine log records it (in <code>pm-engine --verbose</code>, or the Log Operator
 Console):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>CIRCUIT BREAKER HALT AAPL: level=L1 trigger=16450, ref=15575 ticks, corridor=[14017, 17132] ticks (+/-10.0%)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CIRCUIT BREAKER HALT AAPL: level=L1 trigger=16450, ref=15575 ticks, corridor=[14017, 17132] ticks (+/-10.0%)
 </code></pre></div>
 <p>During the halt, <strong>market-maker quote legs are cancelled</strong>, no matching takes
 place, <code>MARKET</code>, <code>FOK</code> and <code>IOC</code> orders are rejected, and <code>LIMIT</code> orders are
-accepted and rest: a halt is the collection phase of a <em>reopening auction</em>,
-which uncrosses when the 30-second halt ends.</p>
+accepted and rest: a halt is the collection phase of a <em>reopening auction</em>.
+<code>halt_duration_ns</code> is the <em>minimum</em> length of that phase; the engine adds a
+random 0–30 s on top, so nobody can time the last order in. Expect AAPL to
+reopen 30–60 s after the halt.</p>
 <p>Verification drill, while the halt lasts:</p>
 <ol>
 <li>
 <p>Send a market order — it is rejected with <code>code=CIRCUIT_BREAKER_ACTIVE</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 </li>
 <li>
 <p>Send a limit order — it is accepted and rests, waiting for the reopening:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=160.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=160.00|TIF=DAY
 </code></pre></div>
 </li>
+<li>
+<p>Wait for the reopening. The engine log shows the auction and the resume:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>UNCROSS AAPL: no crossable interest
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>CIRCUIT BREAKER RESUME AAPL: after 0 ACE extension(s)
+</code></pre></div>
+<p>Nothing crossed, because nobody offered at or below 160.00, so your
+buy is still resting. Had someone offered, say 60 at 159.80, the
+reopening auction would have traded them at one price, exactly like the
+opening auction of <a href="../070-auctions/">chapter 07</a>.</p>
+</li>
 </ol>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL halted by the circuit breaker after the fourth step; a market order is rejected and a limit order rests until the halt ends.</p>
-<h2 id="exercise-5-open-the-admin-console">Exercise 5: Open the Admin Console<a class="headerlink" href="#exercise-5-open-the-admin-console" title="Permanent link">&para;</a></h2>
-<p>In a new terminal, start the interactive admin console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
-</code></pre></div>
-<p>At the prompt, inspect the exchange:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; HELP
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[GW_ADMIN|ADMIN]&gt; SYMBOLS
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
-</code></pre></div>
-<p>Use <code>BOOK|SYM=AAPL</code> to confirm the console can query market state:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
-</code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-admin</code> authenticates as <code>GW_ADMIN</code> and can show symbols, session status, gateways, and book state.</p>
-<h2 id="exercise-6-manual-symbol-halt-and-resume">Exercise 6: Manual Symbol Halt and Resume<a class="headerlink" href="#exercise-6-manual-symbol-halt-and-resume" title="Permanent link">&para;</a></h2>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL halted by the circuit breaker after the fourth step; a market order is rejected, a limit order rests, and the symbol reopens on its own.</p>
+<h2 id="exercise-5-manual-symbol-halt-and-resume">Exercise 5: Manual Symbol Halt and Resume<a class="headerlink" href="#exercise-5-manual-symbol-halt-and-resume" title="Permanent link">&para;</a></h2>
 <p>From the <code>pm-admin</code> console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; HALT_SYM|SYM=MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; HALT_SYM|SYM=MSFT
 </code></pre></div>
 <p>Try trading MSFT from TRADER01:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
-<p>Expected: rejection — <code>code=INSTRUMENT_HALTED</code>. (A <em>limit</em> order would be
-accepted and rest for the reopening, as in Exercise 4.)</p>
+<p>Expected: <code>REJECTED … code=INSTRUMENT_HALTED  MSFT is halted — MARKET orders
+rejected during trading halt</code>. (A <em>limit</em> order would be accepted and rest for
+the reopening, as in Exercise 4.) The <code>HALT_SYM</code> reply also tells you how many
+market-maker quote legs it pulled: <code>HALTED  MSFT  2 quote leg(s) cancelled</code>.</p>
 <p>Resume:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME_SYM|SYM=MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME_SYM|SYM=MSFT
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> halt prevents trading; resume restores it.</p>
-<h2 id="exercise-7-exchange-wide-halt-with-pm-admin-cli">Exercise 7: Exchange-Wide Halt with pm-admin-cli<a class="headerlink" href="#exercise-7-exchange-wide-halt-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-6-exchange-wide-halt-with-pm-admin-cli">Exercise 6: Exchange-Wide Halt with pm-admin-cli<a class="headerlink" href="#exercise-6-exchange-wide-halt-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
 <p>Use the one-shot CLI form when you want an operation to run from a script or
 checklist without opening an interactive console.</p>
 <div class="admonition note">
@@ -8011,49 +8001,51 @@ checklist without opening an interactive console.</p>
 use <code>ADMIN_CLI</code>. If both tools use <code>GW_ADMIN</code>, the second connection is
 refused with <code>Gateway already connected: GW_ADMIN</code>.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>halt
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>halt
 </code></pre></div>
-<p>All symbols stop matching. Confirm status:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session-status
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>symbols
+<p>It prints <code>HALTED  3 symbol(s), &lt;n&gt; quote leg(s) cancelled</code> and exits. All
+symbols stop matching, but the session phase does not change —
+<code>pm-admin-cli --id ADMIN_CLI session-status</code> still says <code>CONTINUOUS</code>. A halt
+is per symbol, not a session state. Prove it is in force by sending a
+<code>MARKET</code> order from <code>TRADER01</code> on any symbol: it is rejected. Then resume:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>resume
 </code></pre></div>
-<p>Then resume:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>resume
-</code></pre></div>
+<p>The interactive console has the same pair as <code>HALT</code> and <code>RESUME</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-admin-cli</code> halts and resumes the exchange without entering a REPL.</p>
-<h2 id="exercise-8-query-and-manage-with-pm-admin-cli">Exercise 8: Query and Manage with pm-admin-cli<a class="headerlink" href="#exercise-8-query-and-manage-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-7-query-and-manage-with-pm-admin-cli">Exercise 7: Query and Manage with pm-admin-cli<a class="headerlink" href="#exercise-7-query-and-manage-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
 <p>Try the read-only commands first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>orders<span class="w"> </span>--gw<span class="w"> </span>TRADER01
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>gateways
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>volume
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>schedule
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>orders<span class="w"> </span>--gw<span class="w"> </span>TRADER01
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>gateways
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>volume
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>schedule
 </code></pre></div>
+<p><code>schedule</code> shows a dash in every cell: your configuration has no <code>schedule:</code>
+block (chapter 01).</p>
 <p>Now halt and resume one symbol through the CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>halt-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>resume-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>halt-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>resume-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can choose <code>pm-admin</code> for interactive operation and <code>pm-admin-cli</code> for repeatable one-shot commands.</p>
-<h2 id="exercise-9-exchange-wide-halt-from-the-admin-console">Exercise 9: Exchange-Wide Halt from the Admin Console<a class="headerlink" href="#exercise-9-exchange-wide-halt-from-the-admin-console" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[GW_ADMIN|ADMIN]&gt; HALT
+<h2 id="exercise-8-kill-switch">Exercise 8: Kill Switch<a class="headerlink" href="#exercise-8-kill-switch" title="Permanent link">&para;</a></h2>
+<p>Give <code>TRADER02</code> something to lose first — three resting sells that will not
+trade:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=152.00|TIF=DAY
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=153.00|TIF=DAY
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=425.00|TIF=DAY
 </code></pre></div>
-<p>All symbols stop matching. Then:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME
+<p>Pull only its AAPL orders, then everything that is left:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02|SYM=AAPL
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02
 </code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> full halt and resume works across all symbols.</p>
-<h2 id="exercise-10-kill-switch">Exercise 10: Kill Switch<a class="headerlink" href="#exercise-10-kill-switch" title="Permanent link">&para;</a></h2>
-<p>Cancel all orders for a misbehaving gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02
-</code></pre></div>
-<p>Expected: <code>KILL OK  TRADER02  orders=&lt;n&gt;  quotes=&lt;n&gt;</code> — all of TRADER02's resting orders cancelled.</p>
-<p>Or scope to a single symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02|SYM=AAPL
-</code></pre></div>
+<p>Expected: <code>KILL OK  TRADER02  orders=2  quotes=0</code>, then
+<code>KILL OK  TRADER02  orders=1  quotes=0</code>. <code>TRADER02</code> stays connected and sees a
+<code>CANCELLED … reason=KILL_SWITCH</code> line per order.</p>
 <p>The same operation as a one-shot CLI command is:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span><span class="nb">kill</span><span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span><span class="nb">kill</span><span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> kill switch cancels targeted orders.</p>
-<h2 id="exercise-11-named-risk-levels-one-policy-many-symbols">Exercise 11: Named Risk Levels — One Policy, Many Symbols<a class="headerlink" href="#exercise-11-named-risk-levels-one-policy-many-symbols" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-9-named-risk-levels-one-policy-many-symbols">Exercise 9: Named Risk Levels — One Policy, Many Symbols<a class="headerlink" href="#exercise-9-named-risk-levels-one-policy-many-symbols" title="Permanent link">&para;</a></h2>
 <p>Exercise 1 gave each symbol its own inline <code>collar:</code>. With 150 symbols that is
 150 copies of the same numbers. A <strong>risk level</strong> is a named collar profile that
 symbols share: define it once under <code>risk_controls.levels</code>, pick a
@@ -8061,50 +8053,39 @@ symbols share: define it once under <code>risk_controls.levels</code>, pick a
 symbol opt into a looser one with <code>level:</code>.</p>
 <p>Replace the inline collars of AAPL and MSFT by this (keep <code>TSLA</code> and the other
 symbols as they are, with no <code>collar:</code> and no <code>level:</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L2</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span><span class="w">                       </span><span class="c1"># loose: for volatile names</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span><span class="w">                       </span><span class="c1"># tight: the house default</span>
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
-<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
-<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>
-<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
-<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L1</span><span class="w">                 </span><span class="c1"># MSFT opts into the loose profile</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L2</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span><span class="w">                       </span><span class="c1"># loose: for volatile names</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span><span class="w">                       </span><span class="c1"># tight: the house default</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L1</span><span class="w">                 </span><span class="c1"># MSFT opts into the loose profile</span>
 </code></pre></div>
 <p>AAPL and TSLA name no level, so both get <code>default_level: L2</code>. Check and deploy.</p>
-<p>For repeatable predictions, reset the exchange's working state before this
-exercise. A same-business-day engine restart restores resting <code>DAY</code> orders
-(and quote legs) as well as persisted reference and last-trade prices.
-Deleting only <code>book_stats.json</code> resets the prices but leaves those orders, so a
-second run would not start from the same book. After deploying the configuration,
-stop every EduMatcher process (<code>pm-opctl-cli stop</code> for managed processes and
-<code>Ctrl-C</code> for any manually started ones), then run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state
-</code></pre></div>
-<p>This removes persisted orders and prices along with statistics, clearing, and
-index state, but preserves configuration, logs, audit data, and settlement
-records. It does not remove the deployed configuration or require redeployment.
-See <a href="#starting-over">Starting over</a> for the reset scopes. Restart the exchange
-and its consoles, reopen the market, and continue below.</p>
+<p>The circuit-breaker walk of Exercise 4 moved AAPL's reference, so reset the
+working state again exactly as in Exercise 1: stop <code>pm-engine</code> and the
+consoles, run <code>pm-opctl-cli clear --state</code>, restart, reopen the market and
+clear the three books with <code>CANCEL_SYM</code> (the restart places the
+market-maker seed quotes again). A same-business-day restart alone is not
+enough: it restores resting <code>DAY</code> orders and the remembered prices.</p>
 <p>The reference prices are now 150, 420 and 250 again (from your configuration)
 and there is no last trade. <strong>Predict</strong> the outcome of each order before
 sending it. Use buys below the market, which rest instead of trading, so that
-only the <em>static</em> band is being tested:
-<strong>Predict</strong> the outcome of each order before sending it. Use buys below the
-market, which rest instead of trading, so that only the <em>static</em> band is being
-tested:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=142.00|TIF=DAY
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=300.00|TIF=DAY
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=290.00|TIF=DAY
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=240.00|TIF=DAY
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=237.00|TIF=DAY
+only the <em>static</em> band is being tested:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=142.00|TIF=DAY
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=300.00|TIF=DAY
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=290.00|TIF=DAY
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=240.00|TIF=DAY
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=237.00|TIF=DAY
 </code></pre></div>
 <table>
 <thead>
@@ -8152,6 +8133,10 @@ have passed under L1: the level is the whole difference. An inline <code>collar:
 a symbol still overrides its level field by field, which is how <code>TSLA</code> in
 <a href="../../operator-guide/part-2-configure/010-the-configuration-workflow/#risk-controls-and-collars">The Configuration Workflow</a>
 sets only a tighter <code>dynamic_band_pct</code>.</p>
+<p>Three of the six orders were accepted and are still resting. Remove them
+before the next chapter, so they do not sit in the books as stale prices:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER01
+</code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you predicted all six results
 before sending the orders, and can say which symbols the single line
 <code>default_level: L2</code> governs.</p>
@@ -8240,10 +8225,6 @@ restart the processes after clearing and they will load the existing deployed
 configuration. <code>--all</code> permanently deletes EOD balances and settlement
 records, so use it only when those records are intentionally disposable. For a
 fresh exchange with money records retained, use <code>--state</code>.</p>
-<p>The reset-scope regression test creates disposable files and directories for
-both modes, verifies exactly which paths are removed, and confirms that
-configuration remains. Active-process warning and non-interactive refusal
-behavior is covered separately by the CLI tests.</p>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does a circuit breaker halt the whole symbol rather than just rejecting
 new orders like the collars do? What failure mode (think: a runaway

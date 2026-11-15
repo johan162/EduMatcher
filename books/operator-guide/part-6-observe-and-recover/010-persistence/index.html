@@ -8089,7 +8089,7 @@ dedicated query tool.</p>
 <tr>
 <td><code>clearing.db</code> (SQLite)</td>
 <td><code>pm-clearing</code></td>
-<td>Per trade · on gateway connect/disconnect · at EOD</td>
+<td>Every 100 trades or 5 seconds · on gateway connect/disconnect · at the close and at EOD</td>
 <td>Positions, VWAP cost, realized/unrealized P&amp;L, daily summaries, trade events, sessions</td>
 <td><strong><code>pm-clearing-cli</code></strong> or SQL — see <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#clearingdb">schema</a></td>
 </tr>
@@ -8743,7 +8743,7 @@ compressed to one <code>audit/audit-YYYY-MM-DD.log.zst</code> (zstd, ≈ 13:1), 
 <p><strong>Written by</strong>: <code>pm-clearing</code><br />
 <strong>Written</strong>: continuously — on every <code>trade.executed</code>, gateway connect/disconnect, and <code>system.eod</code> event<br />
 <strong>Read by</strong>: <code>pm-clearing-cli</code>, direct SQL queries, post-trade analysis scripts<br />
-<strong>Reset</strong>: delete manually; <code>pm-clearing</code> recreates the schema (<code>CREATE TABLE IF NOT EXISTS</code>) on startup, so restarting against an existing file is safe  </p>
+<strong>Reset</strong>: delete manually; <code>pm-clearing</code> recreates the schema (<code>CREATE TABLE IF NOT EXISTS</code>) on startup, so restarting against an existing file is safe. Trades the engine makes while <code>pm-clearing</code> is not running never reach it: they are not booked. On its first trade after the restart <code>pm-clearing</code> compares the trade id with the last one it stored and records the missing range as a feed gap with reason <code>restart</code> (<code>pm-clearing-cli gaps</code>); positions of the traders involved stay short of those trades. Restart <code>pm-clearing</code> while the market is closed where you can  </p>
 <p>A SQLite database that accumulates across sessions. It holds an append-only
 <code>trade_events</code> fact table plus running-state tables for positions and daily
 summaries, and clearing-lifecycle tables for sessions and connections. The full

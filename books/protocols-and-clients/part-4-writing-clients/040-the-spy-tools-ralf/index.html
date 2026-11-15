@@ -7830,7 +7830,12 @@ occur (and until the next end-of-day cycle for <code>EOD</code>).</p>
 <tr>
 <td><code>--lastseq</code></td>
 <td><code>0</code></td>
-<td>Requests replay on connect via <code>HELLO\|LASTSEQ=N</code> for every channel <code>--role</code> is entitled to (<code>0</code> = no replay)</td>
+<td>Sends the checkpoint on connect as <code>HELLO\|LASTSEQ=N</code>; the spy's <code>SUB</code> is then answered with the events after it on the subscribed channels and symbols (<code>0</code> = no replay)</td>
+</tr>
+<tr>
+<td><code>--epoch</code></td>
+<td>—</td>
+<td>The <code>WELCOME\|EPOCH</code> of the gateway run <code>--lastseq</code> came from; required with a non-zero <code>--lastseq</code> (a usage error without it). A checkpoint from another run of <code>pm-ralf-gwy</code> gets <code>ERR\|CODE=REPLAY_MISS</code> and a fresh <code>SNAP</code></td>
 </tr>
 </tbody>
 </table>
@@ -7842,10 +7847,13 @@ aborting the whole session, so you can see exactly what was rejected.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>--lastseq</code> vs. CALF's <code>RESUME</code></p>
 <p>RALF has no separate resume message: a non-zero <code>LASTSEQ</code> goes directly
-on <code>HELLO</code> and requests replay across <strong>every</strong> channel your role is
-entitled to at once (not scoped to one channel/symbol pair the way
-CALF's <code>RESUME|CH=..|SYM=..</code> is). If the requested sequence is
-older than <code>replay_retention_sec</code>, the gateway sends
+on <code>HELLO</code>, and the replay covers whatever the spy's <code>SUB</code> then
+subscribes (<code>--channels</code> × <code>--symbols</code>, possibly several channels at
+once), not one channel/symbol pair the way CALF's
+<code>RESUME|CH=..|SYM=..</code> is. Like <code>RESUME</code>, it must name the
+gateway run it came from (<code>--epoch</code>, from the <code>WELCOME</code> the spy prints).
+If the checkpoint is from another run, or older than
+<code>replay_retention_sec</code>, the gateway sends
 <code>ERR|CODE=REPLAY_MISS</code> followed by a fresh <code>SNAP</code> — accept it and reset
 any local state.</p>
 </div>

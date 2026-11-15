@@ -2008,10 +2008,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#legacy-flat-files" class="md-nav__link">
+  <a href="#the-old-flat-layout" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Legacy flat files
+        The old flat layout
       
     </span>
   </a>
@@ -8643,31 +8643,36 @@ streams into the same PUSH socket instead of two sockets.</p>
     QUOTING --&gt; PAUSED : session != CONTINUOUS, or circuit_breaker.halt for this symbol
     REPRICING --&gt; REISSUING : new quote required
     REISSUING --&gt; QUOTING : quote.ack received
-    PAUSED --&gt; WAITING_FOR_SESSION : resume trigger
+    PAUSED --&gt; WAITING_FOR_SESSION : circuit_breaker.resume, or session=CONTINUOUS
+    WAITING_FOR_SESSION --&gt; REISSUING : already CONTINUOUS at the resume
     QUOTING --&gt; [*] : SIGINT / SIGTERM
     PAUSED --&gt; [*] : SIGINT / SIGTERM</code></pre>
 <h3 id="startup-sequence">Startup sequence<a class="headerlink" href="#startup-sequence" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Open ZMQ sockets (PUSH and SUB) — once per process, not once per symbol</li>
 <li>Send <code>gateway_connect</code> and wait for <code>gateway_auth</code> ACK — once per process</li>
-<li>Request symbol list and verify every <code>--symbol</code>/<code>--symbols</code> entry exists</li>
-<li>For each symbol: send <code>QBOOT</code> — if an active quote already exists for
-   this <code>(gateway_id, symbol)</code> pair, adopt it instead of creating a
-   duplicate</li>
-<li>For each symbol: send <code>QLEGS</code> to reconcile quote-leg mapping</li>
+<li>Request the symbol list (tick sizes, MM obligations) and verify every
+   symbol exists — no reply within 3 s is a startup failure, since every
+   tick size would otherwise be a guess</li>
+<li>Send one <code>QBOOT</code> for the whole gateway — any symbol whose quote is still
+   active is adopted instead of being quoted twice — and one <code>QLEGS</code> to
+   check each adopted quote's legs</li>
+<li>Ask the engine for the gateway's current position
+   (<code>system.position_request</code>) and start each symbol's tracked position from
+   it, so <code>inventory_skew</code> does not restart flat</li>
 <li>Wait for <code>session.state</code> event (fail fast if not received within
    timeout) — once per process, since session state applies to the whole
    exchange rather than to one symbol</li>
-<li>For each symbol still active after steps 3–5: resolve its initial
-   reference price and begin quoting</li>
+<li>For each symbol still active: resolve its initial reference price and
+   begin quoting</li>
 </ol>
-<p>Steps 3–5 and 7 run once per symbol and are where
+<p>The per-symbol checks of step 3 and the reference price of step 7 are where
 <a href="#per-symbol-failure-isolation">per-symbol failure isolation</a> applies: a
 symbol that fails one of these checks is excluded from quoting rather than
 aborting the whole process, as long as at least one other symbol succeeds.</p>
 <h3 id="per-symbol-failure-isolation">Per-symbol failure isolation<a class="headerlink" href="#per-symbol-failure-isolation" title="Permanent link">&para;</a></h3>
 <p>A <code>--symbols</code> bot does not treat a startup problem with one symbol as fatal
-to the others. If, say, <code>AAPL</code>'s <code>--gap</code> violates its <code>mm_max_spread_ticks</code>
+to the others. If, say, <code>AAPL</code>'s <code>--gap</code> violates an enforced <code>mm_max_spread_ticks</code>
 obligation while <code>MSFT</code>'s does not, the bot logs <code>AAPL</code> as excluded and
 continues quoting <code>MSFT</code> — the process only exits with a startup failure if
 <em>every</em> symbol fails its checks (exactly the single-symbol behavior, applied
@@ -8686,6 +8691,8 @@ see <a href="#session-state-handling">Session state handling</a> and
 <li>Waits up to <code>--shutdown-timeout-sec</code> for cancel confirmation</li>
 <li>Closes ZMQ sockets and exits</li>
 </ol>
+<p>A stop that arrives during startup ends startup at once, before any quote is
+sent, and the bot exits with code 0.</p>
 <hr />
 <h2 id="pricing-logic">Pricing logic<a class="headerlink" href="#pricing-logic" title="Permanent link">&para;</a></h2>
 <h3 id="mid-price-tracking">Mid-price tracking<a class="headerlink" href="#mid-price-tracking" title="Permanent link">&para;</a></h3>
@@ -8739,7 +8746,7 @@ own, per-side re-quote rules — see
 </tr>
 <tr>
 <td>Quote rejected</td>
-<td>Retry after delay</td>
+<td>Retry after <code>--reissue-delay-ms</code>, doubling per consecutive rejection up to <code>--heartbeat-interval-sec</code></td>
 </tr>
 <tr>
 <td>Periodic heartbeat (no active quote)</td>
@@ -8812,7 +8819,11 @@ is ever lost:</p>
 separate, per-symbol <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> topic (and clears on the
 matching <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> topic), independent of the session
 state. On a halt for one of its symbols, the bot cancels that symbol's live
-quote and pauses immediately; it resumes on the matching resume event.</p>
+quote and pauses immediately. On the matching resume it quotes again at once
+if the session is <code>CONTINUOUS</code>, otherwise when the session next enters
+<code>CONTINUOUS</code>. A quote that was on its way to the engine when the halt or
+the phase change arrived is cancelled as soon as its acknowledgement comes
+back.</p>
 <p>When the session transitions to <code>CONTINUOUS</code>, the bot resumes quoting
 automatically.</p>
 <hr />
@@ -8893,7 +8904,8 @@ differ for every symbol:</p>
 <p><code>--strategy</code>, <code>--gap</code>, <code>--qty</code>, <code>--max-position</code>, <code>--drift-ticks</code>, <code>--tif</code>,
 <code>--reissue-delay-ms</code>, <code>--heartbeat-interval-sec</code>, <code>--bootstrap-timeout-sec</code>,
 <code>--cancel-timeout-sec</code>, <code>--qlegs-reconcile-interval-sec</code>, <code>--initial_min</code>,
-<code>--initial_max</code>.</p>
+<code>--initial_max</code>, <code>--anchor-sim</code>, and the <code>passive</code> knobs <code>--retreat-ticks</code>,
+<code>--behind-ticks</code>, <code>--min-cover-qty</code>, <code>--fade-ticks</code>, <code>--fade-sec</code>.</p>
 <h3 id="scoping-flags-to-a-symbol-on-the-command-line">Scoping flags to a symbol on the command line<a class="headerlink" href="#scoping-flags-to-a-symbol-on-the-command-line" title="Permanent link">&para;</a></h3>
 <p><code>--symbol</code> may be repeated. Every per-symbol flag <strong>after</strong> a <code>--symbol</code>
 applies to that symbol until the next <code>--symbol</code>; anything <strong>before</strong> the
@@ -9131,7 +9143,7 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <td><code>--bootstrap-timeout-sec F</code></td>
 <td>per-symbol</td>
 <td><code>1.0</code></td>
-<td>Max wait for QBOOT reply</td>
+<td>Max wait for each startup reply (QBOOT, QLEGS, position); the longest value of any symbol applies</td>
 </tr>
 <tr>
 <td><code>--cancel-timeout-sec F</code></td>
@@ -9173,7 +9185,7 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <td><code>-q</code>, <code>--quiet</code></td>
 <td>gateway</td>
 <td><code>false</code></td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit <code>WARNING</code> (same as the default)</td>
 </tr>
 </tbody>
 </table>
@@ -9505,6 +9517,12 @@ for that symbol.</p>
 <td><code>3.0</code></td>
 <td>≥ 0; <code>passive</code> only</td>
 </tr>
+<tr>
+<td><code>anchor_sim</code></td>
+<td>number</td>
+<td><code>0</code></td>
+<td>0–1; quote around <code>pm-market-sim</code>'s true value (<code>0</code> = off)</td>
+</tr>
 </tbody>
 </table>
 <p>Symbol keys are upper-cased on load, so <code>symbols: {aapl: {...}}</code> configures
@@ -9581,8 +9599,12 @@ failure rather than a bot that runs with settings you did not intend.</p>
 <td><code>'engine_pull' is a gateway-wide setting; move it under 'gateway:'</code></td>
 </tr>
 <tr>
-<td>Per-symbol key in <code>gateway:</code></td>
+<td>Per-symbol key in <code>gateway:</code> or at the top level</td>
 <td><code>'gap' is a per-symbol setting; move it under 'defaults:' or into a symbol's own block</code></td>
+</tr>
+<tr>
+<td><code>symbol:</code> at the top level</td>
+<td><code>'symbol' is not a key; list the symbols under 'symbols:'</code></td>
 </tr>
 <tr>
 <td>Logging key in the wrong place</td>
@@ -9601,27 +9623,25 @@ failure rather than a bot that runs with settings you did not intend.</p>
 <td><code>[MSFT] qty must be positive (got -1)</code></td>
 </tr>
 <tr>
+<td>A quoted or non-finite number</td>
+<td><code>startup_session_timeout_sec must be a number (got '5')</code>, <code>[AAPL] gap must be a finite number (got nan)</code></td>
+</tr>
+<tr>
+<td>An unknown logging level or target</td>
+<td><code>level must be one of CRITICAL, ERROR, WARNING, INFO, DEBUG (got 'verbose')</code> (the level is not case-sensitive in the file)</td>
+</tr>
+<tr>
 <td><code>inventory_skew</code> without a cap</td>
 <td><code>[TSLA] max_position is required when strategy inventory_skew is selected</code></td>
 </tr>
 </tbody>
 </table>
-<h3 id="legacy-flat-files">Legacy flat files<a class="headerlink" href="#legacy-flat-files" title="Permanent link">&para;</a></h3>
-<p>The original flat format — one mapping of CLI flag names, all of them
-gateway-wide — still loads unchanged:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># mm_aapl.yaml (legacy format)</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">symmetric</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.08</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GTC</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="nt">drift_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
-</code></pre></div>
-<p>It is recognised by shape (no <code>version:</code>, and <code>symbols:</code> given as a string or
-list rather than a mapping) and behaves exactly as it did: every value
-applies to every symbol. Prefer <code>version: 1</code> for new files — it is the only
-format that can express per-symbol settings.</p>
+<h3 id="the-old-flat-layout">The old flat layout<a class="headerlink" href="#the-old-flat-layout" title="Permanent link">&para;</a></h3>
+<p>Before <code>version: 1</code>, a config file was one flat mapping of CLI flag names
+(<code>symbol: AAPL</code>, <code>gap: 0.08</code>, …). That layout is no longer read: its keys are
+refused with a message naming the block they belong in (see the table above).
+Move per-symbol keys under <code>defaults:</code>, gateway-wide ones under <code>gateway:</code>,
+and list the symbols under <code>symbols:</code>.</p>
 <h3 id="pricing-strategies">Pricing strategies<a class="headerlink" href="#pricing-strategies" title="Permanent link">&para;</a></h3>
 <p><code>--strategy</code> (or the file's <code>strategy:</code> key) selects which pricing logic the
 bot uses to compute bid/ask from the tracked mid-price. Three strategies
@@ -9652,8 +9672,9 @@ longer the bot stays short (or long), the more exposed it is to an adverse
 price move, and the point of market-making in the first place is to earn
 the spread, not to take a directional bet.</p>
 <p><code>--strategy inventory_skew</code> addresses this by tracking the bot's own net
-position per symbol (derived locally from its own fills — it does not ask
-the engine) and shifting where it places its bid and ask relative to mid:</p>
+position per symbol (taken from the engine's position ledger when the bot
+starts, then kept up to date from its own fills) and shifting where it places
+its bid and ask relative to mid:</p>
 <ul>
 <li><strong>Long</strong> (net_position &gt; 0, the bot has bought more than it's sold): the
   effective mid shifts <em>down</em>. Both the bid and the ask come down —
@@ -9668,9 +9689,9 @@ the engine) and shifting where it places its bid and ask relative to mid:</p>
 <p>The shift scales linearly with how large the position is relative to
 <code>--max-position</code> (required for this strategy — there is no meaningful
 "unbounded" skew to normalize against):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>fraction = clamp(net_position / max_position, -1.0, +1.0)
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>skew     = -fraction × (gap / 2)
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>effective_mid = tracked_mid + skew
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>fraction = clamp(net_position / max_position, -1.0, +1.0)
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>skew     = -fraction × (gap / 2)
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>effective_mid = tracked_mid + skew
 </code></pre></div>
 <p>The bid and ask are then computed from <code>effective_mid</code> exactly as
 <code>symmetric</code> computes them from the tracked mid (same tick-rounding, same
@@ -9722,7 +9743,7 @@ traders when they are already providing liquidity.</p>
   little further out for a few seconds, instead of immediately
   re-offering the same price.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive
 </code></pre></div>
 <p>With no other flags every knob below takes its default.</p>
 <h4 id="vocabulary">Vocabulary<a class="headerlink" href="#vocabulary" title="Permanent link">&para;</a></h4>
@@ -9760,12 +9781,12 @@ traders when they are already providing liquidity.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>          bid band              ask band
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>      |&lt;--- retreat ---&gt;|   |&lt;--- retreat ---&gt;|
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>   99.90             99.95 | 100.05            100.10
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>   floor              home | home              ceiling
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>                          mid
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>                        100.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>          bid band              ask band
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>      |&lt;--- retreat ---&gt;|   |&lt;--- retreat ---&gt;|
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>   99.90             99.95 | 100.05            100.10
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>   floor              home | home              ceiling
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>                          mid
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>                        100.00
 </code></pre></div>
 <h4 id="step-1-the-mid-comes-from-other-traders-only">Step 1 — the mid comes from other traders only<a class="headerlink" href="#step-1-the-mid-comes-from-other-traders-only" title="Permanent link">&para;</a></h4>
 <p>Before pricing anything the bot removes its own legs from every book
@@ -9789,12 +9810,12 @@ difference.</p>
 </div>
 <h4 id="step-2-place-each-side">Step 2 — place each side<a class="headerlink" href="#step-2-place-each-side" title="Permanent link">&para;</a></h4>
 <p>Each side is priced independently. For the bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>home   = mid − gap/2                        (tick-rounded)
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>floor  = home − retreat_ticks
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>covered = (others' bid qty at prices ≥ floor) ≥ min_cover_qty
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>if covered:  bid = clamp(others' best bid − behind_ticks,  floor,  home)
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>else:        bid = home
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>home   = mid − gap/2                        (tick-rounded)
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>floor  = home − retreat_ticks
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>covered = (others' bid qty at prices ≥ floor) ≥ min_cover_qty
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>if covered:  bid = clamp(others' best bid − behind_ticks,  floor,  home)
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>else:        bid = home
 </code></pre></div>
 <p>The ask is the mirror image: <code>ceiling = home + retreat_ticks</code>, count
 others' offers at prices ≤ ceiling, and quote <code>behind_ticks</code> <em>above</em>
@@ -9939,17 +9960,17 @@ faded. It re-quotes when any of these hold for either side:</p>
 <p>So for <code>passive</code>, <code>--drift-ticks</code> measures how far a <em>side's target price</em>
 has moved, not how far the mid has moved.</p>
 <h4 id="interaction-with-the-mm-spread-obligation">Interaction with the MM spread obligation<a class="headerlink" href="#interaction-with-the-mm-spread-obligation" title="Permanent link">&para;</a></h4>
-<p>If the symbol has an <code>mm_max_spread_ticks</code> obligation (see
-<a href="#gap-validation">Gap validation</a>), the engine rejects any quote wider
-than it. The bot therefore narrows the band until even the widest quote it
+<p>If the engine enforces an <code>mm_max_spread_ticks</code> obligation for the bot's
+gateway (<code>enforce_mm_obligation: true</code>, see
+<a href="#gap-validation">Gap validation</a>), it rejects any quote wider than that. The bot therefore narrows the band until even the widest quote it
 could send (both sides fully retreated, or faded to the band edge) still
 satisfies the obligation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>effective retreat = min(retreat_ticks, (mm_max_spread_ticks − home spread in ticks) // 2)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>effective retreat = min(retreat_ticks, (mm_max_spread_ticks − home spread in ticks) // 2)
 </code></pre></div>
 <p>Example: obligation <code>14</code> ticks, home spread <code>10</code> ticks → at most <code>2</code> ticks
 of retreat per side, whatever <code>--retreat-ticks</code> says. The bot logs one line
 at startup when this narrowing applies:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[AAPL] retreat_ticks 5 narrowed to 2 by mm_max_spread_ticks=14
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[AAPL] retreat_ticks 5 narrowed to 2 by mm_max_spread_ticks=14
 </code></pre></div>
 <p>When no gap is set, the gap defaults to half the obligation, which leaves
 a quarter of the obligation for retreat on each side. With a <code>20</code>-tick
@@ -10056,37 +10077,37 @@ traders room after a fill, prefer a longer <code>fade_sec</code> over a longer
 </div>
 <h4 id="recipes">Recipes<a class="headerlink" href="#recipes" title="Permanent link">&para;</a></h4>
 <p>Yield to anyone, but only a little:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">2</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">2</span>
 </code></pre></div>
 <p>Only yield to real size (at least one round lot inside the band):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--min-cover-qty<span class="w"> </span><span class="m">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--min-cover-qty<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <p>Pure step-behind, no fading:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--fade-ticks<span class="w"> </span><span class="m">0</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--fade-ticks<span class="w"> </span><span class="m">0</span>
 </code></pre></div>
 <p>Pure fading, never step behind others. The band still has to leave room
 for the fade:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--min-cover-qty<span class="w"> </span><span class="m">1000000000</span><span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">3</span><span class="w"> </span>--fade-ticks<span class="w"> </span><span class="m">3</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--min-cover-qty<span class="w"> </span><span class="m">1000000000</span><span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">3</span><span class="w"> </span>--fade-ticks<span class="w"> </span><span class="m">3</span>
 </code></pre></div>
 <p>The same in a config file, with one symbol tuned differently:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nt">gateway</span><span class="p">:</span>
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="nt">defaults</span><span class="p">:</span>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">passive</span>
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">  </span><span class="nt">retreat_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="w">  </span><span class="nt">behind_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="w">  </span><span class="nt">min_cover_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="w">  </span><span class="nt">fade_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="w">  </span><span class="nt">fade_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
-<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
-<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
-<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a><span class="w">    </span><span class="nt">retreat_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a><span class="w">    </span><span class="nt">min_cover_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
-<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a><span class="w">    </span><span class="nt">fade_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="nt">gateway</span><span class="p">:</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="nt">defaults</span><span class="p">:</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">passive</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">  </span><span class="nt">retreat_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">  </span><span class="nt">behind_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">  </span><span class="nt">min_cover_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span><span class="nt">fade_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span><span class="nt">fade_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a><span class="w">    </span><span class="nt">retreat_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a><span class="w">    </span><span class="nt">min_cover_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a><span class="w">    </span><span class="nt">fade_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
 </code></pre></div>
 <h4 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h4>
 <ul>
@@ -10102,7 +10123,7 @@ for the fade:</p>
 <p>Whether or not <code>inventory_skew</code> is in use, an operator can ask any running
 gateway — including an MM bot — what it is currently holding, from
 <code>pm-alf-console</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>POS|GW=MM_AAPL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>POS|GW=MM_AAPL_01
 </code></pre></div>
 <p>This sends <code>system.position_request</code> for that <code>gateway_id</code> and prints
 whatever the engine's own per-gateway position ledger reports back on
@@ -10114,11 +10135,11 @@ engine tracks a signed net position and volume-weighted average cost for
 every gateway from its own fill records, and answers <code>system.
 position_request</code> for any <code>gateway_id</code>, not just the requester's own — a
 console (or another script) can query about a bot the same way it would
-query its own position. The <code>--strategy inventory_skew</code> bot's local
-position tracking (used for skewing, described above) is a separate,
-parallel bookkeeping of the same fills — the two should always agree, since
-both are derived from the same fill stream, but only the engine's ledger
-is reachable remotely via <code>POS|GW=</code>.</p>
+query its own position. The bot's own position tracking (used for skewing,
+described above) starts from that same ledger when the bot starts and then
+follows the bot's fills, so the two agree; only the engine's ledger is
+reachable remotely via <code>POS|GW=</code>. If the engine does not answer the bot's
+position request at start-up, the bot logs a warning and starts from zero.</p>
 <p>The same query is available over REST for an admin-role caller, via
 <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#get-apiv1admingatewaysgateway_idpositions"><code>GET /api/v1/admin/gateways/MM_AAPL_01/positions</code></a>
 — useful for a dashboard or a script that wants to watch a bot's position
@@ -10137,36 +10158,36 @@ something: watch <code>spread</code>/<code>mid</code> shift as <code>net_qty</co
 <h3 id="gateway-registration">Gateway registration<a class="headerlink" href="#gateway-registration" title="Permanent link">&para;</a></h3>
 <p>Each bot instance — whether it quotes one symbol or several — must be
 pre-registered as a single gateway entry in <code>engine_config.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_01</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">1"</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">    </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">    </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="w">    </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="w">    </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
+<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">2"</span>
+<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+</code></pre></div>
+<p>A <code>pm-mm-bot --symbols AAPL,MSFT --label TECH</code> process registers as <em>one</em>
+gateway entry the same way — nothing in <code>participants:</code> names which symbols a
+<code>MARKET_MAKER</code> gateway quotes, since that's the bot's own <code>--symbol</code>/
+<code>--symbols</code> choice, not an engine-config concept:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nt">participants</span><span class="p">:</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_01</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">1"</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL+MSFT</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot"</span>
 <a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
 <a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
 <a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
 <a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">    </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">    </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 <a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">    </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w">    </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
-<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>
-<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
-<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">2"</span>
-<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-</code></pre></div>
-<p>A <code>pm-mm-bot --symbols AAPL,MSFT --label TECH</code> process registers as <em>one</em>
-gateway entry the same way — nothing in <code>participants:</code> names which symbols a
-<code>MARKET_MAKER</code> gateway quotes, since that's the bot's own <code>--symbol</code>/
-<code>--symbols</code> choice, not an engine-config concept:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">participants</span><span class="p">:</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL+MSFT</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot"</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">    </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">    </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">    </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 </code></pre></div>
 <p>One easy-to-miss consequence: the per-symbol <code>market_maker_quotes</code> seed
 (needed to bootstrap a fresh exchange — see
@@ -10200,73 +10221,76 @@ these automatically for every symbol, so this is only a concern when writing
 </ul>
 <h3 id="gap-validation">Gap validation<a class="headerlink" href="#gap-validation" title="Permanent link">&para;</a></h3>
 <p>The bot enforces pricing validity at startup, per symbol (each symbol has
-its own <code>tick_size</code> and, potentially, its own <code>mm_max_spread_ticks</code>):</p>
+its own <code>tick_size</code> and, potentially, its own MM obligation):</p>
 <ul>
 <li><code>gap &gt;= 2 * tick_size</code> (via pricer validation)</li>
-<li>if <code>mm_max_spread_ticks</code> is available in that symbol's metadata, the bot
-  validates <code>gap &lt;= mm_max_spread_ticks * tick_size</code></li>
+<li>if the engine enforces an MM obligation for this gateway and symbol
+  (<code>enforce_mm_obligation: true</code>), the bot validates
+  <code>gap &lt;= mm_max_spread_ticks * tick_size</code> and <code>qty &gt;= mm_min_qty</code></li>
 </ul>
+<p>An obligation the engine does not enforce is ignored by the bot as well: the
+engine's symbol list carries the participant's <code>mm_max_spread_ticks</code> and
+<code>mm_min_qty</code> either way, but only an enforced one can make a quote fail.</p>
 <p>Defaulting rules:</p>
 <ul>
 <li>An explicitly supplied <code>--gap</code> (in either the <code>--gap 0.10</code> or <code>--gap=0.10</code>
   form) is always respected for every symbol — it is only validated against
   each symbol's obligation, never overridden.</li>
-<li>If <code>--gap</code> is not provided and <code>mm_max_spread_ticks</code> is available for a
-  symbol, that symbol's gap defaults to half its max spread:
+<li>If <code>--gap</code> is not provided and an enforced <code>mm_max_spread_ticks</code> applies to
+  a symbol, that symbol's gap defaults to half its max spread:
   <code>(mm_max_spread_ticks / 2) * tick_size</code>. On a <code>--symbols</code> bot this can
   differ per symbol — <code>AAPL</code> and <code>MSFT</code> need not end up with the same
   effective gap.</li>
-<li>If no MM spread metadata is available for a symbol, that symbol uses the
-  standard <code>0.10</code> default.</li>
+<li>Otherwise that symbol uses the standard <code>0.10</code> default.</li>
 </ul>
-<p>A symbol whose validated gap violates its own obligation is excluded from
-quoting rather than failing the whole process — see
+<p>A symbol whose gap or quantity violates its own enforced obligation is
+excluded from quoting rather than failing the whole process — see
 <a href="#per-symbol-failure-isolation">Per-symbol failure isolation</a> above.</p>
 <hr />
 <h2 id="usage-examples">Usage examples<a class="headerlink" href="#usage-examples" title="Permanent link">&para;</a></h2>
 <h3 id="single-symbol-default-settings">Single symbol, default settings<a class="headerlink" href="#single-symbol-default-settings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <h3 id="one-process-quoting-several-symbols-same-settings">One process quoting several symbols, same settings<a class="headerlink" href="#one-process-quoting-several-symbols-same-settings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-mm-bot<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT,TSLA<span class="w"> </span>--label<span class="w"> </span>TECH
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-mm-bot<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT,TSLA<span class="w"> </span>--label<span class="w"> </span>TECH
 </code></pre></div>
 <h3 id="one-process-different-settings-per-symbol">One process, different settings per symbol<a class="headerlink" href="#one-process-different-settings-per-symbol" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-mm-bot<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">5000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-mm-bot<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">5000</span>
 </code></pre></div>
 <h3 id="the-same-desk-from-a-config-file">The same desk, from a config file<a class="headerlink" href="#the-same-desk-from-a-config-file" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>docs/examples/mm-bot/tech-desk.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>docs/examples/mm-bot/tech-desk.yaml
 </code></pre></div>
 <h3 id="two-competing-mms-on-the-same-symbol">Two competing MMs on the same symbol<a class="headerlink" href="#two-competing-mms-on-the-same-symbol" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--id-suffix<span class="w"> </span><span class="m">02</span><span class="w"> </span><span class="p">&amp;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--id-suffix<span class="w"> </span><span class="m">02</span><span class="w"> </span><span class="p">&amp;</span>
 </code></pre></div>
 <h3 id="faster-repricing-for-volatile-sessions">Faster repricing for volatile sessions<a class="headerlink" href="#faster-repricing-for-volatile-sessions" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--drift-ticks<span class="w"> </span><span class="m">1</span><span class="w"> </span>--reissue-delay-ms<span class="w"> </span><span class="m">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--drift-ticks<span class="w"> </span><span class="m">1</span><span class="w"> </span>--reissue-delay-ms<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <h3 id="fresh-exchange-with-no-book-data">Fresh exchange with no book data<a class="headerlink" href="#fresh-exchange-with-no-book-data" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00
 </code></pre></div>
 <h3 id="verbose-mode-for-troubleshooting">Verbose mode for troubleshooting<a class="headerlink" href="#verbose-mode-for-troubleshooting" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>-v
 </code></pre></div>
 <h3 id="config-file-with-one-value-overridden-on-the-cli">Config file, with one value overridden on the CLI<a class="headerlink" href="#config-file-with-one-value-overridden-on-the-cli" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># Widens every symbol that has no gap of its own in the file</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="c1"># Widens only MSFT, whatever the file says for it</span>
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Widens every symbol that has no gap of its own in the file</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Widens only MSFT, whatever the file says for it</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
 </code></pre></div>
 <h3 id="a-market-maker-that-lets-other-traders-go-first">A market maker that lets other traders go first<a class="headerlink" href="#a-market-maker-that-lets-other-traders-go-first" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">5</span><span class="w"> </span>--fade-sec<span class="w"> </span><span class="m">5</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">5</span><span class="w"> </span>--fade-sec<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
 <h3 id="inventory-skewing-with-a-position-cap">Inventory skewing with a position cap<a class="headerlink" href="#inventory-skewing-with-a-position-cap" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10
 </code></pre></div>
 <h3 id="querying-that-bots-position-from-another-console">Querying that bot's position from another console<a class="headerlink" href="#querying-that-bots-position-from-another-console" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>POS|GW=MM_AAPL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>POS|GW=MM_AAPL_01
 </code></pre></div>
 <hr />
 <h2 id="understanding-bot-output">Understanding bot output<a class="headerlink" href="#understanding-bot-output" title="Permanent link">&para;</a></h2>
@@ -10276,35 +10300,39 @@ itself emits is further prefixed with its own gateway ID in brackets, e.g.
 <code>[MM_AAPL_01] &lt;message&gt;</code>. At true default verbosity (no <code>-v</code>/<code>-q</code>/<code>--log-level</code>
 flag at all) the bot's own lifecycle messages are logged at <code>INFO</code>, but the
 default logging level is <code>WARNING</code> — so <strong>none of them are visible</strong> unless
-something fails outright (those paths log at <code>ERROR</code>). Pass <code>-v</code> to see the
+something goes wrong: a startup failure or an excluded symbol
+(<code>startup warning: …</code>), a quote the engine refuses (<code>quote REJECTED: …</code>) or a
+missing position snapshot is logged at <code>WARNING</code>. Pass <code>-v</code> to see the
 bot's milestones and problems (routine per-quote activity needs <code>-vv</code> or the
 dedicated <code>--verbose</code> sections below):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
-<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
-<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
-<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
-<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] bootstrap from random range: 150.00
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a>2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
 </code></pre></div>
 <p>The <code>starting:</code> line names the gateway and every symbol the process covers,
 followed by <strong>one line per symbol</strong> reporting that symbol's resolved
 settings. This is the confirmation that a long command line or a config file
 resolved the way you intended — read it first when a bot is not quoting the
 way you expected. Every per-symbol log line thereafter carries an additional
-<code>[SYMBOL]</code> tag ahead of the message:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=200 tif=DAY drift_ticks=3
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
-<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>2026-09-20 09:30:14,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation
-<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>2026-09-20 09:30:14,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
-<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
-<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
-<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
+<code>[SYMBOL]</code> tag ahead of the message. In this run the gateway's obligation is
+enforced (<code>enforce_mm_obligation: true</code>, <code>mm_max_spread_ticks: 10</code>), so
+AAPL's 0.20 gap is too wide:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.2 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.08 qty=200 tif=DAY drift_ticks=3
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>2026-09-20 09:30:01,003 WARNING edumatcher.mm_bot.bot - [MM_TECH_01] startup warning: [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation (0.200000 &gt; 10 * 0.010000)
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>2026-09-20 09:30:01,005 WARNING edumatcher.mm_bot.bot - [MM_TECH_01] startup warning: [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation (0.200000 &gt; 10 * 0.010000)
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>2026-09-20 09:30:01,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>2026-09-20 09:30:01,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
 </code></pre></div>
 <p>Note that a symbol excluded during startup (as <code>AAPL</code> is here) never reaches
 the point of sending a <code>QUOTE</code> to the engine, so there is no engine-side
@@ -10318,15 +10346,15 @@ loop.</p>
 <p>With <code>--verbose</code> (<code>-v</code>), the bot additionally logs routine quoting activity —
 symbol/session updates, every quote sent, every fill, and every repricing
 decision:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.00
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
-<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
-<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
-<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>2026-09-20 09:30:15,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
-<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>2026-09-20 09:31:02,007 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] drift detected — repricing
-<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>2026-09-20 09:31:02,008 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] state: QUOTING -&gt; REPRICING
-<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>2026-09-20 09:31:02,009 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.99 ask=150.09
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.000
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>2026-09-20 09:30:15,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>2026-09-20 09:31:02,007 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] drift detected — repricing
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>2026-09-20 09:31:02,008 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] state: QUOTING -&gt; REPRICING
+<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>2026-09-20 09:31:02,009 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.99 ask=150.09
 </code></pre></div>
 <p>(<code>symbols received:</code> covers the whole gateway and carries no <code>[SYMBOL]</code> tag;
 every other line above is per-symbol and always carries one, even when the
@@ -10334,7 +10362,9 @@ bot is only quoting a single symbol.)</p>
 <p><code>-v</code> also raises the underlying log level and enables the bot's own debug
 prints together — it is not just a "print more" switch, it also turns on
 low-level flow tracing (e.g. <code>book mid=...</code>, <code>session: OLD -&gt; NEW</code>, and
-<code>state: OLD -&gt; NEW</code> transitions of the bot's own state machine).</p>
+<code>state: OLD -&gt; NEW</code> transitions of the bot's own state machine). Prices are
+printed at the symbol's tick precision; a mid, which can fall between two
+ticks, with one more digit (<code>book mid=150.520</code>).</p>
 <hr />
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <table>
@@ -10352,9 +10382,9 @@ low-level flow tracing (e.g. <code>book mid=...</code>, <code>session: OLD -&gt;
 <td>Add the <code>MM_&lt;SYM&gt;_&lt;nn&gt;</code> (or <code>MM_&lt;LABEL&gt;_&lt;nn&gt;</code>) entry with <code>role: MARKET_MAKER</code></td>
 </tr>
 <tr>
-<td><code>invalid config file: ... unknown key(s)</code></td>
-<td>A <code>--config</code> file has a typo'd or unsupported key</td>
-<td>Check the key against <a href="#config-file">Config file</a> — long flag name, dashes as underscores</td>
+<td><code>invalid config file: ... unknown key '...'</code></td>
+<td>A <code>--config</code> file has a typo'd, misplaced or unsupported key</td>
+<td>Check the key against <a href="#config-file">Config file</a>; the message suggests the closest key or the block it belongs in</td>
 </tr>
 <tr>
 <td><code>no symbols configured: use --symbol, --symbols, or a config file with a 'symbols:' block</code></td>
@@ -10392,9 +10422,9 @@ low-level flow tracing (e.g. <code>book mid=...</code>, <code>session: OLD -&gt;
 <td>Expected if intentional (e.g. testing failure isolation); otherwise fix that symbol's cause and restart</td>
 </tr>
 <tr>
-<td><code>quote REJECTED</code></td>
-<td>Gap or qty violates MM obligation policy</td>
-<td>Reduce <code>--gap</code> / increase <code>--qty</code> or adjust gateway MM settings</td>
+<td><code>[SYM] quote REJECTED: &lt;reason&gt;</code> (WARNING)</td>
+<td>The engine refused the quote; the reason says why (an obligation changed since start-up, a halt, a closed market)</td>
+<td>Fix the cause the reason names. The bot logs each reason once at WARNING (repeats at DEBUG) and retries with a delay that doubles up to <code>--heartbeat-interval-sec</code>; an accepted quote resets both</td>
 </tr>
 <tr>
 <td>Bot quotes but prices look wrong</td>

@@ -3210,6 +3210,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#reconnecting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconnecting
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -8242,7 +8253,7 @@ listed in <code>participants</code> can connect to <code>pm-balf-gwy</code>.</p>
 <tr>
 <td><code>auth_timeout_sec</code></td>
 <td><code>10</code></td>
-<td>Hard-close if <code>LOGON</code> is not answered within this window</td>
+<td>Close a connection that has not completed <code>LOGON</code> this many seconds after it was opened (no <code>LOGON_ACK</code> is sent); also the longest wait for the engine's symbol metadata after it accepted the logon, which ends with <code>LOGON_ACK(accepted=0, msg=SYMBOLS_UNAVAILABLE)</code></td>
 </tr>
 <tr>
 <td><code>max_connections</code></td>
@@ -8509,15 +8520,35 @@ for the exact body structure.</p>
 <p>After <code>accepted = 1</code>, the client may send <code>NEW_ORDER</code>, <code>CANCEL_ORDER</code>,
 <code>AMEND_ORDER</code>, <code>HEARTBEAT</code>, <code>HEARTBEAT_ACK</code>, and <code>LOGOUT</code>.</p>
 <p>Sequence numbers start at <code>1</code> for the first non-LOGON message in each
-direction.</p>
+direction and go up by one per frame. The gateway checks the client's: a gap
+or a repeat closes the connection at once (logged as
+<code>BALF sequence error … expected N, got M</code>). After a new <code>LOGON</code> the client
+starts again at <code>1</code>.</p>
 <h3 id="step-4-receive-server-messages">Step 4 — Receive server messages<a class="headerlink" href="#step-4-receive-server-messages" title="Permanent link">&para;</a></h3>
 <p>Server-initiated messages arrive asynchronously and out-of-band relative to
 client messages.  The client must always be able to read them.  See
 <a href="#server-initiated-messages">Server-initiated messages</a> below.</p>
 <h3 id="step-5-disconnect">Step 5 — Disconnect<a class="headerlink" href="#step-5-disconnect" title="Permanent link">&para;</a></h3>
 <p>Send <code>LOGOUT</code> (msg_type <code>0x40</code>, 8 bytes, header only) for a graceful close.
-The gateway notifies the engine and closes the TCP connection after flushing
-any pending outbound frames.</p>
+The gateway notifies the engine at once, so the gateway ID can log on again
+straight away, then sends any pending outbound frames and closes the TCP
+connection. A client that does not read them within 5 seconds is
+disconnected anyway.</p>
+<h3 id="reconnecting">Reconnecting<a class="headerlink" href="#reconnecting" title="Permanent link">&para;</a></h3>
+<p>BALF <code>order_id</code>s belong to the gateway ID, not to the TCP connection.
+Whether an order survives a disconnect is the participant's
+<code>disconnect_behaviour</code> (see <a href="#disconnect-behaviour-and-passive-order-policy">below</a>);
+the default, <code>CANCEL_QUOTES_ONLY</code>, leaves ordinary orders on the book. When
+the same gateway ID logs on again to the same <code>pm-balf-gwy</code>, the new session
+receives the <code>EXECUTION_REPORT</code>, <code>STOP_TRIGGERED</code> and <code>CANCEL_ACK</code> frames of
+those orders under their original <code>order_id</code> and <code>client_order_id</code>, and can
+cancel or amend them. New orders continue the numbering, so an old ID never
+names a new order.</p>
+<p>Events that arrive while no session of the ID is logged on are not replayed.
+A <strong>restart of <code>pm-balf-gwy</code></strong> forgets every <code>order_id</code>: orders left on the
+book can no longer be reached over BALF. A participant who cannot afford that
+should use <code>disconnect_behaviour: CANCEL_ALL</code>, or reconcile through
+drop-copy, REST or the clearing reports.</p>
 <h2 id="message-reference">Message reference<a class="headerlink" href="#message-reference" title="Permanent link">&para;</a></h2>
 <p>See the <a href="../../../protocols-and-clients/part-2-specifications/020-balf/">BALF Protocol Reference</a> appendix for exact
 byte layouts, offset tables, and encoding rules for all messages.</p>
@@ -8624,10 +8655,22 @@ byte layouts, offset tables, and encoding rules for all messages.</p>
 <td>Server-initiated liveness probe</td>
 </tr>
 <tr>
+<td><code>0x21</code></td>
+<td><code>STOP_TRIGGERED</code></td>
+<td>56</td>
+<td>A stop, stop-limit or trailing stop fired; sent before its <code>EXECUTION_REPORT</code>s</td>
+</tr>
+<tr>
 <td><code>0x31</code></td>
 <td><code>HEARTBEAT_ACK</code></td>
 <td>16</td>
 <td>Reply to a client <code>HEARTBEAT</code></td>
+</tr>
+<tr>
+<td><code>0x40</code></td>
+<td><code>LOGOUT</code></td>
+<td>8</td>
+<td>The gateway is ending the session: engine restart, lost engine events, or gateway shutdown</td>
 </tr>
 </tbody>
 </table>
@@ -8762,6 +8805,14 @@ reference.</p>
 <td>Invalid field / gateway validation failure</td>
 </tr>
 <tr>
+<td><code>0x0D</code></td>
+<td>Rate limited — more than <code>max_messages_per_second</code>; resend later</td>
+</tr>
+<tr>
+<td><code>0x0E</code></td>
+<td>Risk limit — maximum order quantity or value, position limit, or an active kill switch</td>
+</tr>
+<tr>
 <td><code>0xFF</code></td>
 <td>Other — read the <code>reason</code> field for the engine detail text</td>
 </tr>
@@ -8859,7 +8910,7 @@ event).</p>
 </tr>
 <tr>
 <td><code>order_id</code></td>
-<td>Gateway-assigned session-scoped ID</td>
+<td>Gateway-assigned ID (kept across sessions of the gateway ID)</td>
 </tr>
 <tr>
 <td><code>fill_price</code></td>
@@ -8874,6 +8925,10 @@ event).</p>
 <td>Unfilled quantity after this fill</td>
 </tr>
 <tr>
+<td><code>timestamp_ns</code></td>
+<td>Match time of the trade, as the engine stamped it</td>
+</tr>
+<tr>
 <td><code>status</code></td>
 <td><code>1</code> = PARTIAL, <code>2</code> = FILLED</td>
 </tr>
@@ -8884,7 +8939,7 @@ event).</p>
 <ol>
 <li><strong>Client cancel confirmed</strong> — the engine processed a <code>CANCEL_ORDER</code> request</li>
 <li><strong>Cancel rejected</strong> — <code>CANCEL_ORDER</code> failed (e.g. order not found); <code>accepted = 0</code></li>
-<li><strong>System-originated cancel</strong> — SMP, session-end policy, or expiry; <code>cancel_reason = 255</code></li>
+<li><strong>Exchange-originated cancel</strong> — the exchange cancelled the order; <code>cancel_reason</code> says why</li>
 </ol>
 <table>
 <thead>
@@ -8899,8 +8954,44 @@ event).</p>
 <td>Explicit client <code>CANCEL_ORDER</code> confirmed</td>
 </tr>
 <tr>
+<td><code>1</code></td>
+<td>Self-match prevention</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>Insufficient liquidity (an IOC / MARKET remainder)</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>Kill switch</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>Circuit-breaker halt</td>
+</tr>
+<tr>
+<td><code>5</code></td>
+<td>Gateway disconnect (<code>disconnect_behaviour</code>)</td>
+</tr>
+<tr>
+<td><code>6</code></td>
+<td>An operator cancelled the symbol's orders</td>
+</tr>
+<tr>
+<td><code>7</code></td>
+<td>Quote replaced</td>
+</tr>
+<tr>
+<td><code>8</code></td>
+<td>Quote leg filled</td>
+</tr>
+<tr>
+<td><code>254</code></td>
+<td>Expired (DAY at the end of the day, ATO / ATC at the end of their auction)</td>
+</tr>
+<tr>
 <td><code>255</code></td>
-<td>System-originated (SMP, session-end, expiry)</td>
+<td>The exchange cancelled it and gave no reason</td>
 </tr>
 </tbody>
 </table>
@@ -8945,10 +9036,12 @@ gateway identity in <code>participants</code>:</p>
 </table>
 <p>Disconnect trigger classes:</p>
 <ul>
-<li>Graceful client <code>LOGOUT</code></li>
+<li>Graceful client <code>LOGOUT</code> (the engine is told at once, before the last frames are flushed)</li>
 <li>Heartbeat timeout (<code>heartbeat_timeout_sec</code> without inbound traffic)</li>
-<li>Transport break (TCP FIN / RST, peer closed)</li>
-<li>Protocol safety disconnect (bad framing, unknown <code>msg_type</code>, outbound queue overflow, repeated errors). A non-zero <code>flags</code> byte is currently tolerated (logged, not rejected), not a disconnect trigger</li>
+<li>Transport break (TCP FIN / RST, peer closed, a send or receive error)</li>
+<li>Protocol safety disconnect (bad framing, unknown <code>msg_type</code>, a sequence gap or repeat, outbound queue overflow, repeated errors). A non-zero <code>flags</code> byte is tolerated (logged, not rejected), not a disconnect trigger</li>
+<li>Lost engine events: the gateway saw a gap in the engine's sequence for this gateway ID, sends <code>LOGOUT</code> and closes (counted in <code>gwy.events_lost</code>)</li>
+<li>Gateway shutdown: <code>LOGOUT</code> to every session after the frames already owed are sent</li>
 </ul>
 <h2 id="duplicate-session-policy">Duplicate session policy<a class="headerlink" href="#duplicate-session-policy" title="Permanent link">&para;</a></h2>
 <p>If a second client sends <code>LOGON</code> with the same gateway ID as an already-connected
@@ -8967,7 +9060,7 @@ session, the gateway's response depends on <code>duplicate_session_policy</code>
 </tr>
 <tr>
 <td><code>EVICT_OLD</code></td>
-<td>First session is disconnected; second session proceeds to auth</td>
+<td>First session is disconnected; second session proceeds to auth and keeps the first session's <code>order_id</code>s</td>
 </tr>
 </tbody>
 </table>
@@ -9262,8 +9355,18 @@ section above, or send a minimal LOGON with a one-liner:</p>
 </tr>
 <tr>
 <td>Session receives <code>LOGOUT</code> and the TCP connection closes</td>
-<td><code>pm-engine</code> restarted, so it no longer holds this session</td>
-<td>Log on again; the gateway re-requests symbol metadata</td>
+<td><code>pm-engine</code> restarted, so it no longer holds this session; or engine events for the session were lost (pm-balf-gwy logs <code>engine dropped … event(s)</code>)</td>
+<td>Log on again (the gateway re-requests symbol metadata); after lost events, check orders and position through drop-copy, REST or clearing, since missed fills are not resent</td>
+</tr>
+<tr>
+<td>Connection closes right after a frame, log says <code>BALF sequence error … expected N, got M</code></td>
+<td>The client numbered a frame wrongly</td>
+<td>Number every frame after <code>LOGON</code> 1, 2, 3, …; start again at 1 after each <code>LOGON</code></td>
+</tr>
+<tr>
+<td><code>ORDER_ACK accepted=0, code=0x0D</code></td>
+<td>More than <code>max_messages_per_second</code></td>
+<td>Slow down; the order was not sent to the engine</td>
 </tr>
 <tr>
 <td>Connection closes ~5 s after last message</td>
@@ -9276,9 +9379,9 @@ section above, or send a minimal LOGON with a one-liner:</p>
 <td>Inspect <code>reason</code> field; check reject code table above</td>
 </tr>
 <tr>
-<td>Unknown <code>msg_type</code> → connection closed</td>
-<td>Client sent a server-direction frame</td>
-<td>Only send client-direction frames: <code>LOGON</code>, <code>NEW_ORDER</code>, <code>CANCEL_ORDER</code>, <code>AMEND_ORDER</code>, <code>HEARTBEAT</code>, <code>HEARTBEAT_ACK</code>, <code>LOGOUT</code></td>
+<td>Connection closed right after connecting and sending a frame</td>
+<td>The first frame was not <code>LOGON</code>, or its <code>msg_type</code> is not a BALF type</td>
+<td>Send <code>LOGON</code> first. After logon, a known server-direction frame (e.g. <code>ORDER_ACK</code>) is ignored, but an unknown <code>msg_type</code> always closes the connection</td>
 </tr>
 <tr>
 <td>Corrupt response / partial reads</td>

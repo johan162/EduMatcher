@@ -7691,9 +7691,9 @@ intake.</p>
 message — an ordered list of byte-array frames sent and received atomically.
 ZeroMQ (ZMQ) is a high-performance messaging library; the application, not
 ZMQ, decides what the frames mean.</p>
-<p>The first two frames are the message itself. Behind them ride the
-<strong>envelope</strong>: metadata <em>about</em> the message — a delivery sequence and a causal
-trace — rather than content of it:</p>
+<p>The first two frames are the message itself. Behind them rides one more
+frame, the <strong>envelope</strong>: metadata <em>about</em> the message — delivery sequences and
+a causal trace — rather than content of it, as ASCII fields separated by <code>|</code>:</p>
 <table>
 <thead>
 <tr>
@@ -7715,22 +7715,23 @@ trace — rather than content of it:</p>
 </tr>
 <tr>
 <td><code>frame[2]</code></td>
-<td>Per-topic sequence number, so a subscriber can detect a drop</td>
-<td>Causal envelope</td>
-</tr>
-<tr>
-<td><code>frame[3]</code></td>
-<td>Causal envelope: <code>msg_id</code> / <code>causation_id</code> / <code>correlation_id</code></td>
-<td>—</td>
+<td><code>seq</code>|<code>eseq</code>|<code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
+<td><code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
 </tr>
 </tbody>
 </table>
-<p>The causal envelope is what lets <code>pm-audit-replay</code> (and <code>pm-audit-cli</code>'s
-<code>[seq=… msg=… cause=… chain=…]</code> log annotation) state <em>which submission caused
-which fill</em>, rather than inferring it from timing. <code>decode()</code> reads only
-<code>frame[0]</code> and <code>frame[1]</code>, so this extension cost nothing on the hot path and
-every existing subscriber kept working unchanged. The full wire layout, why it
-is frames rather than payload fields, and how to read it programmatically are
+<p><code>seq</code> counts per topic, so a subscriber can detect a drop on the topics it
+takes; <code>eseq</code> counts everything the socket published, so a subscriber that
+takes every topic (pm-audit) can prove the whole stream complete. The causal
+envelope is what lets <code>pm-audit-replay</code> (and <code>pm-audit-cli</code>'s
+<code>[seq=… eseq=… msg=… cause=… chain=…]</code> log annotation) state <em>which submission
+caused which fill</em>, rather than inferring it from timing. An empty field means
+absent. <code>decode()</code> reads only <code>frame[0]</code> and <code>frame[1]</code>, so a subscriber that
+needs only the message never parses the envelope. The envelope is not free on
+the publishing side: stamping it costs about 4 µs per published message
+(6.4 µs against 2.3 µs for a bare send, measured 2026-11), most of it the ULID
+and the extra frame. The full wire layout, why it is a frame rather than
+payload fields, and how to read it programmatically are
 covered in the <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/#message-format">architecture guide</a>.</p>
 <h2 id="transport-channels">Transport channels<a class="headerlink" href="#transport-channels" title="Permanent link">&para;</a></h2>
 <table>

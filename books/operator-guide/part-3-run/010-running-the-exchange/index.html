@@ -9058,8 +9058,8 @@ that matter for a long-running exchange:</p>
 <tr>
 <td><code>pm-clearing</code></td>
 <td><code>--print-every N</code></td>
-<td><code>100</code></td>
-<td>Print a P&amp;L table every N trades; <code>0</code> never</td>
+<td><code>0</code></td>
+<td>Print a P&amp;L table of every position every N trades; <code>0</code> never. Drawn on the thread that reads the trade feed: with thousands of positions one table takes seconds, so keep it for small classroom ledgers</td>
 </tr>
 <tr>
 <td><code>pm-clearing</code></td>

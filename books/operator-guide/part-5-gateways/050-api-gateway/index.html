@@ -3175,6 +3175,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Start the process">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stopping-and-restarting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stopping and restarting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -8234,6 +8251,32 @@ your shell or service manager:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk<span class="w"> </span>--log-level<span class="w"> </span>debug<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>&gt;<span class="w"> </span>api-gateway.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
 </code></pre></div>
+<h3 id="stopping-and-restarting">Stopping and restarting<a class="headerlink" href="#stopping-and-restarting" title="Permanent link">&para;</a></h3>
+<p>Each <code>pm-api-gwy</code> holds, at the engine, the gateway ids of the participants
+that used it. Stopping it ends those sessions:</p>
+<ul>
+<li><strong>A clean stop</strong> (<code>Ctrl-C</code>, SIGTERM, <code>pm-opctl-cli stop</code>) disconnects every
+  id it holds, and the engine applies each participant's
+  <code>disconnect_behaviour</code> at once. With the default for traders
+  (<code>CANCEL_ALL</code>), a planned restart therefore <strong>cancels their resting
+  orders, GTC included</strong>; market makers (<code>CANCEL_QUOTES_ONLY</code>) keep their
+  orders and lose their quotes. Open WebSockets are closed, and the process
+  waits at most 5 seconds for them before it exits.</li>
+<li><strong>A killed process</strong> (SIGKILL, a crash) sends nothing. The engine keeps
+  its ids connected until they miss three heartbeats (60 seconds each), so
+  for up to <strong>3 minutes</strong> every login for those ids, through any gateway, is
+  refused with <code>403 ENGINE_AUTH</code> "Gateway already connected". Then the
+  engine disconnects them and applies their <code>disconnect_behaviour</code>.</li>
+<li><strong>To free an id at once</strong>, an ADMIN calls
+  <code>POST /api/v1/admin/gateways/{gateway_id}/disconnect</code> (on any running API
+  gateway). The disconnect behaviour runs then.</li>
+<li><strong>After a restart</strong> a client's private WebSocket gets a fresh
+  <code>orders.snapshot</code> built from the engine, so its working orders and
+  positions are complete; only the finished orders this process had cached
+  are gone (see <a href="#order-cache-retention">Order cache retention</a>).</li>
+</ul>
+<p>If <code>pm-api-gwy</code> exits with status 1 after logging
+"engine listener died", its connection to the engine failed; start it again.</p>
 <h2 id="swagger-interface">Swagger interface<a class="headerlink" href="#swagger-interface" title="Permanent link">&para;</a></h2>
 <p>When <code>swagger_enabled: true</code>, open:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>http://127.0.0.1:8080/docs
@@ -8558,11 +8601,11 @@ Only order-entry routes (and an admin reopen at a price) are affected.</p>
 sizes, resolved risk-band collars, circuit-breaker ladders, the session
 schedule and index definitions, so a client never parses <code>engine_config.yaml</code>.
 It is distinct from <code>GET /symbols</code>, <code>/session</code> and <code>/halts</code>, which report
-<em>live</em> state. Every call round-trips to the engine (no gateway cache), so a
-reload shows at once. Any key may call it, read-only included.</p>
+<em>live</em> state. Every call round-trips to the engine (no gateway cache).
+Any key may call it, read-only included.</p>
 <h4 id="config_version"><code>config_version</code><a class="headerlink" href="#config_version" title="Permanent link">&para;</a></h4>
 <p>A 16-character hex prefix of a SHA-256 hash over the compiled bundle, computed
-when the engine loads or reloads its config. It changes if and only if the
+when the engine loads its config. It changes if and only if the
 reference data changes, so a client can cache the bundle and poll
 <code>GET /reference/config-version</code> to know when to refetch. Treat it as opaque.</p>
 <h4 id="reloading-reference-data">Reloading reference data<a class="headerlink" href="#reloading-reference-data" title="Permanent link">&para;</a></h4>
@@ -8572,7 +8615,9 @@ reference data changes, so a client can cache the bundle and poll
 <li>A YAML fallback's active config is not recorded in <code>system.startup</code>, so
   accepting a reload would make the audit trail ambiguous.</li>
 </ul>
-<p>Use <code>pm-config-deploy</code> to compile and deploy the changed configuration, then
+<p>Even if a future startup has both a source file and a recorded config,
+reload remains disabled until changes can be recorded and replayed.
+Use <code>pm-config-deploy</code> to compile and deploy the changed configuration, then
 restart the engine. This keeps the effective config tied to the audited run.</p>
 <h3 id="book-snapshots">Book snapshots<a class="headerlink" href="#book-snapshots" title="Permanent link">&para;</a></h3>
 <p><code>GET /book/{symbol}</code> and <code>GET /book</code> read the same cache a WebSocket <code>snapshot</code>
@@ -8795,13 +8840,19 @@ sources:</p>
 <p>It opens <strong><code>audit_index.db</code> read-only</strong> (<code>api_gateways[].audit_db</code>): the
 only store the gateway reads but does not own. The dependency is optional:
 without <code>pm-audit</code> or its index, that one route answers
-<code>503 AUDIT_INDEX_UNAVAILABLE</code> and every other route is unaffected. See
+<code>503 AUDIT_INDEX_UNAVAILABLE</code> and every other route is unaffected. The
+index is a snapshot as of its last <code>pm-audit-cli index</code> run: the response's
+<code>indexed_through</code> says how far it reaches, and a <code>404 UNKNOWN_ORDER</code>
+names it. See
 <a href="../../part-6-observe-and-recover/020-audit-trail/">Audit Trail</a> for building
-the index.</p>
+and refreshing the index.</p>
 </div>
 <h3 id="order-cache-retention">Order cache retention<a class="headerlink" href="#order-cache-retention" title="Permanent link">&para;</a></h3>
-<p>The in-memory order cache backs <code>GET /orders/{order_id}</code>, the private
-<code>orders.snapshot</code> frame and <code>GET /admin/orders</code>. Terminal orders (<code>FILLED</code>,
+<p>The in-memory order cache backs <code>GET /orders/{order_id}</code>, the finished
+orders in the private <code>orders.snapshot</code> frame, and <code>GET /admin/orders</code>. It
+holds what this process has seen since it started, so after a restart it is
+empty. The snapshot's resting orders and positions are asked from the engine
+on every connect and do not depend on it. Terminal orders (<code>FILLED</code>,
 <code>CANCELLED</code>, <code>EXPIRED</code>, <code>REJECTED</code>) are evicted after <strong><code>order_retention_sec</code></strong>
 (default <code>3600</code>). Resting orders are never evicted, and positions are never
 affected. <code>order_retention_sec: 0</code> disables eviction, and the cache then grows
@@ -9066,13 +9117,28 @@ thread has crashed.</p>
 </tr>
 <tr>
 <td><code>503 {"ok": false}</code> from <code>/healthz</code></td>
-<td>Gateway <code>enabled: false</code> in config, or its engine-listener thread crashed</td>
-<td>Check <code>enabled</code> in the config block and the gateway's own logs — restarting <code>pm-engine</code> alone will not fix an already-<code>false</code> result, since <code>/healthz</code> doesn't actually probe engine liveness</td>
+<td>Gateway <code>enabled: false</code> in config, or the engine listener is stopping. A listener that dies stops the whole process with exit status 1 ("engine listener died" in its log)</td>
+<td>Check <code>enabled</code> in the config block and the gateway's own logs; start <code>pm-api-gwy</code> again. <code>/healthz</code> does not probe the engine itself</td>
 </tr>
 <tr>
 <td><code>401 Unauthorized</code></td>
-<td>Missing, malformed or unknown key in the <code>Authorization</code> header (<code>AUTH</code>) — or, as <code>403 ENGINE_AUTH</code>, the engine rejected the gateway's own handshake for that <code>gateway_id</code></td>
-<td>Use <code>Authorization: Bearer &lt;key&gt;</code> with a key listed in <code>credentials</code>; if you get <code>403 ENGINE_AUTH</code> instead, check that the <code>gateway_id</code> is allowed by the engine's <code>participants</code> list</td>
+<td>Missing, malformed or unknown key in the <code>Authorization</code> header (<code>AUTH</code>)</td>
+<td>Use <code>Authorization: Bearer &lt;key&gt;</code> with a key listed in <code>credentials</code></td>
+</tr>
+<tr>
+<td><code>403 ENGINE_AUTH</code> (not "already connected", not "timed out")</td>
+<td>The engine refused the gateway's handshake for that <code>gateway_id</code></td>
+<td>Check that the <code>gateway_id</code> is allowed by the engine's <code>participants</code> list</td>
+</tr>
+<tr>
+<td><code>403 ENGINE_AUTH</code> "Gateway already connected: ID"</td>
+<td>Another process holds the id at the engine: an ALF or BALF client, a console, another <code>pm-api-gwy</code>, or a previous instance of this one that was killed</td>
+<td>Stop that process. A killed one is timed out after up to 3 minutes (three missed heartbeats). To free the id at once, an ADMIN calls <code>POST /api/v1/admin/gateways/{gateway_id}/disconnect</code> (its <code>disconnect_behaviour</code> runs). See <a href="#stopping-and-restarting">Stopping and restarting</a></td>
+</tr>
+<tr>
+<td><code>403 ENGINE_AUTH</code> "Engine authentication timed out"</td>
+<td>The engine did not answer the handshake within <code>timeouts.engine_auth_sec</code> (busy: the open, a long pause)</td>
+<td>Retry. If the engine accepts late, <code>pm-api-gwy</code> adopts the connection ("late engine accept adopted" in its log) and the next request succeeds</td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>
@@ -9095,14 +9161,24 @@ thread has crashed.</p>
 <td>Set <code>swagger_enabled: true</code> in the config block and restart</td>
 </tr>
 <tr>
-<td>History endpoints return empty results</td>
-<td><code>pm-stats</code> not running or wrong <code>stats_db</code> path</td>
-<td>Start <code>pm-stats</code>; verify the <code>stats_db</code> path in config points to the correct file</td>
+<td>History endpoints answer <code>503 STATS_DB</code></td>
+<td><code>stats.db</code> is missing at the configured <code>stats_db</code> path, is not a database, or stayed locked</td>
+<td>Start <code>pm-stats</code>; verify the <code>stats_db</code> path in config points to the file it writes</td>
+</tr>
+<tr>
+<td>History endpoints return empty or stale results</td>
+<td><code>pm-stats</code> is not running (the database exists but is not being written), or <code>stats_db</code> points at another exchange's file</td>
+<td>Start <code>pm-stats</code>; check the <code>stats_db</code> path</td>
 </tr>
 <tr>
 <td><code>GET /admin/orders/{order_id}/audit</code> returns <code>503 AUDIT_INDEX_UNAVAILABLE</code></td>
 <td><code>pm-audit</code> not deployed, or its index not built</td>
 <td>Start <code>pm-audit</code> and run <code>pm-audit-cli index</code>; check <code>audit_db</code>. Every other endpoint is unaffected</td>
+</tr>
+<tr>
+<td><code>GET /admin/orders/{order_id}/audit</code> returns <code>404 UNKNOWN_ORDER</code> for an order you know exists</td>
+<td>The order is newer than the index's last build (the message names how far it reaches)</td>
+<td>Run <code>pm-audit-cli index --incremental</code>, or schedule it</td>
 </tr>
 <tr>
 <td>An order vanished from <code>GET /admin/orders</code></td>
@@ -9115,9 +9191,14 @@ thread has crashed.</p>
 <td>Set a positive value</td>
 </tr>
 <tr>
-<td>WebSocket disconnects immediately</td>
-<td>Engine not running or client rate limit hit</td>
-<td>Start engine; check gateway logs for disconnect reason</td>
+<td>WebSocket closes with code <code>1008</code></td>
+<td>No <code>api_key</code> frame within 5 s, an unknown key, a read-only key on <code>/ws/private</code> or an admin socket, the engine refused the gateway id (an <code>error</code> frame says why), or the key is not ADMIN on an admin socket</td>
+<td>Fix the key or its role; an <code>error</code> frame before the close names the reason. WebSockets have no rate limit</td>
+</tr>
+<tr>
+<td>WebSocket closes with code <code>1013</code></td>
+<td>The engine did not answer in time while the gateway built <code>/ws/private</code>'s opening snapshot, or confirmed the role on an admin socket</td>
+<td>Transient: the client reconnects with backoff. If it repeats, check that <code>pm-engine</code> is running and responsive</td>
 </tr>
 </tbody>
 </table>

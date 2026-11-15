@@ -7799,11 +7799,10 @@
 <ul>
 <li>Chapters 01–19 completed. Chapter 12 (<code>pm-clearing</code>) matters most here:
   settlement reads what <code>pm-clearing</code> recorded.</li>
-<li>The engine running with <code>TRADER01</code>, <code>TRADER02</code>, <code>GW_ADMIN</code> and the market
-  makers from chapter 02 connected, and <code>pm-clearing</code> running. If chapter 19
-  left <code>TRADER02</code> kicked, start a new console for it, and re-send a <code>QUOTE</code>
-  from <code>MM_AAPL_01</code> if its quote was cancelled: Exercise 5 needs liquidity on
-  AAPL.</li>
+<li>The engine running with <code>TRADER01</code>, <code>TRADER02</code>, <code>GW_ADMIN</code> and a
+  <code>MM_AAPL_01</code> console connected, and <code>pm-clearing</code> running. Chapter 19 left
+  <code>TRADER02</code> kicked and AAPL without a quote: start a new <code>TRADER02</code> console.
+  Exercise 5 has the market maker quote again.</li>
 <li><strong>No <code>pm-scheduler</code> running.</strong> You move the session phases yourself, as in
   earlier chapters. A running <code>--daily</code> scheduler would close the day at its
   own time.</li>
@@ -7929,11 +7928,19 @@ say what <code>opening_balance</code> does: it is the starting point of the trad
 running balance, added whenever a balance is shown.</p>
 <h2 id="exercise-5-trade-a-day">Exercise 5: Trade a day<a class="headerlink" href="#exercise-5-trade-a-day" title="Permanent link">&para;</a></h2>
 <p>Give both traders something to settle. TRADER01 buys and keeps a position;
-TRADER02 buys and sells part of it again:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
+TRADER02 buys and sells part of it again. The market maker quotes first, and
+again before the sell: its first fill pulls the bid (<code>INACTIVATE_ON_ANY_FILL</code>,
+chapter 09), and a market sell would find nobody to sell to.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[MM_AAPL_01]&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-EOD-001
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[MM_AAPL_01]&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-EOD-002
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 </code></pre></div>
+<p>The AI traders of chapter 17 may have moved AAPL away from 150. That does
+not matter here: a market maker's quote is not checked against the price
+collars, and the market orders carry no price to check. Your amounts will
+differ from the examples below either way.</p>
 <p>Look at their positions and P&amp;L before the close:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-clearing-cli<span class="w"> </span>positions<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--symbol<span class="w"> </span>AAPL
@@ -8023,31 +8030,27 @@ numbers as after Exercise 6.</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>[output]
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>2026-11-05:
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>  [ok] gate: closed, snapshot present, reconciled
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>  [ok] gate: already settled: not checked again (--redo recomputes)
 <a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>  [ok] settle: already settled
 <a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>  [FAIL] report: .../ref_data/roster.yaml: line 2: opening_balance has more than 2 decimals
 <a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>  ...
 </code></pre></div>
-<p>The error names the line. The settlement is safe in the ledger; only the
-statements could not be written. Now look at the day as a monitoring system
-would:</p>
+<p>The error names the line, and the command exits <strong>1</strong>. The settlement is safe
+in the ledger, and the statements of the first run are still in place: a failed
+write never replaces them. Now look at the day as a monitoring system would:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-eod<span class="w"> </span>status
 <a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-eod<span class="w"> </span>status<span class="w"> </span>-q<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"exit code </span><span class="nv">$?</span><span class="s2">"</span>
 </code></pre></div>
-<p>Today's status is <code>report-failed</code>, and <code>status -q</code> (the health check) returns
-<strong>1</strong>. Fix the file back to <code>1000.00</code> and run the day again, <strong>without</strong>
-<code>--only</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="s2">"</span><span class="nv">$D</span><span class="s2">"</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>pm-eod<span class="w"> </span>status<span class="w"> </span>-q<span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"exit code </span><span class="nv">$?</span><span class="s2">"</span>
+<p>Today's status is still <code>ok</code>, and <code>status -q</code> (the health check) returns <strong>0</strong>:
+the day <em>is</em> settled and reported, and a rerun that fails is printed but not
+recorded, so it cannot turn a good day bad. (A <em>first</em> run that fails at the
+report is recorded as <code>report-failed</code>, and the health check then returns 1
+until a run succeeds.) Fix the file back to <code>1000.00</code> and run the day again:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="s2">"</span><span class="nv">$D</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"exit code </span><span class="nv">$?</span><span class="s2">"</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Why not <code>--only report</code>?</p>
-<p><code>pm-eod run --date "$D" --only report</code> would rewrite the statements too, but
-a run with <code>--only</code> is never recorded, so the day would stay
-<code>report-failed</code> and the health check red. A full run records <code>ok</code>.</p>
-</div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the health check went from exit
-code 1 back to 0, and today's status is <code>ok</code> again.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the run with the broken roster
+exited 1 while <code>status -q</code> stayed 0, and the run after the fix exits 0 and
+writes the statements again.</p>
 <h2 id="exercise-10-trading-after-the-close">Exercise 10: Trading after the close<a class="headerlink" href="#exercise-10-trading-after-the-close" title="Permanent link">&para;</a></h2>
 <p>Sometimes trading resumes on a date that is already settled, for example when
 a class runs over. Reopen the market and trade. Buy rather than sell here: Exercise 5 ended with a
@@ -8065,11 +8068,16 @@ trades at the offer, which moves it:</p>
 </code></pre></div>
 <p>It says <code>nothing pending</code>. There is <strong>one settlement per trading date</strong>, and
 today's is already done. The afternoon's trading is in the new close snapshot,
-but not in the ledger. See the difference:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="s2">"</span><span class="nv">$D</span><span class="s2">"</span><span class="w"> </span>--dry-run
+but not yet in the ledger. Nothing is lost if you leave it: <code>pm-eod</code> remembers
+the equity it settled today at, so the next trading date you settle includes
+the afternoon, and its <code>settle</code> line warns that today's snapshot changed after
+it was settled. To book the afternoon on today instead, see what a
+recomputation would give (a plain <code>--dry-run</code> only says <code>already settled</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="s2">"</span><span class="nv">$D</span><span class="s2">"</span><span class="w"> </span>--redo<span class="w"> </span>--dry-run
 </code></pre></div>
-<p>The dry run computes today again from the new snapshot and shows different
-amounts. To replace today's settlement with them, use <code>--redo</code>:</p>
+<p>The dry run computes today again from the new snapshot, shows the new amounts
+and names the dates it would drop. To replace today's settlement with them, use
+<code>--redo</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="s2">"</span><span class="nv">$D</span><span class="s2">"</span><span class="w"> </span>--redo
 <a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-eod<span class="w"> </span>balances
 <a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>pm-eod<span class="w"> </span>balances<span class="w"> </span>--check
@@ -8098,8 +8106,9 @@ include the afternoon's trade, <code>--check</code> still says OK, and you can e
 <li>Check a trader's amount by hand from the close snapshots, and check that the
   day sums to zero.</li>
 <li>Read the statement, <code>instructions.csv</code>, the leaderboard and the summary.</li>
-<li>Clear a backlog with <code>--pending</code>, recover from a broken roster without
-  leaving the day <code>report-failed</code>, and recompute a day with <code>--redo</code>.</li>
+<li>Clear a backlog with <code>--pending</code>, recover from a broken roster, and decide
+  whether trading after the close stays on the next day or is recomputed onto
+  its own with <code>--redo</code>.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <ol>

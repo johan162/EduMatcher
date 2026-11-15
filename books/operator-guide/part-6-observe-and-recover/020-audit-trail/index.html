@@ -8089,7 +8089,7 @@
 <p>After reading this page you will understand:</p>
 <ul>
 <li>Why a full event log matters for an exchange and what <code>pm-audit</code> records</li>
-<li>The JSONL log format, how <code>pm-audit</code> closes each day and how days are archived</li>
+<li>The audit line format, how <code>pm-audit</code> closes each day and how days are archived</li>
 <li>All <code>pm-audit</code> startup options including write buffering</li>
 <li>How to query audit logs from the command line using every <code>pm-audit-cli</code> verb</li>
 <li>When to use the optional SQLite index for faster queries</li>
@@ -8113,7 +8113,7 @@ that occurred during a trading session.</p>
 <tbody>
 <tr>
 <td><strong><code>pm-audit</code></strong></td>
-<td>Subscriber — records every event to a JSONL log file, closed day by day</td>
+<td>Subscriber — records every event as one line of a log file, closed day by day</td>
 <td>Long-running process</td>
 </tr>
 <tr>
@@ -8132,7 +8132,7 @@ running.</p>
         AUD["pm-audit\nSUB :5556"]
         LOG[("data/audit.log\n+ audit/ day parts\n+ audit/*.log.zst")]
         ENG -- "all topics" --&gt; AUD
-        AUD -- "buffered JSONL writes" --&gt; LOG
+        AUD -- "buffered line writes" --&gt; LOG
     end
     subgraph Operator
         CLI["pm-audit-cli\n(read-only)"]
@@ -8275,9 +8275,17 @@ active sessions. <code>pm-audit</code> batches messages in memory and flushes as
 group when either limit is reached:</p>
 <ul>
 <li><strong>Buffer full</strong>: buffer contains <code>--buffer-size</code> messages (default 100)</li>
-<li><strong>Timer expired</strong>: <code>--flush-interval</code> seconds have elapsed since the last flush (default 10 s)</li>
+<li><strong>Oldest message waited long enough</strong>: the oldest buffered message arrived
+  <code>--flush-interval</code> seconds ago (default 10 s); the receive loop checks at
+  least every 0.3 s</li>
 <li><strong>Shutdown</strong>: Ctrl-C, SIGINT, or SIGTERM always flushes remaining messages before exit</li>
 </ul>
+<p>If a write fails (disk full, I/O error), the lines stay in memory, the
+failure is logged at ERROR and counted in <code>audit.write_errors</code> (pm-monitor
+warns on any increase), and the write is tried again about every 0.3 s. A
+write that failed part-way is cut back first, so no line is written twice.
+Free the disk while <code>pm-audit</code> is still running: the waiting lines exist only
+in its memory.</p>
 <p>No messages are lost on clean shutdown. A hard kill (<code>kill -9</code>) may lose up
 to <code>--buffer-size</code> messages that had not yet been flushed. See
 <a href="#what-can-be-lost">What can be lost</a> for the whole picture.</p>
@@ -8319,7 +8327,7 @@ sit between an engine publication and the disk, and each has a bound:</p>
 <tr>
 <td><code>pm-audit</code> is killed (<code>kill -9</code>)</td>
 <td>Lines buffered but not yet written</td>
-<td>At most <code>--buffer-size</code> messages or <code>--flush-interval</code> seconds, whichever comes first</td>
+<td>At most <code>--buffer-size</code> messages or <code>--flush-interval</code> seconds, whichever comes first; while writes fail (disk full), everything since the first failure</td>
 </tr>
 <tr>
 <td>The host loses power or the kernel crashes</td>
@@ -8678,14 +8686,18 @@ complete record of what the exchange was asked to do.</p>
 (<code>pm-config-deploy</code>). With none, <code>system.startup</code> carries no config and
 <code>pm-audit-replay anomalies</code> reports <code>CONFIG_NOT_RECORDED</code>.</p>
 <h3 id="signal-handling-and-graceful-shutdown">Signal handling and graceful shutdown<a class="headerlink" href="#signal-handling-and-graceful-shutdown" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Ctrl-C / SIGINT / SIGTERM → flush buffer → close socket → exit
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Ctrl-C / SIGINT / SIGTERM → read on until system.eod (at most 5 s) → flush buffer → close socket → exit 0
 </code></pre></div>
 <p>The buffer flush happens synchronously before the process exits so the last
 batch of messages is always written to disk.</p>
+<p>If the receive loop dies of an error it cannot recover from (anything but a
+failed write, which it retries), <code>pm-audit</code> logs it at CRITICAL ("audit
+receive loop died"), flushes what it holds and exits with status 1, so a
+supervisor restarts it, rather than running on without recording.</p>
 <h2 id="pm-audit-cli-query-tool">pm-audit-cli — Query Tool<a class="headerlink" href="#pm-audit-cli-query-tool" title="Permanent link">&para;</a></h2>
 <p><code>pm-audit-cli</code> is a read-only command-line tool for querying audit logs
-without shell pipelines or SQL knowledge. It reads JSONL files directly from
-disk and produces structured output. The one command that talks to the running
+without shell pipelines or SQL knowledge. It reads the audit files directly
+from disk and produces structured output. The one command that talks to the running
 recorder is <a href="#health-recorder-and-log-file-health"><code>health</code></a>, which pings
 <code>pm-audit</code> to confirm it is alive.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>global-options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>command-options<span class="o">]</span>
@@ -8728,28 +8740,24 @@ operation. Keeping them separate means:</p>
 <tr>
 <td><code>--no-header</code></td>
 <td>off</td>
-<td>Suppress CSV header row</td>
+<td>Suppress the header row of <code>table</code> and <code>csv</code> output</td>
 </tr>
 <tr>
 <td><code>--use-index PATH</code></td>
-<td>(auto)</td>
-<td>Path to SQLite index file; auto-detected as <code>&lt;the directory containing --log-file&gt;/audit_index.db</code> when present</td>
+<td>(none)</td>
+<td>Answer <code>events</code> from this SQLite index; never used unless given — see <a href="#index-build-or-update-the-sqlite-index"><code>index</code></a></td>
 </tr>
 </tbody>
 </table>
 <div class="admonition note">
 <p class="admonition-title">Not every flag applies to every command</p>
-<p><code>--use-index</code> only affects the <code>events</code> command — <code>orders</code>, <code>trades</code>,
-<code>topics</code>, <code>gateways</code>, and <code>timeline</code> always stream the JSONL log files
-directly and never consult the SQLite index, even when one exists and
-<code>--use-index</code> is given. <code>--format</code>/<code>--no-header</code> are also ignored by
+<p><code>--use-index</code> only affects the <code>events</code> command, and not with <code>--follow</code>
+or <code>--date</code> — <code>orders</code>, <code>trades</code>, <code>topics</code>, <code>gateways</code>, and <code>timeline</code>
+always stream the trail's files and never consult the SQLite index.
+<code>--format</code>/<code>--no-header</code> are also ignored by
 <code>stats</code> (its output is a fixed text summary, not a table) and by <code>index</code>
 (which prints build progress, not rows). <code>health</code> honours <code>--format json</code>
 (the report as a JSON object); <code>csv</code> prints the same text as <code>table</code>.</p>
-<p>The auto-detected index path is always <code>&lt;the directory containing
---log-file&gt;/audit_index.db</code> — it does <strong>not</strong> use <code>--log-dir</code>. If
-<code>--log-dir</code> points somewhere other than <code>--log-file</code>'s own parent
-directory, the index lookup still only checks the log file's parent.</p>
 </div>
 <p><strong>Output formats:</strong></p>
 <table>
@@ -8811,6 +8819,11 @@ day that has not been archived yet. Archives are not read unless you ask:</p>
 <p><code>--date</code> selects a day's <em>files</em>, not a time window, and cannot be combined
 with an archive <code>--log-file</code> or with <code>--follow</code>. Results are chronological
 across all files.</p>
+<p><code>--from</code> and <code>--to</code> are a time window within those files, both inclusive.
+They take ISO-8601 or a bare date; a time without an offset, and a bare
+date, are <strong>UTC</strong> (unlike <code>--date</code>, which is a session-timezone trading day).
+A bare date in <code>--from</code> is its midnight, in <code>--to</code> the end of that day, so
+<code>--from 2026-07-08 --to 2026-07-08</code> is that whole UTC day.</p>
 <h3 id="events-general-event-search"><code>events</code> — General event search<a class="headerlink" href="#events-general-event-search" title="Permanent link">&para;</a></h3>
 <p>Search log entries by topic prefix, gateway, symbol, and time range. This is
 the most flexible command and the right starting point for any investigation.</p>
@@ -8914,16 +8927,13 @@ the most flexible command and the right starting point for any investigation.</p
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title"><code>summary</code> format differs when the SQLite index is used</p>
-<p>When <code>events</code> is served from the JSONL log files, <code>summary</code> is a
-structured, topic-aware description (e.g. <code>FILL 60@150.00</code>). When a
-usable index exists at the resolved <code>--use-index</code> path, <code>events</code> is
-served from SQLite instead, and <code>summary</code> is just the payload dict's
-<code>str()</code> representation truncated to 80 characters — a different, less
-readable format. Rebuild the index after querying if you need the
-latest events; the index is never queried automatically for freshness.
-<code>--follow</code> always reads the JSONL files directly and never uses the
-index, even when one is available — see below.</p>
+<p class="admonition-title">With <code>--use-index</code>, <code>events</code> is as fresh as the index</p>
+<p>The rows and their <code>summary</code> are the same as from the trail, but only up
+to the index's last build: <code>events</code> prints
+<code>[INDEX] &lt;path&gt; reaches up to &lt;timestamp&gt;</code> on stderr so you can tell.
+Run <code>pm-audit-cli index --incremental</code> first if you need the latest
+events. An index that cannot be read is an error (exit <code>1</code>), not a
+silent fallback to the trail.</p>
 </div>
 <p><strong>Examples:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># All events in the log (last 100)</span>
@@ -8959,10 +8969,11 @@ index, even when one is available — see below.</p>
 </code></pre></div>
 <h4 id="follow-mode">Follow mode<a class="headerlink" href="#follow-mode" title="Permanent link">&para;</a></h4>
 <p><code>events</code> and <code>timeline</code> both accept <code>-f</code>/<code>--follow</code> to keep the query
-running: after printing the normal (filtered, <code>--limit</code>-capped) result, the
-command keeps polling the log files every <code>--interval</code> seconds and prints
-each newly-appended, matching entry as it arrives, until interrupted with
-<code>Ctrl-C</code>. This is the audit-log equivalent of <code>pm-log-cli tail</code>.</p>
+running: like <code>tail -f</code>, the command first prints the <strong>newest</strong> <code>--limit</code>
+matching entries (oldest of them first), then keeps polling the log files
+every <code>--interval</code> seconds and prints each newly-appended, matching entry as
+it arrives, until interrupted with <code>Ctrl-C</code>. This is the audit-log
+equivalent of <code>pm-log-cli tail</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># Watch the whole log live, table format</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--follow
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
@@ -8971,27 +8982,31 @@ each newly-appended, matching entry as it arrives, until interrupted with
 </code></pre></div>
 <p>A few things behave differently in follow mode:</p>
 <ul>
-<li><strong><code>--limit</code> only bounds the initial backfill.</strong> The first batch printed
-  respects <code>--limit</code> (<code>100</code> by default for <code>events</code>, <code>500</code> for <code>timeline</code>)
-  exactly as it would without <code>--follow</code>. Once the poll loop starts, every
-  subsequent batch prints however many new matching entries actually
-  arrived since the last poll — there is no cap. This mirrors <code>pm-log-cli
-  tail --before N</code>.</li>
+<li><strong><code>--limit</code> only bounds the initial batch.</strong> The first batch is the last
+  <code>--limit</code> matching entries (<code>100</code> by default for <code>events</code>, <code>500</code> for
+  <code>timeline</code>). Once the poll loop starts, every subsequent batch prints the
+  new matching entries that arrived since the last poll (at most 10 000 per
+  poll; the rest come with the next). This mirrors <code>pm-log-cli tail
+  --before N</code>.</li>
+<li><strong><code>--from</code> and <code>--to</code> hold for every poll.</strong> An entry outside the window
+  is never printed, however late it arrives.</li>
 <li><strong><code>events --reverse --follow</code> together is rejected</strong> (exit code <code>2</code>):
   <code>timeline</code> has no <code>--reverse</code> flag, and for <code>events</code>, newest-first
   ordering is meaningless once the log is still growing.</li>
-<li><strong><code>events --follow</code> always reads the JSONL log files</strong>, even when a
-  usable SQLite index exists at the resolved <code>--use-index</code> path. The index
-  is a point-in-time snapshot and is never refreshed by a running query, so
-  follow mode bypasses it rather than showing stale data.</li>
+<li><strong><code>events --follow</code> always reads the trail's files</strong>, even with
+  <code>--use-index</code>. The index is a snapshot as of its last build, so follow
+  mode bypasses it rather than showing stale data.</li>
 <li><strong>Closing a day is handled automatically.</strong> Each poll re-discovers the
   live trail, so the midnight close — <code>audit.log</code> becoming a day part and a
   fresh <code>audit.log</code> starting — is picked up on the next poll without
   restarting the command, and no line is printed twice.</li>
 <li><strong>No <code>seq</code> requirement.</strong> Resuming after each poll is based on the
-  entries' timestamps, not the optional <code>seq=</code> field in the log line's
-  metadata section — so <code>--follow</code> works identically whether or not
-  <code>pm-audit</code> happens to be stamping envelope metadata.</li>
+  entries' timestamps (and, for entries in the same millisecond, how many
+  of them were already printed), not the optional <code>seq=</code> field in the log
+  line's metadata section — so <code>--follow</code> works identically whether or not
+  <code>pm-audit</code> happens to be stamping envelope metadata. A poll skips lines
+  older than its resume point without parsing them, so it costs little
+  however long the day's trail is.</li>
 </ul>
 <p><code>--format csv</code>/<code>--format json</code> both work under <code>--follow</code>. Each poll batch
 is printed as its own block, one after another, rather than as a single
@@ -9072,7 +9087,7 @@ symbol to reconstruct an order's full journey through the engine.</p>
 </tr>
 <tr>
 <td><code>event</code></td>
-<td>Last dot-separated segment of the topic. For two-part topics like <code>order.new</code> this is the verb (<code>new</code>). For per-gateway topics like <code>order.ack.GW01</code>, <code>order.fill.GW01</code>, or <code>order.cancelled.GW01</code> it is the <strong>gateway ID</strong>, not the verb — the topic's own verb segment (<code>ack</code>, <code>fill</code>, <code>cancelled</code>) is dropped.</td>
+<td>The message kind: <code>new</code>, <code>ack</code>, <code>fill</code>, <code>cancel</code>, <code>cancelled</code>, <code>amended</code>, <code>expired</code>, <code>triggered</code>, … (the topic without its gateway ID)</td>
 </tr>
 <tr>
 <td><code>gateway</code></td>
@@ -9088,15 +9103,15 @@ symbol to reconstruct an order's full journey through the engine.</p>
 </tr>
 <tr>
 <td><code>qty</code></td>
-<td><code>quantity or fill_qty or remaining_qty</code> — the first <strong>truthy</strong> value in that order (not merely the first present key; a legitimate <code>0</code> or <code>null</code> falls through to the next)</td>
+<td>A fill's <code>fill_qty</code>; an ack's or amend's <code>qty</code>; otherwise the first present of <code>quantity</code>, <code>qty</code>, <code>remaining_qty</code> (a <code>0</code> is shown, e.g. the <code>remaining_qty</code> of a cancel)</td>
 </tr>
 <tr>
 <td><code>price</code></td>
-<td>Price (limit price or fill price depending on event type)</td>
+<td>A fill's <code>fill_price</code> (not the order's limit); otherwise <code>price</code>, or for <code>order.new</code>, which carries only ticks, <code>price_ticks</code> in money</td>
 </tr>
 <tr>
 <td><code>status</code></td>
-<td>Order status after the event</td>
+<td>Order status after the event; for an ack <code>ACCEPTED</code> or <code>REJECTED</code></td>
 </tr>
 <tr>
 <td><code>reason</code></td>
@@ -9635,8 +9650,10 @@ that <code>pm-audit</code> has been recording as expected.</p>
 </code></pre></div>
 <h3 id="index-build-or-update-the-sqlite-index"><code>index</code> — Build or update the SQLite index<a class="headerlink" href="#index-build-or-update-the-sqlite-index" title="Permanent link">&para;</a></h3>
 <p>For large audit histories or frequent complex queries, <code>pm-audit-cli</code> can
-build an optional SQLite index from the JSONL log files. Once built, the
-<code>events</code> command uses it automatically for significantly faster response.</p>
+build an optional SQLite index from the live trail. <code>events --use-index
+PATH</code> answers from it, and pm-api-gwy's <code>GET /admin/orders/{order_id}/audit</code>
+reads it. It is a <strong>snapshot</strong>: nothing updates it but this command, so
+anything recorded after the last build is not in it.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
@@ -9670,25 +9687,17 @@ build an optional SQLite index from the JSONL log files. Once built, the
 <td>End of index range</td>
 </tr>
 <tr>
-<td><code>--rebuild</code></td>
-<td>off</td>
-<td>Delete all existing index data and rebuild from scratch</td>
-</tr>
-<tr>
 <td><code>--incremental</code></td>
 <td>off</td>
-<td>Add only entries newer than the last indexed timestamp</td>
+<td>Keep the index and add only the entries after the last indexed one</td>
 </tr>
 </tbody>
 </table>
-<p><code>--rebuild</code> and <code>--incremental</code> are mutually exclusive.</p>
-<div class="admonition warning">
-<p class="admonition-title">Re-running <code>index</code> without <code>--rebuild</code>/<code>--incremental</code> duplicates rows</p>
-<p>Without either flag, <code>index</code> re-inserts every entry in the requested
-range on each run with no deduplication — running the same <code>--days 7</code>
-command twice doubles the row count for that window. Use <code>--incremental</code>
-for routine re-indexing, or <code>--rebuild</code> to start clean.</p>
-</div>
+<p>Without <code>--incremental</code> the index is built again from scratch, so running the
+same command twice gives the same index. <code>--incremental</code> resumes after the
+last indexed entry, including entries of its millisecond that were written
+after the build, so it never adds an entry twice. The index covers the live
+trail (unarchived parts and <code>audit.log</code>), not the archives.</p>
 <p><strong>Index schema highlights:</strong></p>
 <p>The index stores one row per log line in a <code>audit_events</code> table with
 dedicated columns for <code>timestamp</code>, <code>topic</code>, <code>gateway_id</code>, <code>symbol</code>,
@@ -9699,7 +9708,7 @@ is kept in a <code>payload</code> column so no information is lost.</p>
 <thead>
 <tr>
 <th>Query type</th>
-<th>JSONL streaming</th>
+<th>Streaming the trail</th>
 <th>SQLite index</th>
 </tr>
 </thead>
@@ -9726,16 +9735,19 @@ is kept in a <code>payload</code> column so no information is lost.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Index auto-detection:</strong></p>
-<p>When <code>audit_index.db</code> exists in the log directory, the <code>events</code> command uses
-it automatically. Override with <code>--use-index PATH</code> or point at a different
-index location.</p>
+<p><strong>Using the index:</strong></p>
+<p><code>events</code> uses an index only when given <code>--use-index PATH</code>, and then says on
+stderr how far it reaches. The order-lifecycle endpoint of pm-api-gwy
+(<code>api_gateways[].audit_db</code>) returns the same value as <code>indexed_through</code>, and
+its <code>404 UNKNOWN_ORDER</code> names it, so an order newer than the build reads as
+"not indexed yet". Re-run <code>index --incremental</code> as often as those readers
+need it fresh (for example from cron).</p>
 <p><strong>Examples:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Build index for the last 7 days</span>
 <a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
 <a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Build complete index from all log files</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Build the index from scratch (replaces what was there)</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>pm-audit-cli<span class="w"> </span>index
 <a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
 <a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="c1"># Incremental update — only adds entries not yet in the index</span>
 <a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--incremental
@@ -9745,7 +9757,7 @@ index location.</p>
 <a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-01T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
 <a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>
 <a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="c1"># Build index to a custom location</span>
-<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--output<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span>--rebuild
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--output<span class="w"> </span>/tmp/session_idx.db
 <a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>
 <a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a><span class="c1"># Use a non-default index when querying</span>
 <a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>pm-audit-cli<span class="w"> </span>--use-index<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span><span class="se">\</span>
@@ -9759,7 +9771,7 @@ index location.</p>
 <li>You run more than a few queries per session</li>
 <li>You need to correlate events across multiple fields (topic + gateway + symbol + date)</li>
 </ul>
-<p>For ad-hoc queries on small logs, streaming JSONL is fast enough without the extra disk space.</p>
+<p>For ad-hoc queries on small logs, streaming the trail is fast enough without the extra disk space.</p>
 </div>
 <h3 id="health-recorder-and-log-file-health"><code>health</code> — Recorder and log file health<a class="headerlink" href="#health-recorder-and-log-file-health" title="Permanent link">&para;</a></h3>
 <p>Check that <code>pm-audit</code> is alive and actually recording. By default two fast
@@ -9873,15 +9885,12 @@ otherwise.</p>
 <a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--sort<span class="w"> </span>count<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
 </code></pre></div>
 <h3 id="export-a-full-session-for-offline-analysis">Export a full session for offline analysis<a class="headerlink" href="#export-a-full-session-for-offline-analysis" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="c1"># Build index first for speed</span>
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="c1"># Export all trades</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
 <a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>
-<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="c1"># Export all trades</span>
-<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
-<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>
-<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a><span class="c1"># Export all order events for gateway GW01</span>
-<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="c1"># Export all order events for gateway GW01</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
 </code></pre></div>
 <h3 id="look-at-an-archived-day">Look at an archived day<a class="headerlink" href="#look-at-an-archived-day" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="c1"># The live trail (unarchived parts + audit.log) is the default</span>
@@ -9921,7 +9930,7 @@ otherwise.</p>
 </tr>
 <tr>
 <td><code>1</code></td>
-<td>I/O error (log file not found, unreadable database)</td>
+<td>I/O error (log file not found, an index given with <code>--use-index</code> that cannot be read)</td>
 </tr>
 <tr>
 <td><code>2</code></td>

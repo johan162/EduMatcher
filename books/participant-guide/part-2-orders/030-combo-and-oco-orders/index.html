@@ -8237,6 +8237,10 @@ legs the cascade pulls afterwards are plain <code>order.cancelled</code> events,
 <code>combo.status</code> <code>FAILED</code> names the leg that went first. The same applies to an
 OCO pair: when the exchange ends one or both legs, the pair is over and its
 <code>OCO_ID</code> is yours to use again.</p>
+<p>During continuous matching, a fill can immediately cancel an OCO or quote
+sibling before matching continues. The sibling cancellation or quote status
+can therefore arrive <strong>before</strong> the <code>order.fill</code> that caused it. Consumers
+should not infer causation solely from message arrival order.</p>
 <div class="admonition warning">
 <p class="admonition-title">No trade unwinds</p>
 <p>Once a trade is executed, it is final. A combo failure does not reverse fills

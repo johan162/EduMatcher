@@ -5480,10 +5480,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#the-frames-behind-the-message-sequence-and-causal-envelope" class="md-nav__link">
+  <a href="#the-frame-behind-the-message-sequences-and-causal-envelope" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The frames behind the message: sequence and causal envelope
+        The frame behind the message: sequences and causal envelope
       
     </span>
   </a>
@@ -10236,10 +10236,11 @@ every message without touching this function or any of its ~100 call sites:</p>
 <a id="__codelineno-54-14" name="__codelineno-54-14" href="#__codelineno-54-14"></a>    <span class="n">payload</span> <span class="o">=</span> <span class="n">_loads</span><span class="p">(</span><span class="n">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 <a id="__codelineno-54-15" name="__codelineno-54-15" href="#__codelineno-54-15"></a>    <span class="k">return</span> <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span>
 </code></pre></div>
-<h4 id="the-frames-behind-the-message-sequence-and-causal-envelope">The frames behind the message: sequence and causal envelope<a class="headerlink" href="#the-frames-behind-the-message-sequence-and-causal-envelope" title="Permanent link">&para;</a></h4>
-<p>What actually goes out on the wire today has up to two more frames appended
-after the topic and payload — metadata <em>about</em> the message, not part of it,
-which is exactly why it lives in its own frames instead of extra JSON keys:</p>
+<h4 id="the-frame-behind-the-message-sequences-and-causal-envelope">The frame behind the message: sequences and causal envelope<a class="headerlink" href="#the-frame-behind-the-message-sequences-and-causal-envelope" title="Permanent link">&para;</a></h4>
+<p>What actually goes out on the wire today has one more frame after the topic
+and payload — metadata <em>about</em> the message, not part of it, which is exactly
+why it lives in its own frame instead of extra JSON keys. Its fields are ASCII,
+separated by <code>|</code>; an empty field means absent:</p>
 <table>
 <thead>
 <tr>
@@ -10261,81 +10262,74 @@ which is exactly why it lives in its own frames instead of extra JSON keys:</p>
 </tr>
 <tr>
 <td>2</td>
-<td>per-topic <strong>sequence number</strong> (<code>SequencedPublisher</code>)</td>
-<td><strong>causal envelope</strong> (<code>CausalPusher</code>)</td>
-</tr>
-<tr>
-<td>3</td>
-<td><strong>causal envelope</strong> (<code>CausalPublisher</code>)</td>
-<td>—</td>
+<td><code>seq</code>|<code>eseq</code>|<code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
+<td><code>msg_id</code>|<code>causation_id</code>|<code>correlation_id</code></td>
 </tr>
 </tbody>
 </table>
-<p>Two producers append these, composed in <code>make_publisher</code>/<code>make_pusher</code>
-(<code>messaging/bus.py</code>), and neither one is visible to <code>decode()</code>:</p>
+<p>One frame rather than one per field: ZeroMQ charges per frame, and with a
+frame each the stamping cost more than the send itself. Two producers write it,
+composed in <code>make_publisher</code>/<code>make_pusher</code> (<code>messaging/bus.py</code>), and neither
+one is visible to <code>decode()</code>:</p>
 <ul>
 <li>
-<p><strong><code>SequencedPublisher</code></strong> inserts a per-topic counter at index 2 on every
+<p><strong><code>SequencedPublisher</code></strong> puts two counters in front of the frame on every
   PUB message. ZeroMQ drops messages silently once a slow subscriber falls
   behind its high-water mark, and nothing in the payload reveals that it
-  happened — the counter is what lets a subscriber notice a hole. It counts
-  <em>per topic</em>, not per socket, so a subscriber that only takes
+  happened — the counters are what let a subscriber notice a hole. <code>seq</code>
+  counts <em>per topic</em>, not per socket, so a subscriber that only takes
   <code>trade.executed</code> does not see a gap every time a <code>depth.*</code> message it never
-  subscribed to goes by.</p>
+  subscribed to goes by. <code>eseq</code> counts everything the socket published, for a
+  subscriber that takes every topic (pm-audit).</p>
 </li>
 <li>
-<p><strong><code>CausalPublisher</code></strong> (PUB) / <strong><code>CausalPusher</code></strong> (PUSH) append a <strong>causal
-  envelope</strong> — one ASCII frame, three <code>|</code>-separated fields:
-  <code>msg_id|causation_id|correlation_id</code> (<code>models/envelope.py</code>). <code>msg_id</code> is a
-  ULID (sortable by generation time) identifying this message; <code>causation_id</code>
-  is the <code>msg_id</code> of the inbound request that caused it, or empty if nothing
-  on the bus caused it; <code>correlation_id</code> names the whole causal chain,
-  propagated unchanged from cause to effect. This is the traceability
-  extension: it is what lets a tool answer <em>"which submission produced this
-  fill, and everything else that followed from it?"</em> by looking the ids up,
-  rather than inferring an answer from timing or from shared order ids. How a
-  request's envelope propagates through the engine to everything it publishes
-  while handling that request is covered later in this section (under
-  <a href="#why-zeromq-specifically">Why ZeroMQ Specifically?</a>) and in the
-  <a href="../010-architecture-overview/#causal-envelope">Causal envelope</a> reference in the
-  architecture overview; how <code>pm-audit</code> records it in each log line is in the
-  <a href="../../../operator-guide/part-6-observe-and-recover/020-audit-trail/#log-format">Audit Trail</a> chapter.</p>
+<p><strong><code>CausalPublisher</code></strong> (PUB) / <strong><code>CausalPusher</code></strong> (PUSH) write the <strong>causal
+  envelope</strong>: <code>msg_id|causation_id|correlation_id</code> (<code>models/envelope.py</code>).
+  <code>msg_id</code> is a ULID (sortable by generation time) identifying this message;
+  <code>causation_id</code> is the <code>msg_id</code> of the inbound request that caused it, or
+  empty if nothing on the bus caused it; <code>correlation_id</code> names the whole
+  causal chain, propagated unchanged from cause to effect. This is the
+  traceability extension: it is what lets a tool answer <em>"which submission
+  produced this fill, and everything else that followed from it?"</em> by looking
+  the ids up, rather than inferring an answer from timing or from shared order
+  ids. How a request's envelope propagates through the engine to everything it
+  publishes while handling that request is covered later in this section
+  (under <a href="#why-zeromq-specifically">Why ZeroMQ Specifically?</a>) and in the
+  <a href="../010-architecture-overview/#causal-envelope">Causal envelope</a> reference in
+  the architecture overview; how <code>pm-audit</code> records it in each log line is in
+  the <a href="../../../operator-guide/part-6-observe-and-recover/020-audit-trail/#log-format">Audit Trail</a> chapter.</p>
 </li>
 </ul>
-<p>Reading these frames back is symmetric with writing them, and neither reader
-raises on a message that does not have them — an older recording, or a test
-double standing in for a publisher, still parses:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="c1"># models/message.py</span>
-<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">decode_sequence</span><span class="p">(</span><span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a><span class="w">    </span><span class="sd">"""The publisher's per-topic sequence number, or None if absent."""</span>
+<p>Reading the frame back is symmetric with writing it, and no reader raises on a
+message that does not have it — a test double standing in for a publisher
+still parses:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="c1"># models/message.py (trimmed)</span>
+<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_publisher_trailer</span><span class="p">(</span><span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a><span class="w">    </span><span class="sd">"""(seq, eseq, envelope frame) from a published message, or None."""</span>
 <a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
 <a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a>        <span class="k">return</span> <span class="kc">None</span>
-<a id="__codelineno-55-6" name="__codelineno-55-6" href="#__codelineno-55-6"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-55-7" name="__codelineno-55-7" href="#__codelineno-55-7"></a>        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
-<a id="__codelineno-55-8" name="__codelineno-55-8" href="#__codelineno-55-8"></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
-<a id="__codelineno-55-9" name="__codelineno-55-9" href="#__codelineno-55-9"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-55-6" name="__codelineno-55-6" href="#__codelineno-55-6"></a>    <span class="n">parts</span> <span class="o">=</span> <span class="n">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"|"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-55-7" name="__codelineno-55-7" href="#__codelineno-55-7"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span> <span class="ow">or</span> <span class="ow">not</span> <span class="p">(</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()</span> <span class="ow">and</span> <span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()):</span>
+<a id="__codelineno-55-8" name="__codelineno-55-8" href="#__codelineno-55-8"></a>        <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># two frames, or PUSH: its frame starts with a ULID</span>
+<a id="__codelineno-55-9" name="__codelineno-55-9" href="#__codelineno-55-9"></a>    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
 <a id="__codelineno-55-10" name="__codelineno-55-10" href="#__codelineno-55-10"></a>
-<a id="__codelineno-55-11" name="__codelineno-55-11" href="#__codelineno-55-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">decode_envelope</span><span class="p">(</span><span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Envelope</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-55-12" name="__codelineno-55-12" href="#__codelineno-55-12"></a><span class="w">    </span><span class="sd">"""The causal envelope, found by shape rather than by a fixed index.</span>
-<a id="__codelineno-55-13" name="__codelineno-55-13" href="#__codelineno-55-13"></a>
-<a id="__codelineno-55-14" name="__codelineno-55-14" href="#__codelineno-55-14"></a><span class="sd">    The envelope sits behind the sequence frame on PUB (index 3) but</span>
-<a id="__codelineno-55-15" name="__codelineno-55-15" href="#__codelineno-55-15"></a><span class="sd">    directly behind the payload on PUSH, which has no sequence (index 2).</span>
-<a id="__codelineno-55-16" name="__codelineno-55-16" href="#__codelineno-55-16"></a><span class="sd">    Scanning the trailing frames for whatever parses as an envelope removes</span>
-<a id="__codelineno-55-17" name="__codelineno-55-17" href="#__codelineno-55-17"></a><span class="sd">    the index entirely, rather than have two call sites disagree about it.</span>
-<a id="__codelineno-55-18" name="__codelineno-55-18" href="#__codelineno-55-18"></a><span class="sd">    """</span>
-<a id="__codelineno-55-19" name="__codelineno-55-19" href="#__codelineno-55-19"></a>    <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">:]:</span>
-<a id="__codelineno-55-20" name="__codelineno-55-20" href="#__codelineno-55-20"></a>        <span class="n">env</span> <span class="o">=</span> <span class="n">Envelope</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
-<a id="__codelineno-55-21" name="__codelineno-55-21" href="#__codelineno-55-21"></a>        <span class="k">if</span> <span class="n">env</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-55-22" name="__codelineno-55-22" href="#__codelineno-55-22"></a>            <span class="k">return</span> <span class="n">env</span>
-<a id="__codelineno-55-23" name="__codelineno-55-23" href="#__codelineno-55-23"></a>    <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-55-11" name="__codelineno-55-11" href="#__codelineno-55-11"></a><span class="k">def</span><span class="w"> </span><span class="nf">decode_sequence</span><span class="p">(</span><span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-55-12" name="__codelineno-55-12" href="#__codelineno-55-12"></a>    <span class="n">trailer</span> <span class="o">=</span> <span class="n">_publisher_trailer</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
+<a id="__codelineno-55-13" name="__codelineno-55-13" href="#__codelineno-55-13"></a>    <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">trailer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">trailer</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-55-14" name="__codelineno-55-14" href="#__codelineno-55-14"></a>
+<a id="__codelineno-55-15" name="__codelineno-55-15" href="#__codelineno-55-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">decode_envelope</span><span class="p">(</span><span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Envelope</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-55-16" name="__codelineno-55-16" href="#__codelineno-55-16"></a>    <span class="n">trailer</span> <span class="o">=</span> <span class="n">_publisher_trailer</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
+<a id="__codelineno-55-17" name="__codelineno-55-17" href="#__codelineno-55-17"></a>    <span class="k">if</span> <span class="n">trailer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-55-18" name="__codelineno-55-18" href="#__codelineno-55-18"></a>        <span class="k">return</span> <span class="n">Envelope</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">trailer</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>        <span class="c1"># PUB</span>
+<a id="__codelineno-55-19" name="__codelineno-55-19" href="#__codelineno-55-19"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+<a id="__codelineno-55-20" name="__codelineno-55-20" href="#__codelineno-55-20"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-55-21" name="__codelineno-55-21" href="#__codelineno-55-21"></a>    <span class="k">return</span> <span class="n">Envelope</span><span class="o">.</span><span class="n">from_frame</span><span class="p">(</span><span class="n">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>             <span class="c1"># PUSH</span>
 </code></pre></div>
-<p>Both frames are additive and append-only: <code>SequencedPublisher</code> inserts its
-counter <em>at</em> index 2 rather than appending, so that a wrapped <code>CausalPublisher</code>
-still lands its envelope frame last regardless of composition order, and every
-consumer that predates either feature — anything calling only <code>decode()</code> — is
-completely unaffected. That is also why the cost of the causal envelope is
-confined to the publish side: minting a ULID and formatting one short ASCII
-frame, never a JSON re-encode.</p>
+<p><code>Envelope.from_frame</code> is strict — three fields, a 26-character ULID first — so
+neither shape can be read as the other. Every consumer that only calls
+<code>decode()</code> is unaffected. The cost is on the publish side: minting the ULID
+and formatting the frame make a published message about 4 µs dearer than a
+bare send (6.4 µs against 2.3 µs, measured 2026-11), never a JSON re-encode.</p>
 <p>For JSON serialization, EduMatcher uses <code>orjson</code> when available — a C-extension
 library that is ~9-10x faster than the Python standard library <code>json</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a><span class="k">try</span><span class="p">:</span>
@@ -10364,9 +10358,9 @@ subscriber.</p>
 <p>The module is small, but two of its wrappers are worth knowing about, because
 they are how the exchange answers "why did this happen?" without anyone having
 to remember to record it.</p>
-<p><strong><code>SequencedPublisher</code></strong> appends a per-topic counter to every published
-message. PUB/SUB drops silently when a subscriber falls behind; the counter is
-what lets a subscriber notice. Counting per topic rather than per socket means
+<p><strong><code>SequencedPublisher</code></strong> stamps a per-topic counter (and a socket-wide one) on
+every published message. PUB/SUB drops silently when a subscriber falls behind;
+the counter is what lets a subscriber notice. Counting per topic rather than per socket means
 a subscriber filtering on <code>trade.</code> does not see phantom gaps from every
 <code>depth.</code> message it filtered out.</p>
 <p><strong><code>CausalPublisher</code> / <code>CausalPusher</code></strong> stamp the causal envelope —
@@ -10983,8 +10977,8 @@ non-trivial engineering project.</p>
 <h3 id="guaranteed-delivery-and-replay-on-the-core-message-bus">Guaranteed Delivery and Replay on the Core Message Bus<a class="headerlink" href="#guaranteed-delivery-and-replay-on-the-core-message-bus" title="Permanent link">&para;</a></h3>
 <p><strong>What already exists:</strong> every message the engine publishes on its internal ZMQ
 PUB sockets <em>does</em> carry a monotonically increasing, per-topic sequence number —
-<code>SequencedPublisher</code> (<code>messaging/bus.py</code>) stamps it as a third wire frame, and
-<code>decode_sequence()</code> reads it back. Sequences start at 1 per topic and reset on
+<code>SequencedPublisher</code> (<code>messaging/bus.py</code>) stamps it in the frame behind the
+payload, and <code>decode_sequence()</code> reads it back. Sequences start at 1 per topic and reset on
 process restart (a decrease signals a restart, not a gap), so a subscriber that
 tracks the last sequence it saw per topic <em>can</em> detect a hole in what it received
 — the core "is something missing?" problem is already solved. A narrower, bounded
