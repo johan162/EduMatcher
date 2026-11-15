@@ -36,8 +36,15 @@ starts one (the `s1-basic` example) with the real publisher stack on an
 from a running simulation; unpinned runs read up to 2× higher. The other
 findings are by inspection, with line numbers given.
 
-Status: **Open.** Decision Q1 is needed before WP-MSG02. WP-MSG01 and
-WP-MSG03 can start now.
+Status: **Done, uncommitted.** WP-MSG01–04 completed 2026-11-15 in the
+order MSG01, MSG03, MSG02, MSG04, each test-first and verified with
+black/flake8/mypy/pyright and the full suite (last run: 14 466 passed,
+1 skipped; `make _check` clean; `make test-e2e` 35 passed plus the 2 new
+tests in `tests/test_wire_e2e.py`). Q1 taken as recommended. Two numeric
+targets were missed by about 1 µs and 0.35 µs (see WP-MSG01 and WP-MSG02).
+Beyond the plan: a new e2e module, a log-ledger entry, and two book passages
+more than D8 listed. **Deploy note:** the PUB wire layout changed, so every
+bus process must run the same version (see WP-MSG02).
 
 ---
 
@@ -77,10 +84,10 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-MSG01 | Stamping an envelope costs a third of what it does now, wire unchanged | P1 (ULID, envelope object) | — | 0.5 d | ☐ | |
-| 2 | WP-MSG02 | A published message carries its sequences and envelope in one frame | P1 (frames), D3 | Q1, WP-MSG01 | 1 d | ☐ | |
-| 3 | WP-MSG03 | A refusal record's `count` never drops refusals the gateway saw | C1, C2 | — | 0.5 d | ☐ | |
-| 4 | WP-MSG04 | Docstrings and the books describe the wire as it is | D1, D2, D4–D9 | WP-MSG02 | 0.5 d | ☐ | |
+| 1 | WP-MSG01 | Stamping an envelope costs a third of what it does now, wire unchanged | P1 (ULID, envelope object) | — | 0.5 d | ☑ | 2026-11-15 |
+| 2 | WP-MSG02 | A published message carries its sequences and envelope in one frame | P1 (frames), D3 | Q1, WP-MSG01 | 1 d | ☑ | 2026-11-15 |
+| 3 | WP-MSG03 | A refusal record's `count` never drops refusals the gateway saw | C1, C2 | — | 0.5 d | ☑ | 2026-11-15 |
+| 4 | WP-MSG04 | Docstrings and the books describe the wire as it is | D1, D2, D4–D9 | WP-MSG02 | 0.5 d | ☑ | 2026-11-15 |
 
 Suggested order: **WP-MSG01 → WP-MSG03 → WP-MSG02 → WP-MSG04**. WP-MSG01 is
 the larger half of the latency win and changes nothing anyone reads.
@@ -343,6 +350,8 @@ reader's type. (b) in WP-MSG02, after Q1.
 
 ## 7. Decisions
 
+Q1 taken as recommended (2026-11-15).
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | After WP-MSG01, pack `seq`, `eseq` and the envelope into one frame on PUB (`[topic, payload, "seq\|eseq\|msg\|cause\|chain"]`)? (a) Yes, in WP-MSG02. (b) No, keep five frames. | **(a).** It saves a further 2.7 µs per publish (8.2 → 5.5 µs), about 8 µs per order. The bus is internal, and only the engine reads a trailing frame by index (`engine/main.py:7546`, the PUSH envelope, which keeps its shape). Every other reader goes through the three `decode_*` helpers, which change in one place. pm-audit's log lines and `tools/replay_to_engine.py` use the helpers or `decode()` only. The wire tables have to be rewritten anyway (D8). (b) leaves a third of the remaining cost in place for no reader's benefit. |
@@ -384,6 +393,29 @@ green. Target from the prototype, pinned to one core: `make_publisher` stack
 §4 harness ≤ 95 µs (105 today). The engine figure is an estimate from 3 ×
 3.4 µs.
 
+**Outcome (2026-11-15).** `models/envelope.py`: `new_ulid` reads
+`time.time_ns() // 1_000_000` and encodes the 10-character time prefix once
+per millisecond (`_last_prefix`). It encodes the 80 random bits as 8 lookups
+in `_B32_PAIRS`, a table of 1024 two-character pairs. The lock and both
+monotonicity rules are unchanged. A new `envelope_frame(msg_id, causation_id,
+correlation_id)` is the one place the envelope's wire form is written, and
+`Envelope.to_frame` uses it. `messaging/bus.py`: `CausalPublisher` keeps its
+cause as `(msg_id, correlation_id)` strings (`set_cause` still takes an
+`Envelope` and applies `Envelope.caused`'s fallback to the cause's own id).
+It and `CausalPusher` format the frame without building an `Envelope`.
+`current_envelope`, used only by the old `send_multipart`, is gone. Tests
+(`tests/test_messaging_bus.py`, new): 12. The first run failed for the right
+reasons: 20 000 prefix encodings instead of 1, and 4 and 1 `Envelope`
+constructions on the publish and push paths. Three encoding cases with a
+large millisecond also failed because the test's fake float clock lost
+precision through `int(time.time() * 1000)`. Reading `time_ns` removes that
+float step from the real generator too. Measured, pinned to one core:
+`new_ulid` 2.7 → 1.0 µs. The `make_publisher` stack 11.7 → 9.4 µs:
+**target ≤ 8.5 µs missed**. The prototype was one flat class without the
+lock; the real stack keeps the lock (other threads mint ids) and two
+wrappers. Engine `order.new` median 105 → 84–93 µs over four runs: target
+≤ 95 µs met. Full suite: 14 447 passed, 1 skipped; `make _check` clean.
+
 ### WP-MSG02 — A published message carries its sequences and envelope in one frame (P1, D3; after Q1, WP-MSG01)
 
 **Tests first** (`tests/test_messaging_bus.py`, `tests/test_engine_command_echo.py`):
@@ -412,6 +444,61 @@ the position fixed.
 **Exit criteria.** Tests 1–5 pass; the suites named in the delivery rule, and
 `tests/test_md_*`, `tests/test_audit_*` and `tests/test_sim_forensics_*`, are
 green. Target from the prototype: stack ≤ 6 µs per publish, pinned.
+
+**Outcome (2026-11-15).** Wire: PUB `[topic, payload,
+b"seq|eseq|msg_id|causation_id|correlation_id"]`, and `seq|eseq|` alone
+without an envelope. PUSH is unchanged: `[topic, payload,
+b"msg_id|causation_id|correlation_id"]`. Both wrapper classes stay, so every
+reference to `SequencedPublisher` in code, generated docstrings and books
+still names the class that stamps the sequence. `SequencedPublisher` now
+writes its two counters in front of the frame `CausalPublisher` attached
+(`b"%d|%d|%b"`) instead of inserting two frames. `models/message.py` has one
+parser, `_publisher_trailer`, which accepts a trailer only when its first two
+`|` fields are ASCII digits. The three helpers read their fields from it.
+`decode_envelope` falls back to the whole frame for PUSH. The "found by
+shape" scan of `frames[2:]` is gone, because there is only one trailing frame
+now. `Envelope.from_frame`'s strictness (three fields, 26-character first)
+keeps the two trailers apart in both directions; tests 2–3 cover garbage,
+`7`, `-1|2|` and a non-numeric `eseq`.
+
+Before changing the format, every producer and reader of trailing frames
+was traced. The only producer of PUB trailers is `SequencedPublisher` (every
+PUB site sends a freshly built two-frame message: engine, pm-index,
+pm-market-sim). Drop copy (`engine/drop_copy.py`) carries its sequence in the
+payload and sends two frames. pm-monitor's and pm-log-srv's PUB sockets,
+which the web-app bridges read, are raw sockets with their own two-frame
+messages. Every reader in `src/` goes through the helpers (ALF, BALF, md-gwy,
+stats, clearing, audit, engine), except the engine's echo, which passes the
+PUSH frame through unchanged. pm-audit writes annotations
+(`[seq=… eseq=… msg=…]`), not raw frames, so archived days and every reader
+of them (forensics, replay, `tools/replay_to_engine.py`) are unaffected.
+Five tests encoded the old layout and were moved to the new one: the
+five-frame assertion in `tests/test_envelope_causation.py`, and the
+hand-built wire frames in `tests/test_md_gateway_runtime_paths.py`,
+`tests/test_balf_gwy_sessions.py`, `tests/test_stats_trading_day.py` and
+`tests/test_alf_gwy_robustness.py`.
+
+**Deployment consequence:** processes on the old and new layouts must not
+share a bus. A mixed pair still exchanges every payload (`decode()` reads two
+frames on both sides, and PUSH is unchanged), but the subscriber loses `seq`,
+`eseq` and the envelope silently. All processes come from one install or
+image, so a normal restart of the stack is enough.
+
+Tests: 9 new in `tests/test_messaging_bus.py`. Five failed first on the old
+layout (five frames; a bare `7` read as a sequence; the echo and the
+envelope-less trailer). The audit-annotation and PUSH tests passed before and
+after, as they should. A new e2e module, `tests/test_wire_e2e.py`, reads the
+`mini` exchange's PUB socket over real ZeroMQ while the REST
+`order_lifecycle.py` example runs. It checks that every message has three
+frames and a full trailer, that `seq` per topic and `eseq` have no holes, and
+that every `order.ack` cites the echoed `order.*` command and its chain.
+Measured, pinned: stack 9.4 → 6.35 µs (**target ≤ 6 µs missed by 0.35 µs**;
+the flat prototype was 5.5). Engine `order.new` median 75–80 µs over six runs,
+against 105 µs before WP-MSG01 and 56 µs with a raw socket. Reader side,
+against `HEAD`: `decode_sequence` 0.09 → 0.35 µs, pm-audit's annotation
+(three helpers) 2.07 → 2.47 µs, the engine's `decode_push_envelope` 0.98 →
+1.10 µs per request. Full suite: 14 466 passed, 1 skipped; `make _check`
+clean; `make test-e2e` 35 passed, plus the 2 new e2e tests.
 
 ### WP-MSG03 — A refusal record's `count` never drops refusals the gateway saw (C1, C2)
 
@@ -442,6 +529,32 @@ suites are green. The operator guide's sentence at `020-audit-trail.md:416`
 ("The count of the last burst is lost if the peer then goes quiet") stays
 true and is the only remaining loss.
 
+**Outcome (2026-11-15).** `RejectReporter` keeps, per `(host, code)`, the
+time of the last record *tried*, the refusals folded since, and the gateway
+id, peer and reason of the last of them. A record is sent by `_record`, which
+returns whether it went. On success the entry restarts at zero. On failure
+the refusal is kept in the fold and the entry is stamped `now`, so the retry
+waits an interval like a normal record. This also throttles the warning, to
+at most one try a second while the engine is away. A full table now calls
+`_flush` instead of `clear()`: every entry that folded something is sent as
+its own record (`count = folded`, naming the last folded refusal), then the
+table is forgotten. If the engine is away during a flush, the lost counts get
+one summary WARNING, not one per peer. That message is a new log-ledger entry
+(`log_ledger/entries/messaging.yaml`). The existing entry's explanation now
+says the count is retried. REST: `EngineClient.report` no longer goes
+through `_send`, which swallowed `zmq.Again`. It sends directly and lets
+`zmq.Again` reach the reporter. It was the reporter's only caller, so the fix
+is there and not at `api_gateway/main.py:158` as planned. The operator
+guide's passage at `020-audit-trail.md:412-417` already described the
+intended behaviour and needed no change. Tests: 4 new in
+`tests/test_gateway_reject_reporter.py`, 1 in
+`tests/test_api_gateway_rejects.py`. All four failed first for the right
+reasons: sums 4098 and 100, no flushed record, count 1 for 2. The first full
+run failed `test_log_ledger.py::test_every_call_site_has_an_entry` on the new
+WARNING, fixed by its ledger entry. A flush sends synchronously, at most 4095
+records; it happens only when 4096 distinct hosts are tracked. Full suite:
+14 452 passed, 1 skipped; `make _check` clean.
+
 ### WP-MSG04 — Docstrings and the books describe the wire as it is (D1, D2, D4–D9; after WP-MSG02)
 
 **Tests first.** Text only: none. Check with `poetry run mkdocs build` and
@@ -455,6 +568,32 @@ per-publish cost after WP-MSG01/02. Regenerate the built books.
 
 **Exit criteria.** Every passage in D1–D9 matches the code; `mkdocs build` is
 clean; `grep -rn "frame\[3\]" docs/books` finds only the new tables.
+
+**Outcome (2026-11-15).** D2, D3 and D7 were rewritten in WP-MSG02, together
+with the code they describe (`SequencedPublisher`'s docstring, `decode`,
+the decode helpers, `encode_with_envelope`, `decode_push_envelope`'s
+comment). This WP rewrote the rest. D1: the `bus.py` module docstring now
+states the wire contract and the fail-fast PUSH policy. D4: `__getattr__`
+says "everything not declared above". D5: "every process" instead of a
+count, in `CausalPusher` and in the order-flow chapter. D6: `make_publisher`
+names `eseq`. Also: `CausalPublisher`'s class docstring and
+`send_with_envelope` describe how the frame is combined, and the
+`models/envelope.py` module docstring no longer calls the envelope's frame
+"dedicated". D8/D9: the wire tables and the cost claims were rewritten in
+`000-preamble.md` (with `010-message-reference.md` regenerated by
+`make msgen`), `010-architecture-overview.md`, `020-guided-tour.md` (the
+section "The frame behind the message", its code excerpt of the new
+readers, the module tour and the delivery section),
+`020-order-flow-end-to-end.md` and `040-message-generation.md`. That is two
+more places than D8 listed. The cost is stated as measured: about 4 µs a
+published message (6.4 against 2.3 µs). The generated `make_*` docstrings
+("the per-topic sequence third frame … appended by SequencedPublisher") and
+the stats warning "carries no sequence frame" are still accurate and were
+left alone. The books' convention of `\|` inside a code span renders the
+backslash (see §9), so the new table cells keep the pipes outside the code
+spans; all 11 cells were checked in the built HTML. The `exit criteria` grep
+now finds no `frame[3]` in the books. `mkdocs build` is clean; full suite:
+14 466 passed, 1 skipped; `make _check` clean.
 
 ---
 
@@ -486,3 +625,8 @@ clean; `grep -rn "frame\[3\]" docs/books` finds only the new tables.
   context. None of them pushes to the engine, so none loses an envelope.
   Listed so that a later "everything goes through `messaging/`" pass knows
   where they are.
+- **`\|` inside code spans in the books.** The books escape a pipe in a table
+  cell as `` `human\|json` ``. Inside a code span, Python-Markdown keeps the
+  backslash, so the built site shows `human\|json`: 155 code spans in 23
+  pages (`grep` of `site/`). The new wire tables avoid it by keeping the pipes
+  outside the code spans. A docs-wide pass, not a defect of this component.

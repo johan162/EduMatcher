@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
+import zmq
 from fastapi import HTTPException
+
+from edumatcher.api_gateway.engine_client import EngineClient
 
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import orders
@@ -86,3 +91,32 @@ def test_a_gateway_without_a_reporter_records_nothing() -> None:
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+def test_a_record_the_engine_could_not_take_is_counted_in_the_next() -> None:
+    """Messaging review 2026-11, C2: ``EngineClient.report`` used to swallow
+    ``zmq.Again``, so the reporter believed a record had gone out."""
+    loop = asyncio.new_event_loop()
+    push = MagicMock(closed=False)
+    try:
+        with (
+            patch(
+                "edumatcher.api_gateway.engine_client.make_pusher", return_value=push
+            ),
+            patch(
+                "edumatcher.api_gateway.engine_client.make_subscriber",
+                return_value=MagicMock(),
+            ),
+        ):
+            engine = EngineClient("tcp://127.0.0.1:1", "tcp://127.0.0.1:2", loop)
+        now = [0.0]
+        reporter = RejectReporter("REST", engine.report, clock=lambda: now[0])
+        push.send_multipart.side_effect = zmq.Again()
+        reporter.report("AUTH_FAILED", "", "10.0.0.9:1", "unknown API key")
+        push.send_multipart.side_effect = None
+        now[0] = 2.0
+        reporter.report("AUTH_FAILED", "", "10.0.0.9:2", "unknown API key")
+        (frames,) = [c.args[0] for c in push.send_multipart.call_args_list[1:]]
+        assert decode(frames)[1]["count"] == 2
+    finally:
+        loop.close()

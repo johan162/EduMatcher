@@ -252,8 +252,14 @@ class EngineClient:
         )
 
     def report(self, frames: list[bytes]) -> None:
-        """Forward a best-effort notice (a refusal made here) to the engine."""
-        self._send(frames, require_engine=False)
+        """Forward a refusal record to the engine.
+
+        Raises ``zmq.Again`` when the engine cannot take it, unlike
+        ``_send``: ``RejectReporter`` then keeps the count for its next try.
+        """
+        if self._push.closed:
+            return
+        self._push.send_multipart(frames)
 
     def send_heartbeat(self, gateway_id: str) -> None:
         log.debug("engine heartbeat sent gateway_id=%s", gateway_id)

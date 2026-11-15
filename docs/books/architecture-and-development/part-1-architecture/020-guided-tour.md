@@ -1802,84 +1802,82 @@ def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
     return topic, payload
 ```
 
-#### The frames behind the message: sequence and causal envelope
+#### The frame behind the message: sequences and causal envelope
 
-What actually goes out on the wire today has up to two more frames appended
-after the topic and payload — metadata *about* the message, not part of it,
-which is exactly why it lives in its own frames instead of extra JSON keys:
+What actually goes out on the wire today has one more frame after the topic
+and payload — metadata *about* the message, not part of it, which is exactly
+why it lives in its own frame instead of extra JSON keys. Its fields are ASCII,
+separated by `|`; an empty field means absent:
 
 | Frame | PUB (engine → subscribers) | PUSH (client → engine) |
 |---|---|---|
 | 0 | topic bytes | topic bytes |
 | 1 | JSON payload | JSON payload |
-| 2 | per-topic **sequence number** (`SequencedPublisher`) | **causal envelope** (`CausalPusher`) |
-| 3 | **causal envelope** (`CausalPublisher`) | — |
+| 2 | `seq`\|`eseq`\|`msg_id`\|`causation_id`\|`correlation_id` | `msg_id`\|`causation_id`\|`correlation_id` |
 
-Two producers append these, composed in `make_publisher`/`make_pusher`
-(`messaging/bus.py`), and neither one is visible to `decode()`:
+One frame rather than one per field: ZeroMQ charges per frame, and with a
+frame each the stamping cost more than the send itself. Two producers write it,
+composed in `make_publisher`/`make_pusher` (`messaging/bus.py`), and neither
+one is visible to `decode()`:
 
-- **`SequencedPublisher`** inserts a per-topic counter at index 2 on every
+- **`SequencedPublisher`** puts two counters in front of the frame on every
   PUB message. ZeroMQ drops messages silently once a slow subscriber falls
   behind its high-water mark, and nothing in the payload reveals that it
-  happened — the counter is what lets a subscriber notice a hole. It counts
-  *per topic*, not per socket, so a subscriber that only takes
+  happened — the counters are what let a subscriber notice a hole. `seq`
+  counts *per topic*, not per socket, so a subscriber that only takes
   `trade.executed` does not see a gap every time a `depth.*` message it never
-  subscribed to goes by.
+  subscribed to goes by. `eseq` counts everything the socket published, for a
+  subscriber that takes every topic (pm-audit).
 
-- **`CausalPublisher`** (PUB) / **`CausalPusher`** (PUSH) append a **causal
-  envelope** — one ASCII frame, three `|`-separated fields:
-  `msg_id|causation_id|correlation_id` (`models/envelope.py`). `msg_id` is a
-  ULID (sortable by generation time) identifying this message; `causation_id`
-  is the `msg_id` of the inbound request that caused it, or empty if nothing
-  on the bus caused it; `correlation_id` names the whole causal chain,
-  propagated unchanged from cause to effect. This is the traceability
-  extension: it is what lets a tool answer *"which submission produced this
-  fill, and everything else that followed from it?"* by looking the ids up,
-  rather than inferring an answer from timing or from shared order ids. How a
-  request's envelope propagates through the engine to everything it publishes
-  while handling that request is covered later in this section (under
-  [Why ZeroMQ Specifically?](#why-zeromq-specifically)) and in the
-  [Causal envelope](010-architecture-overview.md#causal-envelope) reference in the
-  architecture overview; how `pm-audit` records it in each log line is in the
-  [Audit Trail](../../operator-guide/part-6-observe-and-recover/020-audit-trail.md#log-format) chapter.
+- **`CausalPublisher`** (PUB) / **`CausalPusher`** (PUSH) write the **causal
+  envelope**: `msg_id|causation_id|correlation_id` (`models/envelope.py`).
+  `msg_id` is a ULID (sortable by generation time) identifying this message;
+  `causation_id` is the `msg_id` of the inbound request that caused it, or
+  empty if nothing on the bus caused it; `correlation_id` names the whole
+  causal chain, propagated unchanged from cause to effect. This is the
+  traceability extension: it is what lets a tool answer *"which submission
+  produced this fill, and everything else that followed from it?"* by looking
+  the ids up, rather than inferring an answer from timing or from shared order
+  ids. How a request's envelope propagates through the engine to everything it
+  publishes while handling that request is covered later in this section
+  (under [Why ZeroMQ Specifically?](#why-zeromq-specifically)) and in the
+  [Causal envelope](010-architecture-overview.md#causal-envelope) reference in
+  the architecture overview; how `pm-audit` records it in each log line is in
+  the [Audit Trail](../../operator-guide/part-6-observe-and-recover/020-audit-trail.md#log-format) chapter.
 
-Reading these frames back is symmetric with writing them, and neither reader
-raises on a message that does not have them — an older recording, or a test
-double standing in for a publisher, still parses:
+Reading the frame back is symmetric with writing it, and no reader raises on a
+message that does not have it — a test double standing in for a publisher
+still parses:
 
 ```python
-# models/message.py
-def decode_sequence(frames: list[bytes]) -> int | None:
-    """The publisher's per-topic sequence number, or None if absent."""
+# models/message.py (trimmed)
+def _publisher_trailer(frames: list[bytes]) -> tuple[int, int, bytes] | None:
+    """(seq, eseq, envelope frame) from a published message, or None."""
     if len(frames) < 3:
         return None
-    try:
-        return int(frames[2])
-    except (ValueError, TypeError):
-        return None
+    parts = frames[2].split(b"|", 2)
+    if len(parts) != 3 or not (parts[0].isdigit() and parts[1].isdigit()):
+        return None  # two frames, or PUSH: its frame starts with a ULID
+    return int(parts[0]), int(parts[1]), parts[2]
+
+def decode_sequence(frames: list[bytes]) -> int | None:
+    trailer = _publisher_trailer(frames)
+    return None if trailer is None else trailer[0]
 
 def decode_envelope(frames: list[bytes]) -> Envelope | None:
-    """The causal envelope, found by shape rather than by a fixed index.
-
-    The envelope sits behind the sequence frame on PUB (index 3) but
-    directly behind the payload on PUSH, which has no sequence (index 2).
-    Scanning the trailing frames for whatever parses as an envelope removes
-    the index entirely, rather than have two call sites disagree about it.
-    """
-    for frame in frames[2:]:
-        env = Envelope.from_frame(frame)
-        if env is not None:
-            return env
-    return None
+    trailer = _publisher_trailer(frames)
+    if trailer is not None:
+        return Envelope.from_frame(trailer[2])        # PUB
+    if len(frames) < 3:
+        return None
+    return Envelope.from_frame(frames[2])             # PUSH
 ```
 
-Both frames are additive and append-only: `SequencedPublisher` inserts its
-counter *at* index 2 rather than appending, so that a wrapped `CausalPublisher`
-still lands its envelope frame last regardless of composition order, and every
-consumer that predates either feature — anything calling only `decode()` — is
-completely unaffected. That is also why the cost of the causal envelope is
-confined to the publish side: minting a ULID and formatting one short ASCII
-frame, never a JSON re-encode.
+`Envelope.from_frame` is strict — three fields, a 26-character ULID first — so
+neither shape can be read as the other. Every consumer that only calls
+`decode()` is unaffected. The cost is on the publish side: minting the ULID
+and formatting the frame make a published message about 4 µs dearer than a
+bare send (6.4 µs against 2.3 µs, measured 2026-11), never a JSON re-encode.
 
 For JSON serialization, EduMatcher uses `orjson` when available — a C-extension
 library that is ~9-10x faster than the Python standard library `json`:
@@ -1920,9 +1918,9 @@ The module is small, but two of its wrappers are worth knowing about, because
 they are how the exchange answers "why did this happen?" without anyone having
 to remember to record it.
 
-**`SequencedPublisher`** appends a per-topic counter to every published
-message. PUB/SUB drops silently when a subscriber falls behind; the counter is
-what lets a subscriber notice. Counting per topic rather than per socket means
+**`SequencedPublisher`** stamps a per-topic counter (and a socket-wide one) on
+every published message. PUB/SUB drops silently when a subscriber falls behind;
+the counter is what lets a subscriber notice. Counting per topic rather than per socket means
 a subscriber filtering on `trade.` does not see phantom gaps from every
 `depth.` message it filtered out.
 
@@ -2618,8 +2616,8 @@ non-trivial engineering project.
 
 **What already exists:** every message the engine publishes on its internal ZMQ
 PUB sockets *does* carry a monotonically increasing, per-topic sequence number —
-`SequencedPublisher` (`messaging/bus.py`) stamps it as a third wire frame, and
-`decode_sequence()` reads it back. Sequences start at 1 per topic and reset on
+`SequencedPublisher` (`messaging/bus.py`) stamps it in the frame behind the
+payload, and `decode_sequence()` reads it back. Sequences start at 1 per topic and reset on
 process restart (a decrease signals a restart, not a gap), so a subscriber that
 tracks the last sequence it saw per topic *can* detect a hole in what it received
 — the core "is something missing?" problem is already solved. A narrower, bounded

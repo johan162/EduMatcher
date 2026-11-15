@@ -297,8 +297,9 @@ def test_auth_reply_published_at_once_still_completes_the_logon(
 
 
 def _sequenced(topic: str, payload: dict[str, Any], seq: int) -> list[bytes]:
-    """An engine frame as SequencedPublisher sends it: topic, payload, seq."""
-    return [*encode(topic, payload), str(seq).encode()]
+    """An engine frame as SequencedPublisher sends it: topic, payload, then
+    ``seq|eseq|`` (no envelope)."""
+    return [*encode(topic, payload), b"%d|1|" % seq]
 
 
 def test_sub_socket_has_a_deep_receive_buffer(

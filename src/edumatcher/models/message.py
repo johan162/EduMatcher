@@ -90,69 +90,72 @@ def encode(topic: str, payload: dict[str, Any]) -> list[bytes]:
 def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
     """Parse a ZMQ multipart message.
 
-    Reads only the topic and payload frames. Publishers append a third frame
-    carrying a per-topic sequence number (see ``messaging/bus.py``); it is
-    ignored here so every subscriber keeps working unchanged. Use
-    :func:`decode_sequence` to read it.
+    Reads only the topic and payload frames. Behind them a third frame
+    carries the sequences and causal envelope (see ``messaging/bus.py``); it
+    is ignored here. Use :func:`decode_sequence`,
+    :func:`decode_publisher_sequence` and :func:`decode_envelope` to read it.
     """
     topic = frames[0].decode()
     payload = _loads(frames[1])
     return topic, payload
 
 
+def _publisher_trailer(frames: list[bytes]) -> tuple[int, int, bytes] | None:
+    """``(seq, eseq, envelope frame)`` from a published message's trailer.
+
+    A publisher behind ``make_publisher`` sends ``[topic, payload,
+    b"seq|eseq|msg_id|causation_id|correlation_id"]`` (see
+    ``messaging.bus.SequencedPublisher``). ``None`` for anything else: two
+    frames, or a PUSH message, whose trailer is the bare envelope and
+    starts with a ULID, not a number. Checked with ``isdigit`` rather than
+    by catching ``int``'s error: the engine runs this for every request.
+    """
+    if len(frames) < 3:
+        return None
+    parts = frames[2].split(b"|", 2)
+    if len(parts) != 3 or not (parts[0].isdigit() and parts[1].isdigit()):
+        return None
+    return int(parts[0]), int(parts[1]), parts[2]
+
+
 def decode_sequence(frames: list[bytes]) -> int | None:
-    """Return the publisher's per-topic sequence number, if the frame is there.
+    """Return the publisher's per-topic sequence number, if stamped.
 
     ``None`` means the message came from a publisher that does not stamp
     sequences, so the receiver cannot tell whether anything was dropped.
     """
-    if len(frames) < 3:
-        return None
-    try:
-        return int(frames[2])
-    except ValueError, TypeError:
-        return None
+    trailer = _publisher_trailer(frames)
+    return None if trailer is None else trailer[0]
 
 
 def decode_publisher_sequence(frames: list[bytes]) -> int | None:
     """Return the publisher's socket-wide sequence (``eseq``), if stamped.
 
-    The frame after the per-topic sequence. ``None`` from a publisher that
-    does not stamp it -- including PUSH, where the envelope follows the
-    payload directly and is no integer.
+    ``None`` from a publisher that does not stamp it -- including PUSH,
+    whose trailer is the envelope alone.
     """
-    if len(frames) < 4:
-        return None
-    try:
-        return int(frames[3])
-    except ValueError, TypeError:
-        return None
+    trailer = _publisher_trailer(frames)
+    return None if trailer is None else trailer[1]
 
 
 def decode_envelope(frames: list[bytes]) -> Envelope | None:
-    """Return the causal envelope, if the publisher stamped one.
+    """Return the causal envelope, if the sender stamped one.
 
-    Found by shape rather than by position. The envelope sits behind the
-    sequence frame on the engine's PUB socket (``[topic, payload, seq,
-    envelope]``) but directly behind the payload on PUSH, which has no
-    sequence (``[topic, payload, envelope]``) — and a test double standing in
-    for a publisher may have neither wrapper. Scanning the trailing frames
-    costs at most two ``split`` calls and removes a whole class of bug where
-    the envelope is present but read from the wrong index and silently
-    reported absent.
+    The envelope ends the trailer of a published message (``[topic, payload,
+    seq|eseq|envelope]``) and is the whole trailer of a PUSH message
+    (``[topic, payload, envelope]``). ``Envelope.from_frame`` is strict --
+    three ``|``-separated fields with a 26-character ULID first -- so the two
+    cannot be confused.
 
-    ``Envelope.from_frame`` is strict — three ``|``-separated fields with a
-    26-character ULID first — so a sequence frame (a bare integer) cannot be
-    mistaken for one.
-
-    ``None`` means the message came from a publisher that stamps no envelope,
+    ``None`` means the message came from a sender that stamps no envelope,
     so its cause is genuinely unknown rather than absent.
     """
-    for frame in frames[2:]:
-        env = Envelope.from_frame(frame)
-        if env is not None:
-            return env
-    return None
+    trailer = _publisher_trailer(frames)
+    if trailer is not None:
+        return Envelope.from_frame(trailer[2])
+    if len(frames) < 3:
+        return None
+    return Envelope.from_frame(frames[2])
 
 
 def encode_with_envelope(
@@ -163,15 +166,15 @@ def encode_with_envelope(
     For publishers that are not behind a ``CausalPublisher`` — notably the
     gateways, which stamp a root envelope on the requests they PUSH to the
     engine so the engine has an id to cite as the cause of its replies. The
-    The PUSH path has no sequence frame, so the envelope sits directly behind
-    the payload; ``decode_envelope`` finds it either way.
+    The PUSH path has no sequence, so the envelope is the whole trailer;
+    ``decode_envelope`` reads it either way.
     """
     return [topic.encode(), _dumps(payload), envelope.to_frame()]
 
 
-#: PUSH messages carry no sequence frame, but :func:`decode_envelope` finds the
-#: envelope by shape, so one reader serves both sockets. Kept as a name because
-#: it reads better at a PULL-loop call site than the generic one does.
+#: PUSH messages carry no sequence, but :func:`decode_envelope` reads both
+#: trailers, so one reader serves both sockets. Kept as a name because it reads
+#: better at a PULL-loop call site than the generic one does.
 decode_push_envelope = decode_envelope
 
 

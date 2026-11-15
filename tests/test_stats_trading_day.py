@@ -813,7 +813,7 @@ def test_sequence_frame_does_not_disturb_existing_subscribers() -> None:
     assert decode(frames) == ("trade.executed", {"symbol": "AAPL"})
     assert decode_sequence(frames) is None  # unsequenced publisher
 
-    stamped = [*frames, b"7"]
+    stamped = [*frames, b"7|7|"]
     assert decode(stamped) == ("trade.executed", {"symbol": "AAPL"})
     assert decode_sequence(stamped) == 7
 

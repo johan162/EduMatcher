@@ -662,10 +662,11 @@ class TestSlowClientOverflow:
 
 
 def _seq_sub(*events: tuple[str, int]) -> _QueueSub:
-    """A SUB stub whose messages carry the publisher's per-topic sequence."""
+    """A SUB stub whose messages carry the publisher's per-topic sequence
+    (trailer ``seq|eseq|``, as SequencedPublisher sends it)."""
     sub = _QueueSub()
     sub.queue = [
-        [topic.encode(), json.dumps({"order_id": f"o{seq}"}).encode(), b"%d" % seq]
+        [topic.encode(), json.dumps({"order_id": f"o{seq}"}).encode(), b"%d|1|" % seq]
         for topic, seq in events
     ]
     return sub

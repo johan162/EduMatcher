@@ -70,15 +70,14 @@ def make_publisher(addr: str) -> "CausalPublisher":
 ```
 
 A message is two frames of **content** — a topic string and a JSON payload —
-followed by **envelope** frames that describe the message rather than carry
-it:
+followed by one **envelope** frame that describes the message rather than
+carries it:
 
 | Frame | PUB (engine → subscribers) | PUSH (gateway → engine) |
 |---|---|---|
 | 0 | topic | topic |
 | 1 | JSON payload | JSON payload |
-| 2 | per-topic sequence | causal envelope |
-| 3 | causal envelope | — |
+| 2 | `seq`\|`eseq`\|`msg_id`\|`causation_id`\|`correlation_id` | `msg_id`\|`causation_id`\|`correlation_id` |
 
 The envelope is metadata, not content, which is why it rides in frames
 instead of in the JSON: the hot publish path never decodes and re-encodes a
@@ -165,7 +164,7 @@ typed it — and a `correlation_id` equal to its own `msg_id`. Everything the
 engine publishes in response will cite that id and carry that chain, which
 is what makes "show me everything this submission caused" a lookup rather
 than a reconstruction. The gateway code above does not mention any of it:
-wrapping the socket is what stops thirteen client processes each having to
+wrapping the socket is what stops every client process having to
 remember. See `models/envelope.py` and
 [Architecture — Causal envelope](../part-1-architecture/010-architecture-overview.md#causal-envelope).
 
@@ -871,5 +870,5 @@ trader did.
 
 Every arrow in that diagram is a function call or a ZMQ message you can grep
 for by name. The messages are two frames of content — topic and payload —
-plus the envelope frames behind them (`[topic, payload, seq, envelope]` on
+plus the envelope frame behind them (`[topic, payload, seq|eseq|envelope]` on
 PUB, `[topic, payload, envelope]` on PUSH). There is no step in between.

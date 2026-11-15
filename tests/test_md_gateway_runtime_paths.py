@@ -1073,7 +1073,7 @@ def test_lines_after_the_closing_one_are_ignored(
 
 def _sequenced(frames: list[bytes], seq: int) -> list[bytes]:
     """The frames as SequencedPublisher puts them on the wire."""
-    return [frames[0], frames[1], str(seq).encode(), b"1", *frames[2:]]
+    return [frames[0], frames[1], b"%d|1|%b" % (seq, b"".join(frames[2:]))]
 
 
 def _trade_frames(n: int, seq: int) -> list[bytes]:

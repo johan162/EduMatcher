@@ -1,5 +1,11 @@
 """
-Thin ZeroMQ socket factory functions.
+The bus: ZeroMQ socket factories and the wire contract they apply.
+
+``make_publisher`` and ``make_pusher`` return wrappers that stamp every
+message: a published one with its per-topic and socket-wide sequences and a
+causal envelope, a pushed one with a root envelope, each in one frame behind
+topic and payload (see ``SequencedPublisher``). ``make_pusher`` also sets
+the fail-fast options a single-threaded reactor needs.
 
 All sockets use a shared module-level Context to avoid per-socket overhead.
 Callers are responsible for closing sockets when done.
@@ -11,7 +17,7 @@ from typing import Any, Protocol, cast
 
 import zmq
 
-from edumatcher.models.envelope import Envelope
+from edumatcher.models.envelope import Envelope, envelope_frame, new_ulid
 
 
 class SendsMultipart(Protocol):
@@ -78,8 +84,8 @@ class SequencedPublisher:
 
     ZeroMQ PUB/SUB drops silently once a subscriber falls behind its
     high-water mark, and nothing in the delivered message reveals it. A
-    monotonic counter appended as a third frame lets any subscriber notice a
-    hole in what it received.
+    monotonic counter in the frame behind the payload lets any subscriber
+    notice a hole in what it received.
 
     The counter is **per topic**, not per socket. A SUB socket filters by
     topic prefix, so a subscriber that takes ``trade.executed`` but not
@@ -87,23 +93,23 @@ class SequencedPublisher:
     filtered out and report continuous phantom gaps. Counting per topic makes
     every subscriber's view contiguous regardless of what it subscribes to.
 
-    The sequence rides in a third frame rather than inside the JSON payload so
-    the hot publish path never has to decode and re-encode a message; adding
-    it costs one dict lookup and one int-to-bytes per send. ``decode()`` reads
-    only the first two frames, so every existing subscriber is unaffected.
-
-    Sequences start at 1 for each topic and reset when the process restarts —
-    a consumer should treat a decrease as a restart, not a gap.
-
-    The sequence is *inserted* at index 2 rather than appended, so it keeps
-    that position when a caller (see ``CausalPublisher``) has already attached
-    frames of its own. ``decode_sequence`` reads ``frames[2]`` and must keep
-    working whatever else is on the wire behind it.
-
-    Behind it, at index 3, rides a second, socket-wide counter (``eseq``,
+    Beside it rides a second, socket-wide counter (``eseq``,
     ``decode_publisher_sequence``): the one total order of everything this
     socket published, for a subscriber that takes every topic (pm-audit).
-    The envelope is found by its shape, so it may move one frame back.
+
+    Sequences start at 1 and reset when the process restarts — a consumer
+    should treat a decrease as a restart, not a gap.
+
+    Both counters go in front of the envelope frame ``CausalPublisher``
+    attached, in one frame (``models/message.py`` reads it)::
+
+        [topic, payload, b"seq|eseq|msg_id|causation_id|correlation_id"]
+
+    One frame, not one per field: ZeroMQ charges per frame, and three extra
+    frames cost more than stamping them (Messaging review 2026-11, P1). The
+    trailer rides outside the JSON payload so publishing never decodes and
+    re-encodes a message, and ``decode()`` reads only the first two frames.
+    Without an envelope the trailer is ``seq|eseq|``.
     """
 
     __slots__ = ("_sock", "_seq", "_eseq")
@@ -122,13 +128,13 @@ class SequencedPublisher:
         nxt = self._seq.get(topic, 0) + 1
         self._seq[topic] = nxt
         self._eseq += 1
+        envelope = frames[2] if len(frames) > 2 else b""
         return self._sock.send_multipart(
             [
-                frames[0],
+                topic,
                 frames[1],
-                str(nxt).encode("ascii"),
-                str(self._eseq).encode("ascii"),
-                *frames[2:],
+                b"%d|%d|%b" % (nxt, self._eseq, envelope),
+                *frames[3:],
             ],
             *args,
             **kwargs,
@@ -151,17 +157,17 @@ class SequencedPublisher:
         return bool(self._sock.closed)
 
     def __getattr__(self, name: str) -> Any:
-        # Everything else (close, closed, setsockopt, ...) passes through, so
-        # this is a drop-in replacement for the raw socket.
+        # Everything not declared above passes through, so this is a drop-in
+        # replacement for the raw socket.
         return getattr(self._sock, name)
 
 
 class CausalPublisher:
     """Publisher wrapper that stamps a causal envelope on every message.
 
-    Wraps a ``SequencedPublisher`` (or any socket-like) and appends one frame
-    carrying ``msg_id``/``causation_id``/``correlation_id`` — see
-    ``models.envelope``. Wrapping rather than editing each publish site is the
+    Wraps a ``SequencedPublisher`` (or any socket-like) and hands it one more
+    frame, ``msg_id|causation_id|correlation_id`` — see ``models.envelope``;
+    ``SequencedPublisher`` puts its counters in front of it. Wrapping rather than editing each publish site is the
     whole point: the engine publishes from something like a hundred places,
     and an envelope that is only attached at the sites someone remembered is
     worse than none, because its absence would read as "nothing caused this".
@@ -184,12 +190,21 @@ class CausalPublisher:
 
     def __init__(self, inner: SendsMultipart) -> None:
         self._inner: Any = inner
-        self._cause: Envelope | None = None
+        #: The cause's ``(msg_id, correlation_id)``: what a child cites and
+        #: inherits, kept as strings so a publish builds no ``Envelope``.
+        self._cause: tuple[str, str] | None = None
         self._unit = False
 
     def set_cause(self, envelope: Envelope | None) -> None:
         """Attribute everything published from now until ``clear_cause``."""
-        self._cause = envelope
+        if envelope is None:
+            self._cause = None
+        else:
+            # As ``Envelope.caused``: a cause naming no chain starts one.
+            self._cause = (
+                envelope.msg_id,
+                envelope.correlation_id or envelope.msg_id,
+            )
 
     def clear_cause(self) -> None:
         self._cause = None
@@ -209,15 +224,16 @@ class CausalPublisher:
         self._unit = False
         self._cause = None
 
-    def current_envelope(self) -> Envelope:
-        """The envelope the next published message would carry."""
-        return self._cause.caused() if self._cause is not None else Envelope.root()
-
     def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any:
-        env = self.current_envelope()
-        if self._unit and self._cause is None:
-            self._cause = env  # the unit's root
-        return self._inner.send_multipart([*frames, env.to_frame()], *args, **kwargs)
+        msg_id = new_ulid()
+        cause = self._cause
+        if cause is None:
+            frame = envelope_frame(msg_id, "", msg_id)  # a root
+            if self._unit:
+                self._cause = (msg_id, msg_id)  # the unit's root
+        else:
+            frame = envelope_frame(msg_id, cause[0], cause[1])
+        return self._inner.send_multipart([*frames, frame], *args, **kwargs)
 
     def send_with_envelope(self, frames: list[bytes], envelope_frame: bytes) -> Any:
         """Publish carrying an envelope minted elsewhere, verbatim.
@@ -232,8 +248,8 @@ class CausalPublisher:
         That second property is what lets a recorder re-publish off the
         latency-critical path without misordering the record.
 
-        The frame goes last, so ``SequencedPublisher`` still inserts its
-        per-topic sequence at index 2 and the wire shape is unchanged.
+        The frame goes where ``send_multipart`` puts its own, so
+        ``SequencedPublisher`` stamps the copy like any other message.
         """
         return self._inner.send_multipart([*frames, envelope_frame])
 
@@ -271,10 +287,10 @@ class CausalPusher:
     ``CausalPublisher``), which is what turns "this ack answers that
     submission" from an inference into a fact.
 
-    Wrapping ``make_pusher`` rather than each of the thirteen processes that
-    call it means a new client gets this for free, and cannot forget it. The
-    envelope goes in a third frame; ``decode()`` reads the first two, so no
-    receiver had to change.
+    Wrapping ``make_pusher`` rather than every process that calls it means a
+    new client gets this for free, and cannot forget it. The envelope goes in
+    a third frame; ``decode()`` reads the first two, so no receiver had to
+    change.
     """
 
     __slots__ = ("_sock",)
@@ -283,8 +299,9 @@ class CausalPusher:
         self._sock: Any = sock
 
     def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any:
+        msg_id = new_ulid()
         return self._sock.send_multipart(
-            [*frames, Envelope.root().to_frame()], *args, **kwargs
+            [*frames, envelope_frame(msg_id, "", msg_id)], *args, **kwargs
         )
 
     def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]:
@@ -314,7 +331,8 @@ def make_publisher(addr: str) -> "CausalPublisher":
     """PUB socket — broadcasts events, sequenced and causally stamped.
 
     Composed here so "a publisher" means one thing everywhere: a socket that
-    stamps a per-topic sequence *and* a causal envelope. A caller that only
+    stamps a per-topic sequence, a socket-wide one (``eseq``) *and* a causal
+    envelope. A caller that only
     wants to publish needs to know none of it; a caller that attributes what it
     publishes calls ``set_cause``.
     """

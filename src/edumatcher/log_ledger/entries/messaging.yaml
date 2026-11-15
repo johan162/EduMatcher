@@ -8,7 +8,22 @@
   explanation: >
     A gateway refused a client (a failed or missing login, a role it does not
     have, or a rate limit) and could not pass that refusal on to the engine.
-    The refusal itself worked; it is only missing from the audit trail.
+    The refusal itself worked. The gateway keeps counting this client's
+    refusals and tries again at the next one, a second or more later, so the
+    count reaches the audit trail once the engine takes it.
   actions:
     - "If it repeats, check that the gateway is connected to pm-engine (`pm-monitor-cli status`)."
     - "The client and reason are in the message, in case the refusal needs following up."
+
+- logger: edumatcher.messaging.reject_report
+  template: "cannot report %d folded refusals to the engine"
+  level: WARNING
+  explanation: >
+    A gateway tracks refusals for up to 4096 client addresses at a time. When
+    that table filled up, the gateway tried to send the refusals it was still
+    counting, and the engine could not take them. That many refusals are
+    missing from the audit trail. A table that full usually means a scan or a
+    misconfigured fleet hitting the REST gateway.
+  actions:
+    - "Check that the gateway is connected to pm-engine (`pm-monitor-cli status`)."
+    - "The `system.gateway_reject` records already in the audit trail name the addresses behind the refusals."

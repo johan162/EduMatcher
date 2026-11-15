@@ -156,23 +156,28 @@ message — an ordered list of byte-array frames sent and received atomically.
 ZeroMQ (ZMQ) is a high-performance messaging library; the application, not
 ZMQ, decides what the frames mean.
 
-The first two frames are the message itself. Behind them ride the
-**envelope**: metadata *about* the message — a delivery sequence and a causal
-trace — rather than content of it:
+The first two frames are the message itself. Behind them rides one more
+frame, the **envelope**: metadata *about* the message — delivery sequences and
+a causal trace — rather than content of it, as ASCII fields separated by `|`:
 
 | Frame | PUB (engine → subscribers) | PUSH (client → engine) |
 |---|---|---|
 | `frame[0]` | Topic string (UTF-8) — used for PUB/SUB prefix filtering | Topic string |
 | `frame[1]` | JSON payload (UTF-8) | JSON payload |
-| `frame[2]` | Per-topic sequence number, so a subscriber can detect a drop | Causal envelope |
-| `frame[3]` | Causal envelope: `msg_id` / `causation_id` / `correlation_id` | — |
+| `frame[2]` | `seq`\|`eseq`\|`msg_id`\|`causation_id`\|`correlation_id` | `msg_id`\|`causation_id`\|`correlation_id` |
 
-The causal envelope is what lets `pm-audit-replay` (and `pm-audit-cli`'s
-`[seq=… msg=… cause=… chain=…]` log annotation) state *which submission caused
-which fill*, rather than inferring it from timing. `decode()` reads only
-`frame[0]` and `frame[1]`, so this extension cost nothing on the hot path and
-every existing subscriber kept working unchanged. The full wire layout, why it
-is frames rather than payload fields, and how to read it programmatically are
+`seq` counts per topic, so a subscriber can detect a drop on the topics it
+takes; `eseq` counts everything the socket published, so a subscriber that
+takes every topic (pm-audit) can prove the whole stream complete. The causal
+envelope is what lets `pm-audit-replay` (and `pm-audit-cli`'s
+`[seq=… eseq=… msg=… cause=… chain=…]` log annotation) state *which submission
+caused which fill*, rather than inferring it from timing. An empty field means
+absent. `decode()` reads only `frame[0]` and `frame[1]`, so a subscriber that
+needs only the message never parses the envelope. The envelope is not free on
+the publishing side: stamping it costs about 4 µs per published message
+(6.4 µs against 2.3 µs for a bare send, measured 2026-11), most of it the ULID
+and the extra frame. The full wire layout, why it is a frame rather than
+payload fields, and how to read it programmatically are
 covered in the [architecture guide](../../architecture-and-development/part-1-architecture/020-guided-tour.md#message-format).
 
 ## Transport channels
