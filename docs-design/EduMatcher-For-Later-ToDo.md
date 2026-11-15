@@ -42,6 +42,8 @@ its own piece of work.
 | L026 | 2026-11-14 | pm-engine (order validation) | A TRAILING_STOP with a negative `trail_offset` and no prior trade is refused as "Trailing stop requires STOP= or a prior trade price", not as an invalid offset | Low | Open |
 | L027 | 2026-11-14 | pm-balf-gwy (restart) | After a pm-balf-gwy restart a participant's resting orders are unreachable over BALF: no order ids, no fills, no cancel, and BALF has no order query | Medium | Open |
 | L028 | 2026-11-14 | pm-engine (book requests) | `book.snapshot_request` for a symbol the engine holds no book for gets no answer, so a subscriber that cached the book before an engine restart cannot learn it is now empty | Low | Open |
+| L029 | 2026-11-15 | pm-engine (heartbeats) | A session that never sent a heartbeat is never expired, so a client that connects and dies (or is answered after it gave up) holds its gateway id until an admin disconnect or an engine restart | Medium | Open |
+| L030 | 2026-11-15 | pm-engine (admin queries) | Position and order queries about a disconnected gateway answer empty lists, so `GET /admin/gateways/{id}/positions` and `/orders` show a logged-off trader with resting orders as flat with none | Medium | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -470,3 +472,40 @@ the same request and have the same blind spot.
 
 **Recommendation.** Answer with an empty book for a configured symbol that
 has no book yet.
+
+## L029 — A session that never heartbeated never expires
+
+**Found:** 2026-11-15, pm-api-gwy review H3
+(`docs-design/reviews/EduMatcher-API-Gateway-Review-2026-11.md`).
+
+**Finding.** `_expire_silent_gateways` skips every session with
+`heartbeat_interval_sec <= 0` (`engine/main.py:4550`), and the interval is
+set only by the first `system.gateway_heartbeat`. A client that is accepted
+and then dies, or stops listening, before its first beat keeps its gateway
+id connected for good: every later `gateway_connect` for that id is refused
+"Gateway already connected" until an ADMIN disconnects it or the engine
+restarts. The review reproduced it through pm-api-gwy (an accept that
+arrived after its 3 s auth timeout): refused for over 240 s with no end in
+sight. WP-AGW02 removes that REST path; ALF, BALF and the bots can still
+reach the state.
+
+**Recommendation.** Start the silence clock at connect, with the default
+`GATEWAY_HEARTBEAT_INTERVAL_SEC` as the interval until the first beat says
+otherwise.
+
+## L030 — Admin queries about a disconnected gateway answer "nothing"
+
+**Found:** 2026-11-15, pm-api-gwy review §9
+(`docs-design/reviews/EduMatcher-API-Gateway-Review-2026-11.md`).
+
+**Finding.** `_handle_position_request` (`engine/main.py:2622-2625`) and
+`_handle_orders_request` (`:2861-2864`) answer an empty list when the gateway
+named in the request is not connected. That id is both "who asks" and "about
+whom", so an ADMIN asking about a logged-off participant gets `[]`.
+`GET /admin/gateways/{id}/positions` and `GET /admin/gateways/{id}/orders`
+then show a trader with GTC orders and a position as flat with no orders, in
+a `200`.
+
+**Recommendation.** Give the admin queries a requester field separate from
+the target, as `risk.kill_switch_gateway` already has, and answer an ADMIN
+about any configured gateway, connected or not.
