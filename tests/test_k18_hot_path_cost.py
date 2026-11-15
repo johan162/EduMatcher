@@ -30,6 +30,7 @@ import pytest
 from edumatcher.engine import auction
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.models.order import Order, OrderType, Side, TIF
+from tests.conftest import opened
 from tests.support.counting import CallCounter, assert_query_plan_has_no_temp_btree
 
 # ---------------------------------------------------------------------------
@@ -409,7 +410,7 @@ def _make_engine_client(monkeypatch: pytest.MonkeyPatch) -> Any:
     monkeypatch.setattr(ec, "make_pusher", lambda *_a, **_k: _NullSocket())
     monkeypatch.setattr(ec, "make_subscriber", lambda *_a, **_k: _NullSocket())
     return ec.EngineClient(
-        "inproc://k18-pull", "inproc://k18-pub", asyncio.new_event_loop()
+        "inproc://k18-pull", "inproc://k18-pub", opened(asyncio.new_event_loop())
     )
 
 

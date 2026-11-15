@@ -538,7 +538,16 @@ def test_a_refused_handshake_is_a_reported_error_not_a_traceback(
             "--no-color",
         ],
     )
+    closed: list[bool] = []
+    real_close = CalfSpyClient.close
+
+    def close(self: CalfSpyClient) -> None:
+        closed.append(True)
+        real_close(self)
+
+    monkeypatch.setattr(CalfSpyClient, "close", close)
     with pytest.raises(SystemExit) as excinfo:
         calf_spy_cli.main()
     assert excinfo.value.code == 1
     assert "gateway rejected HELLO: AUTH_REQUIRED" in capsys.readouterr().out
+    assert closed == [True]

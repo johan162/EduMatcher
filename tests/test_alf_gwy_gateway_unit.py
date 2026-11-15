@@ -12,6 +12,7 @@ from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.messaging import bus as bus_mod
 from edumatcher.models.message import decode, encode
+from tests.conftest import opened
 
 
 class _FakePush:
@@ -104,7 +105,7 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> AlfGateway:
 
 
 def _make_session() -> tuple[ClientSession, socket.socket]:
-    left, right = socket.socketpair()
+    left, right = map(opened, socket.socketpair())
     left.setblocking(False)
     right.setblocking(False)
     session = ClientSession(sock=left, addr=("local", 0))

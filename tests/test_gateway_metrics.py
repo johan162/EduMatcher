@@ -629,9 +629,12 @@ def test_engine_client_counts_a_timeout() -> None:
         client = EngineClient(
             "tcp://127.0.0.1:1", "tcp://127.0.0.1:2", asyncio.get_running_loop()
         )
-        with pytest.raises(TimeoutError):
-            await client.await_topic("system.nothing", timeout=0.01)
-        return client.engine_timeouts
+        try:
+            with pytest.raises(TimeoutError):
+                await client.await_topic("system.nothing", timeout=0.01)
+            return client.engine_timeouts
+        finally:
+            client.stop_listener()
 
     assert asyncio.run(scenario()) == 1
 

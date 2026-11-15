@@ -26,7 +26,7 @@ from edumatcher.models.generated.health import MetricSample, parse_health_beacon
 from edumatcher.models.message import encode
 from edumatcher.models.order import OrderType, Side
 from tests.clearing_harness import start_clearing
-from tests.conftest import free_port, free_ports
+from tests.conftest import free_port, free_ports, opened
 from tests.engine_harness import connect, make_engine, order_payload
 from tests.test_index_main_runtime import proc  # noqa: F401  (fixture)
 
@@ -258,6 +258,7 @@ def test_audit_counts_records_and_bytes(tmp_path: Path, main_loop_records: int) 
         patch("edumatcher.audit.main.make_replier", return_value=MagicMock()),
     ):
         audit = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+    opened(audit._file)
     reporter = RecordingReporter()
     audit.attach_reporter(reporter)  # type: ignore[arg-type]
 

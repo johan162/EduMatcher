@@ -270,6 +270,7 @@ def test_main_exits_non_zero_when_trades_were_not_written(
 ) -> None:
     def run(self: ClearingProcess) -> None:
         self.unwritten_trades = 3
+        self._conn.close()
 
     monkeypatch.setattr(ClearingProcess, "run", run)
     from edumatcher.health import HealthReporter

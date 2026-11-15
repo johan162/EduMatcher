@@ -31,6 +31,7 @@ from edumatcher.alf_gwy.gateway import (
 )
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.models.price import register_tick_decimals
+from tests.conftest import opened
 
 # ---------------------------------------------------------------------------
 # Minimal stubs
@@ -88,7 +89,7 @@ def _make_gateway(monkeypatch: pytest.MonkeyPatch, **cfg_overrides: Any) -> AlfG
 
 
 def _make_session() -> tuple[ClientSession, socket.socket]:
-    left, right = socket.socketpair()
+    left, right = map(opened, socket.socketpair())
     left.setblocking(False)
     right.setblocking(False)
     return ClientSession(sock=left, addr=("local", 0)), right

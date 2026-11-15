@@ -3,11 +3,10 @@ from __future__ import annotations
 import os
 import shutil
 import socket
-import sqlite3
 import tempfile
 import time
 from collections.abc import Generator
-from typing import Any
+from typing import Any, Protocol, TypeVar
 from pathlib import Path
 
 import pytest
@@ -136,28 +135,35 @@ def wait_for_listener(host: str, port: int, timeout: float = 5.0) -> None:
     raise AssertionError(f"nothing started listening on {host}:{port} in {timeout}s")
 
 
-_OPEN_DATABASES: list[sqlite3.Connection] = []
+class _Closeable(Protocol):
+    def close(self) -> object: ...
 
 
-def opened(conn: sqlite3.Connection) -> sqlite3.Connection:
-    """Register a connection to be closed when the test ends.
+_C = TypeVar("_C", bound=_Closeable)
+
+_OPENED: list[_Closeable] = []
+
+
+def opened(resource: _C) -> _C:
+    """Register a resource to be closed when the test ends.
 
     A test that opens an index and reads from it across several statements
     reads better without a ``with`` around the whole body, but a connection
     nobody closes is still a leak -- and since Python 3.14 sqlite3 says so,
     with a ``ResourceWarning`` attributed to whichever unrelated line the
     collector happened to be running. Wrapping the open at the call site
-    keeps the closing explicit and deterministic.
+    keeps the closing explicit and deterministic. Sockets, files and event
+    loops warn the same way, so anything with a ``close()`` can be passed.
     """
-    _OPEN_DATABASES.append(conn)
-    return conn
+    _OPENED.append(resource)
+    return resource
 
 
 @pytest.fixture(autouse=True)
-def _close_registered_databases() -> Generator[None, None, None]:
+def _close_registered_resources() -> Generator[None, None, None]:
     yield
-    while _OPEN_DATABASES:
-        _OPEN_DATABASES.pop().close()
+    while _OPENED:
+        _OPENED.pop().close()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

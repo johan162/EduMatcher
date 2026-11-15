@@ -358,6 +358,7 @@ class AuditProcess:
             self.health_rep = make_replier(AUDIT_HEALTH_BIND_ADDR)
         except BaseException:
             self.sub.close()
+            self._file.close()
             raise
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval

@@ -333,7 +333,7 @@ class _FakeWS:
 
 
 def _run(coro: Any) -> None:
-    asyncio.new_event_loop().run_until_complete(coro)
+    asyncio.run(coro)
 
 
 def _warm_engine(client: EngineClient) -> None:

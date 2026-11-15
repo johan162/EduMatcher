@@ -10,6 +10,8 @@ import pytest
 import zmq
 
 from edumatcher.audit.main import AuditProcess, main
+from edumatcher.audit.writer import AuditFile
+from tests.conftest import opened
 
 
 class _FakeSub:
@@ -67,6 +69,7 @@ def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+        opened(proc._file)
 
     with (
         patch(
@@ -102,6 +105,7 @@ def test_terminal_prints_each_line_before_the_flush(
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
+        opened(proc._file)
 
     proc._add_to_buffer("2026-11-13", "[trade.executed] {}")
 
@@ -122,6 +126,7 @@ def test_receive_survives_decode_errors_and_continues(
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+        opened(proc._file)
 
     with (
         patch(
@@ -161,6 +166,7 @@ def test_a_stop_drains_until_the_engines_eod(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+        opened(proc._file)
 
     with (
         # The SIGTERM ends the loop before any frame is read.
@@ -227,6 +233,7 @@ class TestTopicFamily:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "a.log", to_terminal=False)
+            opened(proc._file)
         assert proc._topic_family(topic) == expected
 
 
@@ -246,6 +253,7 @@ def test_add_to_buffer_flushes_on_overflow(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=3)
+        opened(proc._file)
 
     for i in range(3):
         proc._add_to_buffer("2026-10-24", f"line {i}")
@@ -264,6 +272,7 @@ def test_flush_buffer_is_idempotent_on_empty(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False)
+        opened(proc._file)
 
     proc._flush_buffer()  # Buffer already empty — should not raise.
     # No output written for an empty flush.
@@ -302,6 +311,7 @@ def test_receive_answers_health_ping_with_utc_timestamp(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier", return_value=fake_rep),
     ):
         proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
 
     with patch(
         "edumatcher.audit.main.zmq.Poller",
@@ -320,6 +330,7 @@ def test_rotation_defaults_to_10_mb(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
 
     assert proc._file._max_bytes == 10 * 1024 * 1024
 
@@ -335,6 +346,7 @@ def test_part_size_is_configurable(tmp_path: Path) -> None:
             to_terminal=False,
             max_file_mb=256,
         )
+        opened(proc._file)
 
     assert proc._file._max_bytes == 256 * 1024 * 1024
 
@@ -367,11 +379,15 @@ def test_failed_health_socket_setup_closes_the_subscriber(tmp_path: Path) -> Non
             "edumatcher.audit.main.make_replier",
             side_effect=zmq.ZMQError(errno.EADDRINUSE),
         ),
+        patch.object(
+            AuditFile, "close", autospec=True, side_effect=AuditFile.close
+        ) as file_close,
         pytest.raises(zmq.ZMQError),
     ):
         AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
 
     assert fake_sub.closed is True
+    file_close.assert_called_once()
 
 
 def _record(proc: AuditProcess, topic: str, eseq: int | None) -> None:
@@ -398,7 +414,9 @@ class TestMissedMessages:
             patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
             patch("edumatcher.audit.main.make_replier"),
         ):
-            return AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+            proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
+        return proc
 
     def test_a_dense_stream_misses_nothing(self, tmp_path: Path) -> None:
         proc = self._proc(tmp_path)
@@ -504,6 +522,9 @@ class TestWriteErrors:
             real()
 
         proc._close_ended_day = failing_once
+        # The closed day would start a real archiver, compressing the part
+        # this test reads and outliving it.
+        proc._start_archiver = lambda: None
         # Every poll is a due day check.
         poller = _StoppingPoller(
             proc, 3, before=lambda _n: setattr(proc, "_last_day_check", 0.0)

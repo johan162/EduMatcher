@@ -356,9 +356,11 @@ def _engine_day(
 def _clearing(tmp_path: Path) -> Any:
     from edumatcher.clearing.main import ClearingProcess
 
-    return ClearingProcess(
+    proc = ClearingProcess(
         pub_addr="inproc://unused", db_path=tmp_path / "clearing.db", print_every=0
     )
+    opened(proc._conn)
+    return proc
 
 
 def _rows(proc: Any, table: str) -> dict[str, dict[str, Any]]:

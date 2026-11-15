@@ -384,6 +384,7 @@ def main() -> None:
         client.connect()
         welcome = client.handshake()
     except CalfSpyConnectionError as exc:
+        client.close()
         session.console.print(
             f"[bold red]pm-calf-spy: {exc}[/bold red]", soft_wrap=True
         )

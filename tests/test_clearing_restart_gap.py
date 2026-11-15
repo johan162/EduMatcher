@@ -20,6 +20,7 @@ import pytest
 from edumatcher.clearing.main import ClearingProcess
 from edumatcher.clearing.store import prune_old_events, query_feed_gaps
 from edumatcher.models.message import make_trade_msg
+from tests.conftest import opened
 
 _NOW = time.time_ns()
 
@@ -46,7 +47,9 @@ def _trade(seq: int, run: int = 3, ts_ns: int | None = None) -> list[bytes]:
 
 
 def _process(db: Path) -> ClearingProcess:
-    return ClearingProcess(pub_addr="inproc://unused", db_path=db, print_every=0)
+    proc = ClearingProcess(pub_addr="inproc://unused", db_path=db, print_every=0)
+    opened(proc._conn)
+    return proc
 
 
 def _feed(proc: ClearingProcess, *seqs: int, run: int = 3) -> None:
