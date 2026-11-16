@@ -650,19 +650,15 @@ def test_dc_fill_joins_several_trade_ids_with_commas(
 def test_a_client_on_a_descriptor_above_1023_is_served(
     running_gateway: tuple[DcGateway, DropCopyPublisher, int],
     caplog: pytest.LogCaptureFixture,
+    descriptors_above_1023: None,
 ) -> None:
     _, _, port = running_gateway
     caplog.set_level(logging.WARNING, logger=gateway_mod.__name__)
-    held = [os.open(os.devnull, os.O_RDONLY) for _ in range(1100)]
-    try:
-        with socket.create_connection(("127.0.0.1", port), timeout=2) as cli:
-            cli.sendall(b"HELLO|CLIENT=t|PROTO=DC1|ID=TRADER01\n")
-            assert parse_line(_recv_line(cli, timeout=2)).msg_type == "WELCOME"
-            cli.sendall(b"PING\n")
-            assert parse_line(_recv_line(cli, timeout=2)).msg_type == "PONG"
-    finally:
-        for fd in held:
-            os.close(fd)
+    with socket.create_connection(("127.0.0.1", port), timeout=2) as cli:
+        cli.sendall(b"HELLO|CLIENT=t|PROTO=DC1|ID=TRADER01\n")
+        assert parse_line(_recv_line(cli, timeout=2)).msg_type == "WELCOME"
+        cli.sendall(b"PING\n")
+        assert parse_line(_recv_line(cli, timeout=2)).msg_type == "PONG"
     assert not [r for r in caplog.records if "read" in r.getMessage()]
 
 
