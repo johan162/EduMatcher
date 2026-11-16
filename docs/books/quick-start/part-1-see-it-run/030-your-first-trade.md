@@ -183,7 +183,7 @@ Both windows receive a `FILL` line the moment the trade happens. In
 `TRADER01`'s window:
 
 ```text
-[09:31:07.552] FILL      855b6f946fe9cb7ae96bbda1c8d1dc06  qty=100 @150.0  remaining=0  [FILLED]
+[09:31:07.552] FILL      855b6f946fe9cb7ae96bbda1c8d1dc06  qty=100 @150.00  remaining=0  [FILLED]
 ```
 
 TRADER02 sees the same for its own order ID. `remaining=0` and `[FILLED]`
@@ -202,7 +202,7 @@ You can ask the engine to state this for every fill. Start a console with
 is followed by a **drop-copy** line carrying the flag:
 
 ```text
-[09:31:07.552] DC_FILL   855b6f946fe9cb7ae96bbda1c8d1dc06  AAPL  qty=100 @150.0  [MAKER]  #1  (drop_copy.event.TRADER01)
+[09:31:07.552] DC_FILL   855b6f946fe9cb7ae96bbda1c8d1dc06  AAPL  qty=100 @150.00  [MAKER]  #1  (drop_copy.event.TRADER01)
 ```
 
 Drop copy is the independent copy of fills that a firm's risk and compliance
@@ -220,11 +220,11 @@ POS
 ```
 
 ```text
-                                   Positions
+                        Positions (P&L since connect)
 ┏━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
 ┃ Symbol   ┃  Net Qty ┃   Avg Cost ┃    Last Px ┃   Unreal P&L ┃     Real P&L ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
-│ AAPL     │     +100 │     150.00 │     150.00 │        +0.00 │        +0.00 │
+│ AAPL     │     +100 │    150.000 │     150.00 │        +0.00 │        +0.00 │
 └──────────┴──────────┴────────────┴────────────┴──────────────┴──────────────┘
 ```
 
@@ -300,10 +300,10 @@ ORDERS
 ```
 
 ```text
-┃ ID                               ┃ Symbol ┃ Side ┃ Type  ┃ TIF ┃ Qty ┃ Rem ┃ Price ┃ Status ┃ Time     ┃
-│ a129aadacb20eaf85c4eef86386be6e9 │ AAPL   │ BUY  │ LIMIT │ DAY │  50 │  50 │ 148.0 │ NEW    │ 09:34:15 │
-│ 9ceca6d5db612b51d2dcb94ea880055f │ AAPL   │ SELL │ LIMIT │ GTC │ 100 │   0 │ 152.0 │ FILLED │ 09:32:40 │
-│ 855b6f946fe9cb7ae96bbda1c8d1dc06 │ AAPL   │ BUY  │ LIMIT │ DAY │ 100 │   0 │ 150.0 │ FILLED │ 09:31:02 │
+┃ ID                               ┃ Symbol ┃ Side ┃ Type  ┃ TIF ┃ Qty ┃ Rem ┃  Price ┃ Status ┃ Time     ┃
+│ a129aadacb20eaf85c4eef86386be6e9 │ AAPL   │ BUY  │ LIMIT │ DAY │  50 │  50 │ 148.00 │ NEW    │ 09:34:15 │
+│ 9ceca6d5db612b51d2dcb94ea880055f │ AAPL   │ SELL │ LIMIT │ GTC │ 100 │   0 │ 152.00 │ FILLED │ 09:32:40 │
+│ 855b6f946fe9cb7ae96bbda1c8d1dc06 │ AAPL   │ BUY  │ LIMIT │ DAY │ 100 │   0 │ 150.00 │ FILLED │ 09:31:02 │
 ```
 
 Then cancel it with the full ID:
@@ -332,7 +332,7 @@ AMEND|ID=<the new order's ID>|PRICE=149.00|QTY=30
 ```
 
 ```text
-[09:35:40.229] AMENDED   73cfaf47645825b341c93513a908bd81  price=149.0 qty=30 remaining=30 (priority reset)
+[09:35:40.229] AMENDED   73cfaf47645825b341c93513a908bd81  price=149.00 qty=30 remaining=30 (priority reset)
 ```
 
 `(priority reset)` matters. Orders at the same price trade in the order they
@@ -364,7 +364,7 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 ```text
-[09:36:51.703] FILL      53d7d9eae488049000d4131a1729cd07  qty=100 @151.0  remaining=0  [FILLED]
+[09:36:51.703] FILL      53d7d9eae488049000d4131a1729cd07  qty=100 @151.00  remaining=0  [FILLED]
 ```
 
 It filled at 151.00 — the resting seller's price, not one you chose. A market

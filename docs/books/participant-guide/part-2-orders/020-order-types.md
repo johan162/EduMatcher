@@ -1448,16 +1448,16 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 
 # 2. Market moves — improve price (priority lost, back of queue at 151)
 AMEND|ID=abc123...|PRICE=151.00|RTAG=amd-price-002
-# → AMENDED: price=151.0 qty=100 remaining=100 (priority reset)
+# → AMENDED: price=151.00 qty=100 remaining=100 (priority reset)
 
 # 3. Reduce size to manage risk (priority preserved at 151)
 AMEND|ID=abc123...|QTY=80|RTAG=amd-down-002
-# → AMENDED: price=151.0 qty=80 remaining=80
+# → AMENDED: price=151.00 qty=80 remaining=80
 
 # 4. After a partial fill of 30, reduce remaining exposure
 #    (original qty was 80, filled 30, so remaining = 50)
 AMEND|ID=abc123...|QTY=60|RTAG=amd-partial-001
-# → AMENDED: price=151.0 qty=60 remaining=30
+# → AMENDED: price=151.00 qty=60 remaining=30
 #    Note: new_qty (60) - filled (30) = 30 remaining
 ```
 
@@ -1487,7 +1487,7 @@ remainder) rests again. From the caller's point of view this looks like an
 ```
 # Resting buy at 149.00; best ask is currently 150.00 (no cross)
 AMEND|ID=<order-id>|PRICE=150.50|RTAG=amd-cross-001
-# → AMENDED: price=150.5 ...   (priority reset)
+# → AMENDED: price=150.50 ...   (priority reset)
 # → FILL: ...                    (the amend crossed the book and filled immediately)
 ```
 

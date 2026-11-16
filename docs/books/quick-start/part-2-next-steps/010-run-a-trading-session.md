@@ -165,7 +165,7 @@ At the moment continuous trading starts, the auction **uncrosses**. Both
 traders receive a fill:
 
 ```text
-[09:59:13.304] FILL      0aeb15eef2df8ba63f2eaf806e628600  qty=100 @149.0  remaining=0  [FILLED]
+[09:59:13.304] FILL      0aeb15eef2df8ba63f2eaf806e628600  qty=100 @149.00  remaining=0  [FILLED]
 ```
 
 Every order matched in an auction trades at **one price**, the

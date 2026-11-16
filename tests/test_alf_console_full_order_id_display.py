@@ -165,6 +165,7 @@ class TestEventLinesShowTheFullOrderId:
 
     def test_drop_copy_event_line_shows_the_full_id(self) -> None:
         gw = _make_gateway()
+        gw._set_drop_copy(True)
         with patch("edumatcher.alf_console.main.console.print") as mock_print:
             gw._handle_dc_event(
                 "drop_copy.event.GW01",

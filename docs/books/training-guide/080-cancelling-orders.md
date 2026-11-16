@@ -62,7 +62,7 @@ operator console clear AAPL (stop any `pm-mm-bot` quoting it), and have
    ```
    [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=150.10|TIF=DAY
    ```
-   Expected: `FILL … qty=300 @150.1  remaining=700  [PARTIAL]`.
+   Expected: `FILL … qty=300 @150.10  remaining=700  [PARTIAL]`.
 
 2. Cancel the remainder:
    ```

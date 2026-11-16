@@ -582,53 +582,89 @@ pm-alf-console --id <GW_ID>
 
 **Expected runtime input arguments:**
 
-- `NEW|...` order-entry commands (including `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`)
+- `NEW|...` order-entry commands (including `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`, `OCO`, `COMBO`)
 - `AMEND|...`, `CANCEL|...`
-- `QUOTE|...`, `QUOTE_CANCEL|...`
-- `QLEGS|...` (market-maker quote-leg monitor with fill flags)
-- `ORDERS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT`
+- `QUOTE|...`, `QUOTE_CANCEL|...`, `QBOOT`, `QLEGS|...` (market-maker quote-leg monitor with fill flags)
 - `KILL|...` for gateway-scoped kill-switch actions
+- `DC|STATE=ON|OFF` (show or hide the drop-copy relay)
+- `STATUS`, `ORDERS`, `POS`, `POS|GW=<id>`, `SYMBOLS`, `SESSION`, `INDEX`, `INDEX|HISTORY|...`
+- `HELP`, `CLEAR`, `EXIT`, `QUIT`
 
 **Connection behaviour**:
 1. Sends `system.gateway_connect` to the engine
-2. Waits for `system.gateway_auth.<GW_ID>`
-3. Enters command loop only if accepted
+2. Waits up to 3 s for `system.gateway_auth.<GW_ID>`
+3. If accepted, asks for the symbol list, its resting orders and its position,
+   and enters the command loop once the symbol list (with each symbol's tick
+   size) has arrived
 
 If the ID is not listed in `engine_config.yaml` under `participants`, connection
-is refused and the gateway exits.
+is refused and the console exits.
 
-**Messages sent** (PUSH → :5555):
+**Exit status:** `0` when the user leaves (`EXIT`, `QUIT`, Ctrl-D, Ctrl-C); `1`
+when the logon is refused, the engine is not reachable, no symbol list
+arrives, or the engine connection is lost during the session.
 
-| Topic                    | Purpose                |
-|--------------------------|------------------------|
-| `system.gateway_connect` | Authentication request |
-| `order.new`              | Submit order           |
-| `order.cancel`           | Cancel order           |
-| `order.combo`            | Submit combo           |
-| `order.combo_cancel`     | Cancel combo           |
-| `order.orders_request`   | Request order list     |
-| `system.symbols_request` | Request symbol list    |
+**Messages sent** (PUSH → engine `:5555`, unless noted):
 
-**Messages subscribed** (SUB from :5556):
+| Topic                            | Purpose                                         |
+|----------------------------------|-------------------------------------------------|
+| `system.gateway_connect`         | Authentication request                          |
+| `system.gateway_heartbeat`       | Keep-alive, every few seconds, own socket       |
+| `system.gateway_disconnect`      | Logout on exit                                  |
+| `system.symbols_request`         | Symbol list (at logon and for `SYMBOLS`)        |
+| `order.orders_request`           | Resting orders (at logon and after lost events) |
+| `system.position_request`        | Position (own: at logon and after lost events; any id: `POS\|GW=`) |
+| `order.new`                      | Submit order                                    |
+| `order.amend`                    | Amend order                                     |
+| `order.cancel`                   | Cancel order                                    |
+| `order.oco`                      | Submit OCO pair                                 |
+| `order.oco_cancel`               | Cancel OCO pair                                 |
+| `order.combo`                    | Submit combo                                    |
+| `order.combo_cancel`             | Cancel combo                                    |
+| `quote.new`                      | Submit two-sided quote                          |
+| `quote.cancel`                   | Cancel quote                                    |
+| `system.quote_bootstrap_request` | Active quotes (`QBOOT`)                         |
+| `risk.kill_switch`               | Kill switch (`KILL`)                            |
+| `system.session_state_request`   | Trading session state (`SESSION`)               |
+| `index.history_request`          | Index structural history (`INDEX\|HISTORY`), to pm-index `:5559` |
 
-| Topic                              | Purpose                                        |
-|------------------------------------|------------------------------------------------|
-| `system.gateway_auth.{own GW_ID}`  | Authentication reply                           |
-| `order.ack.{own GW_ID}`            | Order acknowledgements                         |
-| `order.fill.{own GW_ID}`           | Fill notifications                             |
-| `order.amended.{own GW_ID}`        | Successful amend notifications                 |
-| `order.cancelled.{own GW_ID}`      | Cancel confirmations                           |
-| `order.expired.{own GW_ID}`        | Expiry notifications                           |
-| `order.orders.{own GW_ID}`         | Order list replies                             |
-| `combo.ack.{own GW_ID}`            | Combo acknowledgements                         |
-| `combo.status.{own GW_ID}`         | Combo status updates                           |
-| `oco.ack.{own GW_ID}`              | OCO creation acknowledgements                  |
-| `oco.cancelled.{own GW_ID}`        | OCO sibling-cancel notifications               |
-| `quote.ack.{own GW_ID}`            | Quote acknowledgements                         |
-| `quote.status.{own GW_ID}`         | Quote lifecycle updates                        |
-| `risk.kill_switch_ack.{own GW_ID}` | Kill-switch acknowledgement                    |
-| `system.symbols.{own GW_ID}`       | Symbol list reply                              |
-| `trade.executed`                   | Global trade feed for last-price / P&L display |
+**Messages subscribed** (SUB from engine `:5556`, receive buffer 200 000 messages):
+
+| Topic                                   | Purpose                                        |
+|-----------------------------------------|------------------------------------------------|
+| `system.gateway_auth.{own GW_ID}`       | Authentication reply                           |
+| `order.ack.{own GW_ID}`                 | Order acknowledgements                         |
+| `order.fill.{own GW_ID}`                | Fill notifications                             |
+| `order.amended.{own GW_ID}`             | Successful amend notifications                 |
+| `order.cancelled.{own GW_ID}`           | Cancel confirmations                           |
+| `order.expired.{own GW_ID}`             | Expiry notifications                           |
+| `order.triggered.{own GW_ID}`           | Stop triggers                                  |
+| `order.orders.{own GW_ID}`              | Order list replies                             |
+| `combo.ack.{own GW_ID}`                 | Combo acknowledgements                         |
+| `combo.cancel_ack.{own GW_ID}`          | Combo cancel outcome                           |
+| `combo.status.{own GW_ID}`              | Combo status updates                           |
+| `oco.ack.{own GW_ID}`                   | OCO creation acknowledgements                  |
+| `oco.cancel_ack.{own GW_ID}`            | OCO cancel outcome                             |
+| `oco.cancelled.{own GW_ID}`             | OCO sibling-cancel notifications               |
+| `quote.ack.{own GW_ID}`                 | Quote acknowledgements                         |
+| `quote.cancel_ack.{own GW_ID}`          | Quote cancel outcome                           |
+| `quote.status.{own GW_ID}`              | Quote lifecycle updates                        |
+| `risk.kill_switch_ack.{own GW_ID}`      | Kill-switch acknowledgement                    |
+| `system.symbols.{own GW_ID}`            | Symbol list reply (tick sizes)                 |
+| `system.quote_bootstrap.{own GW_ID}`    | `QBOOT` reply                                  |
+| `system.session_status.{own GW_ID}`     | `SESSION` reply                                |
+| `system.position_snapshot.` (all ids)   | Own position and `POS\|GW=` replies            |
+| `trade.executed`                        | Global trade feed for last-price / P&L display |
+
+SUBSCRIBE is a prefix match, so the console also receives the topics of a
+gateway whose id starts with its own (`GW1` and `GW10`); it handles only its
+exact own topics. A gap in an own topic's sequence numbers prints a lost-events
+warning and re-requests orders and position.
+
+Also subscribed: `index.update`, `index.history.{own GW_ID}` and
+`index.error.{own GW_ID}` from pm-index `:5558`, and
+`drop_copy.event.{own GW_ID}` from the engine's drop-copy feed `:5557`
+(shown only while `DC|STATE=ON`).
 
 See the [ALF Console](../../participant-guide/part-2-orders/010-the-trader-console.md) for the full command list.
 

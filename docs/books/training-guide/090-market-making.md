@@ -143,7 +143,7 @@ Back at MM_MANUAL_01, you should see:
 ```
 CANCELLED <bid_id> reason=QUOTE_LEG_FILLED
 QUOTE INACTIVE_ASK_FILLED  Q001
-FILL      <ask_id>  qty=100 @150.1  remaining=400  [PARTIAL]
+FILL      <ask_id>  qty=100 @150.10  remaining=400  [PARTIAL]
 ```
 
 Under `INACTIVATE_ON_ANY_FILL`, the first fill on either leg inactivates the

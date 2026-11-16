@@ -24,6 +24,8 @@ _TOP_LEVEL_CMDS = [
     "ORDERS",
     "POS",
     "SYMBOLS",
+    "SESSION",
+    "DC",
     "INDEX",
     "HELP",
     "CLEAR",
@@ -53,9 +55,6 @@ _FIELD_COMPLETIONS: dict[str, list[str]] = {
     "VISIBLE": [],
     "SMP": ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
     "TAG": [],
-    # after CANCEL| / AMEND|
-    "ID": [],
-    "RTAG": [],
 }
 
 # Fields that follow each order type (in typical order)
@@ -128,6 +127,8 @@ class GatewayCompleter(Completer):
                 candidates = ["AON"]
             elif cmd == "QLEGS" and key == "SHOW":
                 candidates = ["ACTIVE", "RECENT", "ALL"]
+            elif cmd == "DC" and key == "STATE":
+                candidates = ["ON", "OFF"]
             elif field == "SMP" or key == "SMP":
                 candidates = [
                     "NONE",
@@ -160,6 +161,8 @@ class GatewayCompleter(Completer):
             candidates = [f for f in ["SYM="] if f.rstrip("=") not in already_keys]
         elif cmd == "POS":
             candidates = [f for f in ["GW="] if f.rstrip("=") not in already_keys]
+        elif cmd == "DC":
+            candidates = ["STATE="] if "STATE" not in already_keys else []
         elif cmd == "AMEND":
             candidates = [
                 f
@@ -257,7 +260,7 @@ class GatewayCompleter(Completer):
             seg.split("=", 1)[0].upper() for seg in parts[1:] if "=" in seg
         }
 
-        leg_fields = ["SYM=", "SIDE=", "QTY=", "PRICE=", "TYPE="]
+        leg_fields = ["SYM=", "SIDE=", "QTY=", "PRICE=", "STOP=", "TYPE="]
         for i in range(leg_count):
             for field in leg_fields:
                 key = f"LEG{i}.{field}"

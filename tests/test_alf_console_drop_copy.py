@@ -3,15 +3,14 @@ and DC_FILL rendering.
 
 Gateway.__init__ calls make_subscriber() three times (order events, index
 events, drop-copy events), so tests here return a distinct MagicMock per
-call rather than reusing a single fake -- this matters specifically for
-verifying which socket receives the SUBSCRIBE/UNSUBSCRIBE calls.
+call rather than reusing a single fake. The drop-copy topic is subscribed
+once at construction; DC|STATE= only flips the flag the listener reads, and
+no command calls setsockopt (review WP-ACN03, C3).
 """
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
-
-import zmq
 
 
 def _make_gateway(gw_id: str = "GW01", drop_copy: bool = False):
@@ -24,8 +23,10 @@ def _make_gateway(gw_id: str = "GW01", drop_copy: bool = False):
     fake_dc_sub = MagicMock(name="dc_sub_sock")
 
     sub_calls = [fake_sub, fake_index_sub, fake_dc_sub]
+    subscribed: list[tuple[str, ...]] = []
 
-    def _fake_make_subscriber(_addr, *_topics):
+    def _fake_make_subscriber(_addr, *topics, **_kw):
+        subscribed.append(topics)
         return sub_calls.pop(0)
 
     push_calls = [fake_push, fake_index_push]
@@ -41,10 +42,10 @@ def _make_gateway(gw_id: str = "GW01", drop_copy: bool = False):
         ),
     ):
         gw = Gateway(gw_id, drop_copy=drop_copy)
-    # make_subscriber() with no topics subscribes to everything; construction
-    # must drop that so no other participant's fills arrive before DC|ON.
-    fake_dc_sub.setsockopt.assert_called_once_with(zmq.UNSUBSCRIBE, b"")
-    fake_dc_sub.reset_mock()
+    # The drop-copy socket takes this gateway's own topic and nothing else:
+    # make_subscriber() with no topics would subscribe to everything.
+    assert subscribed[2] == (f"drop_copy.event.{gw.gateway_id}",)
+    fake_dc_sub.setsockopt.assert_not_called()
     return gw, fake_sub, fake_index_sub, fake_dc_sub
 
 
@@ -90,25 +91,23 @@ def test_dc_disabled_by_default_no_subscribe_call() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_dc_command_on_subscribes_dc_socket_only() -> None:
+def test_dc_command_on_enables_without_touching_a_socket() -> None:
     gw, sub, index_sub, dc_sub = _make_gateway("GW01")
 
     gw._parse_and_send("DC|STATE=ON")
 
-    dc_sub.setsockopt.assert_called_once_with(zmq.SUBSCRIBE, b"drop_copy.event.GW01")
-    sub.setsockopt.assert_not_called()
-    index_sub.setsockopt.assert_not_called()
+    for sock in (sub, index_sub, dc_sub):
+        sock.setsockopt.assert_not_called()
     assert gw._dc_enabled is True
 
 
-def test_dc_command_off_unsubscribes() -> None:
+def test_dc_command_off_disables() -> None:
     gw, _sub, _index_sub, dc_sub = _make_gateway("GW01")
 
     gw._parse_and_send("DC|STATE=ON")
-    dc_sub.reset_mock()
     gw._parse_and_send("DC|STATE=OFF")
 
-    dc_sub.setsockopt.assert_called_once_with(zmq.UNSUBSCRIBE, b"drop_copy.event.GW01")
+    dc_sub.setsockopt.assert_not_called()
     assert gw._dc_enabled is False
 
 
@@ -116,10 +115,10 @@ def test_dc_command_on_twice_is_idempotent() -> None:
     gw, _sub, _index_sub, dc_sub = _make_gateway("GW01")
 
     gw._parse_and_send("DC|STATE=ON")
-    dc_sub.reset_mock()
     gw._parse_and_send("DC|STATE=ON")
 
-    dc_sub.setsockopt.assert_not_called()  # no-op: already enabled
+    dc_sub.setsockopt.assert_not_called()
+    assert gw._dc_enabled is True
 
 
 def test_dc_command_missing_state_prints_error() -> None:
@@ -151,14 +150,12 @@ def test_set_drop_copy_helper_direct() -> None:
     gw, _sub, _index_sub, dc_sub = _make_gateway("GW01")
 
     gw._set_drop_copy(True)
-    dc_sub.setsockopt.assert_called_once_with(zmq.SUBSCRIBE, b"drop_copy.event.GW01")
-
-    dc_sub.reset_mock()
+    assert gw._dc_enabled is True
     gw._set_drop_copy(True)  # idempotent
-    dc_sub.setsockopt.assert_not_called()
-
+    assert gw._dc_enabled is True
     gw._set_drop_copy(False)
-    dc_sub.setsockopt.assert_called_once_with(zmq.UNSUBSCRIBE, b"drop_copy.event.GW01")
+    assert gw._dc_enabled is False
+    dc_sub.setsockopt.assert_not_called()
 
 
 def test_drop_copy_requested_on_startup_flag_stored() -> None:
@@ -176,6 +173,7 @@ def test_drop_copy_requested_on_startup_flag_stored() -> None:
 
 def test_handle_dc_event_prints_dc_fill_line() -> None:
     gw, _sub, _index_sub, _dc_sub = _make_gateway("GW01")
+    gw._set_drop_copy(True)
 
     with patch("edumatcher.alf_console.main.console.print") as mock_print:
         gw._handle_dc_event(
@@ -206,11 +204,26 @@ def test_handle_dc_event_ignores_a_gateway_it_only_prefixes() -> None:
     """``SUBSCRIBE`` matches by prefix, so GW01's socket also receives GW010's
     fills -- another participant's, numbered in another ``seq`` stream."""
     gw, _sub, _index_sub, _dc_sub = _make_gateway("GW01")
+    gw._set_drop_copy(True)
 
     with patch("edumatcher.alf_console.main.console.print") as mock_print:
         gw._handle_dc_event(
             "drop_copy.event.GW010",
             {"seq": 1, "gateway_id": "GW010", "symbol": "AAPL"},
+        )
+
+    mock_print.assert_not_called()
+
+
+def test_handle_dc_event_is_silent_while_dc_is_off() -> None:
+    """The own topic is subscribed for the whole session; DC|STATE=OFF (the
+    default) must still hide its fills."""
+    gw, _sub, _index_sub, _dc_sub = _make_gateway("GW01")
+
+    with patch("edumatcher.alf_console.main.console.print") as mock_print:
+        gw._handle_dc_event(
+            "drop_copy.event.GW01",
+            {"seq": 1, "gateway_id": "GW01", "symbol": "AAPL"},
         )
 
     mock_print.assert_not_called()

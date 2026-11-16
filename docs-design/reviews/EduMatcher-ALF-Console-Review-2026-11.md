@@ -47,8 +47,9 @@ engine side runs in its own process. Command lines were driven through
 with the same setup. The other findings are by inspection, with line numbers
 given.
 
-Status: **Open.** Decisions Q1–Q6 are needed before WP-ACN01, -02, -03 and
--04.
+Status: **Done, uncommitted (2026-11-16).** Q1–Q6 decided 2026-11-16: every
+recommendation accepted. All seven WPs done; one finding added while
+implementing (H3, fixed in WP-ACN06).
 
 ---
 
@@ -88,13 +89,13 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-ACN01 | Only this gateway's own events reach its screen and caches | H1 | Q1 | 0.25 d | ☐ | |
-| 2 | WP-ACN02 | No typed line or table print ends the session | H2, C2 | Q2 | 0.5 d | ☐ | |
-| 3 | WP-ACN03 | A burst never silently costs the console its own events, and only the listener touches its sockets | C1, C3, P1 | Q3, Q4 | 0.5 d | ☐ | |
-| 4 | WP-ACN04 | `POS` shows what the engine holds, also after a restart | C4 | Q5 | 0.5 d | ☐ | |
-| 5 | WP-ACN05 | A refused or lost session says why and exits non-zero | C5 | Q6 | 0.25 d | ☐ | |
-| 6 | WP-ACN06 | Stop triggers, dates, DC and prices are shown as they are | C6, C7, C8, C9 | — | 0.5 d | ☐ | |
-| 7 | WP-ACN07 | Comments, help texts and guides say what the code does | D1–D11 | WP-ACN01–06 | 0.5 d | ☐ | |
+| 1 | WP-ACN01 | Only this gateway's own events reach its screen and caches | H1 | Q1 | 0.25 d | ☑ | 2026-11-16 |
+| 2 | WP-ACN02 | No typed line or table print ends the session | H2, C2 | Q2 | 0.5 d | ☑ | 2026-11-16 |
+| 3 | WP-ACN03 | A burst never silently costs the console its own events, and only the listener touches its sockets | C1, C3, P1 | Q3, Q4 | 0.5 d | ☑ | 2026-11-16 |
+| 4 | WP-ACN04 | `POS` shows what the engine holds, also after a restart | C4 | Q5 | 0.5 d | ☑ | 2026-11-16 |
+| 5 | WP-ACN05 | A refused or lost session says why and exits non-zero | C5 | Q6 | 0.25 d | ☑ | 2026-11-16 |
+| 6 | WP-ACN06 | Stop triggers, dates, DC and prices are shown as they are; prices are sent at the symbol's tick size | H3, C6, C7, C8, C9 | — | 0.5 d | ☑ | 2026-11-16 |
+| 7 | WP-ACN07 | Comments, help texts and guides say what the code does | D1–D11 | WP-ACN01–06 | 0.5 d | ☑ | 2026-11-16 |
 
 Suggested order: **WP-ACN01 → WP-ACN02 → WP-ACN03 → WP-ACN04 → WP-ACN05 →
 WP-ACN06 → WP-ACN07**. WP-ACN01 is a one-line-per-handler fix for positions
@@ -145,6 +146,10 @@ The defects are in five places:
   seen in this process, so a restarted console shows "No positions." while
   the engine holds them, and the guide's re-sync playbook tells the user to
   run `POS` to rebuild.
+- **Prices sent at the wrong scale (H3, added during implementation).** The
+  console never registers the tick sizes the engine lists, so every price
+  is converted at two decimals; on a 3-decimal symbol `PRICE=10.12` goes
+  out as 1012 ticks, which the engine reads as 1.012.
 - **Smaller gaps (C5–C9).** An unreachable engine is reported as "Gateway not
   allowed" and every failure exits 0; stop triggers are never shown; a bad
   `INDEX|HISTORY` date silently becomes "last 30 days"; `DC|STATE=ON` prints
@@ -163,6 +168,7 @@ lost or misleading figure or event; a failure that ends the session.
 |----|-----|------|---------|----|
 | H1 | High | Routing | A `TRADER1` console prints `TRADER10`'s fill and books it: `POS` AAPL +100 from another participant's trade *(repro)* | ACN01 |
 | H2 | High | Parser | 10 malformed values raise out of the prompt loop: session ends, `gateway_disconnect` sent, engine cancels the participant's quotes (default) or all orders *(repro)* | ACN02 |
+| H3 | High | Prices | Found during WP-ACN02: the console never learns tick sizes, so every price is converted at two decimals; on a 3-decimal symbol `PRICE=10.12` is sent as 1012 ticks, which the engine reads as 1.012 *(repro)* | ACN06 |
 | C1 | Med | Feed | Default 1000-message RCVHWM shared with the market-wide trade feed: 1 022 of 2 000 own fills lost in a burst, no warning; per-topic `seq` ignored *(repro)* | ACN03 |
 | C2 | Med | Threads | `STATUS` raised `RuntimeError: dictionary changed size during iteration` in 407 of 408 calls while the listener inserted orders; same exit as H2 *(repro)* | ACN02 |
 | C3 | Low | Threads | `DC` and `POS\|GW=` call `setsockopt` from the prompt thread on sockets the listener thread polls; ZeroMQ sockets are not thread-safe | ACN03 |
@@ -267,6 +273,44 @@ before the builder that raises.
 **Fix.** See Q2: validate every numeric field inside the command's own
 `try`, build the message before caching the order, and guard the prompt loop
 so an unexpected exception prints an error and keeps the session.
+
+### H3. Every price is converted at two decimals *(repro)* — High
+
+*Found on 2026-11-16 while implementing WP-ACN02; not in the original
+review.* The console converts a typed price with `to_ticks_exact(price,
+symbol)` (`NEW`, `QUOTE`, OCO and combo legs), which scales by
+`get_tick_decimals(symbol)`. That registry answers the two-decimal default
+for every symbol the process has not registered, and nothing in
+pm-alf-console registers one: pm-alf-gwy, pm-balf-gwy, pm-api-gwy and
+pm-mm-bot call `register_tick_decimals` from their `system.symbols` reply,
+the console only prints that reply. The engine scales `price_ticks` by its
+own registry and never compares the `tick_decimals` an order carries
+(`Order.from_dict` in `_handle_new_order`, `engine/main.py:1961-1966`).
+`_send_combo` also hard-codes `tick_decimals=2` on every leg.
+
+Repro: a `GW01` console receives the engine's `system.symbols` reply with
+`XYZ` at `tick_decimals: 3`, then two orders are typed:
+
+```text
+printed: [red]10.125 is not a multiple of XYZ's tick size 0.01[/red]
+order.new price_ticks= 1012 tick_decimals= 2 -> engine at 3 decimals reads 1.012
+```
+
+A valid price on the symbol's grid is refused, and a price on the
+two-decimal grid is sent ten times too low. A SELL limit at 10.12 becomes
+a sell at 1.012 and trades against any bid above that, unless a price
+collar refuses it. The training guide's startup config defines 3-decimal
+symbols (see C9).
+
+An engine without a config sends no tick sizes and converts at the same
+two-decimal default, so the console is right there; the gap is that the
+console never asks.
+
+**Fix.** Request `system.symbols` at logon and register each symbol's
+`tick_decimals` from every reply (the table is printed only for a typed
+`SYMBOLS`); open the prompt only once that first reply has arrived, so no
+order can be converted before it; combo legs carry
+`get_tick_decimals(symbol)`.
 
 ### C1. Own fills are lost in a burst, and nothing says so *(repro)* — Med
 
@@ -517,6 +561,8 @@ readable console.
 | Q5 | `POS` after a restart (C4): (a) at connect and after a C1 gap, request the own `system.position_snapshot` and seed net quantity and average cost; realised P&L stays session-local and the table says "since connect"; (b) make `POS` always ask the engine, as pm-alf-gwy does, dropping local P&L; (c) docs only. | **(a)**: keeps the console's P&L view, fixes the number that matters. (b) removes realised/unrealised P&L that the training chapters use; (c) leaves a trader believing they are flat. |
 | Q6 | Exit codes (C5): (a) 1 for refused, unreachable and lost connection, 0 for `EXIT`/`QUIT`/Ctrl-D/Ctrl-C at the prompt; (b) distinct codes per cause. | **(a)**: no caller distinguishes causes today; the printed reason does. |
 
+**Decided 2026-11-16:** all six recommendations accepted (option (a) each).
+
 ---
 
 ## 8. Work packages
@@ -544,6 +590,23 @@ substring tests; broadcast topics keep their exact constants.
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_alf_console_*.py` green.
 
+**Outcome (2026-11-16).** Q1 (a). `Gateway.__init__` builds the tuple of
+gateway-scoped topics once, subscribes with it and keeps it as
+`_own_topics`; `_handle_event` returns at once for a topic that is not
+exactly one of them, not one of the two broadcasts (`trade.executed`,
+`index.update`) and not the outstanding `POS|GW=` reply. One guard in
+place of a comparison in every branch: the branches' substring tests are
+then only reached by exact topics. New `tests/alf_console_harness.py`
+(real PUB/PULL/drop-copy sockets bound on free ports, the module's
+address constants pointed at them, `_listen` in a thread, `sync()` by a
+marker trade) and `tests/test_alf_console_routing.py` (24 tests). Failed
+first: the `TRADER10` fill booked +100 AAPL into a `TRADER1` console, and
+18 of the 20 parametrised families printed or cached the foreign event
+(`index.history`/`index.error` were already exact). Full suite: 14 679
+passed, 1 skipped; 3 failures in `test_log_ledger.py`/
+`test_logclient_handler.py`, files another session was editing at the
+time, which passed on rerun.
+
 ### WP-ACN02 — No typed line or table print ends the session (H2, C2; after Q2)
 
 **Tests first** (`tests/test_alf_console_input.py`):
@@ -570,6 +633,38 @@ Copy dicts before iterating in `print_status` and `print_positions`.
 
 **Exit criteria.** Tests 1–5 pass; suites green.
 
+**Outcome (2026-11-16).** Q2 (a). Two module helpers, `_to_float(key, raw)`
+and `_to_int(key, raw)`, turn a typed value into a number or raise a
+`ValueError` that names the field (`PRICE= is not a number: '1O0.5'`);
+`_to_float` also refuses NaN, infinity and a value too large to scale to
+ticks at 10⁻⁹ (`PRICE=1e308` raised `OverflowError` inside
+`to_ticks_exact`, a boundary case found while writing the tests). Every
+`float(kv[...])`/`int(kv[...])` in AMEND, NEW, QUOTE, OCO legs and combo
+legs goes through them, inside the command's own `try`; NEW refuses
+`QTY` < 1 locally. Each command builds its frames (`make_order_new_msg`,
+`make_order_amend_msg`, `make_quote_new_msg`, `make_oco_order_msg`,
+`make_combo_order_msg`) inside that `try` and only then caches the order
+or the pending quote, so a refused value leaves no `PENDING` row. The
+OCO leg parser now lets a bad value propagate instead of returning `None`,
+which used to add a misleading "OCO requires LEG1_SIDE=…" line. `run()`
+wraps `_parse_and_send` in `except Exception` → red `Command failed: …`
+plus `log.exception` (new ledger entry in
+`log_ledger/entries/alf_console.yaml`). `print_status` and
+`print_positions` copy the dicts before iterating. New
+`tests/test_alf_console_input.py` (21 tests). Failed first: all 12 bad
+lines raised (`ValueError`, `OverflowError`, `MessageValidationError`);
+`run()` ended at the bad AMEND with `STATUS` never run; the patched
+handler's `RuntimeError` ended the session; the race test counted 74
+(`print_status`) and 5 (`print_positions`) `RuntimeError`s in 1 s. The
+"unchanged" frame tests passed before and after. `AMEND|QTY=0` was tried
+and dropped as a case: the builder accepts it and the engine refuses it
+with a reason, which is not this defect. Full suite: 14 710 passed,
+1 skipped.
+
+Found on the way, not caused by this WP: the console never registers tick
+decimals, so every symbol converts at the two-decimal default (new
+finding H3, fixed in WP-ACN06).
+
 ### WP-ACN03 — A burst never silently costs the console its own events, and only the listener touches its sockets (C1, C3, P1; after Q3, Q4)
 
 **Tests first** (`tests/test_alf_console_delivery.py`, real sockets):
@@ -595,6 +690,44 @@ per topic; on a gap print the warning and re-request. Subscribe at start to
 **Exit criteria.** Tests 1–4 pass; suites green. Test 1's loss count is 0 at
 the burst size used; record the measured rate.
 
+**Outcome (2026-11-16).** Q3 (a), Q4 (a). `sub_sock` and `_dc_sub_sock`
+get `rcvhwm=_SUB_RCVHWM` (200 000, as pm-alf-gwy). The listener reads the
+trailer of every engine message; `_check_sequence` keeps the last
+per-topic sequence of each own topic (`_own_topics` from WP-ACN01) and on
+a jump logs a WARNING (new ledger entry), prints
+`WARNING: n event(s) lost on <family> — ORDERS re-synced from the engine`
+in bold red and pushes `order.orders_request`. That request goes out on
+a PUSH socket the listener opens for itself in `_listen`, because
+`push_sock` belongs to the prompt thread (the same rule the heartbeat
+thread follows). The `order.orders` reply now also marks a cached `NEW`/
+`PARTIAL` order that is missing from it as `CLOSED`: the engine lists
+every resting order of the gateway (`orders_for_gateway`, stops and quote
+legs included), so a missing one ended while its last event was lost,
+and "re-synced" would otherwise leave it `NEW` for good, which was the C1
+consequence. `sub_sock` subscribes `system.position_snapshot.` at
+construction and `_dc_sub_sock` the own drop-copy topic (the old
+subscribe-all-then-`UNSUBSCRIBE b""` is gone); `_set_drop_copy` only sets
+`_dc_enabled`, which `_handle_dc_event` checks; `_query_position` and the
+reply handler no longer call `setsockopt`. No `setsockopt` call is left in
+the module.
+
+New `tests/test_alf_console_delivery.py` (10 tests). Test 1 runs the
+engine side in a subprocess (42 000 messages: 40 000 `trade.executed`, 2 000
+own fills, unthrottled) against a console printing with real Rich. Failed
+first: 1 024 of 2 000 fills booked at 42 000 messages in 0.385 s; the gap
+printed nothing and pushed nothing; the `PARTIAL` row stayed `PARTIAL`;
+DC and `POS|GW=` called `setsockopt`. After: 2 000 of 2 000 at 42 000
+messages in 0.366–0.368 s (≈114 000 msg/s), three runs out of three. The
+`POS|GW=` and DC behaviour tests passed before and after. The old tests
+in `test_alf_console_drop_copy.py` and `test_alf_console_position_query.py`
+that asserted the SUBSCRIBE/UNSUBSCRIBE calls were rewritten to the new
+contract (no `setsockopt`; flag and query state), plus one new test that
+DC-off hides an own drop-copy fill; the test helpers' fake
+`make_subscriber` accept `rcvhwm`. Full suite: 14 724 passed, 1 skipped;
+2 failures not caused by this WP: `test_config_gui_mirrors` (another
+session's uncommitted `config_gen/cli_comments.py` change) and
+`test_api_gateway_ws_lifecycle` (passed on rerun).
+
 ### WP-ACN04 — `POS` shows what the engine holds, also after a restart (C4; after Q5)
 
 **Tests first** (`tests/test_alf_console_positions.py`):
@@ -615,6 +748,26 @@ the burst size used; record the measured rate.
 
 **Exit criteria.** Tests 1–4 pass; suites green.
 
+**Outcome (2026-11-16).** Q5 (a). `run()` pushes
+`system.position_request` for the own id right after the orders request;
+`_check_sequence` (WP-ACN03) pushes one too on a gap, and its warning now
+reads "ORDERS and POS re-synced". The own snapshot topic arrives through
+the `system.position_snapshot.` subscription and is in `_own_topics`;
+`_handle_event` passes it to the new `_seed_positions` unless a `POS|GW=`
+for the own id is outstanding (then the engine table is printed as
+before). `_seed_positions` sets `net_qty`/`avg_cost` from the snapshot
+for every symbol it lists, sets a cached symbol it omits to flat, and
+keeps each symbol's realised P&L. The table title is "Positions (P&L since
+connect)". Seeding needs no ordering care: the engine publishes fills and
+the snapshot on one PUB socket in the order it processed them, so a fill
+before the snapshot is already in it and one after builds on it. New
+`tests/test_alf_console_positions.py` (7 tests). Failed first: no
+`system.position_request` at connect; the snapshot did not seed (`KeyError:
+'AAPL'`); a SELL 40 after the seed gave −40 instead of +60; no position
+request on a gap. Unchanged before and after: another gateway's snapshot
+does not seed; `POS|GW=<own id>` prints the engine table. Full suite:
+14 733 passed, 1 skipped.
+
 ### WP-ACN05 — A refused or lost session says why and exits non-zero (C5; after Q6)
 
 **Tests first** (`tests/test_alf_console_exit.py`):
@@ -630,10 +783,36 @@ status; `main()` passes it to `sys.exit`.
 
 **Exit criteria.** Tests 1–4 pass; suites green; `make completion` unchanged.
 
-### WP-ACN06 — Stop triggers, dates, DC and prices are shown as they are (C6, C7, C8, C9)
+**Outcome (2026-11-16).** Q6 (a). The send-failure path of `_authenticate`
+sets `_auth_reason` to `Engine not reachable at <ENGINE_PULL_ADDR> (is
+pm-engine running?)`. `run()` prints every logon failure as `Logon failed:
+<reason>` (was `Connection refused: …`, which read oddly in front of
+"Engine not reachable") and returns an exit status: 1 for a failed logon,
+1 when `_engine_connection_lost` ended the session (new `_connection_lost`
+flag, set there and nowhere else), 0 otherwise. `main()` returns it
+(console scripts pass it to `sys.exit`) and the `__main__` block raises
+`SystemExit(main())`. New `tests/test_alf_console_exit.py` (8 tests);
+`_run_scripted` in `test_alf_console_input.py` now returns `run()`'s
+result. Failed first: the unreachable case printed "Gateway not allowed"
+and every case returned `None`. The exit-0 cases failed only because
+`run()` returned `None`; the process exit was already 0, so they are kept
+as regression checks. No argparse change, `make completion` unchanged.
+Full suite: 14 743 passed, 1 skipped; 2 failures in
+`test_log_srv_server.py`, a file another session had uncommitted changes
+in (log_srv is not touched by this WP).
+
+### WP-ACN06 — Stop triggers, dates, DC and prices are shown as they are; prices are sent at the symbol's tick size (H3, C6, C7, C8, C9)
 
 **Tests first** (`tests/test_alf_console_display.py`,
-`tests/test_alf_console_completer.py`):
+`tests/test_alf_console_completer.py`, `tests/test_alf_console_ticks.py`):
+
+0. (H3) At logon the console pushes `system.symbols_request`; the reply
+   registers the tick sizes and prints nothing; a typed `SYMBOLS` still
+   prints the table. After a reply listing `XYZ` at 3 decimals, `NEW`,
+   `QUOTE`, OCO and combo prices for `XYZ` are sent at 3 decimals
+   (`PRICE=10.125` → 10125 ticks) and combo legs carry
+   `tick_decimals: 3`. `run()` with no reply exits 1 with a message
+   instead of opening the prompt. (Fails today.)
 
 1. `order.triggered.<own>` for a cached STOP_LIMIT: a `TRIGGERED` line with
    the trigger price, cached type becomes `LIMIT`. (Fails today.)
@@ -653,6 +832,49 @@ console part.
 **Exit criteria.** Tests 1–5 pass; suites green; `make completion` if help
 changed.
 
+**Outcome (2026-11-16).** *H3.* `run()` pushes `system.symbols_request`
+first after logon. The `system.symbols` handler registers every entry's
+`tick_decimals` (`register_tick_decimals`, as the other gateways do), sets
+`_symbols_received`, refreshes the completer's list, and prints the table
+only after a typed `SYMBOLS` (`_symbols_requested`). `run()` waits up to
+`_symbols_timeout_sec` (3 s) for the first reply before opening the
+prompt; without it, it logs an ERROR (new ledger entry), prints `Logon
+failed: the engine did not send its symbol list …`, logs out and returns 1.
+The socket-closing tail of `run()` moved into `_shutdown()` so both paths
+use it. Combo legs carry `get_tick_decimals(sym)` instead of `2`.
+*C6.* `order.triggered.<own>` is subscribed (and in `_own_topics`); the
+line is `TRIGGERED <id>  @<stop price>  → <becomes>`, the price from
+`stop_price_ticks` at the message's `tick_decimals`, and the cached type
+becomes `becomes` (LIMIT or MARKET). *C7.* `_parse_date(key, raw)` raises
+a `ValueError` naming the field; `INDEX|HISTORY` prints it, and refuses
+`FROM` after `TO`, sending nothing. *C8.* `DC|STATE=ON|OFF` prints
+`DC ON`/`DC OFF`; the completer has `DC` (`STATE=` → `ON`/`OFF`) and
+`SESSION`, no longer offers `ID=`/`RTAG=` before `TYPE=` on `NEW`, and
+offers `LEG<i>.STOP=`. *C9.* New `display.format_price(value, symbol, *,
+extra_digits, missing)`: prices at the symbol's tick size in the fill,
+amend, drop-copy and `TRIGGERED` lines, `ORDERS`, `QLEGS`, `QBOOT` and the
+`POS` last price; average costs (`POS`, `POS|GW=`) one digit more. That
+last part follows the WP's Change line literally, so a two-decimal
+average now shows three decimals (`150.000`); test 5's "2-decimal symbols
+unchanged" holds for the price columns. L006 updated: only `pm-admin`
+remains.
+
+New `tests/test_alf_console_ticks.py` (6), `test_alf_console_display.py`
+(17), `test_alf_console_completer.py` (5). Failed first: `PRICE=10.12` on
+a 3-decimal symbol sent as 1012 ticks and `10.125` refused; the logon
+symbol list printed a table; no `TRIGGERED` line; the bad dates were sent;
+`DC` printed nothing; 3-decimal prices showed 2 decimals and fill lines
+`@10.1`; the completer lacked `DC`/`SESSION`/`LEG0.STOP=` and offered
+`ID=`. The first run of the new ticks test hung: a bare `MagicMock`
+prompt returned endless lines, which the WP-ACN02 guard kept answering;
+the test now uses the scripted session and counts prompts. Seven tests in
+`tests/test_gateway_and_scheduler.py` encoded the old behaviour (the old
+`_parse_date` signature, "bad date falls back to the default window", the
+logon symbol table printed); they were updated, and the symbol-table test
+now patches `register_tick_decimals` so its `MSFT`=3 does not leak into the
+process-wide registry. No argparse change. Full suite: 14 779 passed,
+1 skipped.
+
 ### WP-ACN07 — Comments, help texts and guides say what the code does (D1–D11; after WP-ACN01–06)
 
 **Tests first.** `tests/test_alf_console_help.py`: `HELP_TEXT` mentions
@@ -666,6 +888,45 @@ tables; the pm-help registry notes. Re-walk the chapter's walkthrough and
 re-sync playbook against the final code (lessons-learned §B1).
 
 **Exit criteria.** Test passes; `make _check` clean; `mkdocs build` clean.
+
+**Outcome (2026-11-16).** New `tests/test_alf_console_help.py` (4 tests);
+all four failed first (`ATO`/`ATC` missing, `NONE (default)`, no
+`LEG1_TRAIL`/`LEG<i>.STOP`/`LEG<i>.TYPE`, `../` in `--help`). D1: the
+`--drop-copy` help names the Drop copy chapter instead of a repository
+path (`make completion` regenerated `pm-completion.zsh`, one line). D2: the
+module docstring says the console is not a gateway and gives the exit
+statuses; `CLEAR` added, indentation evened. D3: the misleading
+`_query_position`/`_pos_query_*` comments were rewritten in WP-ACN03. D4/D5:
+`HELP` lists `TIF` `ATO`/`ATC`, says an omitted `SMP` takes the
+participant's `smp_action`, adds `LEG1_TRAIL`, `TAG`, and the combo leg
+fields (`LEG<i>.TYPE`, `LEG<i>.STOP`, `SMP`, `TAG`); the `POS` line says
+where quantity and cost come from. D6: the pm-help notes list the whole
+vocabulary and the exit statuses. Trader console chapter: startup sequence
+(subscriptions incl. `order.triggered`, `system.session_status`,
+`system.position_snapshot.`, the 200 000 buffer; logon failures as
+`Logon failed: …` with exit 1; the symbol-list wait), the drop-copy note,
+`INDEX|HISTORY` date refusals, `DC` wording and `DC ON` example (C8), `ID`
+as a 32-character order id (D11, three places), `POS` (title, engine
+seed, "since connect", decimals, re-sync), `POS|GW=` (no dynamic
+subscription; unknown id prints flat), `SYMBOLS` (with a config every
+configured symbol is listed — the old note said the opposite, wrong since
+`_load_config` pre-creates the books; the tick-size note), the re-sync
+playbook (C4), the order event table (`TRIGGERED`, D8 `EXPIRED` text,
+two-decimal `AMENDED`), new "Lost events" and "Input errors" sections,
+the walkthrough, the prefix-id sentence (H1), the completion table (C8),
+the background-events paragraph (D7) and the triage table (C5, lost
+events). Reference manual (D10): runtime commands, connection behaviour,
+exit status, all 19 messages sent and every subscription, the prefix and
+gap behaviour. Re-walk (lessons-learned §B1): transcripts in other books
+that showed the old formats were updated: 27 `FILL`/`AMENDED`/`DC_FILL`
+lines in the quick-start, participant and training guides gained the
+second decimal (all their symbols are 2-decimal), the quick-start `POS`
+and `ORDERS` tables, and the quick-start FAQ's engine-down message. These
+transcripts were derived from the code's format strings, not re-run.
+`make _check`: black, mypy, pyright, msgen, dbdocs, openapi pass; flake8
+fails only on two unused `import os` in `tests/test_dc_gwy_gateway.py` and
+`tests/test_ralf_gateway.py`, committed in `f9be5ad7` and not touched
+here. `mkdocs build` clean. Full suite: 14 784 passed, 1 skipped.
 
 ---
 

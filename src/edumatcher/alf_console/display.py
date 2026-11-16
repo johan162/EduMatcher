@@ -10,6 +10,8 @@ from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.table import Table
 
+from edumatcher.models.price import get_tick_decimals
+
 
 class _SysStdoutProxy:
     """
@@ -55,7 +57,7 @@ PROMPT_STYLE = Style.from_dict(
 HELP_TEXT = """
 [bold]FIX-like command reference[/bold]
 
-    NEW|SYM=<sym>|SIDE=BUY|SELL|TYPE=<type>|QTY=<n>[|PRICE=<p>][|STOP=<p>][|TRAIL=<offset>][|TIF=DAY|GTC][|VISIBLE=<n>][|SMP=<action>][|TAG=<order-tag>]
+    NEW|SYM=<sym>|SIDE=BUY|SELL|TYPE=<type>|QTY=<n>[|PRICE=<p>][|STOP=<p>][|TRAIL=<offset>][|TIF=<tif>][|VISIBLE=<n>][|SMP=<action>][|TAG=<order-tag>]
 
     AMEND|ID=<order-id>[|PRICE=<new-price>][|QTY=<new-qty>][|RTAG=<request-tag>]
     • Amend a resting LIMIT or ICEBERG order in-place (no cancel+resubmit needed)
@@ -75,18 +77,21 @@ HELP_TEXT = """
     TRAILING_STOP — stop that trails market by TRAIL= offset; provide initial STOP= or
                     omit for automatic initialisation from last trade price
 
-  TIF  : DAY (default)  GTC
-  SMP  : NONE (default)  CANCEL_AGGRESSOR  CANCEL_RESTING  CANCEL_BOTH
+  TIF  : DAY (default)  GTC  ATO (opening auction)  ATC (closing auction)
+  SMP  : NONE  CANCEL_AGGRESSOR  CANCEL_RESTING  CANCEL_BOTH
+         (omitted: your participant's configured smp_action)
 
   [bold]OCO orders (One-Cancels-Other — two linked orders):[/bold]
-  NEW|TYPE=OCO|OCO_ID=<label>|SYM=<sym>|QTY=<n>|TIF=DAY|GTC|LEG1_SIDE=BUY|SELL|LEG1_TYPE=<type>[|LEG1_PRICE=<p>][|LEG1_STOP=<p>]|LEG2_SIDE=...
+  NEW|TYPE=OCO|OCO_ID=<label>|SYM=<sym>|QTY=<n>|TIF=DAY|GTC|LEG1_SIDE=BUY|SELL|LEG1_TYPE=<type>[|LEG1_PRICE=<p>][|LEG1_STOP=<p>][|LEG1_TRAIL=<offset>]|LEG2_SIDE=...[|TAG=<tag>]
     • Both legs on the same symbol, same quantity
     • When one leg fills or is cancelled, the other is auto-cancelled
     • Classic use: take-profit limit + stop-loss (sell side)
   CANCEL|OCO_ID=<label>   — cancel an OCO pair and both its legs
 
   [bold]Combo orders (multi-leg):[/bold]
-  NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|GTC|LEG_COUNT=<n>|LEG0.SYM=<sym>|LEG0.SIDE=BUY|LEG0.QTY=<n>|LEG0.PRICE=<p>|LEG1.SYM=...
+  NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|GTC|LEG_COUNT=<n>|LEG0.SYM=<sym>|LEG0.SIDE=BUY|LEG0.QTY=<n>|LEG0.PRICE=<p>|LEG1.SYM=...[|SMP=<action>][|TAG=<tag>]
+    • Per leg: LEG<i>.SYM= LEG<i>.SIDE= LEG<i>.QTY= [LEG<i>.TYPE=LIMIT (default)|MARKET|STOP|STOP_LIMIT]
+      [LEG<i>.PRICE=<p>] [LEG<i>.STOP=<p>]
     • 2–10 legs, each on a different symbol
     • Child orders are posted to books and fill independently
     • If any leg is cancelled/expires, all remaining legs are cascade-cancelled
@@ -101,7 +106,7 @@ HELP_TEXT = """
     DC|STATE=ON|OFF                 — toggle async drop-copy relay (own fills only)
     STATUS      — show gateway/session summary (identity, symbols, order counts)
     ORDERS      — inspect this gateway's order table with IDs, quantities, and status
-  POS         — show current positions with P&L
+  POS         — show positions (quantity and cost from the engine) with this session's P&L
   POS|GW=<gateway_id>  — query another gateway's (e.g. an MM bot's) position
   SYMBOLS     — list all active instruments in the engine
   SESSION     — query the engine's current trading session state
@@ -113,6 +118,18 @@ HELP_TEXT = """
   CLEAR       — clear the terminal screen (like the shell's `clear`)
   EXIT / QUIT — disconnect
 """
+
+
+def format_price(
+    value: object, symbol: str, *, extra_digits: int = 0, missing: str = "—"
+) -> str:
+    """A price at the symbol's tick size; *extra_digits* more for an average.
+
+    *missing* stands in for anything that is not a number.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return missing
+    return f"{value:.{get_tick_decimals(symbol) + extra_digits}f}"
 
 
 def is_active_leg_status(status: str) -> bool:
@@ -182,8 +199,7 @@ def print_quote_legs(
         colour = status_colour.get(leg_status, "white")
         filled_qty = int(row.get("filled", 0))
         fill_flag = "YES" if filled_qty > 0 else "NO"
-        price = row.get("price")
-        price_text = f"{price:.2f}" if isinstance(price, (int, float)) else "—"
+        price_text = format_price(row.get("price"), str(row.get("symbol", "")))
         t.add_row(
             str(row.get("symbol", "?")),
             str(row.get("quote_id", "?")),
@@ -220,10 +236,9 @@ def print_quote_bootstrap(gateway_id: str, quotes: list[dict[str, Any]]) -> None
     t.add_column("AskRem", justify="right")
 
     for q in quotes:
-        bid_px = q.get("bid_price")
-        ask_px = q.get("ask_price")
-        bid_txt = f"{bid_px:.2f}" if isinstance(bid_px, (int, float)) else "-"
-        ask_txt = f"{ask_px:.2f}" if isinstance(ask_px, (int, float)) else "-"
+        symbol = str(q.get("symbol", ""))
+        bid_txt = format_price(q.get("bid_price"), symbol, missing="-")
+        ask_txt = format_price(q.get("ask_price"), symbol, missing="-")
         t.add_row(
             str(q.get("symbol", "?")),
             str(q.get("quote_id", "?")),
@@ -285,18 +300,22 @@ def print_positions(
     positions: dict[str, dict[str, Any]],
     last_prices: dict[str, float],
 ) -> None:
-    active = {s: p for s, p in positions.items() if p["net_qty"] != 0}
-    flat = {
-        s: p
-        for s, p in positions.items()
-        if p["net_qty"] == 0 and p["realized_pnl"] != 0.0
-    }
+    # A copy: the listener thread adds symbols while this runs.
+    items = list(positions.items())
+    active = {s: p for s, p in items if p["net_qty"] != 0}
+    flat = {s: p for s, p in items if p["net_qty"] == 0 and p["realized_pnl"] != 0.0}
 
     if not active and not flat:
         console.print("[dim]No positions.[/dim]")
         return
 
-    t = Table(title="Positions", show_header=True, header_style="bold magenta")
+    # Net quantity and average cost come from the engine at connect; realised
+    # P&L only counts fills this session has seen.
+    t = Table(
+        title="Positions (P&L since connect)",
+        show_header=True,
+        header_style="bold magenta",
+    )
     t.add_column("Symbol", style="bold", min_width=8)
     t.add_column("Net Qty", justify="right", min_width=8)
     t.add_column("Avg Cost", justify="right", min_width=10)
@@ -314,14 +333,14 @@ def print_positions(
             upnl = (last - avg) * net
             colour = "green" if upnl >= 0 else "red"
             unreal = f"[{colour}]{upnl:+.2f}[/{colour}]"
-        last_str = f"{last:.2f}" if last is not None else "—"
+        last_str = format_price(last, symbol)
         rpnl = pos["realized_pnl"]
         rpnl_colour = "green" if rpnl >= 0 else "red"
 
         t.add_row(
             symbol,
             f"{net:+d}",
-            f"{avg:.2f}",
+            format_price(avg, symbol, extra_digits=1),
             last_str,
             unreal or "—",
             f"[{rpnl_colour}]{rpnl:+.2f}[/{rpnl_colour}]",
@@ -368,7 +387,7 @@ def print_remote_position(gateway_id: str, positions: list[dict[str, Any]]) -> N
         symbol = str(pos.get("symbol", "?"))
         net = int(pos.get("net_qty", 0))
         avg = float(pos.get("avg_cost", 0.0))
-        t.add_row(symbol, f"{net:+d}", f"{avg:.2f}")
+        t.add_row(symbol, f"{net:+d}", format_price(avg, symbol, extra_digits=1))
 
     console.print(t)
 
@@ -410,8 +429,11 @@ def print_status(
     quote_leg_cache: dict[str, dict[str, Any]],
     positions: dict[str, dict[str, Any]],
 ) -> None:
+    # Copies: the listener thread inserts into both caches while this runs.
+    orders = list(order_cache.values())
+    quote_legs = list(quote_leg_cache.values())
     status_counts: dict[str, int] = {}
-    for order in order_cache.values():
+    for order in orders:
         status = str(order.get("status", "UNKNOWN"))
         status_counts[status] = status_counts.get(status, 0) + 1
 
@@ -421,9 +443,7 @@ def print_status(
         if status in {"NEW", "PARTIAL", "PENDING"}
     )
     active_quote_legs = sum(
-        1
-        for leg in quote_leg_cache.values()
-        if is_active_leg_status(str(leg.get("status", "")))
+        1 for leg in quote_legs if is_active_leg_status(str(leg.get("status", "")))
     )
 
     table = Table(title=f"Gateway status — {gateway_id}", show_lines=True)
@@ -435,9 +455,9 @@ def print_status(
         "Known symbols",
         ", ".join(known_symbols) if known_symbols else "—",
     )
-    table.add_row("Cached orders", str(len(order_cache)))
+    table.add_row("Cached orders", str(len(orders)))
     table.add_row("Active/resting orders", str(active_orders))
-    table.add_row("Cached quote legs", str(len(quote_leg_cache)))
+    table.add_row("Cached quote legs", str(len(quote_legs)))
     table.add_row("Active quote legs", str(active_quote_legs))
     table.add_row(
         "Position symbols",
@@ -603,7 +623,7 @@ def print_orders(gateway_id: str, order_cache: dict[str, dict[str, Any]]) -> Non
             o["tif"],
             str(o["qty"]),
             str(o["remaining"]),
-            str(o["price"]) if o["price"] else "—",
+            format_price(o["price"], o["symbol"]) if o["price"] else "—",
             f"[{colour}]{st}[/{colour}]",
             o["time"],
         )

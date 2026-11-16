@@ -1,14 +1,17 @@
 """
-Gateway — user-facing terminal process.
+pm-alf-console — the interactive trader console.
 
 Usage:
   poetry run pm-alf-console --id GW01
 
-Accepts FIX-like text commands on stdin, sends to engine, prints responses.
+Not a gateway: it talks to pm-engine directly over ZeroMQ as participant
+``--id``, reads ALF-style commands at a prompt, sends them to the engine and
+prints the engine's events for this participant. Exit status: 0 when the user
+leaves, 1 when the logon fails or the engine connection is lost.
 
 Commands
 --------
-    NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TAG=demo-1
+  NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TAG=demo-1
   NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=GTC
   NEW|SYM=MSFT|SIDE=SELL|TYPE=MARKET|QTY=50
   NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00
@@ -19,10 +22,10 @@ Commands
   NEW|SYM=AAPL|SIDE=BUY|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.50
   NEW|TYPE=OCO|OCO_ID=<label>|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=150.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
   NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=300.00
-    AMEND|ID=ORD-xxxx|PRICE=151.00[|RTAG=req-1]
-    AMEND|ID=ORD-xxxx|QTY=200[|RTAG=req-2]
-    AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200[|RTAG=req-3]
-    CANCEL|ID=ORD-xxxx[|RTAG=req-4]
+  AMEND|ID=ORD-xxxx|PRICE=151.00[|RTAG=req-1]
+  AMEND|ID=ORD-xxxx|QTY=200[|RTAG=req-2]
+  AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200[|RTAG=req-3]
+  CANCEL|ID=ORD-xxxx[|RTAG=req-4]
   CANCEL|COMBO_ID=<label>
   CANCEL|OCO_ID=<label>
   QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500
@@ -38,11 +41,12 @@ Commands
   POS|GW=<gateway_id>      — query another gateway's (e.g. an MM bot's) position
   SYMBOLS                  — list all active instruments in the engine
   SESSION                  — query the engine's current trading session state
-    INDEX                    — show current index level
-    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/audit history
-                                (corporate actions, constituent changes — not level ticks;
-                                 use pm-stats-cli for level/EOD history)
+  INDEX                    — show current index level
+  INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/audit history
+                             (corporate actions, constituent changes — not level ticks;
+                              use pm-stats-cli for level/EOD history)
   HELP                     — show command reference
+  CLEAR                    — clear the screen
   EXIT / QUIT              — disconnect
 """
 
@@ -51,6 +55,7 @@ from __future__ import annotations
 import argparse
 from collections import OrderedDict, defaultdict, deque
 import logging
+import math
 import threading
 import time
 from datetime import datetime, timedelta
@@ -84,6 +89,7 @@ from edumatcher.models.envelope import new_ulid
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
+    decode_sequence,
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
@@ -113,8 +119,8 @@ from edumatcher.models.order import (
     TIF,
 )
 from edumatcher.models.price import (
-    TickViolation,
     get_tick_decimals,
+    register_tick_decimals,
     to_ticks_exact,
 )
 
@@ -126,6 +132,7 @@ from .display import (
     HELP_TEXT,
     PROMPT_STYLE,
     console,
+    format_price,
     is_active_leg_status,
     print_current_index,
     print_index_history,
@@ -152,12 +159,14 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDER_TRIGGERED,
     PREFIX_ORDERS,
     topic_order_ack,
     topic_order_amended,
     topic_order_cancelled,
     topic_order_expired,
     topic_order_fill,
+    topic_order_triggered,
     topic_orders,
 )
 from edumatcher.models.generated.structure import (
@@ -174,6 +183,7 @@ from edumatcher.models.generated.quote import (
     topic_quote_status,
 )
 from edumatcher.models.generated.system import (
+    PREFIX_POSITION_SNAPSHOT,
     topic_gateway_auth,
     topic_position_snapshot,
     topic_quote_bootstrap,
@@ -182,6 +192,11 @@ from edumatcher.models.generated.system import (
 )
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+# Receive buffer of the engine and drop-copy SUB sockets, in messages. The
+# engine socket also carries every trade on the exchange; with ZeroMQ's
+# default of 1000 a busy market evicted this console's own fills (review C1).
+# The same depth as pm-alf-gwy.
+_SUB_RCVHWM = 200_000
 _CLIENT_NAME = "pm-alf-console"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
@@ -203,7 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable drop-copy relay on startup (equivalent to sending "
         "DC|STATE=ON immediately after connecting). Default: off. Can also "
         "be toggled at runtime with the DC|STATE=ON / DC|STATE=OFF command. "
-        "See ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md",
+        "See the Drop copy chapter of the Protocols and Clients book.",
     )
     parser.add_argument(
         "--log-level",
@@ -290,6 +305,31 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+def _to_float(key: str, raw: str) -> float:
+    """The price or offset typed as ``KEY=<raw>``.
+
+    The ValueError names the field, so a parse error says which value was
+    wrong instead of "could not convert string to float". NaN and infinity
+    are refused, and so is a value too large to scale to ticks at the
+    finest grid a symbol can have (10**-9).
+    """
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ValueError(f"{key}= is not a number: {raw!r}") from None
+    if not math.isfinite(value * 10**9):
+        raise ValueError(f"{key}= must be a finite number: {raw!r}")
+    return value
+
+
+def _to_int(key: str, raw: str) -> int:
+    """The whole number typed as ``KEY=<raw>``; the ValueError names the field."""
+    try:
+        return int(raw)
+    except ValueError:
+        raise ValueError(f"{key}= is not a whole number: {raw!r}") from None
+
+
 def _completion_key_bindings() -> KeyBindings:
     """Make Enter accept a highlighted completion instead of submitting.
 
@@ -328,10 +368,10 @@ class Gateway:
         self._dc_enabled = False
         self._dc_requested_on_startup = drop_copy
         # POS|GW=<gateway_id>: which other gateway's position was last
-        # queried, and the topic currently subscribed for its reply — set
-        # only between issuing the request and receiving (or timing out)
-        # the matching system.position_snapshot.<gateway_id>. None when no
-        # query is outstanding.
+        # queried, and the topic of its reply -- set between issuing the
+        # request and receiving the matching
+        # system.position_snapshot.<gateway_id>. None when no query is
+        # outstanding.
         self._pos_query_gateway_id: str | None = None
         self._pos_query_topic: bytes | None = None
         self.order_cache: dict[str, dict[str, Any]] = {}  # order_id → state dict
@@ -356,6 +396,13 @@ class Gateway:
         # wrong detail.
         self._pending_quote_requests: deque[dict[str, Any]] = deque()
         self._known_symbols: list[str] = []
+        # Set by the first system.symbols reply, which registers the tick
+        # sizes every typed price is converted with; run() opens the prompt
+        # only after it (review H3).
+        self._symbols_received = threading.Event()
+        self._symbols_timeout_sec = 3.0
+        # The reply is printed only when the user typed SYMBOLS.
+        self._symbols_requested = False
         self._positions: dict[str, dict[str, Any]] = (
             {}
         )  # symbol → {net_qty, avg_cost, realized_pnl}
@@ -363,20 +410,22 @@ class Gateway:
         self._last_index_update: dict[str, Any] | None = None
         self._default_index_id: str | None = None
         self._running = True
+        # Set when the session ends because the engine went away; run()
+        # then exits 1 instead of 0.
+        self._connection_lost = False
         self._heartbeat_stop = threading.Event()
         self._authenticated: bool = False
         self._prompt_session: PromptSession[str] | None = None
 
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
         self._index_push_sock = make_pusher(INDEX_PULL_CONNECT_ADDR)
-        # Subscribe to all order events for this gateway + trade feed for last prices
-        self.sub_sock = make_subscriber(
-            ENGINE_PUB_ADDR,
+        engine_topics = (
             topic_order_ack(self.gateway_id),
             topic_order_fill(self.gateway_id),
             topic_order_amended(self.gateway_id),
             topic_order_cancelled(self.gateway_id),
             topic_order_expired(self.gateway_id),
+            topic_order_triggered(self.gateway_id),
             topic_orders(self.gateway_id),
             topic_combo_ack(self.gateway_id),
             topic_combo_cancel_ack(self.gateway_id),
@@ -392,23 +441,47 @@ class Gateway:
             topic_quote_bootstrap(self.gateway_id),
             topic_session_status(self.gateway_id),
             topic_gateway_auth(self.gateway_id),
-            TOPIC_TRADE_EXECUTED,
         )
-        self._index_sub_sock = make_subscriber(
-            INDEX_PUB_CONNECT_ADDR,
-            TOPIC_INDEX_UPDATE,
+        index_topics = (
             topic_index_history(self.gateway_id),
             topic_index_error(self.gateway_id),
         )
+        # The engine's answer to this console's own position request
+        # (_seed_positions); received through the PREFIX_POSITION_SNAPSHOT
+        # subscription below.
+        self._own_position_topic = topic_position_snapshot(self.gateway_id)
+        # A SUBSCRIBE is a byte prefix, so order.fill.GW1 also delivers
+        # order.fill.GW10: _handle_event handles a gateway-scoped topic only
+        # when it is exactly one of these.
+        self._own_topics = frozenset(
+            engine_topics + index_topics + (self._own_position_topic,)
+        )
+        # Last per-topic sequence seen on each own topic (_check_sequence).
+        self._topic_seq: dict[str, int] = {}
+        # Subscribe to all order events for this gateway, the trade feed for
+        # last prices, and every gateway's position snapshot for POS|GW=:
+        # subscribed once here because only the listener thread may touch
+        # this socket, and so a reply can never overtake its subscription.
+        self.sub_sock = make_subscriber(
+            ENGINE_PUB_ADDR,
+            *engine_topics,
+            TOPIC_TRADE_EXECUTED,
+            PREFIX_POSITION_SNAPSHOT,
+            rcvhwm=_SUB_RCVHWM,
+        )
+        self._index_sub_sock = make_subscriber(
+            INDEX_PUB_CONNECT_ADDR, TOPIC_INDEX_UPDATE, *index_topics
+        )
         # Separate SUB socket for the engine's drop-copy feed (:5557),
         # distinct from sub_sock (:5556) -- a different ZMQ PUB address, not
-        # just a different topic namespace. No topic is subscribed until
-        # DC|STATE=ON (or --drop-copy at startup) -- see _set_drop_copy().
-        self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
-        # make_subscriber() with no topics subscribes to everything; drop that
-        # so no other participant's fills are relayed before DC|STATE=ON.
-        self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, b"")
-        self._dc_topic = topic_drop_copy_event(self.gateway_id).encode()
+        # just a different topic namespace. The own topic is subscribed for
+        # the whole session and shown only while DC is on (_set_drop_copy).
+        dc_topic = topic_drop_copy_event(self.gateway_id)
+        self._dc_sub_sock = make_subscriber(
+            DROP_COPY_PUB_ADDR, dc_topic, rcvhwm=_SUB_RCVHWM
+        )
+        self._dc_topic = dc_topic.encode()
+        self._resync_push_sock: PushSocket | None = None
         self._auth_reason: str = ""
         self._auth_description: str = ""
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -439,16 +512,11 @@ class Gateway:
     def _set_drop_copy(self, enabled: bool) -> None:
         """Toggle the drop-copy relay (DC|ON / DC|OFF / --drop-copy).
 
-        Subscribes/unsubscribes ``drop_copy.event.<gateway_id>`` on the
-        dedicated drop-copy socket (:5557) -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md.
-        Idempotent: calling with the same state twice is a no-op on the wire.
+        Only flips the flag ``_handle_dc_event`` reads: the own
+        ``drop_copy.event.<gateway_id>`` topic is subscribed for the whole
+        session, because a ZeroMQ socket must not be touched by the prompt
+        thread while the listener thread polls it.
         """
-        if enabled == self._dc_enabled:
-            return
-        if enabled:
-            self._dc_sub_sock.setsockopt(zmq.SUBSCRIBE, self._dc_topic)
-        else:
-            self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._dc_topic)
         self._dc_enabled = enabled
 
     def _query_position(self, target_gateway_id: str) -> None:
@@ -459,20 +527,14 @@ class Gateway:
         -- any gateway may ask about any ``gateway_id`` (see
         ``engine/main.py::_handle_position_request``, which looks the id up
         directly with no sender-identity check). The reply comes back on
-        ``system.position_snapshot.<target_gateway_id>``, which this
-        console only subscribes to for the duration of one outstanding
-        query -- mirroring ``_set_drop_copy``'s dynamic
-        SUBSCRIBE/UNSUBSCRIBE pattern -- so a stale or mistyped gateway id
-        does not leave a permanent extra subscription behind.
+        ``system.position_snapshot.<target_gateway_id>``; ``sub_sock``
+        receives every gateway's snapshot, and the listener shows only the
+        one for the outstanding query.
 
-        Replacing an already-outstanding query (a second POS|GW= before the
-        first replied) unsubscribes the old topic first.
+        A second POS|GW= before the first replied replaces the query.
         """
-        if self._pos_query_topic is not None:
-            self.sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._pos_query_topic)
         self._pos_query_gateway_id = target_gateway_id
         self._pos_query_topic = topic_position_snapshot(target_gateway_id).encode()
-        self.sub_sock.setsockopt(zmq.SUBSCRIBE, self._pos_query_topic)
         self._send(self.push_sock, make_position_request_msg(target_gateway_id))
 
     def _handle_position_snapshot_reply(
@@ -488,7 +550,6 @@ class Gateway:
         if self._pos_query_topic is None or topic.encode() != self._pos_query_topic:
             return
         gateway_id = self._pos_query_gateway_id
-        self.sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._pos_query_topic)
         self._pos_query_gateway_id = None
         self._pos_query_topic = None
         assert gateway_id is not None
@@ -630,6 +691,10 @@ class Gateway:
                         "gateway_id=%s (connection not established)",
                         self.gateway_id,
                     )
+                    self._auth_reason = (
+                        f"Engine not reachable at {ENGINE_PULL_ADDR} "
+                        "(is pm-engine running?)"
+                    )
                     return False
                 time.sleep(0.1)
 
@@ -705,6 +770,7 @@ class Gateway:
         if not self._running:
             return
         self._running = False
+        self._connection_lost = True
         log.error("engine connection lost gateway_id=%s", self.gateway_id)
         console.print("[red]Engine connection was lost; logging out.[/red]")
 
@@ -744,7 +810,46 @@ class Gateway:
     # Background SUB listener
     # ------------------------------------------------------------------
 
+    def _check_sequence(self, topic: str, frames: list[bytes]) -> None:
+        """Report own events the engine's PUB dropped, and re-sync.
+
+        Every message from ``make_publisher`` carries a per-topic sequence;
+        a jump on one of this gateway's own topics means fills, acks or
+        cancels were lost at a high-water mark. The user is told, and the
+        console asks the engine for its resting orders and position again.
+        """
+        if topic not in self._own_topics:
+            return
+        seq = decode_sequence(frames)
+        if seq is None:
+            return
+        last = self._topic_seq.get(topic)
+        self._topic_seq[topic] = seq
+        # First sight of the topic, or a lower number: the engine restarted.
+        if last is None or seq <= last + 1:
+            return
+        missed = seq - last - 1
+        family = topic.rpartition(".")[0]
+        log.warning(
+            "engine events lost gateway_id=%s topic=%s count=%d",
+            self.gateway_id,
+            topic,
+            missed,
+        )
+        console.print(
+            f"[bold red]WARNING: {missed} event(s) lost on {family} "
+            f"— ORDERS and POS re-synced from the engine[/bold red]"
+        )
+        if self._resync_push_sock is not None:
+            self._send(self._resync_push_sock, make_orders_request_msg(self.gateway_id))
+            self._send(
+                self._resync_push_sock, make_position_request_msg(self.gateway_id)
+            )
+
     def _listen(self) -> None:
+        # The listener's own PUSH socket for re-sync requests: push_sock
+        # belongs to the prompt thread.
+        self._resync_push_sock = make_pusher(ENGINE_PULL_ADDR)
         monitor_sock = self.sub_sock.get_monitor_socket(events=zmq.EVENT_DISCONNECTED)
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
@@ -768,6 +873,7 @@ class Gateway:
                     frames = self.sub_sock.recv_multipart()
                     topic, payload = decode(frames)
                     self._dbg_count("events_main_socket")
+                    self._check_sequence(topic, frames)
                     self._handle_event(topic, payload)
                 except Exception as exc:
                     if self._running:
@@ -809,27 +915,29 @@ class Gateway:
                             f"[dim][WARN] drop-copy listener error: {exc}[/dim]"
                         )
         monitor_sock.close(linger=0)
+        self._resync_push_sock.close(linger=0)
+        self._resync_push_sock = None
         self._flush_debug_summary(force=True)
         log.info("gateway listeners stopped gateway_id=%s", self.gateway_id)
 
     def _handle_dc_event(self, topic: str, payload: dict[str, Any]) -> None:
         """Render one drop-copy event received on the :5557 relay.
 
-        Only reached while DC is enabled, since no topic is subscribed on
-        ``_dc_sub_sock`` otherwise -- see ``_set_drop_copy``. Printed as a
+        Shown only while DC is enabled -- see ``_set_drop_copy``. Printed as a
         ``DC_FILL``-style line for consistency with the wire message
         pm-alf-gwy sends its own TCP clients for the same event (see
         ../../../docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md).
         """
         # SUBSCRIBE matches by prefix: GW1 also receives GW10's events, which
         # are another gateway's fills with their own seq stream.
-        if topic.encode() != self._dc_topic:
+        if not self._dc_enabled or topic.encode() != self._dc_topic:
             return
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         seq = payload.get("seq", "?")
         symbol = payload.get("symbol", "?")
         qty = payload.get("fill_qty", "?")
         price = payload.get("fill_price", "?")
+        price = format_price(price, str(symbol), missing=str(price))
         liquidity = payload.get("liquidity_flag", "?")
         order_id = str(payload.get("order_id", "?"))
         console.print(
@@ -838,6 +946,13 @@ class Gateway:
         )
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
+        if (
+            topic not in self._own_topics
+            and topic not in (TOPIC_TRADE_EXECUTED, TOPIC_INDEX_UPDATE)
+            and topic.encode() != self._pos_query_topic
+        ):
+            # Another gateway's event that shares this one's id as a prefix.
+            return
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         oid = payload.get("order_id", "?")
         self._dbg_count("events_total")
@@ -895,8 +1010,11 @@ class Gateway:
             order_price = payload.get(
                 "price"
             )  # resting leg's own limit price, not fill_price
+            fill_symbol = str(payload.get("symbol") or "")
             console.print(
-                f"[{ts}] [cyan]FILL[/cyan]      {oid}  qty={qty} @{price}  remaining={rem}  [{status}]"
+                f"[{ts}] [cyan]FILL[/cyan]      {oid}  qty={qty} "
+                f"@{format_price(price, fill_symbol, missing=str(price))}  "
+                f"remaining={rem}  [{status}]"
             )
             log.debug(
                 "order fill order_id=%s qty=%s price=%s remaining=%s status=%s",
@@ -962,9 +1080,15 @@ class Gateway:
             prio = (
                 " [dim](priority reset)[/dim]" if payload.get("priority_reset") else ""
             )
+            amend_symbol = str(
+                payload.get("symbol")
+                or self.order_cache.get(str(oid), {}).get("symbol")
+                or ""
+            )
             console.print(
                 f"[{ts}] [magenta]AMENDED[/magenta]   {oid}  "
-                f"price={new_price} qty={new_qty} remaining={rem}{prio}"
+                f"price={format_price(new_price, amend_symbol, missing=str(new_price))}"
+                f" qty={new_qty} remaining={rem}{prio}"
                 f"{f' rtag={payload.get('request_tag')}' if payload.get('request_tag') else ''}"
             )
             log.debug(
@@ -983,6 +1107,28 @@ class Gateway:
                     self.order_cache[full_id]["qty"] = new_qty
                 if rem is not None:
                     self.order_cache[full_id]["remaining"] = rem
+
+        elif PREFIX_ORDER_TRIGGERED in topic:
+            full_id = str(payload.get("order_id", "?"))
+            symbol = str(payload.get("symbol", ""))
+            decimals = payload.get("tick_decimals")
+            if not isinstance(decimals, int):
+                decimals = get_tick_decimals(symbol)
+            becomes = str(payload.get("becomes", "?"))
+            stop_ticks = payload.get("stop_price_ticks")
+            stop_text = (
+                f"{stop_ticks / 10**decimals:.{decimals}f}"
+                if isinstance(stop_ticks, int)
+                else "?"
+            )
+            console.print(
+                f"[{ts}] [yellow]TRIGGERED[/yellow] {full_id}  @{stop_text}  "
+                f"→ {becomes}"
+            )
+            # A STOP_LIMIT now rests as a LIMIT; a STOP or TRAILING_STOP
+            # is now a MARKET order.
+            if full_id in self.order_cache:
+                self.order_cache[full_id]["type"] = becomes
 
         elif PREFIX_ORDER_EXPIRED in topic:
             full_id = str(payload.get("order_id", "?"))
@@ -1005,9 +1151,17 @@ class Gateway:
         elif "system.symbols" in topic:
             entries = payload.get("symbols", [])
             symbols = [str(e.get("symbol", "")) for e in entries]
+            for entry in entries:
+                tick_decimals = entry.get("tick_decimals")
+                if isinstance(tick_decimals, int):
+                    register_tick_decimals(str(entry.get("symbol", "")), tick_decimals)
+            self._symbols_received.set()
             # Update completer's known symbols list
             self._known_symbols.clear()
             self._known_symbols.extend(symbols)
+            if not self._symbols_requested:
+                return
+            self._symbols_requested = False
             if symbols:
                 print_symbols_table(entries)
             else:
@@ -1029,6 +1183,16 @@ class Gateway:
 
         elif topic.startswith(PREFIX_ORDERS):
             orders = payload.get("orders", [])
+            # The reply lists every resting order. A cached NEW/PARTIAL order
+            # missing from it ended while its last event was lost
+            # (_check_sequence); how it ended is not known.
+            resting = {str(od.get("id") or "") for od in orders}
+            for cached_id, cached in list(self.order_cache.items()):
+                if cached_id not in resting and cached.get("status") in (
+                    "NEW",
+                    "PARTIAL",
+                ):
+                    cached["status"] = "CLOSED"
             for od in orders:
                 oid = str(od.get("id") or "")
                 if not oid:
@@ -1287,9 +1451,29 @@ class Gateway:
         ):
             self._handle_position_snapshot_reply(topic, payload)
 
+        elif topic == self._own_position_topic:
+            self._seed_positions(payload.get("positions", []))
+
     # ------------------------------------------------------------------
     # Position tracking
     # ------------------------------------------------------------------
+
+    def _seed_positions(self, positions: list[dict[str, Any]]) -> None:
+        """Take net quantity and average cost from the engine's snapshot.
+
+        Asked for at connect and after lost events, so POS shows what the
+        engine holds rather than only the fills this process has seen. A
+        symbol the snapshot leaves out is flat. Realised P&L is this
+        session's own: the engine does not report it.
+        """
+        held = {str(p.get("symbol", "")): p for p in positions}
+        for symbol in held.keys() | self._positions.keys():
+            pos = self._positions.setdefault(
+                symbol, {"net_qty": 0, "avg_cost": 0.0, "realized_pnl": 0.0}
+            )
+            engine = held.get(symbol, {})
+            pos["net_qty"] = int(engine.get("net_qty", 0))
+            pos["avg_cost"] = float(engine.get("avg_cost", 0.0))
 
     def _update_position(
         self, symbol: str, side: str, fill_qty: int, fill_price: float
@@ -1401,6 +1585,7 @@ class Gateway:
             return
 
         if cmd == "SYMBOLS":
+            self._symbols_requested = True
             self._send(self.push_sock, make_symbols_request_msg(self.gateway_id))
             return
 
@@ -1417,8 +1602,15 @@ class Gateway:
                         "[red]INDEX|HISTORY requires INDEX=<id> or prior index.update.[/red]"
                     )
                     return
-                from_dt = self._parse_date(kv.get("FROM"))
-                to_dt = self._parse_date(kv.get("TO"))
+                try:
+                    from_dt = self._parse_date("FROM", kv.get("FROM"))
+                    to_dt = self._parse_date("TO", kv.get("TO"))
+                except ValueError as exc:
+                    console.print(f"[red]{exc}[/red]")
+                    return
+                if from_dt is not None and to_dt is not None and from_dt > to_dt:
+                    console.print("[red]FROM= is after TO=[/red]")
+                    return
                 now_ns = time.time_ns()
                 from_ts_ns = (
                     int(from_dt.timestamp()) * 1_000_000_000
@@ -1475,10 +1667,9 @@ class Gateway:
         if cmd == "DC":
             kv = self._kv(parts[1:])
             state = kv.get("STATE", "")
-            if state == "ON":
-                self._set_drop_copy(True)
-            elif state == "OFF":
-                self._set_drop_copy(False)
+            if state in ("ON", "OFF"):
+                self._set_drop_copy(state == "ON")
+                console.print(f"[dim]DC {state}[/dim]")
             else:
                 console.print("[red]DC requires STATE=ON or STATE=OFF[/red]")
                 log.debug(
@@ -1530,9 +1721,7 @@ class Gateway:
                     "AMEND requires ID=<order-id>",
                 )
                 return
-            new_price = float(kv["PRICE"]) if "PRICE" in kv else None
-            new_qty = int(kv["QTY"]) if "QTY" in kv else None
-            if new_price is None and new_qty is None:
+            if "PRICE" not in kv and "QTY" not in kv:
                 console.print("[red]AMEND requires at least PRICE= or QTY=[/red]")
                 log.debug(
                     "command rejected cmd=%s reason=%s",
@@ -1540,16 +1729,21 @@ class Gateway:
                     "AMEND requires at least PRICE= or QTY=",
                 )
                 return
-            self._send(
-                self.push_sock,
-                make_order_amend_msg(
+            try:
+                frames = make_order_amend_msg(
                     order_id,
                     self.gateway_id,
-                    price=new_price,
-                    qty=new_qty,
+                    price=(_to_float("PRICE", kv["PRICE"]) if "PRICE" in kv else None),
+                    qty=_to_int("QTY", kv["QTY"]) if "QTY" in kv else None,
                     request_tag=kv.get("RTAG"),
-                ),
-            )
+                )
+            except ValueError as exc:
+                log.info(
+                    "AMEND parse error gateway_id=%s error=%s", self.gateway_id, exc
+                )
+                console.print(f"[red]Parse error: {exc}[/red]")
+                return
+            self._send(self.push_sock, frames)
             return
 
         if cmd == "NEW":
@@ -1596,11 +1790,14 @@ class Gateway:
             symbol = kv["SYM"]
             side = Side(kv["SIDE"])
             order_type = OrderType(kv["TYPE"])
-            quantity = int(kv["QTY"])
+            quantity = _to_int("QTY", kv["QTY"])
+            if quantity < 1:
+                raise ValueError(f"QTY= must be a positive whole number: {quantity}")
             tif = TIF(kv.get("TIF", "DAY"))
-            price = float(kv["PRICE"]) if "PRICE" in kv else None
-            stop_price = float(kv["STOP"]) if "STOP" in kv else None
-            visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
+            price = _to_float("PRICE", kv["PRICE"]) if "PRICE" in kv else None
+            stop_price = _to_float("STOP", kv["STOP"]) if "STOP" in kv else None
+            trail = _to_float("TRAIL", kv["TRAIL"]) if "TRAIL" in kv else None
+            visible = _to_int("VISIBLE", kv["VISIBLE"]) if "VISIBLE" in kv else None
             # SMP omitted entirely means "let the engine apply this
             # gateway's configured smp_action default" -- distinct from an
             # explicit SMP=NONE. See SmpAction's docstring in
@@ -1668,8 +1865,7 @@ class Gateway:
             console.print("[red]ICEBERG VISIBLE must be less than total QTY[/red]")
             return
         if order_type == OrderType.TRAILING_STOP:
-            trail_offset_raw = kv.get("TRAIL")
-            if trail_offset_raw is None:
+            if trail is None:
                 log.info(
                     "order rejected gateway_id=%s reason=missing_trail_offset order_type=TRAILING_STOP",
                     self.gateway_id,
@@ -1699,13 +1895,15 @@ class Gateway:
                 visible_qty=visible,
                 smp_action=smp_action,
                 trail_offset_ticks=(
-                    to_ticks_exact(float(kv["TRAIL"]), symbol)
-                    if "TRAIL" in kv
-                    else None
+                    to_ticks_exact(trail, symbol) if trail is not None else None
                 ),
                 client_tag=client_tag,
             )
-        except TickViolation as exc:
+            # Built before the order is cached: a value the message refuses
+            # (a 65-character TAG) must not leave a PENDING row behind.
+            frames = make_order_new_msg(order.to_dict())
+        except ValueError as exc:
+            # TickViolation and MessageValidationError are ValueErrors.
             console.print(f"[red]{exc}[/red]")
             return
 
@@ -1725,16 +1923,16 @@ class Gateway:
             "time": datetime.now().strftime("%H:%M:%S"),
         }
 
-        self._send(self.push_sock, make_order_new_msg(order.to_dict()))
+        self._send(self.push_sock, frames)
         self._dbg_count("orders_submitted")
 
     def _send_quote(self, kv: dict[str, str]) -> None:
         try:
             symbol = kv["SYM"]
-            bid_price = float(kv["BID"])
-            ask_price = float(kv["ASK"])
-            bid_qty = int(kv["BID_QTY"])
-            ask_qty = int(kv["ASK_QTY"])
+            bid_price = _to_float("BID", kv["BID"])
+            ask_price = _to_float("ASK", kv["ASK"])
+            bid_qty = _to_int("BID_QTY", kv["BID_QTY"])
+            ask_qty = _to_int("ASK_QTY", kv["ASK_QTY"])
             tif = TIF(kv.get("TIF", "DAY"))
         except (KeyError, ValueError) as exc:
             log.info("QUOTE parse error gateway_id=%s error=%s", self.gateway_id, exc)
@@ -1773,14 +1971,15 @@ class Gateway:
                 "ask_qty": ask_qty,
                 "tif": tif.value,
             }
-        except TickViolation as exc:
+            # The operator may name the quote (QUOTE_ID=...); otherwise mint
+            # one. Either way the request goes out *with* an id, so the ack
+            # can be matched to it exactly rather than by arrival order.
+            quote_id = kv.get("QUOTE_ID") or f"{self.gateway_id}-{symbol}-{new_ulid()}"
+            payload["quote_id"] = quote_id
+            frames = make_quote_new_msg(payload)
+        except ValueError as exc:
             console.print(f"[red]{exc}[/red]")
             return
-        # The operator may name the quote (QUOTE_ID=...); otherwise mint one.
-        # Either way the request goes out *with* an id, so the ack can be
-        # matched to it exactly rather than by arrival order.
-        quote_id = kv.get("QUOTE_ID") or f"{self.gateway_id}-{symbol}-{new_ulid()}"
-        payload["quote_id"] = quote_id
 
         pending = {
             "symbol": symbol,
@@ -1793,7 +1992,7 @@ class Gateway:
         while len(self._pending_quote_by_id) > self._pending_quote_cap:
             self._pending_quote_by_id.popitem(last=False)
         self._pending_quote_requests.append(pending)
-        self._send(self.push_sock, make_quote_new_msg(payload))
+        self._send(self.push_sock, frames)
         self._dbg_count("quotes_submitted")
 
     def _send_oco(self, kv: dict[str, str]) -> None:
@@ -1816,7 +2015,7 @@ class Gateway:
             return
 
         try:
-            quantity = int(kv["QTY"])
+            quantity = _to_int("QTY", kv["QTY"])
             tif_val = TIF(tif_str)
         except (KeyError, ValueError) as exc:
             log.info("OCO parse error gateway_id=%s error=%s", self.gateway_id, exc)
@@ -1835,24 +2034,21 @@ class Gateway:
                 "side": kv[side_key],
                 "order_type": kv[type_key],
             }
-            try:
-                if price_key in kv:
-                    leg["price_ticks"] = to_ticks_exact(float(kv[price_key]), symbol)
-                if stop_key in kv:
-                    leg["stop_price_ticks"] = to_ticks_exact(
-                        float(kv[stop_key]), symbol
-                    )
-                if trail_key in kv:
-                    leg["trail_offset_ticks"] = to_ticks_exact(
-                        float(kv[trail_key]), symbol
-                    )
-            except TickViolation as exc:
-                console.print(f"[red]{exc}[/red]")
-                return None
+            for key, field in (
+                (price_key, "price_ticks"),
+                (stop_key, "stop_price_ticks"),
+                (trail_key, "trail_offset_ticks"),
+            ):
+                if key in kv:
+                    leg[field] = to_ticks_exact(_to_float(key, kv[key]), symbol)
             return leg
 
-        leg1 = _parse_leg("LEG1_")
-        leg2 = _parse_leg("LEG2_")
+        try:
+            leg1 = _parse_leg("LEG1_")
+            leg2 = _parse_leg("LEG2_")
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
 
         if leg1 is None or leg2 is None:
             log.info(
@@ -1875,7 +2071,12 @@ class Gateway:
         }
         if kv.get("TAG"):
             payload["client_tag"] = kv["TAG"]
-        self._send(self.push_sock, make_oco_order_msg(payload))
+        try:
+            frames = make_oco_order_msg(payload)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
+        self._send(self.push_sock, frames)
         self._dbg_count("oco_submitted")
 
     def _send_combo(self, kv: dict[str, str]) -> None:
@@ -1953,11 +2154,19 @@ class Gateway:
                     side=Side(side),
                     order_type=OrderType(leg_type),
                     quantity=int(qty),
-                    tick_decimals=2,
+                    tick_decimals=get_tick_decimals(sym),
                     # TickViolation subclasses ValueError, so the except below
                     # already reports an off-grid leg price as a parse error.
-                    price_ticks=to_ticks_exact(float(price), sym) if price else None,
-                    stop_price_ticks=to_ticks_exact(float(stop), sym) if stop else None,
+                    price_ticks=(
+                        to_ticks_exact(_to_float(f"{prefix}.PRICE", price), sym)
+                        if price
+                        else None
+                    ),
+                    stop_price_ticks=(
+                        to_ticks_exact(_to_float(f"{prefix}.STOP", stop), sym)
+                        if stop
+                        else None
+                    ),
                     smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:
@@ -1982,23 +2191,35 @@ class Gateway:
         payload = combo.to_submission_dict()
         if kv.get("TAG"):
             payload["client_tag"] = kv["TAG"]
-        self._send(self.push_sock, make_combo_order_msg(payload))
+        try:
+            frames = make_combo_order_msg(payload)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
+        self._send(self.push_sock, frames)
         self._dbg_count("combo_submitted")
 
     @staticmethod
-    def _parse_date(raw: str | None) -> datetime | None:
+    def _parse_date(key: str, raw: str | None) -> datetime | None:
+        """The date typed as ``KEY=YYYY-MM-DD``; None when not given."""
         if not raw:
             return None
         try:
             return datetime.strptime(raw, "%Y-%m-%d")
         except ValueError:
-            return None
+            raise ValueError(f"{key}= is not a date (YYYY-MM-DD): {raw!r}") from None
 
     # ------------------------------------------------------------------
     # Run
     # ------------------------------------------------------------------
 
-    def run(self) -> None:
+    def run(self) -> int:
+        """Log on and run the prompt; the process exit status.
+
+        1 when the logon is refused or the engine cannot be reached, and
+        when the engine connection is lost during the session; 0 when the
+        user leaves (EXIT, QUIT, Ctrl-D, Ctrl-C).
+        """
         if not self._authenticate():
             reason = self._auth_reason or f"Gateway not allowed: {self.gateway_id}"
             log.error(
@@ -2006,17 +2227,21 @@ class Gateway:
                 self.gateway_id,
                 reason,
             )
-            console.print(f"[red]Connection refused:[/red] {reason}")
+            console.print(f"[red]Logon failed:[/red] {reason}")
             self._running = False
             self.push_sock.close()
             self.sub_sock.close()
             self._index_sub_sock.close()
             self._dc_sub_sock.close()
-            return
+            return 1
 
         self._authenticated = True
-        # Request outstanding resting orders so reconnects restore order history
+        # The symbol list first: its tick sizes convert every typed price.
+        self._send(self.push_sock, make_symbols_request_msg(self.gateway_id))
+        # Request outstanding resting orders and the position, so a restarted
+        # console shows what the engine holds.
         self._send(self.push_sock, make_orders_request_msg(self.gateway_id))
+        self._send(self.push_sock, make_position_request_msg(self.gateway_id))
 
         if self._dc_requested_on_startup:
             self._set_drop_copy(True)
@@ -2024,6 +2249,16 @@ class Gateway:
         listener = threading.Thread(target=self._listen, daemon=True)
         listener.start()
         threading.Thread(target=self._heartbeat_loop, daemon=True).start()
+
+        if not self._symbols_received.wait(self._symbols_timeout_sec):
+            if not self._connection_lost:
+                log.error("engine sent no symbol list gateway_id=%s", self.gateway_id)
+                console.print(
+                    "[red]Logon failed:[/red] the engine did not send its symbol "
+                    "list, so prices cannot be converted to its tick sizes"
+                )
+            self._shutdown()
+            return 1
         log.info("gateway command loop started gateway_id=%s", self.gateway_id)
 
         desc = f" — {self._auth_description}" if self._auth_description else ""
@@ -2053,30 +2288,46 @@ class Gateway:
                         line = session.prompt(prompt_str)  # type: ignore[arg-type]
                     except EOFError, KeyboardInterrupt:
                         break
-                    if line.strip():
+                    if not line.strip():
+                        continue
+                    try:
                         self._parse_and_send(line)
+                    except Exception as exc:
+                        # Leaving the loop would log the participant out, and
+                        # the engine would apply their disconnect_behaviour.
+                        log.exception(
+                            "command failed gateway_id=%s line=%r",
+                            self.gateway_id,
+                            line,
+                        )
+                        console.print(f"[red]Command failed: {exc}[/red]")
         finally:
-            self._prompt_session = None
-            self._running = False
-            self._heartbeat_stop.set()
-            try:
-                self.push_sock.send_multipart(
-                    make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")
-                )
-            except Exception:
-                pass
-            self._flush_debug_summary(force=True)
-            self._index_push_sock.close()
-            self.push_sock.close()
-            self.sub_sock.close()
-            self._index_sub_sock.close()
-            self._dc_sub_sock.close()
-            log.info("gateway shutdown complete gateway_id=%s", self.gateway_id)
-            console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")
+            self._shutdown()
+        return 1 if self._connection_lost else 0
+
+    def _shutdown(self) -> None:
+        """Log out of the engine and close every socket."""
+        self._prompt_session = None
+        self._running = False
+        self._heartbeat_stop.set()
+        try:
+            self.push_sock.send_multipart(
+                make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")
+            )
+        except Exception:
+            pass
+        self._flush_debug_summary(force=True)
+        self._index_push_sock.close()
+        self.push_sock.close()
+        self.sub_sock.close()
+        self._index_sub_sock.close()
+        self._dc_sub_sock.close()
+        log.info("gateway shutdown complete gateway_id=%s", self.gateway_id)
+        console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")
 
 
 @exit_on_config_error
-def main() -> None:
+def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
@@ -2085,8 +2336,8 @@ def main() -> None:
         logging.getLevelName(log_level),
     )
     log.debug("resolved gateway args: id=%s drop_copy=%s", args.id, args.drop_copy)
-    Gateway(args.id, drop_copy=args.drop_copy).run()
+    return Gateway(args.id, drop_copy=args.drop_copy).run()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

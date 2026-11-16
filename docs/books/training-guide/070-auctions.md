@@ -134,8 +134,8 @@ equals `400` (300 from TRADER01's first order + 100 from the
 second, against TRADER02's 400-share sell). On `TRADER01` you see:
 
 ```
-FILL      <first order id>   qty=300 @149.8  remaining=0    [FILLED]
-FILL      <second order id>  qty=100 @149.8  remaining=100  [PARTIAL]
+FILL      <first order id>   qty=300 @149.80  remaining=0    [FILLED]
+FILL      <second order id>  qty=100 @149.80  remaining=100  [PARTIAL]
 EXPIRED   <second order id>  (Opening auction ended)
 EXPIRED   <MSFT order id>    (Opening auction ended)
 ```
@@ -189,7 +189,7 @@ are generated:
 Both orders fill in full at one price, **150.60**: the candidates 150.60 and
 150.80 both match 100 shares with no surplus, and the engine keeps the lower of
 two tied prices, exactly as in Exercise 2. Each console prints
-`FILL … qty=100 @150.6 remaining=0 [FILLED]`.
+`FILL … qty=100 @150.60 remaining=0 [FILLED]`.
 
 :material-checkbox-blank-outline: **Checkpoint:** closing auction produces fills.
 
@@ -216,7 +216,7 @@ and uncross:
 [GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
 ```
 
-Both consoles report `FILL … qty=50 @150.0 [FILLED]`: the GTC bid, placed
+Both consoles report `FILL … qty=50 @150.00 [FILLED]`: the GTC bid, placed
 before the auction began, was matched in it. The same holds in the closing
 auction — rest a GTC bid during `CONTINUOUS`, send an `ATC` sell at the same
 price after `SESSION|STATE=CLOSING_AUCTION`, and they trade when the session

@@ -164,6 +164,11 @@ truncate 3-decimal symbols) is taken over by the ALF console review C9 /
 WP-ACN06 (`docs-design/reviews/EduMatcher-ALF-Console-Review-2026-11.md`);
 `pm-admin` remains.
 
+**Update (2026-11-16, later).** WP-ACN06 done: pm-alf-console prints every
+price at the symbol's `tick_decimals` (fill, amend, drop-copy and
+`TRIGGERED` lines, `ORDERS`, `QLEGS`, `QBOOT`) and average costs with one
+more digit (`POS`, `POS|GW=`). Only `pm-admin` remains.
+
 ## L007 — DAY combo parents in the persistence diagrams
 
 **Found:** 2026-11-13, training guide chapter 10.
