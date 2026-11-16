@@ -5,7 +5,6 @@ real DropCopyPublisher's ZMQ feed to plain-socket DC1 clients.
 from __future__ import annotations
 
 import logging
-import os
 import socket
 import threading
 import time

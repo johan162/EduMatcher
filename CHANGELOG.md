@@ -1,3 +1,26 @@
+## [v0.81.0] - 2026-11-16
+
+Release Type: major
+
+### 📋 Summary
+This release improves ALF console and log-server reliability, clarifies monitor health diagnosis, and makes participant monitoring and bulk cancellation easier to use.
+
+### ✨ Additions
+- Added participant connection-time data to the API and paging for the Trader GUI participant list
+
+### 🚀 Improvements
+- Improved ALF console event filtering, tick-size handling, and resilience to malformed commands
+- Improved log-server delivery so records are not silently lost, sessions are closed reliably, and slow subscribers are bounded
+- Improved monitor explanations and calibration for the `DEGRADED` health state
+- Made Trader GUI mass cancellation more visible
+
+### 📚 Documentation
+- Added ALF console, log-server, and monitor health-diagnosis review documentation
+- Corrected a typo in the exchange introduction
+
+### 🛠 Internal
+- Fixed macOS test failures caused by open-file limits
+
 ## [v0.80.0] - 2026-11-15
 
 Release Type: major

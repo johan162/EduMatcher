@@ -16,7 +16,7 @@ from edumatcher.log_srv.server import LogServer
 from edumatcher.log_srv.session import LogSession
 from edumatcher.log_srv.writer import LogEventRow, WriterThread
 from edumatcher.logclient.protocol import iso_utc
-from tests.conftest import free_ports
+from tests.conftest import free_ports, opened
 
 _HOST = "127.0.0.1"
 
@@ -899,6 +899,9 @@ def test_a_dead_writer_thread_stops_the_server(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     rs = _RunningServer(tmp_path)
+    # close() dies in writer.stop() too, before it reaches the connections.
+    opened(rs.server._conn)
+    opened(rs.server._prune_conn)
 
     def _die(*, force: bool) -> int:
         raise RuntimeError("writer bug")
