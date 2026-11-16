@@ -1767,14 +1767,14 @@ One persisted log line, exactly the columns log_events stores. Carried by both l
 | `client_ts` | `string` | required | — | Producer wall-clock, ISO-8601 (e.g. 2026-07-29T10:00:00.000Z). |
 | `server_ts` | `string` | required | — | Server receive time, ISO-8601; the log_events columns are TEXT. |
 | `process` | `string` | required | max_len 64 |  |
-| `instance` | `string` | required | max_len 64 |  |
+| `instance` | `string` | required | max_len 64 | NULL when the producer sent no INSTANCE. |
 | `pid` | `int` | required | unit `dimensionless` |  |
 | `host` | `string` | required | max_len 128 |  |
 | `session` | `string` | required | max_len 64 |  |
 | `level` | `string` | required | max_len 16 |  |
 | `logger` | `string` | required | max_len 128 |  |
-| `module` | `string` | required | max_len 128 |  |
-| `line` | `int` | required | unit `dimensionless` |  |
+| `module` | `string` | required | max_len 128 | NULL when the producer sent no MODULE. |
+| `line` | `int` | required | unit `dimensionless` | NULL when the producer sent no LINE, or one outside int64. |
 | `has_exception` | `bool` | required | — |  |
 | `truncated` | `bool` | required | — |  |
 | `message` | `string` | required | — |  |
@@ -2004,6 +2004,7 @@ One chunk of replayed history for a subscription.
 | `total_sent` | `int` | required | unit `dimensionless` |  |
 | `truncated` | `bool` | required | — |  |
 | `last_seq` | `int` | required | unit `dimensionless` |  |
+| `msg_no` | `int` | required | unit `dimensionless` | Per-subscription number shared with log.event, from 1; a gap is a lost message. |
 | `timestamp` | `float` | required | unit `epoch_seconds` |  |
 
 !!! note
@@ -2032,7 +2033,8 @@ A batch of live rows for a STREAM subscription.
 | `seq_from` | `int` | required | unit `dimensionless` |  |
 | `seq_to` | `int` | required | unit `dimensionless` |  |
 | `server_last_seq` | `int` | required | unit `dimensionless` |  |
-| `dropped` | `int` | required | unit `dimensionless` | Lifetime rows dropped for this subscription, not this batch. |
+| `dropped` | `int` | required | unit `dimensionless` | Lifetime rows the server shed for this subscription, not this batch. Messages lost in transport show as msg_no gaps instead. |
+| `msg_no` | `int` | required | unit `dimensionless` | Per-subscription number shared with log.backfill, from 1; a gap is a lost message. |
 | `timestamp` | `float` | required | unit `epoch_seconds` |  |
 
 **See also:** `log.notify.{SUB_ID}`

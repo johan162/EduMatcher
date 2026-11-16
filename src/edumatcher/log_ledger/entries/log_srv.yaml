@@ -93,6 +93,20 @@
     - "Retry from the viewer. If it fails again, report it as a pm-log-srv bug with the topic and the traceback."
 
 - logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS: rows seq %d-%d for %s could not be serialised: %s"
+  level: ERROR
+  explanation: >
+    Rows stored in log.db did not fit the LALF-PS message contract (for
+    example a logger name longer than 128 characters), so this batch was not
+    sent to the viewer. The viewer got an INTERNAL error naming the seq
+    range; live rows are counted in its `dropped`, and a backfill ends there
+    as truncated. log.db itself is complete.
+  actions:
+    - "Read the reason in the message; it names the field and the rule."
+    - "Find the rows with `pm-log-cli query` and the process that wrote them, and fix that producer."
+    - "The rows are still in log.db: read them with `pm-log-cli` or the log-GUI history view."
+
+- logger: edumatcher.log_srv.pubsub
   template: "LALF-PS backfill query failed for %s: %s"
   level: ERROR
   explanation: >
@@ -113,6 +127,19 @@
   actions:
     - "Reload the log-GUI or re-subscribe the viewer to fill the gap from history."
     - "If it repeats, restart `pm-log-srv`."
+
+- logger: edumatcher.log_srv.server
+  template: "log writer thread stopped; stopping pm-log-srv"
+  level: CRITICAL
+  explanation: >
+    The thread that writes log rows to log.db ended on an unexpected error,
+    so nothing pm-log-srv received from then on could be saved. pm-log-srv
+    stopped instead of accepting rows it could not store. Connected
+    processes keep their records queued and switch to their local fallback
+    files if pm-log-srv stays down.
+  actions:
+    - "Read the traceback printed just before this line on pm-log-srv's stderr; it names the error."
+    - "Start `pm-log-srv` again, and report the traceback."
 
 - logger: edumatcher.log_srv.server
   template: "accept failed: %s"

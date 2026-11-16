@@ -135,6 +135,11 @@ UPDATE_PROCESS_DISCONNECTED = """
 UPDATE processes SET disconnected_at = ?, disconnect_reason = ? WHERE session = ?
 """
 
+CLOSE_OPEN_PROCESSES = """
+UPDATE processes SET disconnected_at = ?, disconnect_reason = ?
+WHERE disconnected_at IS NULL
+"""
+
 UPSERT_SERVER_STATS_INIT = """
 INSERT INTO server_stats (id, started_at, total_log_events, total_connections, total_truncated, total_errors_sent)
 VALUES (1, ?, 0, 0, 0, 0)
@@ -154,7 +159,7 @@ UPDATE server_stats SET total_truncated = total_truncated + ? WHERE id = 1
 """
 
 INCREMENT_TOTAL_ERRORS_SENT = """
-UPDATE server_stats SET total_errors_sent = total_errors_sent + 1 WHERE id = 1
+UPDATE server_stats SET total_errors_sent = total_errors_sent + ? WHERE id = 1
 """
 
 #: Deletes at most ``?`` rows per statement, oldest first, so an hourly prune

@@ -828,14 +828,14 @@ to point at a non-default engine address.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
-| `enabled` | `Bool` | – | `true` | master switch; `pm-log-srv` refuses to accept connections when `false` |
+| `enabled` | `Bool` | – | `true` | master switch; when `false`, `pm-log-srv` logs a warning and exits at once (exit 0) |
 | `name` | `Str` | – | `"log-srv01"` | echoed in the LALF `WELCOME\|SRV=` field |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | TCP listen interface (`127.0.0.1` for loopback-only) |
 | `port` | `Port` | – | `5600` | `> 0` |
 | `db_path` | `Path` | – | resolved `data/log.db` | SQLite database path where `log_events`/`processes`/`server_stats` are stored |
 | `retention_days` | `Int` \| `null` | – | `30` | `>= 0` or `null`; `0` is normalised to `null` (both mean unbounded retention — pruning disabled); pruning otherwise runs once per hour |
 | `max_message_bytes` | `Int` | – | `65536` | `> 0`; maximum `LOG` payload size before truncation — oversized messages are truncated and stored, never dropped |
-| `max_client_queue` | `Int` | – | `10000` | `> 0`; per-connection outbound backlog limit before backpressure is applied |
+| `max_client_queue` | `Int` | – | `10000` | `> 0`; two limits: a client whose unsent replies exceed it is not read until they drain, and while the writer holds more than this many accepted but uncommitted rows, no client is read at all (backpressure) |
 | `write_batch_size` | `Int` | – | `50` | `> 0`; maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `Int` | – | `100` | `> 0`; maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
 | `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; how often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value in `WELCOME\|HBINT=` (the server itself never sends `HB`). Doubles as the publish interval for the LALF-PS `log.server_state` tick |

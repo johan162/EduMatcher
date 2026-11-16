@@ -793,7 +793,8 @@ Unlike `pm-audit` (a durable-forever compliance record by design) or
 `log_events` can grow without bound at DEBUG-heavy verbosity over a long
 session. `pm-log-srv` supports `--retention-days N` (config
 `retention_days`, §7.7, **default `30`**) that prunes `log_events` rows
-older than `N` days once per hour in the background. Operational logging
+older than `N` days once per hour, one 5 000-row chunk per main-loop
+pass so collection never stops behind a long delete. Operational logging
 is qualitatively different from `pm-audit`'s compliance record or
 `pm-stats`' market history — both of those default to keeping everything
 forever because losing a fill or a price is unrecoverable and
@@ -1099,9 +1100,21 @@ Key design decisions, each with a direct precedent or rationale:
   new source of outages, the opposite of its purpose. `queue_maxsize`
   (default `2000`) bounds memory while the handler is still trying to
   reconnect (§8.6); drops during this window are tracked
-  (`TcpLogHandler.dropped_count`) and reported the same way as before —
-  see §8.6 for what happens once the grace window itself expires, which
-  is a qualitatively different outcome from a drop.
+  (`TcpLogHandler.dropped_count`) and reported once, as soon as the queue
+  has drained: a WARNING row from `edumatcher.logclient` ("N log records
+  dropped: the handler queue was full ...") over LALF, or the same line in
+  the fallback file after failover — see §8.6 for what happens once the
+  grace window itself expires, which is a qualitatively different outcome
+  from a drop.
+- **Each queued item carries both outputs.** `emit()` builds the LALF
+  frame *and* the fallback-file line of the record, so the backlog can go
+  to either place. A frame whose `sendall` failed is kept and sent first
+  on the next connection.
+- **`close()` drains.** `logging.shutdown()` calls `close()` at every
+  process exit; it keeps sending until the queue is empty or
+  `connect_timeout_sec` + 2 s have passed, then sends `EXIT`. Whatever is
+  still queued at the deadline (server unreachable) goes to the fallback
+  file under a line saying how many records the server did not take.
 - **Reconnect with backoff, transparent to the caller, up to a bounded
   grace window.** If the connection to `pm-log-srv` drops mid-session
   (server restarted, network blip), the background thread reconnects
@@ -1212,12 +1225,15 @@ of what was previously just "reconnect or drop":
    server restart or blip — without ever touching disk.
 2. **Reconnect succeeds within the grace window:** the queued backlog
    (up to `queue_maxsize`) drains to the server over LALF as usual, the
-   drop counter (if nonzero) is reported once (§8.2), and nothing else
+   drop counter (if nonzero) is reported once as a WARNING row (§8.2), and nothing else
    changes — from the log server's perspective this looks like any other
    client reconnect (§5.10).
 3. **`failover_timeout_sec` elapses with no successful reconnect:** the
    handler stops attempting LALF delivery for the remainder of this
    process's life and switches to a local **fallback log file** instead.
+   The backlog queued during the grace window is written to the file
+   first, in order, after the marker line, followed by a line stating any
+   records dropped while the queue was full.
    This is a one-way transition in this revision (§13 covers why
    switching back is deliberately not attempted) — once a process has
    failed over to file logging, it stays on file logging until it exits,
@@ -1289,7 +1305,7 @@ seventh heuristic, added in §9.6.
 | `src/edumatcher/logclient/protocol.py` (new) | LALF line encode/decode (§5) — the Python-side equivalent of `md_gateway/protocol.py`'s CALF grammar module, reused by both `TcpLogHandler` and `pm-log-srv` itself |
 | `src/edumatcher/logclient/discovery.py` (new) | The auto-detection probe (§8.3), shared by every process |
 | `src/edumatcher/log_srv/config.py` | `LogClientConfig`/`load_log_client_config()` (§7.7's nested `client:` block) — **done (v1.3.0)**, the one piece this file's own docstring had flagged as deliberately unmodeled until now |
-| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) — **done (v1.4.0) for `pm-audit`, `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`, `pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing`** (11 of ~19); remaining entrypoints (engine, index, mm_bot, orders, ticker, viewer, and `pm-log-srv`/`pm-log-cli` themselves) not yet requested |
+| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) — **done**: 26 entry points call `resolve_handler` (engine, gateways, bots, viewers, recorders, monitor, scheduler and the admin commands). `pm-log-srv` never logs to a server (it must not depend on itself); `pm-log-cli` reads `log.db` and logs to its console |
 | `src/edumatcher/log_srv/main.py` (new) | `pm-log-srv` entrypoint (§7) |
 | `src/edumatcher/log_srv/server.py` (new) | Accept loop, per-connection handler task, shared writer task (§7.3, §7.4) |
 | `src/edumatcher/log_srv/schema.py` (new) | `SCHEMA` constant (§6.6), mirroring `stats/main.py`'s own `SCHEMA` constant shape |
