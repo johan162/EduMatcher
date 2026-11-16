@@ -75,10 +75,10 @@ export function GatewayDrawer({ gateway, onKick, onClose }: GatewayDrawerProps) 
           type="button"
           onClick={() => onKick(gateway)}
           disabled={!gateway.connected}
-          aria-label={`Kick participant ${id} from drawer`}
-          className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-ask disabled:opacity-30"
+          aria-label={`Kill participant ${id} from drawer`}
+          className="rounded border-2 border-ask px-2 py-0.5 text-[11px] font-bold text-ask hover:bg-ask hover:text-white disabled:opacity-30"
         >
-          Kick
+          Kill
         </button>
         <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-fg-dim hover:text-fg">
           <X size={16} aria-hidden="true" />

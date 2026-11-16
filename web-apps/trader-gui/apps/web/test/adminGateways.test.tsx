@@ -8,17 +8,19 @@ vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
+const ROSTER = [
+  // 2026-11-16 08:30:05 UTC
+  { id: "GW01", role: "TRADER", connected: true, description: "Desk A", connected_since_ns: 1_794_817_805_000_000_000 },
+  { id: "GW09", role: "ADMIN", connected: false, description: "Console" },
+];
+let roster = ROSTER;
+
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path.startsWith("/api/v1/admin/gateways") && path.endsWith("/disconnect")) {
     return { gateway_id: "GW01", status: "PENDING_DISCONNECT" };
   }
   if (path.startsWith("/api/v1/admin/gateways")) {
-    return {
-      gateways: [
-        { id: "GW01", role: "TRADER", connected: true, description: "Desk A" },
-        { id: "GW09", role: "ADMIN", connected: false, description: "Console" },
-      ],
-    };
+    return { gateways: roster };
   }
   if (path === "/api/v1/admin/symbols/AAPL/cancel-orders") {
     return { accepted: true, symbol: "AAPL", reason: "", cancelled_orders: 3, cancelled_quotes: 0 };
@@ -44,6 +46,8 @@ vi.mock("@/api/apiFetch", () => ({
 
 import { AdminGatewaysPage } from "@/pages/AdminGatewaysPage";
 import { useSymbolStore } from "@/store/useSymbolStore";
+import { useSessionStore } from "@/store/useSessionStore";
+import { usePrefsStore } from "@/store/usePrefsStore";
 import type { Symbol } from "@/types/index";
 
 const SYMBOLS: Symbol[] = [
@@ -60,24 +64,85 @@ const called = (path: string) => apiFetchMock.mock.calls.some(([p]) => String(p)
 beforeEach(() => {
   cleanup();
   apiFetchMock.mockClear();
+  roster = ROSTER;
+  usePrefsStore.setState({ participantsPageSize: 30 });
+  useSessionStore.setState({ timezone: "UTC" });
   useSymbolStore.setState({ symbols: SYMBOLS });
 });
 
 describe("AdminGatewaysPage (§15.7)", () => {
-  it("renders the roster and disables Kick for an offline gateway", async () => {
+  it("renders the roster and disables Kill for an offline gateway", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Kick participant GW01" })).toHaveProperty("disabled", false);
-    expect(screen.getByRole("button", { name: "Kick participant GW09" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Kill participant GW01" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: "Kill participant GW09" })).toHaveProperty("disabled", true);
   });
 
   it("kicks a connected gateway after confirmation", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Kick participant GW01" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kill participant GW01" }));
     expect(screen.getByText(/Disconnect participant GW01\?/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     await waitFor(() => expect(called("/api/v1/admin/gateways/GW01/disconnect")).toBe(true));
+  });
+});
+
+describe("Participant list filter and pager", () => {
+  const rowIds = () => screen.getAllByRole("row").slice(1).map((r) => r.querySelector("td")?.textContent);
+
+  it("finds by ID and filters by role, over the whole roster", async () => {
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    expect(screen.getByText("2 participants")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Find ID"), { target: { value: "w09" } });
+    expect(rowIds()).toEqual(["GW09"]);
+    expect(screen.getByText("1 participant of 2")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Find ID"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Filter by role"), { target: { value: "TRADER" } });
+    expect(rowIds()).toEqual(["GW01"]);
+  });
+
+  it("shows when each participant connected, and a dash while offline", async () => {
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    const cells = (id: string) => [...screen.getByText(id).closest("tr")!.querySelectorAll("td")].map((td) => td.textContent);
+    expect(screen.getByRole("columnheader", { name: /Connected since/ })).toBeTruthy();
+    expect(cells("GW01")).toContain("2026-11-16 08:30:05");
+    expect(cells("GW09")).toContain("—");
+  });
+
+  it("remembers the rows-per-page choice", async () => {
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "50" } });
+    expect(usePrefsStore.getState().participantsPageSize).toBe(50);
+    expect(JSON.parse(localStorage.getItem("trader-prefs")!).state.participantsPageSize).toBe(50);
+  });
+
+  it("pages the roster, 30 rows by default, and resets to page 1 on a filter change", async () => {
+    roster = Array.from({ length: 35 }, (_, i) => ({
+      id: `P${String(i + 1).padStart(2, "0")}`,
+      role: i % 2 ? "ADMIN" : "TRADER",
+      connected: true,
+      description: "",
+    }));
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("P01")).toBeTruthy());
+    expect(screen.getByText("Page 1/2")).toBeTruthy();
+    expect(rowIds()).toHaveLength(30);
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("Page 2/2")).toBeTruthy();
+    expect(rowIds()).toEqual(["P31", "P32", "P33", "P34", "P35"]);
+    fireEvent.change(screen.getByLabelText("Filter by role"), { target: { value: "ADMIN" } });
+    expect(screen.getByText("Page 1/1")).toBeTruthy();
+    expect(rowIds()).toHaveLength(17);
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "10" } });
+    expect(screen.getByText("Page 1/2")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "0" } });
+    expect(screen.getByText("Page 1/1")).toBeTruthy();
+    expect(rowIds()).toHaveLength(17);
   });
 });
 
@@ -85,13 +150,13 @@ describe("KillSwitchPanel (§15.8)", () => {
   it("cancels by symbol after confirmation", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.change(screen.getByLabelText("Kill switch symbol"), { target: { value: "AAPL" } });
+    fireEvent.change(screen.getByLabelText("Mass cancel symbol"), { target: { value: "AAPL" } });
     fireEvent.click(screen.getByRole("button", { name: "Cancel symbol" }));
     // Dialog "Cancel symbol" confirm button; nothing posted yet.
-    expect(screen.getByText(/Kill switch — symbol\?/)).toBeTruthy();
+    expect(screen.getByText(/Mass cancel — symbol\?/)).toBeTruthy();
     expect(called("/api/v1/admin/symbols/AAPL/cancel-orders")).toBe(false);
     // The dialog's confirm button also reads "Cancel symbol" — pick the one in the dialog.
-    const dialog = screen.getByRole("dialog", { name: "Kill switch — symbol?" });
+    const dialog = screen.getByRole("dialog", { name: "Mass cancel — symbol?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel symbol" }));
     await waitFor(() => expect(called("/api/v1/admin/symbols/AAPL/cancel-orders")).toBe(true));
   });
@@ -105,9 +170,9 @@ describe("KillSwitchPanel (§15.8)", () => {
     apiFetchMock.mockRejectedValueOnce(
       new ApiError(409, "KILL_SWITCH_REJECTED", "Symbol-level mass cancel is only allowed for ADMIN participants"),
     );
-    fireEvent.change(screen.getByLabelText("Kill switch symbol"), { target: { value: "AAPL" } });
+    fireEvent.change(screen.getByLabelText("Mass cancel symbol"), { target: { value: "AAPL" } });
     fireEvent.click(screen.getByRole("button", { name: "Cancel symbol" }));
-    const dialog = screen.getByRole("dialog", { name: "Kill switch — symbol?" });
+    const dialog = screen.getByRole("dialog", { name: "Mass cancel — symbol?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel symbol" }));
     await waitFor(() =>
       expect((toast.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![0]).toBe(
@@ -119,10 +184,10 @@ describe("KillSwitchPanel (§15.8)", () => {
   it("cancels by gateway after confirmation", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.change(screen.getByLabelText("Kill switch participant"), { target: { value: "GW01" } });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel participant" }));
-    const dialog = screen.getByRole("dialog", { name: "Kill switch — participant?" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel participant" }));
+    fireEvent.change(screen.getByLabelText("Mass cancel participant"), { target: { value: "GW01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel orders only" }));
+    const dialog = screen.getByRole("dialog", { name: "Mass cancel — participant?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel orders only" }));
     // D1: the target gateway is the path segment, not a body field.
     await waitFor(() => expect(called("/api/v1/admin/gateways/GW01/kill-switch")).toBe(true));
     const body = JSON.parse(
@@ -165,10 +230,10 @@ describe("GatewayDrawer", () => {
     expect(screen.queryByRole("dialog", { name: "Participant GW01" })).toBeNull();
   });
 
-  it("Kick in the row does not open the drawer", async () => {
+  it("Kill in the row does not open the drawer", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Kick participant GW01" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kill participant GW01" }));
     expect(screen.queryByRole("dialog", { name: "Participant GW01" })).toBeNull();
   });
 });

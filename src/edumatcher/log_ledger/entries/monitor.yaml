@@ -67,12 +67,16 @@
   level: ERROR
   explanation: >
     A process on the exchange changed health state, as shown in the message
-    (for example "HEALTHY -> HUNG"). DEGRADED is logged as WARNING; HUNG
-    (alive but its main loop stopped), SILENT (no beacons although the process
-    still runs), DEAD (no beacons and the process is gone) and MISSING (expected by the active profile but never seen) as
-    ERROR.
+    (for example "HEALTHY -> DEGRADED: rss_growth_pct_1h CRIT 140 > 100").
+    The reason is after the colon: for DEGRADED, every threshold in breach on
+    the process (and a host breach at the same time, as "host: …"); for HUNG,
+    how long its loop has not ticked; for SILENT and DEAD, how long no beacon
+    came. DEGRADED is logged as WARNING; HUNG (alive but its main loop
+    stopped), SILENT (no beacons although the process still runs), DEAD (no
+    beacons and the process is gone) and MISSING (expected by the active
+    profile but never seen) as ERROR.
   actions:
-    - "Look at the process's own rows around this time for the cause."
+    - "Read the reason after the colon; for a DEGRADED process the `threshold … on <process>` line just before gives the same breach, and its clear later."
     - "Check the process with `pm-monitor-cli status` and `pm-opctl-cli list`; restart it if it is HUNG or DEAD."
     - "MISSING means the active profile expects the process but it was not started; start it or switch profile."
 
@@ -80,8 +84,12 @@
   template: "threshold %s on %s"
   level: ERROR
   explanation: >
-    A monitored value crossed one of the configured limits (the rule and the
-    process are in the message). WARN is logged as WARNING, CRIT as ERROR.
+    A monitored value crossed one of its limits, or a breach eased or
+    cleared (the rule and the subject are in the message). WARN is logged as
+    WARNING, CRIT as ERROR, a clear as INFO. "clearing (v)" means the level
+    holds while the value is back inside the limit; "cleared (no longer
+    judged; last v)" means the rule stopped judging (it declined, or the
+    process went away), not that the value fell.
   actions:
     - "Open the operator dashboard or run `pm-monitor-cli status` to see the value and the limit."
     - "If the limit is wrong for this exchange, change it under `monitor.thresholds` in the source config and run `pm-config-deploy`."

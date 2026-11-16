@@ -4175,6 +4175,7 @@ One configured participant, and whether it is connected right now.
 | `role` | `string` | required | max_len 32 |  |
 | `description` | `string` | defaults to `''` | max_len 128 |  |
 | `connected` | `bool` | required | — |  |
+| `connected_since_ns` | `int` | omitted when unset | unit `epoch_nanos` | When the engine accepted the current connection. Absent while offline. |
 
 #### `SymbolVolume`
 

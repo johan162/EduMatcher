@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import subprocess
@@ -18,7 +19,7 @@ import pytest
 from edumatcher.models.generated.health import HealthBeacon, HealthSnapshot
 from edumatcher.monitor.collector import FORGET_AFTER_SEC, Monitor
 from edumatcher.monitor.config import MonitorConfig
-from edumatcher.monitor.thresholds import CLEAR_AFTER
+from edumatcher.monitor.thresholds import CLEAR_AFTER, RAISE_AFTER
 from edumatcher.monitor.state import (
     STARTUP_GRACE_SEC,
     HealthRules,
@@ -30,6 +31,17 @@ from edumatcher.monitor.state import (
 from tests.conftest import free_ports
 from tests.test_monitor_main import QuietHost
 from tests.test_monitor_main import _beacon_frames
+
+
+class BusyHost(QuietHost):
+    """QuietHost with its CPU at ``cpu_pct``."""
+
+    def __init__(self, cpu_pct: float) -> None:
+        self.cpu_pct = cpu_pct
+
+    def sample(self) -> dict[str, Any]:
+        return {**super().sample(), "cpu_pct": self.cpu_pct}
+
 
 RULES = HealthRules(hung_after_sec=5.0, silent_after_beacons=3, local_host="box")
 #: interval_sec 2 x silent_after_beacons 3
@@ -102,8 +114,8 @@ EVALUATE_CASES: list[tuple[str, dict[str, Any], float, Any, bool, str]] = [
         "HUNG",
     ),
     ("hung beats degraded", {"loop_age_ms": 9000.0}, 1.0, _alive, True, "HUNG"),
-    ("lag boundary", {"loop_lag_ms": 1000.0}, 1.0, _alive, False, "HEALTHY"),
-    ("lag", {"loop_lag_ms": 1000.1}, 1.0, _alive, False, "DEGRADED"),
+    # A late loop is the loop_lag_ms rule's to judge (WP-MHD01), not evaluate's.
+    ("lag alone", {"loop_lag_ms": 1000.1}, 1.0, _alive, False, "HEALTHY"),
     ("threshold breach", {}, 1.0, _alive, True, "DEGRADED"),
 ]
 
@@ -137,7 +149,8 @@ def test_sigstop_then_sigcont_is_silent_then_healthy() -> None:
     assert state.loop_lag_ms == pytest.approx(40.0)  # the loop's own share
     assert state.loop_age_ms == 30.0
     # From here on the figures are the beacon's own again.
-    assert _then(state, 124.0, loop_age_ms=30.0, loop_lag_ms=1_500.0) == "DEGRADED"
+    _then(state, 124.0, loop_age_ms=30.0, loop_lag_ms=1_500.0)
+    assert state.loop_lag_ms == 1_500.0  # for the loop_lag_ms rule to judge
     assert _then(state, 126.0, loop_age_ms=6_000.0, loop_lag_ms=0.0) == "HUNG"
 
 
@@ -376,8 +389,18 @@ class TestTransitions:
         # The loop_age_ms warning (§9.6) clears after CLEAR_AFTER OK seconds, so the
         # way back passes through DEGRADED.
         assert [e for e in events if e[0] == "PROCESS_STATUS"] == [
-            ("PROCESS_STATUS", "CRIT", "pm-engine@box", "HEALTHY -> HUNG"),
-            ("PROCESS_STATUS", "WARN", "pm-engine@box", "HUNG -> DEGRADED"),
+            (
+                "PROCESS_STATUS",
+                "CRIT",
+                "pm-engine@box",
+                "HEALTHY -> HUNG: loop_age_ms 6000 > 5000",
+            ),
+            (
+                "PROCESS_STATUS",
+                "WARN",
+                "pm-engine@box",
+                "HUNG -> DEGRADED: loop_age_ms WARN clearing (5)",
+            ),
             ("PROCESS_STATUS", "INFO", "pm-engine@box", "DEGRADED -> HEALTHY"),
         ]
 
@@ -392,8 +415,173 @@ class TestTransitions:
             "PROCESS_STATUS",
             "CRIT",
             "pm-engine@box",
-            "HEALTHY -> DEAD",
+            "HEALTHY -> DEAD: no beacon for 7.0 s, process gone",
         )
+
+    def test_silent_names_the_silence(self, clock: _Clock, events: list[Any]) -> None:
+        m = _monitor(clock)
+        m._alive = _alive
+        try:
+            m.receive(_beacon_frames(), clock.t)
+            m.snapshot()
+            clock.t += LIMIT + 1
+            m.snapshot()
+            m.receive(_beacon_frames(host="far", seq=0), clock.t)
+            m.snapshot()
+            clock.t += LIMIT + 1
+            m.snapshot()
+        finally:
+            m.close()
+        assert [e[2:] for e in events if e[0] == "PROCESS_STATUS"] == [
+            ("pm-engine@box", "HEALTHY -> SILENT: no beacon for 7.0 s, process runs"),
+            ("pm-engine@far", "HEALTHY -> SILENT: no beacon for 7.0 s"),
+        ]
+
+    def test_a_breach_is_named_in_the_transition(
+        self,
+        mon: Monitor,
+        clock: _Clock,
+        events: list[Any],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        caplog.set_level(logging.INFO, logger="edumatcher.monitor.collector")
+        p99 = {
+            "name": "engine.handle_us_p99",
+            "kind": "GAUGE",
+            "label": "",
+            "value": 25000.0,
+        }
+        mon.receive(_beacon_frames(metrics=[p99]), clock.t)
+        mon.snapshot()
+        detail = "first seen DEGRADED: engine_handle_p99_us CRIT 25000 > 20000"
+        assert ("PROCESS_STATUS", "WARN", "pm-engine@box", detail) in events
+        assert f"process pm-engine@box: {detail}" in caplog.messages
+
+    def test_a_late_loop_is_a_breach_with_its_own_event(
+        self, mon: Monitor, clock: _Clock, events: list[Any]
+    ) -> None:
+        mon.receive(_beacon_frames(), clock.t)
+        mon.snapshot()
+        for seq in range(1, RAISE_AFTER + 1):
+            mon.receive(_beacon_frames(seq=seq, loop_lag_ms=1500.0), clock.t)
+            mon.snapshot()
+            clock.t += 1.0
+        snap = mon.snapshot()
+        assert [(b["rule"], b["subject"], b["level"]) for b in snap["thresholds"]] == [
+            ("loop_lag_ms", "pm-engine@box", "WARN")
+        ]
+        assert [p["state"] for p in snap["processes"]] == ["DEGRADED"]
+        assert events == [
+            ("THRESHOLD", "WARN", "pm-engine@box", "loop_lag_ms WARN 1500 > 1000"),
+            (
+                "PROCESS_STATUS",
+                "WARN",
+                "pm-engine@box",
+                "HEALTHY -> DEGRADED: loop_lag_ms WARN 1500 > 1000",
+            ),
+        ]
+
+    @pytest.mark.parametrize("figure", ["loop_age_ms", "loop_lag_ms"])
+    def test_one_late_beacon_is_not_degraded(
+        self, mon: Monitor, clock: _Clock, events: list[Any], figure: str
+    ) -> None:
+        """One beacon 1.3 s late, judged twice (2 s interval), then on time:
+        not a breach (C5, WP-MHD04)."""
+        for second in range(40):
+            if second % 2 == 0:
+                late = {figure: 1336.6} if second == 2 else {}
+                mon.receive(_beacon_frames(seq=second, **late), clock.t)
+            snap = mon.snapshot()
+            assert [p["state"] for p in snap["processes"]] == ["HEALTHY"]
+            clock.t += 1.0
+        assert events == []
+
+    @pytest.mark.parametrize("figure", ["loop_age_ms", "loop_lag_ms"])
+    def test_a_loop_late_for_five_seconds_is_a_breach(
+        self, mon: Monitor, clock: _Clock, events: list[Any], figure: str
+    ) -> None:
+        for second in range(RAISE_AFTER + 1):
+            if second % 2 == 0:
+                mon.receive(_beacon_frames(seq=second, **{figure: 1200.0}), clock.t)
+            mon.snapshot()
+            clock.t += 1.0
+        assert events == [
+            ("THRESHOLD", "WARN", "pm-engine@box", f"{figure} WARN 1200 > 1000"),
+            (
+                "PROCESS_STATUS",
+                "WARN",
+                "pm-engine@box",
+                f"HEALTHY -> DEGRADED: {figure} WARN 1200 > 1000",
+            ),
+        ]
+
+    def test_one_slow_minute_of_the_engine_is_not_degraded(
+        self, mon: Monitor, clock: _Clock, events: list[Any]
+    ) -> None:
+        """Four slow messages hold the engine's p99 at 5 764 us for its 60 s
+        horizon (C3): no breach, no transition (WP-MHD03)."""
+        for second in range(120):
+            p99 = 5764.4 if second < 60 else 1970.0
+            if second % 2 == 0:
+                metric = {
+                    "name": "engine.handle_us_p99",
+                    "kind": "GAUGE",
+                    "label": "",
+                    "value": p99,
+                }
+                mon.receive(_beacon_frames(seq=second, metrics=[metric]), clock.t)
+            snap = mon.snapshot()
+            assert [p["state"] for p in snap["processes"]] == ["HEALTHY"]
+            clock.t += 1.0
+        assert events == []
+
+    def test_host_contention_is_named_beside_a_process_breach(
+        self, mon: Monitor, clock: _Clock, events: list[Any]
+    ) -> None:
+        """Q3: the host breach is context, appended; the process stays DEGRADED."""
+        mon.host_sampler = BusyHost(cpu_pct=97.1)
+        p99 = {
+            "name": "engine.handle_us_p99",
+            "kind": "GAUGE",
+            "label": "",
+            "value": 25000.0,
+        }
+        mon.receive(_beacon_frames(), clock.t)
+        mon.snapshot()
+        mon.receive(_beacon_frames(seq=1, metrics=[p99]), clock.t)
+        mon.snapshot()
+        assert [e[3] for e in events if e[0] == "PROCESS_STATUS"] == [
+            "HEALTHY -> DEGRADED: engine_handle_p99_us CRIT 25000 > 20000; "
+            "host: host_cpu_pct CRIT 97.1 > 95"
+        ]
+
+    def test_no_host_breach_no_host_part(
+        self, mon: Monitor, clock: _Clock, events: list[Any]
+    ) -> None:
+        p99 = {
+            "name": "engine.handle_us_p99",
+            "kind": "GAUGE",
+            "label": "",
+            "value": 25000.0,
+        }
+        mon.receive(_beacon_frames(), clock.t)
+        mon.snapshot()
+        mon.receive(_beacon_frames(seq=1, metrics=[p99]), clock.t)
+        mon.snapshot()
+        assert [e[3] for e in events if e[0] == "PROCESS_STATUS"] == [
+            "HEALTHY -> DEGRADED: engine_handle_p99_us CRIT 25000 > 20000"
+        ]
+
+    def test_a_credited_silence_is_not_a_late_loop(
+        self, mon: Monitor, clock: _Clock
+    ) -> None:
+        mon.receive(_beacon_frames(), clock.t)
+        mon.snapshot()
+        clock.t += 20.0  # stood still (SIGSTOP): reported DEAD/SILENT already
+        mon.receive(_beacon_frames(seq=1, loop_lag_ms=20_010.0), clock.t)
+        snap = mon.snapshot()
+        assert snap["thresholds"] == []
+        assert [p["state"] for p in snap["processes"]] == ["HEALTHY"]
 
     def test_first_seen_in_trouble_is_news(
         self, mon: Monitor, clock: _Clock, events: list[Any]

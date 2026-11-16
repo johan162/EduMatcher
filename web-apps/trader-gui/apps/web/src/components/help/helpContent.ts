@@ -497,7 +497,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         ],
       },
       {
-        heading: "Kill Switch",
+        heading: "Mass Cancel",
         paragraphs: [
           "An ADMIN action that cancels resting orders/quotes by symbol, by gateway, or market-wide. It cancels exposure; it does not halt trading.",
         ],

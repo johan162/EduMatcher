@@ -2772,6 +2772,9 @@ class Engine:
                         "role": cfg.role.value,
                         "description": cfg.description,
                         "connected": connected,
+                        "connected_since_ns": (
+                            session.connected_since_ns if session else None
+                        ),
                     }
                 )
         self.pub_sock.send_multipart(make_gateways_msg(gateway_id, gateways))
@@ -2831,6 +2834,7 @@ class Engine:
             # No configuration loaded: no gateway restrictions.
             self._connected_participants.add(gateway_id)
             session.connected = True
+            session.connected_since_ns = now_ns()
             self.metrics.count(self.metrics.connects, gateway_id)
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(gateway_id, accepted=True)
@@ -2860,6 +2864,7 @@ class Engine:
 
         self._connected_participants.add(gateway_id)
         session.connected = True
+        session.connected_since_ns = now_ns()
         self.metrics.count(self.metrics.connects, gateway_id)
         self.pub_sock.send_multipart(
             make_gateway_auth_msg(
@@ -4496,6 +4501,7 @@ class Engine:
         self.metrics.count(self.metrics.disconnects, gateway_id)
         session = self._session_for_gateway(gateway_id)
         session.connected = False
+        session.connected_since_ns = None
         session.heartbeat_interval_sec = 0
         self._connected_participants.discard(gateway_id)
 

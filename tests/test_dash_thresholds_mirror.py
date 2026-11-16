@@ -23,6 +23,8 @@ from edumatcher.monitor.config import INVERTED_THRESHOLDS, MonitorThresholds
 from edumatcher.monitor.thresholds import (
     LOOP_AGE_RULE,
     LOOP_AGE_WARN_MS,
+    LOOP_LAG_RULE,
+    LOOP_LAG_WARN_MS,
     increase_reading,
 )
 
@@ -67,8 +69,9 @@ def test_the_inverted_rules_are_pm_monitors() -> None:
 def test_the_fixed_rules_are_pm_monitors() -> None:
     fixed = _numbers(_block("FIXED_RULES"))
     increases = set(WATCHED_INCREASES.values()) | {SLOW_RULE}
-    assert set(fixed) == {LOOP_AGE_RULE} | increases
+    assert set(fixed) == {LOOP_AGE_RULE, LOOP_LAG_RULE} | increases
     assert fixed[LOOP_AGE_RULE] == {"warn": LOOP_AGE_WARN_MS, "crit": None}
+    assert fixed[LOOP_LAG_RULE] == {"warn": LOOP_LAG_WARN_MS, "crit": None}
     # An increase rule warns on any increase: warn 0, no critical level.
     reading = increase_reading("x", "s", 1.0)
     for rule in increases:

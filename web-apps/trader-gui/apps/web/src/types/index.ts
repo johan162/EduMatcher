@@ -606,6 +606,8 @@ export interface AdminGateway {
   role: GatewayRole;
   connected: boolean;
   description?: string;
+  /** When the engine accepted the current connection (epoch ns); absent while offline. */
+  connected_since_ns?: number;
 }
 
 /** pm-msgen news.event — one pm-market-sim headline (public). */

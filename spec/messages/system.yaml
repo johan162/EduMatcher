@@ -685,6 +685,9 @@ types:
       - { name: description, type: string, required: false, default: "",
           validate: { max_len: 128 } }
       - { name: connected, type: bool }
+      - { name: connected_since_ns, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: epoch_nanos,
+          doc: "When the engine accepted the current connection. Absent while offline." }
 
   SymbolVolume:
     doc: >

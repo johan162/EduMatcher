@@ -227,7 +227,7 @@ def test_the_scanner_sees_what_it_should() -> None:
 
 def test_timing_constants_agree() -> None:
     from edumatcher.health import reporter
-    from edumatcher.monitor import collector, state
+    from edumatcher.monitor import collector, state, thresholds
     from edumatcher.monitor.config import MonitorConfig
 
     cfg = MonitorConfig()
@@ -237,7 +237,7 @@ def test_timing_constants_agree() -> None:
     # a full queued burst of every tracked source is read in one drain (I20)
     assert reporter.SNDHWM * state.MAX_SOURCES <= collector.DRAIN_BUDGET
     # a late loop is DEGRADED before it is HUNG, and a starting one gets longer
-    assert state.LOOP_LAG_DEGRADED_MS < cfg.hung_after_sec * 1000
+    assert thresholds.LOOP_LAG_WARN_MS < cfg.hung_after_sec * 1000
     assert cfg.hung_after_sec < state.STARTUP_GRACE_SEC
     # silence needs more than one missed beacon, so one late send is not SILENT
     assert cfg.silent_after_beacons >= 2

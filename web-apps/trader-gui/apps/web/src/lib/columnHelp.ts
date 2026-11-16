@@ -63,7 +63,8 @@ export const COLUMN_HELP: Record<HelpTable, Record<string, string[]>> = {
     Role: ["What the participant may do: TRADER sends orders, MARKET_MAKER also quotes, ADMIN may operate the venue."],
     Description: ["The description from the configuration."],
     Connected: ["Whether the participant is connected to the engine right now."],
-    Action: ["Kick disconnects the participant; the engine cancels its resting orders and quotes. It can reconnect."],
+    "Connected since": ["When the engine accepted the current connection, in the session timezone. Empty while offline."],
+    Action: ["Kill disconnects the participant; the engine cancels its resting orders and quotes. It can reconnect."],
   },
   "admin-risk": {
     Level: ["The name of a risk profile, or of a circuit breaker level in a symbol's ladder."],

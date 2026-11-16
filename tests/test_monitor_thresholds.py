@@ -141,6 +141,38 @@ class TestHysteresis:
         assert (breach.severity, breach.detail) == ("CRIT", "disk_free_pct CRIT 3 < 5")
 
 
+def _p99(value: float) -> Reading:
+    return band_reading(T, "engine_handle_p99_us", "pm-engine@box", value)
+
+
+class TestWindowedRules:
+    """``engine_handle_p99_us`` is a p99 over the engine's last 60 s: one
+    burst holds it for up to 60 evaluations, so its warning is raised only
+    when it outlasts that window, after 90 (WP-MHD03, Q2)."""
+
+    @staticmethod
+    def _changes(values: Sequence[float]) -> list[tuple[int, str]]:
+        book = ThresholdBook()
+        return [
+            (i, f"{c.previous}->{c.level}")
+            for i, v in enumerate(values)
+            for c in book.evaluate([_p99(v)], "ts")
+        ]
+
+    def test_a_burst_held_for_one_window_is_not_a_breach(self) -> None:
+        assert self._changes([5764.4] * 60 + [1970.0] * 60) == []
+
+    def test_latency_that_outlasts_the_window_is_a_breach(self) -> None:
+        assert self._changes([5764.4] * 90) == [(89, "OK->WARN")]
+
+    def test_a_critical_latency_rises_at_once(self) -> None:
+        assert self._changes([1970.0, 25000.0]) == [(1, "OK->CRIT")]
+
+    def test_other_rules_keep_five_seconds(self) -> None:
+        book = ThresholdBook()
+        assert _run(book, [81] * RAISE_AFTER) == ["OK->WARN"]
+
+
 @pytest.fixture
 def monitor() -> Iterator[Monitor]:
     pull, pub = free_ports(2)
@@ -220,6 +252,43 @@ def test_a_process_breach_makes_that_process_degraded(
         ("pm-engine@box", "DEGRADED")
     ]
     assert snap["exchange"]["status"] == "DEGRADED"
+
+
+class TestChangeWording:
+    """A change says what its value is based on (C6, WP-MHD05)."""
+
+    def test_a_breach_no_longer_judged_says_so(self) -> None:
+        book = ThresholdBook()
+        rss = band_reading(T, "rss_growth_pct_1h", "pm-ralf-gwy@box", 1179.791)
+        assert [c.detail for c in book.evaluate([rss], "ts")] == [
+            "rss_growth_pct_1h CRIT 1179.791 > 100"
+        ]
+        details = [
+            c.detail for _ in range(CLEAR_AFTER) for c in book.evaluate([], "ts")
+        ]
+        assert details == [
+            "rss_growth_pct_1h cleared (no longer judged; last 1179.791)"
+        ]
+
+    def test_a_value_that_fell_back_clears_with_it(self) -> None:
+        book = ThresholdBook()
+        book.evaluate([_cpu(99)], "ts")
+        details = [
+            c.detail
+            for _ in range(CLEAR_AFTER)
+            for c in book.evaluate([_cpu(50)], "ts")
+        ]
+        assert details == ["host_cpu_pct cleared (50)"]
+
+    def test_an_eased_breach_does_not_claim_a_value_it_no_longer_has(self) -> None:
+        """CRIT, then 30 s mostly near idle with a warn-level second among
+        them: the level eases to WARN at a value back under 80 (the sim's
+        ``host_cpu_pct WARN 6.5 > 80``)."""
+        book = ThresholdBook()
+        book.evaluate([_cpu(99)], "ts")
+        values = [85.0] + [6.5] * (CLEAR_AFTER - 1)
+        details = [c.detail for v in values for c in book.evaluate([_cpu(v)], "ts")]
+        assert details == ["host_cpu_pct WARN clearing (6.5)"]
 
 
 def test_a_change_prints_its_value_without_an_exponent() -> None:

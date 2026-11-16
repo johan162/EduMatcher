@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -210,6 +211,38 @@ class TestHealthRecord:
 
 MB = 1024 * 1024
 
+#: The 2026-11-16 simulation's open, as minute RSS in MiB from 07:00
+#: (``samples_1m.v_last`` of ``proc.rss_bytes``): {minute: value from then on}.
+OPEN_RALF_GWY = {0: 47, 90: 87, 91: 129, 92: 171, 93: 212, 94: 253, 95: 292,
+                 96: 331, 97: 369, 98: 410, 99: 450, 100: 490, 101: 531,
+                 102: 565, 103: 586, 104: 597}  # fmt: skip
+OPEN_ENGINE = {0: 71, 60: 76, 61: 78, 62: 79, 65: 80, 90: 100, 91: 115,
+               92: 126, 93: 138, 94: 146, 95: 154, 96: 156, 97: 159,
+               98: 162, 99: 164, 100: 167, 101: 169, 102: 171}  # fmt: skip
+OPEN_API_GWY = {0: 93, 61: 94, 62: 95, 87: 96, 90: 270, 91: 368, 92: 467,
+                93: 565, 94: 659, 95: 735, 96: 737, 97: 740, 98: 741, 99: 742,
+                100: 748, 101: 750, 109: 751, 116: 753}  # fmt: skip
+
+
+def _growth_every_second(rss_mb: Callable[[int], float], seconds: int) -> list[int]:
+    """Feed a beacon every 2 s with ``rss_mb(second)`` and judge the growth
+    every second, as the collector does; the seconds it reported growth."""
+    table = ProcessTable()
+    reported: list[int] = []
+    for s in range(seconds):
+        if s % 2 == 0:
+            table.ingest(beacon(seq=s, rss_bytes=int(rss_mb(s) * MB)), float(s))
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        if state.rss_growth_pct(float(s)) is not None:
+            reported.append(s)
+    return reported
+
+
+def _minutes(steps: dict[int, int]) -> Callable[[int], float]:
+    """``steps`` ({minute: MiB from then on}) as RSS by second."""
+    return lambda s: steps[max(m for m in steps if m <= s // 60)]
+
 
 class TestRssGrowth:
     """The rss_growth_pct_1h threshold's input (design §9.6, review R4)."""
@@ -265,12 +298,58 @@ class TestRssGrowth:
         assert state.rss_growth_pct(80 * 60.0) is None
         assert state.rss_growth_pct(72 * 60.0) is None
 
-    def test_a_step_still_rising_is_reported(self) -> None:
+    def test_a_step_with_a_slow_rise_after_is_not_a_leak(self) -> None:
+        """A 5x step at minute 65, then +1 MB a minute: the hour's growth is
+        the step, in one quarter of it (WP-MHD02; this read as a leak)."""
         table = ProcessTable()
         self._run(table, 80, lambda m: (100 if m < 65 else 500 + m) * MB)
         state = table.get("pm-stats", None, "box")
         assert state is not None
-        assert state.rss_growth_pct(80 * 60.0) is not None
+        assert state.rss_growth_pct(80 * 60.0) is None
+
+    @pytest.mark.parametrize(
+        "steps",
+        [OPEN_RALF_GWY, OPEN_ENGINE, OPEN_API_GWY],
+        ids=["pm-ralf-gwy", "pm-engine", "pm-api-gwy"],
+    )
+    def test_the_market_open_is_not_a_leak(self, steps: dict[int, int]) -> None:
+        """The 2026-11-16 simulation's open (minute RSS from metrics.db, 07:00
+        to 09:29): memory fills over ~13 minutes from 08:30, then stays flat.
+        Judged every second, it is never a leak (C2: CRIT at 08:47-08:51)."""
+        assert _growth_every_second(_minutes(steps), 150 * 60) == []
+
+    def test_a_steady_leak_is_reported_from_its_first_hour(self) -> None:
+        """100 MB + 150 MB/h: history starts after the 10 min warm-up, so the
+        first full hour of it ends at 70 min."""
+        reported = _growth_every_second(lambda s: 100 + 150 * s / 3600, 180 * 60)
+        assert reported and reported[0] <= 70 * 60 + 60
+
+    def test_a_leak_starting_mid_run_is_reported(self) -> None:
+        """300 MB flat for 30 min, then +400 MB/h: reported by 81 min."""
+        reported = _growth_every_second(
+            lambda s: 300 + 400 * max(0, s - 1800) / 3600, 180 * 60
+        )
+        assert reported and reported[0] <= 81 * 60
+
+    def test_a_fall_in_one_quarter_is_not_a_leak(self) -> None:
+        """+3 MB/min from minute 10, a GC release of 2 MB/min in minutes
+        50-65, rising again after: at 80 the hour shows +80 %, but one
+        quarter gave memory back, so it is not a steady leak."""
+
+        def rss(m: int) -> int:
+            if m < 10:
+                return 100
+            if m < 50:
+                return 100 + 3 * (m - 10)
+            if m < 65:
+                return 220 - 2 * (m - 50)
+            return 190 + 3 * (m - 65)
+
+        table = ProcessTable()
+        self._run(table, 80, lambda m: rss(m) * MB)
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(80 * 60.0) is None
 
     def test_a_small_process_doubling_is_not_a_leak(self) -> None:
         table = ProcessTable()

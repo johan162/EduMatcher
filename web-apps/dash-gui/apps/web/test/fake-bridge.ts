@@ -41,6 +41,7 @@ export function fakeBridge(links: CrossAppLinks = { logGui: null, bookGui: null 
             reject_pct_5m: rule(10, 30),
             heap_bloat_ratio: rule(1.5, 3),
             loop_age_ms: rule(1000, null),
+            loop_lag_ms: rule(1000, null),
           },
         });
       case "/api/events": {

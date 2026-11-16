@@ -620,6 +620,10 @@ class GatewayInfo(BaseModel):
     role: str = Field(max_length=32)
     description: str = Field(max_length=128)
     connected: bool
+    connected_since_ns: int | None = Field(default=None)
+    """When the engine accepted the current connection. Absent while offline. Unit:
+    epoch_nanos.
+    """
 
 
 class SymbolVolume(BaseModel):

@@ -36,12 +36,14 @@ export const INVERTED: readonly string[] = ["disk_free_pct"];
 
 /**
  * Rules fixed in pm-monitor's code: `loop_age_ms` (thresholds.py
- * LOOP_AGE_WARN_MS; its critical level is the HUNG state), and the
+ * LOOP_AGE_WARN_MS; its critical level is the HUNG state), `loop_lag_ms`
+ * (LOOP_LAG_WARN_MS), and the
  * "any increase over 5 minutes" rules (activity.py WATCHED_INCREASES and
  * SLOW_RULE, judged with warn 0).
  */
 export const FIXED_RULES: Record<string, ThresholdRule> = {
   loop_age_ms: { warn: 1000, crit: null, invert: false, configurable: false },
+  loop_lag_ms: { warn: 1000, crit: null, invert: false, configurable: false },
   api_dropped_events: { warn: 0, crit: null, invert: false, configurable: false },
   api_throttled: { warn: 0, crit: null, invert: false, configurable: false },
   audit_archive_errors: { warn: 0, crit: null, invert: false, configurable: false },

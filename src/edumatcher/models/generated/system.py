@@ -1894,6 +1894,7 @@ class GatewayInfo:
     role: str
     connected: bool
     description: str = ""
+    connected_since_ns: int | None = None  # unit: epoch_nanos
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1928,16 +1929,24 @@ class GatewayInfo:
             role=str(p["role"]),
             description=str(p.get("description", "")),
             connected=bool(p["connected"]),
+            connected_since_ns=(
+                None
+                if p.get("connected_since_ns") is None
+                else int(p["connected_since_ns"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "role": self.role,
             "description": self.description,
             "connected": self.connected,
         }
+        if self.connected_since_ns is not None:
+            payload["connected_since_ns"] = self.connected_since_ns
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
