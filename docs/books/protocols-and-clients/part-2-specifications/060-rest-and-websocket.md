@@ -2550,6 +2550,11 @@ Purpose: list configured gateways and live connection state.
 |---|---|---|
 | `200 OK` | `{ "gateways": [...] }` | Gateway roster and connection status |
 
+Each entry has `id`, `role`, `description` and `connected`. A connected
+gateway also carries `connected_since_ns`: when the engine accepted its current
+connection, in epoch nanoseconds. The field is absent while the gateway is
+offline.
+
 **Errors**
 
 | Code | Status | When |

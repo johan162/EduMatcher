@@ -13724,19 +13724,22 @@
                       "id": "TRADER01",
                       "role": "TRADER",
                       "description": "Student desk 1",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788012600000000000
                     },
                     {
                       "id": "MM01",
                       "role": "MARKET_MAKER",
                       "description": "Market maker",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788010200000000000
                     },
                     {
                       "id": "OPS01",
                       "role": "ADMIN",
                       "description": "Instructor console",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788009300000000000
                     }
                   ],
                   "count": 3
@@ -19176,19 +19179,22 @@
                       "id": "TRADER01",
                       "role": "TRADER",
                       "description": "Student desk 1",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788012600000000000
                     },
                     {
                       "id": "MM01",
                       "role": "MARKET_MAKER",
                       "description": "Market maker",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788010200000000000
                     },
                     {
                       "id": "OPS01",
                       "role": "ADMIN",
                       "description": "Instructor console",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788009300000000000
                     }
                   ],
                   "halts": [],
@@ -23444,6 +23450,18 @@
           "connected": {
             "type": "boolean",
             "title": "Connected"
+          },
+          "connected_since_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected Since Ns",
+            "description": "When the engine accepted the current connection. Absent while offline. Unit:\nepoch_nanos."
           }
         },
         "type": "object",

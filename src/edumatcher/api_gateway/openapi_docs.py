@@ -1230,18 +1230,21 @@ ADMIN_GATEWAYS: dict[str, Any] = {
             "role": "TRADER",
             "connected": True,
             "description": "Student desk 1",
+            "connected_since_ns": _T0 - 1_200_000_000_000,
         },
         {
             "id": "MM01",
             "role": "MARKET_MAKER",
             "connected": True,
             "description": "Market maker",
+            "connected_since_ns": _T0 - 3_600_000_000_000,
         },
         {
             "id": "OPS01",
             "role": "ADMIN",
             "connected": True,
             "description": "Instructor console",
+            "connected_since_ns": _T0 - 4_500_000_000_000,
         },
     ],
 }

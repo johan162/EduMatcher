@@ -29,14 +29,14 @@ function killSwitchError(err: unknown): void {
     return;
   }
   if (isUnconfirmed(err)) {
-    toast("Kill switch submitted — awaiting engine confirmation");
+    toast("Mass cancel submitted — awaiting engine confirmation");
     return;
   }
-  toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Kill switch failed");
+  toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Mass cancel failed");
 }
 
 /**
- * Admin Kill Switch (§15.8) — cancels resting orders/quotes at three scopes, all
+ * Admin Mass Cancel panel (the engine kill switch, §15.8) — cancels resting orders/quotes at three scopes, all
  * verified against the current gateway. Each scope always confirms regardless of
  * power-user mode; the market-wide Global scope requires typing CONFIRM (§20.3).
  *
@@ -64,7 +64,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
       {
         onSuccess: (r) =>
           toast.success(
-            `Kill switch ${r.symbol}: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes cancelled`,
+            `Mass cancel ${r.symbol}: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes cancelled`,
           ),
         onError: killSwitchError,
       },
@@ -78,7 +78,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
       {
         onSuccess: (r) =>
           toast.success(
-            `Kill switch ${r.target_gateway_id}: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes cancelled`,
+            `Mass cancel ${r.target_gateway_id}: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes cancelled`,
           ),
         onError: killSwitchError,
       },
@@ -90,7 +90,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
     globalKs.mutate(undefined, {
       onSuccess: (r) =>
         toast.success(
-          `Global kill switch: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes across ${r.affected_gateways} participants`,
+          `Global mass cancel: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes across ${r.affected_gateways} participants`,
         ),
       onError: killSwitchError,
     });
@@ -98,9 +98,9 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
   };
 
   return (
-    <section aria-label="Kill switch" className="flex flex-col gap-3 rounded border border-line bg-deep p-3">
+    <section aria-label="Mass cancel" className="flex flex-col gap-3 rounded border border-line bg-deep p-3">
       <div>
-        <h2 className="text-xs font-semibold text-fg">Kill Switch</h2>
+        <h2 className="text-xs font-semibold text-fg">Mass Cancel</h2>
         <p className="text-[10px] text-fg-faint">
           Cancel resting orders and quotes. Does not halt trading — participants may re-submit.
         </p>
@@ -114,7 +114,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
             list="ks-symbols"
             value={symbol}
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            aria-label="Kill switch symbol"
+            aria-label="Mass cancel symbol"
             placeholder="AAPL"
             className={`${fieldCls} w-28`}
           />
@@ -141,7 +141,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
           <select
             value={gatewayId}
             onChange={(e) => setGatewayId(e.target.value)}
-            aria-label="Kill switch participant"
+            aria-label="Mass cancel participant"
             className={`${fieldCls} w-40`}
           >
             <option value="">Select participant…</option>
@@ -158,7 +158,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
           disabled={!gatewayId || gatewayKs.isPending}
           className="rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-ask disabled:opacity-40"
         >
-          Cancel participant
+          Cancel orders only
         </button>
       </div>
 
@@ -180,7 +180,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
 
       {confirmSymbol && (
         <CancelConfirm
-          title="Kill switch — symbol?"
+          title="Mass cancel — symbol?"
           message={`Cancel all resting orders and quotes for ${symbol.trim().toUpperCase()} across every participant?`}
           confirmLabel="Cancel symbol"
           busy={symbolKs.isPending}
@@ -191,9 +191,9 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
 
       {confirmGateway && (
         <CancelConfirm
-          title="Kill switch — participant?"
+          title="Mass cancel — participant?"
           message={`Cancel all resting orders and quotes belonging to ${gatewayId}? The participant stays connected and may re-submit.`}
-          confirmLabel="Cancel participant"
+          confirmLabel="Cancel orders only"
           busy={gatewayKs.isPending}
           onConfirm={runGateway}
           onClose={() => setConfirmGateway(false)}
@@ -202,7 +202,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
 
       {confirmGlobal && (
         <ConfirmTypedDialog
-          title="Global kill switch?"
+          title="Global mass cancel?"
           message="Cancel every resting order and quote for every participant. This is a full-market emergency stop and affects all participants."
           confirmLabel="Execute global kill"
           busy={globalKs.isPending}
