@@ -51,6 +51,7 @@ its own piece of work.
 | L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and subscribes to every participant, so a burst for unwatched IDs drops watched fills with no log or metric | Medium | Moved to DC review WP-DCG01 (done 2026-11-15) |
 | L036 | 2026-11-15 | pm-md-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Open |
 | L037 | 2026-11-15 | pm-engine (drop copy) | For an uncross print (`aggressor_side` AUCTION) both drop-copy events carry `liquidity_flag` MAKER, while `drop_copy.yaml` says exactly one of the two is TAKER | Low | Open |
+| L038 | 2026-11-16 | log-gui (bridge LALF-PS uplink) | After a pm-log-srv crash and restart inside the 15 s heartbeat budget the uplink stays ACTIVE and only re-subscribes on the next renew's `UNKNOWN_SUB` (up to 15 s), and it ignores `dropped`: rows of that window are missing from the live view with no gap marker | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -156,6 +157,12 @@ symbol's `tick_decimals` (an average could keep more digits, but rounded).
 **Update (2026-11-15).** pm-mm-bot's log lines are fixed (MM bot review
 WP-MMB08: prices at `tick_decimals`, mids with one more digit); the consoles
 and `pm-admin` remain.
+
+**Update (2026-11-16).** pm-alf-console's part (fill/amend lines and the
+`POS`, `POS|GW=`, `QLEGS`, `QBOOT` tables, which use `.2f` and so also
+truncate 3-decimal symbols) is taken over by the ALF console review C9 /
+WP-ACN06 (`docs-design/reviews/EduMatcher-ALF-Console-Review-2026-11.md`);
+`pm-admin` remains.
 
 ## L007 — DAY combo parents in the persistence diagrams
 
@@ -527,6 +534,13 @@ a `200`.
 the target, as `risk.kill_switch_gateway` already has, and answer an ADMIN
 about any configured gateway, connected or not.
 
+**Update (2026-11-16).** pm-alf-console's `POS|GW=<id>` shows the same
+answer to anyone: an offline market maker, or a mistyped id (one that no
+participant has), prints `<id>: flat (no open positions).`
+(`_handle_position_request`, `engine/main.py:2649-2651`). Found in the ALF
+console review §9. The reply should tell "unknown id" and "not connected"
+apart from "flat".
+
 ## L031 — An unknown gateway id costs the engine memory for good
 
 **Found:** 2026-11-15, messaging layer review §9
@@ -659,3 +673,25 @@ treats both auction counterparties as liquidity providers.
 AUCTION, or MAKER for both, documented) and make the spec and the engine
 agree.
 
+## L038 — log-GUI live view gaps after a server restart
+
+**Found:** 2026-11-16, pm-log-srv/logclient review §9
+(`docs-design/reviews/EduMatcher-Log-Server-Review-2026-11.md`).
+
+**Finding.** `web-apps/log-gui/apps/bridge/src/lalf-ps-uplink.ts:247-253`
+re-sends `log.subscribe` on `log.server_state` `UP` only when the uplink is
+not ACTIVE. A clean server stop publishes `DOWN` first, so that case works.
+After a crash (no `DOWN`) and a restart within the uplink's 15-second
+heartbeat budget, the uplink stays ACTIVE; the new server has no
+subscription, so nothing arrives until the next `log.renew` gets
+`UNKNOWN_SUB` (up to `renew_before_sec`, 15 s by default). The rows of that
+window never reach the live view. The uplink also ignores `dropped` in
+`log.event`, so neither this gap nor a slow-subscriber loss is shown.
+
+**Recommendation.** Give `log.server_state` an identity that changes on
+every server start (a start time or random instance id; `last_seq` does not
+change, because `seq` continues across restarts), re-subscribe when it
+changes, and show a gap
+marker in the live view when `dropped` (or the per-subscription message
+counter planned in the review's Q5) says rows were lost; the view can then
+offer a re-read from `log.db`.
