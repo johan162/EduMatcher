@@ -873,6 +873,12 @@ from 20 requests in 5 min; heap bloat needs no minimum sample (WP-HB01; I67–I6
 "Memory used" is
 `total − available`. A process recovering from HUNG passes through
 DEGRADED for thirty seconds while its `loop_age_ms` warning clears.
+Changed by the health-diagnosis review
+(`reviews/EduMatcher-Monitor-Health-Diagnosis-Review-2026-11.md`):
+`loop_lag_ms` is a fixed rule too; the loop rules wait five seconds like the
+configured ones (a loop age past the HUNG limit at once);
+`engine_handle_p99_us` waits 90; the RSS-growth rule needs growth in every
+quarter of the hour; a `PROCESS_STATUS` detail names its breaches.
 
 ## 10. Health model — healthy, degraded, hung, dead
 
@@ -885,7 +891,7 @@ Evaluated per process every second in `pm-monitor`:
 | `DEAD` | red | No beacon for `silent_after × interval_sec` **and** (same host) `psutil.pid_exists(pid)` is false, or (other host) no beacon for 2 × that |
 | `SILENT` | red | No beacon for `silent_after × interval_sec`, PID still exists — the whole interpreter is stuck (e.g. a C extension holding the GIL) or the PUSH path is broken |
 | `HUNG` | magenta | Beacons arrive but `loop_age_ms > hung_after_sec × 1000` — the sampler thread runs, the main loop does not. While a beacon says `starting`, B2 applies a longer start-up grace instead of `hung_after_sec` (a process stuck starting must still surface, just later) |
-| `DEGRADED` | amber | Any warn/critical threshold on this process, or `loop_lag_ms > 1000` |
+| `DEGRADED` | amber | Any warn/critical threshold on this process (since the health-diagnosis review WP-MHD01, `loop_lag_ms > 1000` is one of them) |
 | `HEALTHY` | green | Otherwise |
 | `RESTARTED` (overlay) | blue badge | `boot_id` changed in the last 10 min |
 
@@ -2725,7 +2731,7 @@ carries only active breaches, so the rows take the rules from
 `lib/thresholds.ts` `fromRule()`. The endpoint returns every rule
 `ActiveBreach.rule` can name, each `{warn, crit, invert, configurable}`:
 - **The seven configurable rules:** from the deployed artifact's `monitor.thresholds`, which is what pm-monitor read when it started. With no artifact deployed they are pm-monitor's built-in defaults, which is what it then runs on.
-- **Rules fixed in pm-monitor's code:** `loop_age_ms` (WARN above 1 s), and `api_dropped_events`, `api_throttled` (the REST API's rate limiter refused a write), `stats_feed_gaps`, `audit_archive_errors` and `slow_client_disconnects` (any increase over 5 min).
+- **Rules fixed in pm-monitor's code:** `loop_age_ms` and `loop_lag_ms` (WARN above 1 s), and `api_dropped_events`, `api_throttled` (the REST API's rate limiter refused a write), `stats_feed_gaps`, `audit_archive_errors` and `slow_client_disconnects` (any increase over 5 min).
 - **The bridge's own copy:** of the defaults, inverted rules and fixed rules, pinned to the Python by `tests/test_dash_thresholds_mirror.py`.
 - **A broken artifact:** an artifact that is there but cannot be used is a 503 `thresholds_unavailable`, never a quiet fallback to defaults.
 - **A redeployed artifact:** shows at once, but pm-monitor uses the new values only after its restart, as for every process.

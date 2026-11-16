@@ -248,11 +248,11 @@ def test_designed_idle_waits_stay_under_the_degraded_line() -> None:
     loop_lag line reads DEGRADED forever, so every bounded wait a beaconing
     loop is designed to sit in must stay at half of it or less."""
     from edumatcher.mm_bot import bot as mm_bot
-    from edumatcher.monitor.state import LOOP_LAG_DEGRADED_MS
+    from edumatcher.monitor.thresholds import LOOP_LAG_WARN_MS
     from edumatcher.scheduler import main as sched
 
-    assert mm_bot._LIVENESS_POLL_MS <= LOOP_LAG_DEGRADED_MS / 2
-    assert sched.LIVENESS_CHUNK_SEC * 1000 <= LOOP_LAG_DEGRADED_MS / 2
+    assert mm_bot._LIVENESS_POLL_MS <= LOOP_LAG_WARN_MS / 2
+    assert sched.LIVENESS_CHUNK_SEC * 1000 <= LOOP_LAG_WARN_MS / 2
 
 
 def test_the_mm_bot_caps_its_poll_when_beaconing(

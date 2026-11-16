@@ -26,8 +26,9 @@ Health rules (§10)
 STOPPED (final beacon), DEAD / SILENT (no beacon for ``silent_after_beacons``
 x the *sender's* interval, told apart by whether the PID still runs),
 HUNG (``loop_age_ms`` over ``hung_after_sec``, or over the start-up grace
-while the beacon says ``starting``), DEGRADED (a threshold breach or
-``loop_lag_ms`` over 1 s), else HEALTHY. MISSING has no source by
+while the beacon says ``starting``), DEGRADED (a threshold breach on the
+process, the fixed ``loop_age_ms`` and ``loop_lag_ms`` rules included), else
+HEALTHY. MISSING has no source by
 definition; :func:`missing_health` builds that record.
 
 HUNG judges ``loop_age_ms`` as the beacon carried it, not aged further by the
@@ -91,16 +92,14 @@ RSS_WARMUP_SEC = 600.0
 #: RSS growth is only a leak suspect when it also adds at least this many
 #: bytes: a small process doubling at the market open is not one.
 RSS_GROWTH_MIN_BYTES = 100 * 1024 * 1024
-#: ... and when RSS is still rising: it must exceed its value this long ago by
-#: ``RSS_RISING_MIN_PCT``. Growth that has levelled off (caches and books
-#: filled at the open, then flat) is a step, not a leak.
-RSS_RISING_WINDOW_SEC = 900.0
-RSS_RISING_MIN_PCT = 1.0
-#: ... and when the hour's growth is not all in the last ``RSS_RISING_WINDOW_SEC``:
-#: a ramp that starts there (continuous trading opening, books and caches
-#: filling over a minute or two) is a step still settling, not a leak. A
-#: steady leak adds about a quarter of its hour in that window.
-RSS_RAMP_MAX_SHARE = 0.5
+#: ... and when every quarter of the hour added at least this share of the
+#: hour's growth. A leak grows across the whole hour (a steady one adds a
+#: quarter of it in each); a step -- caches and books filling at the market
+#: open, over a minute or over a quarter of an hour -- grows in one part of it
+#: and is not a leak, neither while it happens nor after it levelled off
+#: (WP-MHD02: the 15-minute checks before this missed a 13-minute open).
+RSS_QUARTERS = 4
+RSS_QUARTER_MIN_SHARE = 0.1
 
 #: Participant bots: clients of the exchange, shown in their own group and
 #: never counted in the exchange status (design Q2).
@@ -110,9 +109,6 @@ BOT_PROCESSES = frozenset({"pm-mm-bot", "pm-ai-swarm"})
 #: ``hung_after_sec``: start-up work (engine GTC restore, clearing prune) is
 #: not a hung loop, but a process stuck starting must still surface (I45).
 STARTUP_GRACE_SEC = 120.0
-#: DEGRADED when the worst gap between two loop iterations exceeds this. Every
-#: loop's designed wait is well below it (I36).
-LOOP_LAG_DEGRADED_MS = 1000.0
 #: How far a same-host process's start time may differ from the beacon's
 #: ``started_at_ns`` and still be the same process (PID reuse check).
 START_TIME_TOLERANCE_SEC = 1.0
@@ -327,7 +323,7 @@ class ProcessState:
         hung_after = rules.startup_grace_sec if b.starting else rules.hung_after_sec
         if self.loop_age_ms > hung_after * 1000.0:
             return "HUNG"
-        if breached or self.loop_lag_ms > LOOP_LAG_DEGRADED_MS:
+        if breached:
             return "DEGRADED"
         return "HEALTHY"
 
@@ -396,23 +392,30 @@ class ProcessState:
 
         ``None`` before an hour of history (or after a restart, which clears
         it), when the hour added less than ``RSS_GROWTH_MIN_BYTES``, and when
-        RSS has not risen ``RSS_RISING_MIN_PCT`` in the last
-        ``RSS_RISING_WINDOW_SEC``: a step that has levelled off is not a leak.
-        Nor is growth that is more than ``RSS_RAMP_MAX_SHARE`` of the hour's
-        within that window: a step that has only just happened.
+        any of its ``RSS_QUARTERS`` quarters added less than
+        ``RSS_QUARTER_MIN_SHARE`` of the hour's growth: a step, not a leak.
+
+        A percentage of the RSS an hour ago falls as a long leak grows that
+        base, so a leak that goes on for hours eventually clears (C7).
         """
         base = self._rss_at(now - RSS_GROWTH_WINDOW_SEC)
         if not base:
             return None
         rss = self.beacon.rss_bytes
-        if rss - base < RSS_GROWTH_MIN_BYTES:
+        growth = rss - base
+        if growth < RSS_GROWTH_MIN_BYTES:
             return None
-        recent = self._rss_at(now - RSS_RISING_WINDOW_SEC)
-        if recent and 100.0 * (rss - recent) / recent < RSS_RISING_MIN_PCT:
+        quarter = RSS_GROWTH_WINDOW_SEC / RSS_QUARTERS
+        marks = [
+            self._rss_at(now - RSS_GROWTH_WINDOW_SEC + quarter * i) or base
+            for i in range(RSS_QUARTERS)
+        ]
+        marks.append(rss)
+        if any(
+            b - a < RSS_QUARTER_MIN_SHARE * growth for a, b in zip(marks, marks[1:])
+        ):
             return None
-        if recent and (rss - recent) > RSS_RAMP_MAX_SHARE * (rss - base):
-            return None
-        return 100.0 * (rss - base) / base
+        return 100.0 * growth / base
 
     def restarted_recently(self, now: float) -> bool:
         return (

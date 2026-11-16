@@ -272,6 +272,45 @@ def test_a_slow_client_disconnect_is_a_threshold(mon: Monitor, clocks: _Clocks) 
     assert [p.state for p in snap.processes] == ["DEGRADED"]
 
 
+def test_every_breach_on_a_process_is_named_in_its_transition(
+    mon: Monitor, clocks: _Clocks, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two rules raised in the same second: both in the DEGRADED event, in
+    rule order (WP-MHD01)."""
+    seen: list[tuple[str, str, str, str]] = []
+    original = Monitor.publish_event
+
+    def record(
+        self: Monitor, kind: str, severity: str, subject: str, detail: str
+    ) -> bool:
+        seen.append((kind, severity, subject, detail))
+        return original(self, kind, severity, subject, detail)
+
+    monkeypatch.setattr(Monitor, "publish_event", record)
+    started = int((OPEN - 3600) * 1e9)
+    for i, n in enumerate([0, 0, 1]):
+        mon.receive(
+            _beacon_frames(
+                process="pm-md-gwy",
+                seq=i,
+                metrics=[_c("md.disconnects", n, "slow_client"), _c("md.bus_gaps", n)],
+                started_at_ns=started,
+            ),
+            clocks.mono,
+        )
+        clocks.advance(2.0)
+    _snapshot(mon)
+    assert [e for e in seen if e[0] == "PROCESS_STATUS"] == [
+        (
+            "PROCESS_STATUS",
+            "WARN",
+            "pm-md-gwy@box",
+            "first seen DEGRADED: md_bus_gaps WARN 1 > 0; "
+            "slow_client_disconnects WARN 1 > 0",
+        )
+    ]
+
+
 def test_history_that_cannot_be_written_makes_pm_monitor_degraded(
     clocks: _Clocks,
 ) -> None:

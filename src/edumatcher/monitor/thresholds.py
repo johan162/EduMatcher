@@ -1,10 +1,11 @@
 """Threshold rules with hysteresis (design §9.6).
 
 Every second the collector hands in one :class:`Reading` per rule and subject
-it can measure. A warning of a configurable rule is raised only after
-``RAISE_AFTER`` consecutive evaluations over its threshold (a single noisy
-sample is not a breach); a critical level, and a warning of a fixed rule (a counter that moved, a late
-loop), is raised at once. A level falls only after ``CLEAR_AFTER``
+it can measure. A warning is raised only after ``RAISE_AFTER`` consecutive
+evaluations over its threshold (a single noisy sample is not a breach), or
+after ``WINDOWED_RAISE_AFTER`` for a rule whose figure covers a window (one
+burst holds it for the whole window); a critical level, and a warning of an
+"any increase" rule (a counter that moved), is raised at once. A level falls only after ``CLEAR_AFTER``
 consecutive evaluations at the lower level, and an evaluation counts only
 once the value is ``CLEAR_RATIO`` of the way back inside the threshold it
 breached, so a value hovering around a threshold produces one breach and one
@@ -32,6 +33,14 @@ from edumatcher.monitor.config import (
 #: Consecutive evaluations over a warn threshold before the breach is raised.
 RAISE_AFTER = 5
 
+#: ... for a rule whose figure covers a window: longer than the window, so a
+#: burst that the figure holds for all of it is not a breach, but latency that
+#: outlasts it is. ``engine.handle_us_p99`` covers the engine's last 60 s
+#: (``engine.metrics.LATENCY_HORIZON_NS``), about 390 sampled messages at the
+#: simulation's rate, so its p99 is the fourth-worst of them (WP-MHD03).
+WINDOWED_RAISE_AFTER = 90
+RULE_RAISE_AFTER = {"engine_handle_p99_us": WINDOWED_RAISE_AFTER}
+
 #: Consecutive evaluations at a lower level before a breach clears or eases.
 CLEAR_AFTER = 30
 
@@ -39,11 +48,18 @@ CLEAR_AFTER = 30
 #: threshold it crossed (inverted rules: beyond threshold / CLEAR_RATIO).
 CLEAR_RATIO = 0.8
 
-#: Fixed rules that are not in the ``monitor.thresholds`` configuration.
+#: Fixed rules that are not in the ``monitor.thresholds`` configuration,
+#: raised after ``RAISE_AFTER`` like the configured ones: one late iteration
+#: is not a degraded loop, and a stuck one is HUNG at 5 s anyway (WP-MHD04).
 #: ``loop_age_ms``: a loop over 1 s late is a warning; its critical level is
 #: the HUNG state (§10), not a threshold.
 LOOP_AGE_RULE = "loop_age_ms"
 LOOP_AGE_WARN_MS = 1000.0
+#: ``loop_lag_ms``: the worst gap between two loop iterations since the
+#: previous beacon over 1 s is a warning. Every loop's designed wait is well
+#: below it (I36).
+LOOP_LAG_RULE = "loop_lag_ms"
+LOOP_LAG_WARN_MS = 1000.0
 
 #: Ratios judged only above a minimum sample (I68): two refused requests out
 #: of three is not an exchange in trouble.
@@ -62,7 +78,8 @@ class Reading:
     warn: float
     crit: float | None = None  # None: the rule has no critical level
     inverted: bool = False  # a LOW value is bad (disk free)
-    debounce: bool = True  # False: a warning is raised at once
+    #: Consecutive evaluations over warn before a warning is raised; 1: at once.
+    raise_after: int = RAISE_AFTER
 
     def level(self) -> str:
         if self.inverted:
@@ -96,19 +113,37 @@ def band_reading(
     """A reading of a configured rule, with its configured band."""
     band: ThresholdBand = getattr(thresholds, rule)
     return Reading(
-        rule, subject, value, band.warn, band.crit, rule in INVERTED_THRESHOLDS
+        rule,
+        subject,
+        value,
+        band.warn,
+        band.crit,
+        rule in INVERTED_THRESHOLDS,
+        RULE_RAISE_AFTER.get(rule, RAISE_AFTER),
     )
 
 
 def increase_reading(rule: str, subject: str, increase: float) -> Reading:
     """``any increase in 5 min`` (§9.6): WARN on anything above zero."""
-    return Reading(rule, subject, increase, warn=0.0, debounce=False)
+    return Reading(rule, subject, increase, warn=0.0, raise_after=1)
 
 
 def fmt_value(value: float) -> str:
     """A reading for people: up to three decimals, never an exponent (``:g``
     printed a 1.2 s p99 as ``1.23457e+06``)."""
     return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def breach_text(
+    rule: str, level: str, value: float, threshold: float, inverted: bool
+) -> str:
+    """``rule LEVEL value > threshold``; a breach held while its value is
+    back inside the threshold (on its way to clearing) says so instead."""
+    over = value < threshold if inverted else value > threshold
+    if not over:
+        return f"{rule} {level} clearing ({fmt_value(value)})"
+    op = "<" if inverted else ">"
+    return f"{rule} {level} {fmt_value(value)} {op} {fmt_value(threshold)}"
 
 
 @dataclass(frozen=True)
@@ -122,6 +157,9 @@ class Change:
     value: float
     threshold: float
     inverted: bool
+    #: False: no reading arrived (the rule declined to judge, the process
+    #: went away), so ``value`` is the last one judged, not a current one.
+    judged: bool = True
 
     @property
     def severity(self) -> str:
@@ -130,10 +168,12 @@ class Change:
     @property
     def detail(self) -> str:
         if self.level == "OK":
+            if not self.judged:
+                return f"{self.rule} cleared (no longer judged; last {fmt_value(self.value)})"
             return f"{self.rule} cleared ({fmt_value(self.value)})"
-        op = "<" if self.inverted else ">"
-        value, threshold = fmt_value(self.value), fmt_value(self.threshold)
-        return f"{self.rule} {self.level} {value} {op} {threshold}"
+        return breach_text(
+            self.rule, self.level, self.value, self.threshold, self.inverted
+        )
 
 
 @dataclass
@@ -151,11 +191,8 @@ class _Track:
 class ThresholdBook:
     """The breach state of every rule and subject."""
 
-    def __init__(
-        self, clear_after: int = CLEAR_AFTER, raise_after: int = RAISE_AFTER
-    ) -> None:
+    def __init__(self, clear_after: int = CLEAR_AFTER) -> None:
         self.clear_after = clear_after
-        self.raise_after = raise_after
         self._tracks: dict[tuple[str, str], _Track] = {}
         #: Consecutive warn evaluations of subjects not yet in breach.
         self._pending: dict[tuple[str, str], int] = {}
@@ -202,9 +239,9 @@ class ThresholdBook:
             if target == "OK":
                 self._pending.pop(key, None)
                 return None
-            if target == "WARN" and reading is not None and reading.debounce:
+            if target == "WARN" and reading is not None:
                 streak = self._pending.get(key, 0) + 1
-                if streak < self.raise_after:
+                if streak < reading.raise_after:
                     self._pending[key] = streak
                     return None
             self._pending.pop(key, None)
@@ -241,6 +278,7 @@ class ThresholdBook:
             value=track.value,
             threshold=track.threshold,
             inverted=self._inverted.get(key, False),
+            judged=reading is not None,
         )
         if track.level == "OK":
             del self._tracks[key]
@@ -262,3 +300,18 @@ class ThresholdBook:
 
     def breached_subjects(self) -> set[str]:
         return {subject for (_rule, subject) in self._tracks}
+
+    def reasons(self) -> dict[str, list[str]]:
+        """Every subject in breach and its breaches as text, in rule order."""
+        out: dict[str, list[str]] = {}
+        for (rule, subject), t in sorted(self._tracks.items()):
+            out.setdefault(subject, []).append(
+                breach_text(
+                    rule,
+                    t.level,
+                    t.value,
+                    t.threshold,
+                    self._inverted.get((rule, subject), False),
+                )
+            )
+        return out

@@ -1,7 +1,7 @@
 /**
  * The process drawer (design §12.3): its state and figures, its vitals
  * over the picked range -- memory, CPU, threads, file descriptors, loop age
- * against its rule, loop lag -- its application metrics as last sent, its
+ * and loop lag against their rules -- its application metrics as last sent, its
  * events, and a link to its log records in log-gui.
  */
 
@@ -32,6 +32,7 @@ const liveOf = (key: string, figure: (p: ProcessHealth) => number | null) => (sn
 
 function Vitals({ p }: { p: ProcessHealth }) {
   const loopRule = useRule("loop_age_ms");
+  const lagRule = useRule("loop_lag_ms");
   const chart = { source: p.key, legend: p.key, height: 140 };
   return (
     <Section title="Vitals">
@@ -41,7 +42,7 @@ function Vitals({ p }: { p: ProcessHealth }) {
         <SeriesChart label="Threads" name={VITAL.threads} live={liveOf(p.key, (x) => x.threads)} format={formatCount} integer {...chart} />
         <SeriesChart label="File descriptors" name={VITAL.fds} live={liveOf(p.key, (x) => x.fds)} format={formatCount} integer {...chart} />
         <SeriesChart label="Loop age" name={VITAL.loopAge} live={liveOf(p.key, (x) => x.loop_age_ms)} format={formatMillis} thresholds={loopRule} {...chart} />
-        <SeriesChart label="Loop lag" name={VITAL.loopLag} live={liveOf(p.key, (x) => x.loop_lag_ms)} format={formatMillis} {...chart} />
+        <SeriesChart label="Loop lag" name={VITAL.loopLag} live={liveOf(p.key, (x) => x.loop_lag_ms)} format={formatMillis} thresholds={lagRule} {...chart} />
       </div>
     </Section>
   );

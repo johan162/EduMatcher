@@ -40,7 +40,14 @@ every second), `ThresholdBook`, `band_reading` and the engine's
 *(measured)* means read from that `metrics.db`. The other findings are by
 inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q5 are needed before WP-MHD01–05.
+Status: **Done, uncommitted.** WP-MHD01–06 completed 2026-11-16 in order,
+each test-first and verified with `make _check` and the full suite (last
+run: 14 637 passed, 1 skipped); dash-gui vitest 511 passed, typecheck clean;
+`mkdocs build` clean. Q1–Q5 taken as recommended. Beyond the plan: a loop
+age past the HUNG limit is raised at once (WP-MHD04, keeps I63 and the CLI's
+HUNG breach); an eased breach no longer prints a value under its threshold
+as a breach (WP-MHD05, the simulation's `host_cpu_pct WARN 6.5 > 80`).
+`make test-e2e` was not run.
 
 ---
 
@@ -81,12 +88,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-MHD01 | Every DEGRADED names the rule that caused it | C1, C4 | Q1 | 1 d | ☐ | |
-| 2 | WP-MHD02 | Memory filled at the market open is not a leak | C2, C7 | Q5 | 0.75 d | ☐ | |
-| 3 | WP-MHD03 | One burst of slow messages does not degrade the engine | C3 | Q2 | 0.5 d | ☐ | |
-| 4 | WP-MHD04 | One late loop iteration does not degrade a process | C5 | Q4, WP-MHD01 | 0.25 d | ☐ | |
-| 5 | WP-MHD05 | Clears and transitions say what they are based on | C6, C8 | Q3, WP-MHD01 | 0.5 d | ☐ | |
-| 6 | WP-MHD06 | Ledger, guide and dashboard texts describe the final rules | D1–D6 | WP-MHD01–05 | 0.5 d | ☐ | |
+| 1 | WP-MHD01 | Every DEGRADED names the rule that caused it | C1, C4 | Q1 | 1 d | ☑ | 2026-11-16 |
+| 2 | WP-MHD02 | Memory filled at the market open is not a leak | C2, C7 | Q5 | 0.75 d | ☑ | 2026-11-16 |
+| 3 | WP-MHD03 | One burst of slow messages does not degrade the engine | C3 | Q2 | 0.5 d | ☑ | 2026-11-16 |
+| 4 | WP-MHD04 | One late loop iteration does not degrade a process | C5 | Q4, WP-MHD01 | 0.25 d | ☑ | 2026-11-16 |
+| 5 | WP-MHD05 | Clears and transitions say what they are based on | C6, C8 | Q3, WP-MHD01 | 0.5 d | ☑ | 2026-11-16 |
+| 6 | WP-MHD06 | Ledger, guide and dashboard texts describe the final rules | D1–D6 | WP-MHD01–05 | 0.5 d | ☑ | 2026-11-16 |
 
 Suggested order: **WP-MHD01 → 02 → 03 → 04 → 05 → 06.** WP-MHD01 first,
 because it makes every later calibration change visible in the events
@@ -428,6 +435,8 @@ grows with history.
 
 ## 7. Decisions
 
+All five taken as recommended (2026-11-16, user: "complete all WP-MHD01..06").
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | How should the loop-lag path explain itself? (a) make `loop_lag_ms` a fixed threshold rule (warn 1 000 ms), so DEGRADED is exactly "a rule on this process is in breach" and every reason is a breach row; (b) keep the separate check in `evaluate` and add a `reasons` list to `ProcessHealth` (schema change, regenerated models, dash-gui type). | **(a).** One mechanism: the event, the log line, `status` and the dashboard's breach list all cover it with no schema change, and WP-MHD04's debounce applies to it for free. (b) keeps two paths that must be explained separately. The bridge's `FIXED_RULES` and `tests/test_dash_thresholds_mirror.py` gain the rule. |
@@ -477,6 +486,38 @@ line through `fromRule()`.
 `tests/test_dash_thresholds_mirror.py`, `tests/test_sim_forensics_ops.py`
 and the dash-gui web/bridge tests green; full suite green.
 
+**Outcome (2026-11-16).** `thresholds.py` gains `LOOP_LAG_RULE` /
+`LOOP_LAG_WARN_MS` (1 000 ms, next to the loop-age rule), `breach_text` and
+`ThresholdBook.reasons()` (per subject, in rule order). `collector.readings()`
+adds a `loop_lag_ms` reading for every live process (also while starting,
+as the old check did); `ProcessState.evaluate` no longer judges lag, and
+`state.LOOP_LAG_DEGRADED_MS` is gone (its three test users and
+`test_health_contract` now read `thresholds.LOOP_LAG_WARN_MS`).
+`_publish_transitions` appends `_state_reason`: the subject's breaches for
+DEGRADED (`; `-joined), `loop_age_ms <v> > <limit>` for HUNG (the start-up
+grace while starting), `no beacon for <s> s` for SILENT / DEAD, plus
+`, process runs` / `, process gone` on pm-monitor's own host only (elsewhere
+time decided, not the PID). Bridge `FIXED_RULES` (+ its vitest and the web
+fake bridge) gain `loop_lag_ms`; the process drawer's Lag chart draws its
+threshold line.
+Design choices: a breach that is held while its value is already back inside
+the threshold (the hysteresis tail, e.g. HUNG → DEGRADED) reads
+`loop_age_ms WARN clearing (5)`, not `WARN 5 > 1000`. A lag breach now holds
+for `CLEAR_AFTER` like every rule (it cleared at once before).
+Tests: new `test_silent_names_the_silence`,
+`test_a_breach_is_named_in_the_transition` (event + log line),
+`test_a_late_loop_is_a_breach_with_its_own_event`,
+`test_a_credited_silence_is_not_a_late_loop` (unchanged behaviour, passed
+first) in `test_monitor_health.py`;
+`test_every_breach_on_a_process_is_named_in_its_transition` in
+`test_monitor_snapshot.py`; the mirror test. Failed first on the missing
+reason text, the missing `loop_lag_ms` breach and the missing constants.
+Deliberately changed: the `HUNG -> DEGRADED` / `HEALTHY -> DEAD` expectations
+and two `evaluate` cases (lag is the rule's now). A first beacon already in
+breach reads `first seen DEGRADED: …` (my first test draft expected
+`HEALTHY -> …`; the code was right). Full suite 14 616 passed, 1 skipped;
+`make _check` clean; dash-gui vitest 511 passed, typecheck clean.
+
 ### WP-MHD02 — Memory filled at the market open is not a leak (C2, C7; after Q5)
 
 **Tests first** (`tests/test_monitor_state.py`):
@@ -503,6 +544,25 @@ new rule and C7.
 the 2026-11-16 minute series of all exchange processes through the rule
 (scratch script) raises nothing.
 
+**Outcome (2026-11-16).** `rss_growth_pct` keeps the base, the warm-up and
+the 100 MB minimum and replaces the rising and ramp-share checks with
+`RSS_QUARTERS = 4` / `RSS_QUARTER_MIN_SHARE = 0.1`: each 15-minute quarter
+of the hour must add at least a tenth of the hour's growth. A quarter mark
+older than the history's start falls back to the base. `RSS_RISING_*` and
+`RSS_RAMP_MAX_SHARE` are removed; the comments and docstring (D4) say what
+the rule tells apart and that a long leak's percentage fades (C7).
+Tests in `test_monitor_state.py::TestRssGrowth`: the three open fixtures
+(minute MiB from `metrics.db`, judged every second while fed every 2 s),
+two leaks (reported at the first full hour, and by 81 min), a GC release in
+one quarter. The open fixtures failed first, reported from second 6420
+(08:47, as in the simulation); the GC case failed at 80.8 %; both leaks
+passed before and after. `test_a_step_still_rising_is_reported` (a 5x step
+then +1 MB/min) asserted the opposite of Q5 and was changed deliberately to
+`test_a_step_with_a_slow_rise_after_is_not_a_leak` (it failed at 480 %
+first). Replaying every `proc.rss_bytes` series of 2026-11-16 (19
+processes, 938 minutes each) through the real `ProcessTable`: no second
+reported. Full suite 14 622 passed, 1 skipped; `make _check` clean.
+
 ### WP-MHD03 — One burst of slow messages does not degrade the engine (C3; after Q2)
 
 **Tests first** (`tests/test_monitor_thresholds.py`):
@@ -524,6 +584,25 @@ the reading's count. `readings()` passes `WINDOWED_RAISE_AFTER = 90` for
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_monitor_*.py` green.
 
+**Outcome (2026-11-16).** `Reading.debounce: bool` is now
+`Reading.raise_after: int` (default `RAISE_AFTER`; 1 = at once, used by
+`increase_reading` and, until WP-MHD04, the two loop readings).
+`ThresholdBook._step` counts against the reading's own number, and the
+book's unused `raise_after` constructor argument is gone. The count is a
+property of the rule, not of the call site: `band_reading` looks it up in
+`RULE_RAISE_AFTER` (`engine_handle_p99_us` → `WINDOWED_RAISE_AFTER = 90`,
+commented against `LATENCY_HORIZON_NS`), so every caller judges p99 the same
+way. Tests: `TestWindowedRules` in `test_monitor_thresholds.py` (60 s held:
+nothing; 90 s: WARN at the 90th; CRIT at once; host CPU still at 5) and
+`test_one_slow_minute_of_the_engine_is_not_degraded` in
+`test_monitor_health.py` (the snapshot-level case lives there, next to the
+`events` fixture, not in `test_monitor_snapshot.py`). The first two and the
+snapshot test failed first with WARN at the 5th evaluation / DEGRADED.
+Full suite: one run had 1 failure in
+`test_api_gateway_listener.py::test_a_dying_listener_is_logged_and_reported`
+(passes 3/3 alone, no pm-monitor code involved: a load flake); the rerun
+14 627 passed, 1 skipped. `make _check` clean.
+
 ### WP-MHD04 — One late loop iteration does not degrade a process (C5; after Q4, WP-MHD01)
 
 **Tests first** (`tests/test_monitor_thresholds.py`,
@@ -540,6 +619,23 @@ the reading's count. `readings()` passes `WINDOWED_RAISE_AFTER = 90` for
 **Change.** The two loop readings use the default raise count.
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_monitor_*.py` green.
+
+**Outcome (2026-11-16).** Both loop readings use `RAISE_AFTER`, with one
+exception found on the way: a `loop_age_ms` already past `hung_after_sec`
+(the process is HUNG) is raised at once. Without it,
+`test_monitor_cli.py::test_a_hung_engine_is_exit_4_and_shows_the_breach`
+failed (a hang first seen in one snapshot showed no breach), and a hang that
+jumps past 5 s within fewer than five readings would return straight to
+HEALTHY, breaking I63. A loop age past the HUNG limit is not "one late
+iteration", so it needs no debounce; the I63 test
+(`test_a_change_is_one_event_until_the_next_change`) passes unchanged.
+Tests: `test_one_late_beacon_is_not_degraded[loop_age_ms|loop_lag_ms]`
+(one beacon 1 336.6 ms late, judged twice) failed first with DEGRADED;
+`test_a_loop_late_for_five_seconds_is_a_breach[…]` expects
+`HEALTHY -> DEGRADED` at the fifth second (it read `first seen DEGRADED`
+before, the instant raise). Full suite 14 631 passed, 1 skipped (the first
+run also had the `test_api_gateway_listener` load flake and the CLI failure
+above, which led to the HUNG exception); `make _check` clean.
 
 ### WP-MHD05 — Clears and transitions say what they are based on (C6, C8; after Q3, WP-MHD01)
 
@@ -560,6 +656,22 @@ the reading's count. `readings()` passes `WINDOWED_RAISE_AFTER = 90` for
 WP-MHD01 reason builder appends active `host` breaches.
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_monitor_*.py` green.
+
+**Outcome (2026-11-16).** `Change.judged` (False when `_step` ran without a
+reading) makes a clear read `<rule> cleared (no longer judged; last <v>)`.
+`_state_reason` appends every active `host` breach as `host: <breach>` to a
+DEGRADED reason; nothing is suppressed. Found on the way and fixed in the
+same WP (same defect family as C6): an easing change (CRIT → WARN after 30
+lower seconds) printed the last value with the WARN threshold, e.g. the
+simulation's `host_cpu_pct WARN 6.5 > 80` (event 103). `Change.detail` now
+uses WP-MHD01's `breach_text`, so it reads
+`host_cpu_pct WARN clearing (6.5)`; a raise is unchanged. Tests:
+`TestChangeWording` in `test_monitor_thresholds.py` (no longer judged,
+fell back, eased) and `test_host_contention_is_named_beside_a_process_breach`
+/ `test_no_host_breach_no_host_part` in `test_monitor_health.py` (with a
+`BusyHost` sampler). The no-reading, eased and host tests failed first with
+the old texts; the other two passed before and after. Full suite 14 636
+passed, 1 skipped; `make _check` clean.
 
 ### WP-MHD06 — Ledger, guide and dashboard texts describe the final rules (D1–D6)
 
@@ -583,6 +695,25 @@ after the colon. (Fails today.)
 
 **Exit criteria.** Texts match the code of WP-MHD01–05; `make _check` and
 the full suite green; `mkdocs build` clean.
+
+**Outcome (2026-11-16).** D1: the `process %s: %s` ledger entry says the
+reason is after the colon and what it holds per state, and its first action
+points at it and at the matching `threshold … on <process>` line; the
+`threshold %s on %s` entry explains "clearing (v)" and "no longer judged".
+D2: dash-gui `help.ts` DEGRADED and Lag texts. D3: the guide's
+`rss_growth_pct_1h` row describes the quarter rule and C7. D4 was done in
+WP-MHD02 with the code. D5: the guide's DEGRADED row, a `loop_lag_ms` row in
+the threshold table, the `PROCESS_STATUS` row with three example reasons,
+and the troubleshooting row. D6: the raise-count paragraph (five seconds;
+at once for CRIT, "any increase" and a loop past HUNG; 90 s for
+`engine_handle_p99_us`) and the two new clear wordings. Design doc
+`EduMatcher-Operator-Dashboard.md`: the §10 DEGRADED row, the bridge's
+fixed-rule list and a note under §9.6 pointing here. Test:
+`test_a_process_state_line_is_explained_by_its_reason` in
+`test_log_ledger.py` failed first on the old explanation. Not changed: the
+generated message reference's `HEALTHY -> HUNG` example of
+`HealthEvent.detail` (still a valid prefix). Full suite 14 637 passed, 1
+skipped; `make _check` clean; dash-gui vitest 511 passed.
 
 ---
 

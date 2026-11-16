@@ -8,13 +8,13 @@
 const COLUMN: Record<string, Record<string, string>> = {
   Processes: {
     state:
-      "The monitor's verdict on the process. HEALTHY: beacons arrive and the main loop runs. DEGRADED: running but a loop is late (see Loop age and Lag). HUNG: beacons arrive but the main loop has stood still for over 5 s. SILENT: no beacons, yet the process still exists (the whole interpreter is stuck). DEAD: no beacons and the process is gone. MISSING: the active profile expects it but it never reported. STOPPED: it shut down cleanly. Click a column header to sort, worst first by default.",
+      "The monitor's verdict on the process. HEALTHY: beacons arrive and the main loop runs. DEGRADED: running, but a threshold on it is in breach — a late loop (Loop age, Lag), memory growth, engine latency or a counter that should not move; its event says which. HUNG: beacons arrive but the main loop has stood still for over 5 s. SILENT: no beacons, yet the process still exists (the whole interpreter is stuck). DEAD: no beacons and the process is gone. MISSING: the active profile expects it but it never reported. STOPPED: it shut down cleanly. Click a column header to sort, worst first by default.",
     key: "The process name, with its instance in brackets when several of one kind run. RESTARTED marks a process that has started again recently. Click a row for the full history of that process.",
     uptime: "How long the process has been running since its start. A short uptime on a process you left running means it restarted.",
     rss: "Resident memory: the physical RAM the process holds right now. The small chart is the recent trend; a line that only climbs suggests a leak.",
     cpu: "Share of one CPU core the process used recently (100% is one full core, so a multi-threaded process can exceed it). The small chart is the recent trend.",
     loop: "Time since the process's main loop last completed an iteration. Small values mean the loop is turning; a value that keeps growing means the loop is stuck, and above 5 s the state becomes HUNG. Coloured when it crosses the warning or critical line.",
-    lag: "The longest gap between two ticks of the main loop, in milliseconds. It includes each loop's designed idle wait (up to about 250 ms), so a few hundred is normal; above 1 000 ms the process is DEGRADED.",
+    lag: "The longest gap between two ticks of the main loop, in milliseconds. It includes each loop's designed idle wait (up to about 250 ms), so a few hundred is normal; above 1 000 ms for five seconds the process is DEGRADED.",
   },
   Participants: {
     id: "The participant (trader, market maker or bot) id the gateway knows the connection by.",
