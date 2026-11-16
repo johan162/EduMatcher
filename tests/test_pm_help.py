@@ -247,3 +247,26 @@ def test_pm_mm_bot_entry_describes_the_multi_symbol_bot() -> None:
     ):
         assert flag in flags
     assert "one symbol" not in cmd.summary
+
+
+def test_the_pm_log_srv_options_match_its_parser() -> None:
+    """Every option the registry lists exists in build_parser(), and vice versa."""
+    from edumatcher.log_srv.main import build_parser
+    from edumatcher.pm_help.registry import get_command
+
+    info = get_command("pm-log-srv")
+    assert info is not None
+    listed = {
+        token.rstrip(",")
+        for opt in info.options
+        for token in opt.flags.split()
+        if token.startswith("-")
+    }
+    parser_flags = {
+        flag
+        for action in build_parser()._actions
+        for flag in action.option_strings
+        # --version is added to every page by the renderer.
+        if flag not in ("-h", "--help", "--version")
+    }
+    assert listed == parser_flags

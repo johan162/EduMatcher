@@ -71,14 +71,17 @@ class LogRow(BaseModel):
     server_ts: str
     """Server receive time, ISO-8601; the log_events columns are TEXT."""
     process: str = Field(max_length=64)
-    instance: str = Field(max_length=64)
+    instance: str | None = Field(max_length=64)
+    """NULL when the producer sent no INSTANCE."""
     pid: int
     host: str = Field(max_length=128)
     session: str = Field(max_length=64)
     level: str = Field(max_length=16)
     logger: str = Field(max_length=128)
-    module: str = Field(max_length=128)
-    line: int
+    module: str | None = Field(max_length=128)
+    """NULL when the producer sent no MODULE."""
+    line: int | None
+    """NULL when the producer sent no LINE, or one outside int64."""
     has_exception: bool
     truncated: bool
     message: str
@@ -250,6 +253,10 @@ class LogBackfill(BaseModel):
     total_sent: int
     truncated: bool
     last_seq: int
+    msg_no: int
+    """Per-subscription number shared with log.event, from 1; a gap is a lost
+    message.
+    """
     timestamp: float
     """Unit: epoch_seconds."""
 
@@ -267,7 +274,13 @@ class LogEvent(BaseModel):
     seq_to: int
     server_last_seq: int
     dropped: int
-    """Lifetime rows dropped for this subscription, not this batch."""
+    """Lifetime rows the server shed for this subscription, not this batch. Messages
+    lost in transport show as msg_no gaps instead.
+    """
+    msg_no: int
+    """Per-subscription number shared with log.backfill, from 1; a gap is a lost
+    message.
+    """
     timestamp: float
     """Unit: epoch_seconds."""
 

@@ -93,3 +93,42 @@
   actions:
     - "Check the participant's fills another way, for example with `pm-stats-cli trades`."
     - "If it repeats, make sure the console and pm-engine run the same EduMatcher release."
+
+- logger: edumatcher.alf_console.main
+  template: "command failed gateway_id=%s line=%r"
+  level: ERROR
+  explanation: >
+    A line typed at the console prompt raised an error the command parser did
+    not foresee. The command was not carried out and the session goes on; the
+    traceback follows the message. Nothing was sent to the engine for that
+    line unless the traceback shows the send itself failing.
+  actions:
+    - "Type ORDERS to check that the order state is what you expect, and retype the command if it was not carried out."
+    - "Report the line and the traceback as a pm-alf-console bug."
+
+- logger: edumatcher.alf_console.main
+  template: "engine events lost gateway_id=%s topic=%s count=%d"
+  level: WARNING
+  explanation: >
+    Events pm-engine published for this console (fills, acks, cancels) were
+    dropped on the way, so the console never saw them: the topic's sequence
+    numbers jumped by the count shown. The console printed a warning, asked
+    the engine for its resting orders and its position again, and marked
+    orders that are no longer resting as CLOSED. Net quantity and average
+    cost come back from the engine; the session's realised P&L still misses
+    the lost fills.
+  actions:
+    - "Type ORDERS and POS in the console and compare them with `pm-stats-cli trades` for the participant."
+    - "If it repeats, check the host's CPU load: the console falls behind when it cannot keep up with the exchange's trade feed."
+
+- logger: edumatcher.alf_console.main
+  template: "engine sent no symbol list gateway_id=%s"
+  level: ERROR
+  explanation: >
+    pm-engine accepted the console's logon but did not answer its request for
+    the symbol list within 3 seconds. The console needs that list for each
+    symbol's tick size, without which it would send prices at the wrong
+    scale, so it logged out and exited with status 1.
+  actions:
+    - "Check that pm-engine is responsive (`pm-monitor-cli status`) and start the console again."
+    - "Check that the console can reach the engine's publish port (5556) as well as its order port (5555)."

@@ -73,11 +73,15 @@ class LalfFrame:
     payload:
         Raw payload bytes for message types that carry one (``LOG``,
         identified by a ``LEN`` field); ``None`` for header-only messages.
+    truncated:
+        The declared ``LEN`` exceeded the reader's ``max_payload_bytes``:
+        ``payload`` holds only its first ``max_payload_bytes`` bytes.
     """
 
     msg_type: str
     fields: dict[str, str]
     payload: bytes | None = None
+    truncated: bool = False
 
 
 def iso_utc(ts_seconds: float) -> str:
@@ -228,9 +232,9 @@ def build_log_frame(
     the server-side truncate-not-reject behavior in §15.7/§15.9's
     ``PAYLOAD_TOO_LARGE`` handling, so a client that wants to pre-truncate
     before sending (rather than relying on the server to do it) gets the
-    identical outcome. Returns the truncation flag alongside the encoded
-    bytes so a caller (e.g. ``TcpLogHandler`` in phase 2) can act on it;
-    this function itself has no side effects.
+    identical outcome. Returns only the encoded bytes; a caller that needs
+    to know whether the message was cut compares its UTF-8 length with
+    ``max_message_bytes``. This function has no side effects.
     """
     if level not in _VALID_LEVELS:
         raise LalfProtocolError(f"invalid LEVEL: {level!r}")
@@ -338,22 +342,40 @@ class FrameReader:
     Usage: call :meth:`feed` with newly received bytes, then repeatedly
     call :meth:`next_frame` until it returns ``None`` (meaning: not enough
     bytes buffered yet for a complete frame).
+
+    ``max_payload_bytes`` bounds what one payload may hold in memory: of a
+    longer declared ``LEN`` only the first ``max_payload_bytes`` bytes are
+    kept, the rest is discarded as it arrives, and the frame is returned
+    with ``truncated`` set once the declared length has passed.
     """
 
-    def __init__(self, *, max_header_line_bytes: int = MAX_HEADER_LINE_BYTES) -> None:
+    def __init__(
+        self,
+        *,
+        max_header_line_bytes: int = MAX_HEADER_LINE_BYTES,
+        max_payload_bytes: int | None = None,
+    ) -> None:
         self._buf = bytearray()
         self._max_header_line_bytes = max_header_line_bytes
+        self._max_payload_bytes = max_payload_bytes
         # State for a header line that has been parsed but whose payload
         # bytes have not all arrived yet.
         self._pending_msg_type: str | None = None
         self._pending_fields: dict[str, str] | None = None
-        self._pending_len: int | None = None
+        self._pending_payload = bytearray()
+        #: Declared payload bytes not yet consumed from the stream.
+        self._pending_remaining = 0
+        self._pending_truncated = False
 
     def feed(self, data: bytes) -> None:
         self._buf.extend(data)
 
     def __len__(self) -> int:
         return len(self._buf)
+
+    def buffered_bytes(self) -> int:
+        """Bytes held: the unparsed stream plus a pending payload."""
+        return len(self._buf) + len(self._pending_payload)
 
     def next_frame(self) -> LalfFrame | None:
         """Return the next complete frame, or ``None`` if not enough data yet.
@@ -364,21 +386,7 @@ class FrameReader:
         """
         # Resume a header line whose payload we were already waiting on.
         if self._pending_msg_type is not None:
-            assert self._pending_fields is not None
-            assert self._pending_len is not None
-            if len(self._buf) < self._pending_len:
-                return None
-            payload = bytes(self._buf[: self._pending_len])
-            del self._buf[: self._pending_len]
-            frame = LalfFrame(
-                msg_type=self._pending_msg_type,
-                fields=self._pending_fields,
-                payload=payload,
-            )
-            self._pending_msg_type = None
-            self._pending_fields = None
-            self._pending_len = None
-            return frame
+            return self._resume_payload()
 
         idx = self._buf.find(b"\n")
         if idx < 0:
@@ -403,14 +411,40 @@ class FrameReader:
         if n is None:
             return LalfFrame(msg_type=msg_type, fields=fields, payload=None)
 
-        if len(self._buf) < n:
-            # Not enough payload bytes yet — remember this header line and
-            # wait for the next feed().
-            self._pending_msg_type = msg_type
-            self._pending_fields = fields
-            self._pending_len = n
-            return None
+        # Remember this header line until its payload has passed; it may
+        # take several feed() calls.
+        self._pending_msg_type = msg_type
+        self._pending_fields = fields
+        self._pending_payload = bytearray()
+        self._pending_remaining = n
+        self._pending_truncated = (
+            self._max_payload_bytes is not None and n > self._max_payload_bytes
+        )
+        return self._resume_payload()
 
-        payload = bytes(self._buf[:n])
-        del self._buf[:n]
-        return LalfFrame(msg_type=msg_type, fields=fields, payload=payload)
+    def _resume_payload(self) -> LalfFrame | None:
+        """Consume buffered payload bytes; the frame once all have passed."""
+        assert self._pending_msg_type is not None
+        assert self._pending_fields is not None
+        take = min(len(self._buf), self._pending_remaining)
+        if take:
+            keep = take
+            if self._max_payload_bytes is not None:
+                room = self._max_payload_bytes - len(self._pending_payload)
+                keep = max(0, min(take, room))
+            self._pending_payload += self._buf[:keep]
+            del self._buf[:take]
+            self._pending_remaining -= take
+        if self._pending_remaining:
+            return None
+        frame = LalfFrame(
+            msg_type=self._pending_msg_type,
+            fields=self._pending_fields,
+            payload=bytes(self._pending_payload),
+            truncated=self._pending_truncated,
+        )
+        self._pending_msg_type = None
+        self._pending_fields = None
+        self._pending_payload = bytearray()
+        self._pending_truncated = False
+        return frame

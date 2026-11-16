@@ -73,6 +73,15 @@ def running_server(tmp_path: Path):
     rs.stop()
 
 
+def _prune_to_completion(server: LogServer) -> int:
+    """Run retention passes until the prune in progress is finished."""
+    server._last_retention_check = -1e12  # due now
+    server._run_retention_if_due()
+    while server._prune_cutoff is not None:
+        server._run_retention_if_due()
+    return server._pruned
+
+
 def _recv_all(sock: socket.socket, timeout: float = 0.5) -> bytes:
     sock.settimeout(timeout)
     chunks = []
@@ -207,8 +216,15 @@ def test_oversized_payload_truncated_not_dropped(tmp_path: Path) -> None:
         assert len(rows) == 1
         assert rows[0][1] == 1
         assert len(rows[0][0].encode("utf-8")) <= 10
-        # One advisory ERR was sent, so it is counted once.
-        errors = conn.execute("SELECT total_errors_sent FROM server_stats").fetchone()
+        # One advisory ERR was sent, so it is counted once, at the next
+        # heartbeat flush (heartbeat_interval_sec=1).
+        deadline = time.monotonic() + 3.0
+        errors = None
+        while time.monotonic() < deadline and errors != (1,):
+            time.sleep(0.1)
+            errors = conn.execute(
+                "SELECT total_errors_sent FROM server_stats"
+            ).fetchone()
         assert errors == (1,)
     finally:
         rs.stop()
@@ -494,7 +510,7 @@ def test_retention_pruning_deletes_only_old_rows(tmp_path: Path) -> None:
                         msg,
                     ),
                 )
-        deleted = rs.server._prune_older_than(30)
+        deleted = _prune_to_completion(rs.server)
         assert deleted == 1
         remaining = rs.server._conn.execute("SELECT message FROM log_events").fetchall()
         assert remaining == [("new",)]
@@ -620,7 +636,7 @@ def test_retention_prunes_in_chunks(
                     "VALUES (?,?,'p',1,'h','s','INFO','l',?)",
                     (ts, ts, msg),
                 )
-        assert server._prune_older_than(30) == 5
+        assert _prune_to_completion(server) == 5
         assert server._conn.execute("SELECT message FROM log_events").fetchall() == [
             ("new",)
         ]
@@ -669,8 +685,11 @@ def test_writer_flushes_its_whole_backlog_at_shutdown(tmp_path: Path) -> None:
 class _FailingOnceConn:
     """Delegates to a real connection; the first INSERT batch fails."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, error: Exception | None = None
+    ) -> None:
         self._conn = conn
+        self._error = error or sqlite3.OperationalError("database is locked")
         self.failed = False
 
     def __enter__(self) -> "_FailingOnceConn":
@@ -683,7 +702,7 @@ class _FailingOnceConn:
     def executemany(self, sql: str, rows: Any) -> Any:
         if not self.failed:
             self.failed = True
-            raise sqlite3.OperationalError("database is locked")
+            raise self._error
         return self._conn.executemany(sql, rows)
 
     def __getattr__(self, name: str) -> Any:
@@ -708,3 +727,297 @@ def test_writer_retries_a_failed_batch_instead_of_dropping_it(
         "m2",
     ]
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# WP-LOG02: every session row is closed with a reason (C1, C12)
+# ---------------------------------------------------------------------------
+
+
+def _register(rs: _RunningServer, client: str) -> socket.socket:
+    s = rs.connect()
+    s.sendall(f"HELLO|CLIENT={client}|PID=1|HOST=h|PROTO=LALF1\n".encode())
+    _recv_all(s)
+    s.sendall(b"HB\n")
+    return s
+
+
+def test_server_stop_closes_every_session_with_server_stop(tmp_path: Path) -> None:
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    socks = [_register(rs, f"pm-proc{i}") for i in range(3)]
+    time.sleep(0.3)
+    rs.stop()
+    try:
+        rows = (
+            rs.db()
+            .execute(
+                "SELECT process, disconnected_at, disconnect_reason FROM processes "
+                "ORDER BY process"
+            )
+            .fetchall()
+        )
+    finally:
+        for s in socks:
+            s.close()
+        for conn in rs._extra_conns:
+            conn.close()
+    assert [(p, r) for p, _, r in rows] == [
+        ("pm-proc0", "server_stop"),
+        ("pm-proc1", "server_stop"),
+        ("pm-proc2", "server_stop"),
+    ]
+    assert all(d is not None for _, d, _ in rows)
+
+
+def test_start_up_closes_sessions_a_crashed_server_left_open(tmp_path: Path) -> None:
+    """A row left open by a server that never ran close() is closed at start."""
+    crashed = _RunningServer(tmp_path)
+    crashed.start()
+    s = _register(crashed, "pm-orphan")
+    time.sleep(0.3)
+    # Simulate the crash: the loop stops, but close() never runs.
+    crashed.server._running = False
+    crashed.server.close = lambda: None
+    crashed.thread.join(timeout=2)
+    s.close()
+    open_rows = sqlite3.connect(str(tmp_path / "log.db"))
+    try:
+        before = open_rows.execute(
+            "SELECT disconnect_reason FROM processes WHERE disconnected_at IS NULL"
+        ).fetchall()
+    finally:
+        open_rows.close()
+    assert before == [(None,)]
+
+    restarted = LogServer(crashed.config)
+    try:
+        conn = sqlite3.connect(str(tmp_path / "log.db"))
+        try:
+            rows = conn.execute(
+                "SELECT disconnected_at IS NOT NULL, disconnect_reason FROM processes"
+            ).fetchall()
+        finally:
+            conn.close()
+    finally:
+        restarted.close()
+        crashed.server._writer.stop()
+        crashed.server._conn.close()
+        crashed.server._prune_conn.close()
+        if crashed.server._server is not None:
+            crashed.server._server.close()
+        if crashed.server._pubsub is not None:
+            crashed.server._pubsub.stop()
+    assert rows == [(1, "server_restart")]
+
+
+def test_close_twice_writes_the_reasons_once_and_logs_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    s = _register(rs, "pm-once")
+    time.sleep(0.3)
+    caplog.set_level("INFO", logger="edumatcher.log_srv.server")
+    rs.stop()  # run() ends and calls close()
+    first = rs.db().execute("SELECT disconnected_at FROM processes").fetchone()[0]
+    time.sleep(1.1)
+    rs.server.close()  # main() calls it again
+    try:
+        second = rs.db().execute("SELECT disconnected_at FROM processes").fetchone()[0]
+    finally:
+        s.close()
+        for conn in rs._extra_conns:
+            conn.close()
+    assert first == second
+    closing = [r for r in caplog.records if r.getMessage() == "closing pm-log-srv"]
+    assert len(closing) == 1
+
+
+# ---------------------------------------------------------------------------
+# WP-LOG03: no client input stops collection silently (C2, C9)
+# ---------------------------------------------------------------------------
+
+
+def test_hello_with_a_pid_beyond_int64_is_refused(
+    running_server: _RunningServer,
+) -> None:
+    s = running_server.connect()
+    s.sendall(f"HELLO|CLIENT=x|PID={2**64}|HOST=h|PROTO=LALF1\n".encode())
+    resp = _recv_all(s)
+    s.close()
+    assert b"ERR|CODE=MISSING_FIELD" in resp
+    assert running_server.thread.is_alive()
+    s2 = running_server.connect()
+    s2.sendall(b"HELLO|CLIENT=x|PID=1|HOST=h|PROTO=LALF1\n")
+    assert b"WELCOME" in _recv_all(s2)
+    s2.close()
+
+
+def test_a_line_beyond_int64_is_stored_as_null(running_server: _RunningServer) -> None:
+    s = running_server.connect()
+    s.sendall(b"HELLO|CLIENT=x|PID=1|HOST=h|PROTO=LALF1\n")
+    _recv_all(s)
+    s.sendall(
+        f"LOG|SEQ=1|TS=x|LEVEL=INFO|LOGGER=y|LINE={2**64}|LEN=3\nbad".encode()
+        + b"LOG|SEQ=2|TS=x|LEVEL=INFO|LOGGER=y|LINE=7|LEN=4\ngood"
+    )
+    deadline = time.monotonic() + 1.0
+    rows: list[Any] = []
+    while time.monotonic() < deadline and len(rows) < 2:
+        time.sleep(0.05)
+        rows = (
+            running_server.db()
+            .execute("SELECT message, line FROM log_events ORDER BY seq")
+            .fetchall()
+        )
+    s.close()
+    assert rows == [("bad", None), ("good", 7)]
+
+
+def test_the_writer_retries_a_batch_after_a_non_sqlite_error(tmp_path: Path) -> None:
+    conn = open_db(tmp_path / "log.db")
+    writer = WriterThread(conn, batch_size=10, batch_interval_ms=10)
+    writer._conn = _FailingOnceConn(conn, OverflowError("boom"))
+    writer.start()
+    try:
+        writer.enqueue(_event(1))
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and writer.pending:
+            time.sleep(0.02)
+        assert writer._thread is not None and writer._thread.is_alive()
+    finally:
+        writer.stop()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM log_events").fetchone() == (1,)
+    finally:
+        conn.close()
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_a_dead_writer_thread_stops_the_server(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    rs = _RunningServer(tmp_path)
+
+    def _die(*, force: bool) -> int:
+        raise RuntimeError("writer bug")
+
+    rs.server._writer._drain_and_write = _die
+    errors: list[BaseException] = []
+
+    def _run() -> None:
+        try:
+            rs.server.run()
+        except BaseException as exc:  # noqa: BLE001 - the test inspects it
+            errors.append(exc)
+
+    caplog.set_level("CRITICAL", logger="edumatcher.log_srv.server")
+    rs.thread = threading.Thread(target=_run, daemon=True)
+    rs.thread.start()
+    rs.thread.join(timeout=3.0)
+    assert not rs.thread.is_alive()
+    assert len(errors) == 1 and "writer" in str(errors[0])
+    assert any(r.levelname == "CRITICAL" for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# WP-LOG06: the main loop never stalls on retention, error replies or reads
+# ---------------------------------------------------------------------------
+
+
+def _insert_old_rows(server: LogServer, n: int, old: bool = True) -> None:
+    ts = "2000-01-01T00:00:00.000Z" if old else iso_utc(time.time())
+    with server._conn:
+        server._conn.executemany(
+            "INSERT INTO log_events (client_ts, server_ts, process, pid, "
+            "host, session, level, logger, message) "
+            "VALUES (?,?,'p',1,'h','s','INFO','l',?)",
+            [(ts, ts, "old" if old else "new") for _ in range(n)],
+        )
+
+
+def test_one_retention_pass_deletes_at_most_one_chunk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import edumatcher.log_srv.server as server_mod
+
+    monkeypatch.setattr(server_mod, "PRUNE_CHUNK_ROWS", 2)
+    server = LogServer(LogServerConfig(bind_address=_HOST, db_path=tmp_path / "log.db"))
+    try:
+        _insert_old_rows(server, 5)
+        _insert_old_rows(server, 1, old=False)
+
+        def remaining() -> int:
+            return int(
+                server._conn.execute("SELECT COUNT(*) FROM log_events").fetchone()[0]
+            )
+
+        counts = []
+        for _ in range(5):
+            server._run_retention_if_due()
+            counts.append(remaining())
+        assert counts == [4, 2, 1, 1, 1]
+        assert server._conn.execute("SELECT message FROM log_events").fetchall() == [
+            ("new",)
+        ]
+    finally:
+        server.close()
+
+
+def test_err_replies_are_counted_without_a_commit_each(tmp_path: Path) -> None:
+    server = LogServer(LogServerConfig(bind_address=_HOST, db_path=tmp_path / "log.db"))
+    statements: list[str] = []
+    server._conn.set_trace_callback(statements.append)
+    try:
+        a, b = socket.socketpair()
+        session = LogSession(sock=a, addr=("x", 0))
+        for _ in range(1000):
+            server._queue_line(session, "ERR", {"CODE": "BAD_MESSAGE", "MSG": "x"})
+        assert not [s for s in statements if "UPDATE server_stats" in s]
+        server._last_heartbeat_flush = 0.0
+        server._persist_heartbeats_if_due()
+        assert server._conn.execute(
+            "SELECT total_errors_sent FROM server_stats"
+        ).fetchone() == (1000,)
+        assert len([s for s in statements if "UPDATE server_stats" in s]) == 1
+        a.close()
+        b.close()
+    finally:
+        server._conn.set_trace_callback(None)
+        server.close()
+
+
+def test_one_client_is_ingested_at_several_thousand_rows_a_second(
+    tmp_path: Path,
+) -> None:
+    """P5: measured 1 730 rows/s before (4096 bytes per 10 ms pass)."""
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=x|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        n = 20_000
+        body = "x" * 200  # a typical row: 200-byte message, ~240-byte frame
+        frames = b"".join(
+            f"LOG|SEQ={i}|TS=x|LEVEL=INFO|LOGGER=y|LEN={len(body)}\n".encode()
+            + body.encode()
+            for i in range(1, n + 1)
+        )
+        s.settimeout(None)  # writer backpressure may pause reads for a while
+        started = time.monotonic()
+        sender = threading.Thread(target=s.sendall, args=(frames,), daemon=True)
+        sender.start()
+        conn = rs.db()
+        count = 0
+        while time.monotonic() - started < 20 and count < n:
+            time.sleep(0.05)
+            count = conn.execute("SELECT COUNT(*) FROM log_events").fetchone()[0]
+        elapsed = time.monotonic() - started
+        sender.join(timeout=5)
+        s.close()
+    finally:
+        rs.stop()
+    assert count == n
+    assert n / elapsed >= 5000, f"{n / elapsed:.0f} rows/s"

@@ -148,14 +148,14 @@ class LogRow:
     client_ts: str
     server_ts: str
     process: str
-    instance: str
+    instance: str | None
     pid: int  # unit: dimensionless
     host: str
     session: str
     level: str
     logger: str
-    module: str
-    line: int  # unit: dimensionless
+    module: str | None
+    line: int | None  # unit: dimensionless
     has_exception: bool
     truncated: bool
     message: str
@@ -172,10 +172,11 @@ class LogRow:
             raise MessageValidationError(
                 f"process: length {len(self.process)} exceeds max_len 64"
             )
-        if len(self.instance) > 64:
-            raise MessageValidationError(
-                f"instance: length {len(self.instance)} exceeds max_len 64"
-            )
+        if self.instance is not None:
+            if len(self.instance) > 64:
+                raise MessageValidationError(
+                    f"instance: length {len(self.instance)} exceeds max_len 64"
+                )
         if len(self.host) > 128:
             raise MessageValidationError(
                 f"host: length {len(self.host)} exceeds max_len 128"
@@ -192,10 +193,11 @@ class LogRow:
             raise MessageValidationError(
                 f"logger: length {len(self.logger)} exceeds max_len 128"
             )
-        if len(self.module) > 128:
-            raise MessageValidationError(
-                f"module: length {len(self.module)} exceeds max_len 128"
-            )
+        if self.module is not None:
+            if len(self.module) > 128:
+                raise MessageValidationError(
+                    f"module: length {len(self.module)} exceeds max_len 128"
+                )
         if self.tpl is not None:
             if len(self.tpl) > 12:
                 raise MessageValidationError(
@@ -215,14 +217,14 @@ class LogRow:
             client_ts=str(p["client_ts"]),
             server_ts=str(p["server_ts"]),
             process=str(p["process"]),
-            instance=str(p["instance"]),
+            instance=None if p.get("instance") is None else str(p["instance"]),
             pid=int(p["pid"]),
             host=str(p["host"]),
             session=str(p["session"]),
             level=str(p["level"]),
             logger=str(p["logger"]),
-            module=str(p["module"]),
-            line=int(p["line"]),
+            module=None if p.get("module") is None else str(p["module"]),
+            line=None if p.get("line") is None else int(p["line"]),
             has_exception=bool(p["has_exception"]),
             truncated=bool(p["truncated"]),
             message=str(p["message"]),
@@ -1890,6 +1892,13 @@ _LOG_BACKFILL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
     },
     {
+        "name": "msg_no",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Per-subscription number shared with log.event, from 1; a gap is a lost message.",
+    },
+    {
         "name": "timestamp",
         "type": "float",
         "unit": "epoch_seconds",
@@ -1917,6 +1926,7 @@ class LogBackfill:
     total_sent: int  # unit: dimensionless
     truncated: bool
     last_seq: int  # unit: dimensionless
+    msg_no: int  # unit: dimensionless
     timestamp: float  # unit: epoch_seconds
 
     def validate(self) -> None:
@@ -1955,6 +1965,7 @@ class LogBackfill:
             total_sent=int(p["total_sent"]),
             truncated=bool(p["truncated"]),
             last_seq=int(p["last_seq"]),
+            msg_no=int(p["msg_no"]),
             timestamp=float(p["timestamp"]),
         )
 
@@ -1970,6 +1981,7 @@ class LogBackfill:
             "total_sent": self.total_sent,
             "truncated": self.truncated,
             "last_seq": self.last_seq,
+            "msg_no": self.msg_no,
             "timestamp": self.timestamp,
         }
 
@@ -2075,7 +2087,14 @@ _LOG_EVENT_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "dimensionless",
         "required": True,
-        "doc": "Lifetime rows dropped for this subscription, not this batch.",
+        "doc": "Lifetime rows the server shed for this subscription, not this batch. Messages lost in transport show as msg_no gaps instead.",
+    },
+    {
+        "name": "msg_no",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Per-subscription number shared with log.backfill, from 1; a gap is a lost message.",
     },
     {
         "name": "timestamp",
@@ -2098,6 +2117,7 @@ class LogEvent:
     seq_to: int  # unit: dimensionless
     server_last_seq: int  # unit: dimensionless
     dropped: int  # unit: dimensionless
+    msg_no: int  # unit: dimensionless
     timestamp: float  # unit: epoch_seconds
 
     def validate(self) -> None:
@@ -2132,6 +2152,7 @@ class LogEvent:
             seq_to=int(p["seq_to"]),
             server_last_seq=int(p["server_last_seq"]),
             dropped=int(p["dropped"]),
+            msg_no=int(p["msg_no"]),
             timestamp=float(p["timestamp"]),
         )
 
@@ -2145,6 +2166,7 @@ class LogEvent:
             "seq_to": self.seq_to,
             "server_last_seq": self.server_last_seq,
             "dropped": self.dropped,
+            "msg_no": self.msg_no,
             "timestamp": self.timestamp,
         }
 
