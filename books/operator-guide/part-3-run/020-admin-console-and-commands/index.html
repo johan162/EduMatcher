@@ -9046,7 +9046,7 @@ table.</p>
 <h4 id="session-request-a-session-phase-transition"><code>session</code> — Request a session-phase transition<a class="headerlink" href="#session-request-a-session-phase-transition" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>SESSION  OPENING_AUCTION → CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>SESSION  now CONTINUOUS
 </code></pre></div></p>
 <table>
 <thead>
@@ -9064,11 +9064,11 @@ table.</p>
 </tr>
 </tbody>
 </table>
-<p>Invalid transitions are rejected by the engine before anything is published,
-so no reply of any kind is sent back for a rejected transition — the CLI call
-times out (<code>Timeout: ...</code> on stderr, exit code 1) rather than printing a
-result to check. A successful transition, by contrast, is confirmed by the
-<code>session.state</code> broadcast.</p>
+<p>The engine answers every request on <code>session.transition_ack.&lt;id&gt;</code>. An invalid
+transition is refused with its reason and exit code 1, for example
+<code>SESSION  REJECTED  Invalid transition CONTINUOUS → CONTINUOUS (allowed:
+CLOSED, CLOSING_AUCTION)</code>; nothing is published for it. A successful one is
+also announced to everyone by the <code>session.state</code> broadcast.</p>
 <h4 id="session-status-show-current-session-state-read-only"><code>session-status</code> — Show current session state (read-only)<a class="headerlink" href="#session-status-show-current-session-state-read-only" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
 </code></pre></div>

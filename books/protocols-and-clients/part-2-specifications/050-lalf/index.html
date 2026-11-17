@@ -8441,19 +8441,18 @@ the code (see table).</p>
 <tr>
 <td><code>HELLO_TIMEOUT</code></td>
 <td>No <code>HELLO</code> received within 5 seconds of accept</td>
-<td>Yes — the server queues this <code>ERR</code> and disconnects in the same step, without an intervening flush of the outbound queue; a client SHOULD NOT rely on receiving this <code>ERR</code> before the socket closes, and MUST instead treat an unexpected close with no prior <code>WELCOME</code> as an implicit handshake timeout</td>
+<td>Yes — the server queues this <code>ERR</code> and gives it one flush pass before closing, whether or not it went out; a client SHOULD NOT rely on receiving this <code>ERR</code> before the socket closes, and MUST instead treat an unexpected close with no prior <code>WELCOME</code> as an implicit handshake timeout</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Implementation note on <code>HELLO_TIMEOUT</code> delivery.</strong> Unlike every other
-terminal <code>ERR</code> code above — which are queued and then the connection is
-marked closing-after-flush, guaranteeing the <code>ERR</code> bytes are sent before the
-socket closes — <code>HELLO_TIMEOUT</code> is queued and the connection is closed
-immediately afterward, in the same pass through the server's idle-connection
-sweep, with no guarantee the outbound queue was flushed first. In practice
-this means a client is unlikely to ever observe this specific <code>ERR</code> on the
-wire; it should be treated as effectively equivalent to a bare connection
-close with no prior <code>WELCOME</code>.</p>
+<p><strong>Implementation note on <code>HELLO_TIMEOUT</code> delivery.</strong> Like the other
+terminal <code>ERR</code> codes, <code>HELLO_TIMEOUT</code> is queued and the connection is marked
+closing-after-flush. The difference is the bound: a client that has not
+sent <code>HELLO</code> may not be reading either, so the server gives the <code>ERR</code> one
+flush pass and closes the connection at the next idle-connection sweep even
+if the bytes did not go out. A client that is reading will usually see the
+<code>ERR</code>; one that is not sees a bare close with no prior <code>WELCOME</code>, and both
+mean the same.</p>
 <h3 id="hb"><code>HB</code><a class="headerlink" href="#hb" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Client -&gt; Server, periodically. The server never sends <code>HB</code>;
 it is purely a client-liveness signal the server listens for.</p>
@@ -8513,8 +8512,14 @@ violation; the server MUST treat the closed socket identically to an
 explicit <code>EXIT</code> for the purpose of flushing buffered rows and marking the
 connection's stored process record disconnected.</p>
 <p>The shipped <code>pm-log-srv</code> does, however, record <em>which</em> of the two happened
-in <code>processes.disconnect_reason</code> (<code>client_exit</code> versus <code>peer_closed</code>,
-<code>idle_timeout</code>, <code>hello_timeout</code>, or <code>protocol_error</code>). Sending <code>EXIT</code> is
+in <code>processes.disconnect_reason</code>: <code>client_exit</code> (the client sent <code>EXIT</code>)
+versus <code>peer_closed</code> (the socket closed), <code>io_error</code> (the connection was
+reset or a read or write failed), <code>idle_timeout</code> (no message for
+2 × <code>HBINT</code>) or <code>protocol_error</code>. Two more reasons come from the server
+itself: <code>server_stop</code> for every session still connected when <code>pm-log-srv</code>
+stops, and <code>server_restart</code> for a session a previous <code>pm-log-srv</code> left open
+(it stopped without a clean shutdown), closed when the next one starts. A
+connection that never completed its handshake has no stored record. Sending <code>EXIT</code> is
 therefore worth doing even though its absence is legal: it is what lets
 <code>pm-log-cli diagnose</code> tell a deliberate shutdown from a process that
 crashed or failed over to file logging.</p>
@@ -8625,10 +8630,10 @@ wire beyond <code>WELCOME.HBINT</code>:</p>
   header-only. An implementation that defaults to expecting a payload after
   every message type will stall waiting for bytes that are never sent.</li>
 <li><strong>Do not assume <code>HELLO_TIMEOUT</code> is reliably observable.</strong> As noted under
-  <code>ERR</code> above, the reference server implementation queues this <code>ERR</code> and
-  closes the connection without guaranteeing a flush first. Client code
-  should treat "connected but no <code>WELCOME</code> within a few seconds, then the
-  socket closes" as the practical signal, not a specific received <code>ERR</code> code.</li>
+  <code>ERR</code> above, the reference server gives this <code>ERR</code> one flush pass and then
+  closes the connection whether or not it was sent. Client code should
+  treat "connected but no <code>WELCOME</code> within a few seconds, then the socket
+  closes" as the practical signal, not a specific received <code>ERR</code> code.</li>
 </ul>
 <h2 id="conformance-notes">Conformance notes<a class="headerlink" href="#conformance-notes" title="Permanent link">&para;</a></h2>
 <p>If you are implementing a LALF client or server, the most important protocol

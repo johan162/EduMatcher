@@ -7765,7 +7765,7 @@ useful when several changes are outstanding for the same order.</p>
 <p>Reduce the order to 200 shares:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200|RTAG=AMD-DOWN-001
 </code></pre></div>
-<p>Expected: <code>AMENDED &lt;order_id&gt;  price=419.5 qty=200 remaining=200 rtag=AMD-DOWN-001</code>. There is no <code>(priority reset)</code> note, because priority was kept.</p>
+<p>Expected: <code>AMENDED &lt;order_id&gt;  price=419.50 qty=200 remaining=200 rtag=AMD-DOWN-001</code>. There is no <code>(priority reset)</code> note, because priority was kept.</p>
 <div class="admonition note">
 <p class="admonition-title">Priority preserved</p>
 <p>Reducing quantity does <strong>not</strong> lose time priority — your order keeps its
@@ -7778,7 +7778,7 @@ claim at the same price level.</p>
 <p>Move the order to a more aggressive price:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.70|RTAG=AMD-PRICE-001
 </code></pre></div>
-<p>Expected: <code>AMENDED &lt;order_id&gt;  price=419.7 qty=200 remaining=200 (priority reset) rtag=AMD-PRICE-001</code>.</p>
+<p>Expected: <code>AMENDED &lt;order_id&gt;  price=419.70 qty=200 remaining=200 (priority reset) rtag=AMD-PRICE-001</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Priority lost</p>
 <p>A price change <strong>always</strong> loses time priority — the order moves to the back
@@ -7829,7 +7829,7 @@ console clear it (this cancels every order and quote on TSLA, and stop any
    on offer, so it fills 200 and the other 300 rest:
    <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=250.00|TIF=DAY
 </code></pre></div>
-   Expected: <code>FILL … qty=200 @250.0  remaining=300  [PARTIAL]</code>. Note the order
+   Expected: <code>FILL … qty=200 @250.00  remaining=300  [PARTIAL]</code>. Note the order
    ID of this buy.</p>
 </li>
 <li>
@@ -7847,7 +7847,7 @@ console clear it (this cancels every order and quote on TSLA, and stop any
    filled):
    <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=700|RTAG=AMD-PARTIAL-003
 </code></pre></div>
-   Expected: <code>AMENDED … price=250.0 qty=700 remaining=500 (priority reset)</code>.</p>
+   Expected: <code>AMENDED … price=250.00 qty=700 remaining=500 (priority reset)</code>.</p>
 </li>
 </ol>
 <div class="admonition note">

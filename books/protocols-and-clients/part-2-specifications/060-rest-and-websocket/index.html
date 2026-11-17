@@ -9546,6 +9546,12 @@ the OpenAPI document lists all of them per operation.</p>
 <td>No company profile for the symbol</td>
 </tr>
 <tr>
+<td><code>UNKNOWN_GATEWAY</code></td>
+<td style="text-align: right;"><code>404</code></td>
+<td><code>UNKNOWN</code></td>
+<td>No participant has the gateway id (<code>GET /admin/gateways/{id}/positions</code>, <code>/orders</code>)</td>
+</tr>
+<tr>
 <td><code>UNKNOWN_SYMBOL</code></td>
 <td style="text-align: right;"><code>404</code></td>
 <td><code>UNKNOWN</code></td>
@@ -15237,6 +15243,10 @@ only prices, never these values.</p>
 </tr>
 </tbody>
 </table>
+<p>Each entry has <code>id</code>, <code>role</code>, <code>description</code> and <code>connected</code>. A connected
+gateway also carries <code>connected_since_ns</code>: when the engine accepted its current
+connection, in epoch nanoseconds. The field is absent while the gateway is
+offline.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -15630,8 +15640,8 @@ gateway has seen since it started.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "orders": [...], "count": N }</code></td>
-<td>Same shape as <code>GET /orders</code></td>
+<td><code>{ "orders": [...], "count": N, "status" }</code></td>
+<td>Same shape as <code>GET /orders</code>; <code>status</code> is <code>OK</code> for a connected gateway, <code>NOT_CONNECTED</code> for a logged-off participant, whose orders are still listed</td>
 </tr>
 </tbody>
 </table>
@@ -15659,6 +15669,11 @@ gateway has seen since it started.</p>
 <td><code>ROLE_DENIED</code></td>
 <td><code>403</code></td>
 <td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_GATEWAY</code></td>
+<td><code>404</code></td>
+<td>No participant has this gateway id</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
@@ -15948,7 +15963,7 @@ command -- all three read the same <code>system.position_request</code> /
 <tr>
 <td><code>200 OK</code></td>
 <td><code>{ "gateway_id", "count", "positions": [{ "symbol", "net_qty", "avg_cost" }, ...] }</code></td>
-<td>Net position and average cost per symbol for the target gateway</td>
+<td>Net position and average cost per symbol for the target gateway, connected or not</td>
 </tr>
 </tbody>
 </table>
@@ -15976,6 +15991,11 @@ command -- all three read the same <code>system.position_request</code> /
 <td><code>ROLE_DENIED</code></td>
 <td><code>403</code></td>
 <td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_GATEWAY</code></td>
+<td><code>404</code></td>
+<td>No participant has this gateway id</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>

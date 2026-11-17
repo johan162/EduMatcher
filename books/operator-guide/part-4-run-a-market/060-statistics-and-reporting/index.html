@@ -9458,7 +9458,7 @@ from continuous volume, audit trails.</p>
 <tr>
 <td><code>source</code></td>
 <td>TEXT</td>
-<td>Which check found it, and so which counter the ids are in: <code>publisher_seq</code> (the per-topic publisher sequence) or <code>trade_id</code> (the engine trade-id suffix, <code>trade.executed</code> only)</td>
+<td>Which check found it, and so which counter the ids are in: <code>publisher_seq</code> (the per-topic publisher sequence), <code>trade_id</code> (the engine trade-id suffix, <code>trade.executed</code> only) or <code>run_end</code> (the run's last trade id on <code>system.eod</code> against the last one received; <code>received_id</code> is one past the run's last trade)</td>
 </tr>
 <tr>
 <td><code>expected_id</code></td>

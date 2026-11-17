@@ -8794,14 +8794,17 @@ queries for several gateways outstanding at once; each is answered with its
 own <code>POSITION</code> block. <code>GW</code> must be a valid gateway ID (a letter, then up to
 31 letters, digits or <code>_</code>), or the query is refused with <code>INVALID_VALUE</code>.</p>
 <p><strong>Multi-line response:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>POSITION|GW=MM_AAPL_01|COUNT=1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>POSITION|GW=MM_AAPL_01|COUNT=1|STATUS=OK
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>POS_ENTRY|SYM=AAPL|NET_QTY=-300|AVG_COST=150.05
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>END|TYPE=POSITION
 </code></pre></div>
-<p>A flat gateway (or one with no position in any symbol) still gets a
-well-formed, empty reply (<code>POSITION|GW=&lt;gateway_id&gt;|COUNT=0</code> followed
-immediately by <code>END|TYPE=POSITION</code>) rather than an error — same convention
-as <code>QLEGS</code> and <code>QBOOT</code> for an unconnected/unknown/flat gateway.</p>
+<p><code>STATUS</code> says whose answer it is: <code>OK</code> for a connected gateway,
+<code>NOT_CONNECTED</code> for a configured participant that is logged off (its
+positions are still listed: the engine keeps them), and <code>UNKNOWN_GATEWAY</code>
+for an id no participant has. A flat gateway still gets a well-formed,
+empty reply (<code>POSITION|GW=&lt;gateway_id&gt;|COUNT=0|STATUS=OK</code> followed
+immediately by <code>END|TYPE=POSITION</code>) rather than an error, as does an
+unknown one (with <code>STATUS=UNKNOWN_GATEWAY</code>).</p>
 <h3 id="session-query-current-trading-session-state"><code>SESSION</code> — query current trading session state<a class="headerlink" href="#session-query-current-trading-session-state" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>SESSION
 </code></pre></div>

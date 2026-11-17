@@ -10767,7 +10767,7 @@ refused must not send <code>system.gateway_disconnect</code> for it, since that 
 tear down the live session.</p>
 <h3 id="systemgateway_heartbeat"><code>system.gateway_heartbeat</code><a class="headerlink" href="#systemgateway_heartbeat" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Frees a participant ID whose process died without sending <code>system.gateway_disconnect</code>.
-<strong>Published by:</strong> Every process that holds an ID (<code>pm-alf-console</code>, <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-api-gwy</code>, <code>pm-mm-bot</code>) via PUSH :5555</p>
+<strong>Published by:</strong> Every process that holds an ID (<code>pm-admin</code>, <code>pm-alf-console</code>, <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-api-gwy</code>, <code>pm-mm-bot</code>) via PUSH :5555</p>
 <p>Sent every 60 seconds (<code>GATEWAY_HEARTBEAT_INTERVAL_SEC</code>), the first one
 immediately after the connect is accepted. It is one-way: the engine does not
 reply. The payload carries the sender's own <code>interval_sec</code>, so the engine needs
@@ -10775,9 +10775,10 @@ no per-client setting. After <strong>3 consecutive missed beats</strong> the eng
 disconnects the session exactly as if <code>system.gateway_disconnect</code> had arrived,
 applying the participant's <code>disconnect_behaviour</code> and publishing
 <code>system.gateway_bye.{GW_ID}</code> with <code>reason: "heartbeat_timeout"</code>.</p>
-<p>Liveness is opt-in: a session that has never sent a heartbeat is never timed
-out, and a heartbeat for an ID that is not connected is ignored. Heartbeats are
-not re-published on the audit feed.</p>
+<p>The clock starts when the connect is accepted, at the default 60-second
+interval until the first beat carries the sender's own, so a session that never
+sends a heartbeat is timed out after three minutes. A heartbeat for an ID that
+is not connected is ignored. Heartbeats are not re-published on the audit feed.</p>
 <table>
 <thead>
 <tr>
@@ -12865,6 +12866,7 @@ wire-format specification in the
 <p><code>trigger_price</code> and <code>reference_price</code> are the price that fired the breaker and the price it was measured against.</p>
 <p>Both are null on an ADMIN halt, which fires on an operator's decision rather than on a price, and both may be null on a price-triggered halt that had no reference to latch.</p>
 <p><code>resume_at_ns</code> is null for an indefinite halt -- <code>halt_all</code> and a per-symbol halt named without a level both produce one, and it lasts until an explicit resume.</p>
+<p>Such an operator halt also outlasts an engine restart: the engine checkpoints it and publishes it again at start-up, with its <code>level</code> (<code>ADMIN_ALL</code>, or <code>ADMIN_SYMBOL</code> when the symbol has no breaker).</p>
 </div>
 <p><strong>See also:</strong> <code>circuit_breaker.extend.{SYMBOL}</code>, <code>circuit_breaker.resume.{SYMBOL}</code></p>
 <h3 id="circuit_breakerextendsymbol"><code>circuit_breaker.extend.{symbol}</code><a class="headerlink" href="#circuit_breakerextendsymbol" title="Permanent link">&para;</a></h3>
@@ -13004,10 +13006,10 @@ wire-format specification in the
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Four producers, two shapes.</p>
-<p>Three of them -- ACE expiry, ADMIN resume-all and ADMIN per-symbol resume -- send <code>symbol</code> and <code>halt_source</code> alone.</p>
+<p>Five producers, two shapes.</p>
+<p>Four of them -- ACE expiry, ADMIN resume-all, ADMIN per-symbol resume, and an engine start that ended a breaker-level halt its checkpoint held (its timer does not survive the restart) -- send <code>symbol</code> and <code>halt_source</code> alone.</p>
 <p>The closing backstop sends three fields more, because it is the one resume where the reopening price was imposed rather than discovered: it prints <em>at</em> the corridor boundary for a symbol that could not reopen inside it, which can leave the book crossed by design.</p>
-<p>The three extra fields are regime 3 and 4 rather than always-present nulls, so the three ordinary producers keep the two-key payload they have always sent.</p>
+<p>The three extra fields are regime 3 and 4 rather than always-present nulls, so the four ordinary producers keep the two-key payload they have always sent.</p>
 <p><code>normalise_cb_resume</code> reads each through a falsy guard, so an absent key and an empty one are the same event to it.</p>
 </div>
 <p><strong>See also:</strong> <code>circuit_breaker.halt.{SYMBOL}</code></p>
@@ -15629,7 +15631,7 @@ wire-format specification in the
 <td><code>string</code></td>
 <td>required</td>
 <td>max_len 64</td>
-<td></td>
+<td>NULL when the producer sent no INSTANCE.</td>
 </tr>
 <tr>
 <td><code>pid</code></td>
@@ -15671,14 +15673,14 @@ wire-format specification in the
 <td><code>string</code></td>
 <td>required</td>
 <td>max_len 128</td>
-<td></td>
+<td>NULL when the producer sent no MODULE.</td>
 </tr>
 <tr>
 <td><code>line</code></td>
 <td><code>int</code></td>
 <td>required</td>
 <td>unit <code>dimensionless</code></td>
-<td></td>
+<td>NULL when the producer sent no LINE, or one outside int64.</td>
 </tr>
 <tr>
 <td><code>has_exception</code></td>
@@ -16396,6 +16398,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>msg_no</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>unit <code>dimensionless</code></td>
+<td>Per-subscription number shared with log.event, from 1; a gap is a lost message.</td>
+</tr>
+<tr>
 <td><code>timestamp</code></td>
 <td><code>float</code></td>
 <td>required</td>
@@ -16473,7 +16482,14 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>unit <code>dimensionless</code></td>
-<td>Lifetime rows dropped for this subscription, not this batch.</td>
+<td>Lifetime rows the server shed for this subscription, not this batch. Messages lost in transport show as msg_no gaps instead.</td>
+</tr>
+<tr>
+<td><code>msg_no</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>unit <code>dimensionless</code></td>
+<td>Per-subscription number shared with log.backfill, from 1; a gap is a lost message.</td>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
@@ -16949,7 +16965,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>ge 0, le 8, unit <code>dimensionless</code></td>
-<td>Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg rather than on the combo, because a combo's legs trade different instruments and two instruments need not share a scale - which is exactly the distinction that makes ComboLeg a separate record from OcoLeg.</td>
+<td>Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg rather than on the combo, because a combo's legs trade different instruments and two instruments need not share a scale - which is exactly the distinction that makes ComboLeg a separate record from OcoLeg. The engine refuses a combo with a priced leg whose scale is not that leg's symbol's.</td>
 </tr>
 <tr>
 <td><code>price_ticks</code></td>
@@ -18565,7 +18581,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>ge 0, le 8, unit <code>dimensionless</code></td>
-<td>Decimal scale for every <code>_ticks</code> field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a <code>book</code> or <code>trade.executed</code> for the same symbol, which a reader of a <em>window</em> of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read.</td>
+<td>Decimal scale for every <code>_ticks</code> field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a <code>book</code> or <code>trade.executed</code> for the same symbol, which a reader of a <em>window</em> of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read. The engine refuses an order with a tick price whose scale is not the symbol's configured one (<code>INVALID_VALUE</code>).</td>
 </tr>
 <tr>
 <td><code>trail_offset_ticks</code></td>
@@ -18938,7 +18954,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
 <td>ge 0, le 8, unit <code>dimensionless</code></td>
-<td>Decimal scale for both legs' <code>_ticks</code> prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above.</td>
+<td>Decimal scale for both legs' <code>_ticks</code> prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. The engine refuses a pair whose scale is not the symbol's.</td>
 </tr>
 <tr>
 <td><code>quantity</code></td>
@@ -19054,7 +19070,7 @@ wire-format specification in the
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
 <p><strong>Since:</strong> 1.0</p>
-<p>Engine to caller: the gateway's resting orders in display units, one OrderDisplay record each. Empty when the gateway is unknown or flat.</p>
+<p>Engine to caller: the gateway's resting orders in display units, one OrderDisplay record each, connected or not; <code>status</code> says which. Empty when the gateway has none or no participant has the id.</p>
 <table>
 <thead>
 <tr>
@@ -19079,6 +19095,13 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td>Resting orders, as the engine iterates its books.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum: <code>OK</code>, <code>NOT_CONNECTED</code>, <code>UNKNOWN_GATEWAY</code></td>
+<td>defaults to <code>'OK'</code></td>
+<td>—</td>
+<td><code>OK</code>: the gateway is connected. <code>NOT_CONNECTED</code>: a configured participant that is logged off; the list is still its own, as the engine holds it. <code>UNKNOWN_GATEWAY</code>: no participant has this id, so the list is empty.</td>
 </tr>
 </tbody>
 </table>
@@ -19224,7 +19247,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>ge 0, le 8, unit <code>dimensionless</code></td>
-<td>Decimal scale for both <code>_ticks</code> prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a <code>book</code> for the same symbol that may be outside the window being read.</td>
+<td>Decimal scale for both <code>_ticks</code> prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a <code>book</code> for the same symbol that may be outside the window being read. The engine refuses a quote whose scale is not the symbol's configured one, naming both values.</td>
 </tr>
 <tr>
 <td><code>bid_price_ticks</code></td>
@@ -23114,6 +23137,13 @@ wire-format specification in the
 <td>—</td>
 <td></td>
 </tr>
+<tr>
+<td><code>connected_since_ns</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>unit <code>epoch_nanos</code></td>
+<td>When the engine accepted the current connection. Absent while offline.</td>
+</tr>
 </tbody>
 </table>
 <h4 id="symbolvolume"><code>SymbolVolume</code><a class="headerlink" href="#symbolvolume" title="Permanent link">&para;</a></h4>
@@ -23347,7 +23377,7 @@ wire-format specification in the
 <p><strong>Published by:</strong> <code>api_gateway</code>, <code>gateway</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
-<p>Gateway to engine: this participant's process is still alive. A process that dies without sending <code>gateway_disconnect</code> (kill -9, a crashed host, a dropped network) would otherwise keep its ID marked connected for ever, and the engine refuses a second connect for an ID that is already connected. The engine counts the beats it expects -- one per <code>interval_sec</code> -- and disconnects the session, applying its <code>disconnect_behaviour</code>, after three consecutive misses. Liveness is opt-in: a session that has never sent one is never timed out.</p>
+<p>Gateway to engine: this participant's process is still alive. A process that dies without sending <code>gateway_disconnect</code> (kill -9, a crashed host, a dropped network) would otherwise keep its ID marked connected for ever, and the engine refuses a second connect for an ID that is already connected. The engine counts the beats it expects -- one per <code>interval_sec</code> -- and disconnects the session, applying its <code>disconnect_behaviour</code>, after three consecutive misses. The clock starts at connect, at the default 60-second interval until the first beat carries the sender's own, so a session that never sends one is timed out too.</p>
 <table>
 <thead>
 <tr>
@@ -23436,6 +23466,13 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td>One per instrument the engine had a book for, unordered.</td>
+</tr>
+<tr>
+<td><code>last_trade_id</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 32</td>
+<td>The id of the last trade this engine run made, null for a run without trades. Trade ids restart with every run, so without it a subscriber cannot tell trades lost just before the stop from a clean end: one that holds an older id of this run lost the rest.</td>
 </tr>
 </tbody>
 </table>
@@ -24196,6 +24233,13 @@ wire-format specification in the
 <td>—</td>
 <td>The countdown target the engine holds, as <code>session.state.next</code> last carried it or <code>session.next</code> announced it. Lets a caller that missed the last transition still count down to the next one.</td>
 </tr>
+<tr>
+<td><code>last_trade_id</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 32</td>
+<td>The id of the last trade this engine run has made so far, null before its first: what <code>system.eod</code> will name if the run ends now.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -24361,7 +24405,7 @@ wire-format specification in the
 <td><code>string</code></td>
 <td>required</td>
 <td>max_len 32</td>
-<td>Both the correlation key and the account being asked about. A gateway can only ask about itself: the handler answers from <code>_gateway_positions[gateway_id]</code> and nothing else.</td>
+<td>Both the correlation key and the account being asked about. Any caller may ask about any gateway (<code>POS\|GW=</code>, the admin REST endpoint): the handler answers from <code>_gateway_positions[gateway_id]</code> and nothing else.</td>
 </tr>
 </tbody>
 </table>
@@ -24396,11 +24440,19 @@ wire-format specification in the
 <td>—</td>
 <td></td>
 </tr>
+<tr>
+<td><code>status</code></td>
+<td>enum: <code>OK</code>, <code>NOT_CONNECTED</code>, <code>UNKNOWN_GATEWAY</code></td>
+<td>defaults to <code>'OK'</code></td>
+<td>—</td>
+<td><code>OK</code>: the gateway is connected. <code>NOT_CONNECTED</code>: a configured participant that is logged off; the list is still its own, as the engine holds it. <code>UNKNOWN_GATEWAY</code>: no participant has this id, so the list is empty.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>An unauthenticated or unknown gateway gets an empty list rather than a rejection -- flat and not-a-gateway are the same answer here, which is deliberate: the alternative tells an unauthenticated caller whether an id exists.</p>
+<p>Any configured participant is answered, connected or not, and <code>status</code> tells "logged off" and "no such id" apart from "flat".</p>
+<p>A logged-off trader keeps its position, so an empty list for it would be wrong rather than discreet; and whether an id exists is no secret (a refused logon names it).</p>
 <p>pm-mm-bot asks for its own gateway's snapshot at start-up and seeds each symbol's tracked position from it, so <code>inventory_skew</code> does not restart flat while the gateway holds inventory.</p>
 </div>
 <p><strong>See also:</strong> <code>system.position_request</code>, <code>trade.executed</code></p>

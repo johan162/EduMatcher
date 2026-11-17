@@ -9917,20 +9917,26 @@ See <a href="../../../protocols-and-clients/part-2-specifications/010-alf/">ALF 
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
 <ul>
-<li><code>NEW|...</code> order-entry commands (including <code>LIMIT</code>, <code>MARKET</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code>, <code>IOC</code>, <code>TRAILING_STOP</code>)</li>
+<li><code>NEW|...</code> order-entry commands (including <code>LIMIT</code>, <code>MARKET</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code>, <code>IOC</code>, <code>TRAILING_STOP</code>, <code>OCO</code>, <code>COMBO</code>)</li>
 <li><code>AMEND|...</code>, <code>CANCEL|...</code></li>
-<li><code>QUOTE|...</code>, <code>QUOTE_CANCEL|...</code></li>
-<li><code>QLEGS|...</code> (market-maker quote-leg monitor with fill flags)</li>
-<li><code>ORDERS</code>, <code>SYMBOLS</code>, <code>HELP</code>, <code>EXIT</code>, <code>QUIT</code></li>
+<li><code>QUOTE|...</code>, <code>QUOTE_CANCEL|...</code>, <code>QBOOT</code>, <code>QLEGS|...</code> (market-maker quote-leg monitor with fill flags)</li>
 <li><code>KILL|...</code> for gateway-scoped kill-switch actions</li>
+<li><code>DC|STATE=ON|OFF</code> (show or hide the drop-copy relay)</li>
+<li><code>STATUS</code>, <code>ORDERS</code>, <code>POS</code>, <code>POS|GW=&lt;id&gt;</code>, <code>SYMBOLS</code>, <code>SESSION</code>, <code>INDEX</code>, <code>INDEX|HISTORY|...</code></li>
+<li><code>HELP</code>, <code>CLEAR</code>, <code>EXIT</code>, <code>QUIT</code></li>
 </ul>
 <p><strong>Connection behaviour</strong>:
 1. Sends <code>system.gateway_connect</code> to the engine
-2. Waits for <code>system.gateway_auth.&lt;GW_ID&gt;</code>
-3. Enters command loop only if accepted</p>
+2. Waits up to 3 s for <code>system.gateway_auth.&lt;GW_ID&gt;</code>
+3. If accepted, asks for the symbol list, its resting orders and its position,
+   and enters the command loop once the symbol list (with each symbol's tick
+   size) has arrived</p>
 <p>If the ID is not listed in <code>engine_config.yaml</code> under <code>participants</code>, connection
-is refused and the gateway exits.</p>
-<p><strong>Messages sent</strong> (PUSH → :5555):</p>
+is refused and the console exits.</p>
+<p><strong>Exit status:</strong> <code>0</code> when the user leaves (<code>EXIT</code>, <code>QUIT</code>, Ctrl-D, Ctrl-C); <code>1</code>
+when the logon is refused, the engine is not reachable, no symbol list
+arrives, or the engine connection is lost during the session.</p>
+<p><strong>Messages sent</strong> (PUSH → engine <code>:5555</code>, unless noted):</p>
 <table>
 <thead>
 <tr>
@@ -9944,12 +9950,44 @@ is refused and the gateway exits.</p>
 <td>Authentication request</td>
 </tr>
 <tr>
+<td><code>system.gateway_heartbeat</code></td>
+<td>Keep-alive, every few seconds, own socket</td>
+</tr>
+<tr>
+<td><code>system.gateway_disconnect</code></td>
+<td>Logout on exit</td>
+</tr>
+<tr>
+<td><code>system.symbols_request</code></td>
+<td>Symbol list (at logon and for <code>SYMBOLS</code>)</td>
+</tr>
+<tr>
+<td><code>order.orders_request</code></td>
+<td>Resting orders (at logon and after lost events)</td>
+</tr>
+<tr>
+<td><code>system.position_request</code></td>
+<td>Position (own: at logon and after lost events; any id: <code>POS\|GW=</code>)</td>
+</tr>
+<tr>
 <td><code>order.new</code></td>
 <td>Submit order</td>
 </tr>
 <tr>
+<td><code>order.amend</code></td>
+<td>Amend order</td>
+</tr>
+<tr>
 <td><code>order.cancel</code></td>
 <td>Cancel order</td>
+</tr>
+<tr>
+<td><code>order.oco</code></td>
+<td>Submit OCO pair</td>
+</tr>
+<tr>
+<td><code>order.oco_cancel</code></td>
+<td>Cancel OCO pair</td>
 </tr>
 <tr>
 <td><code>order.combo</code></td>
@@ -9960,16 +9998,32 @@ is refused and the gateway exits.</p>
 <td>Cancel combo</td>
 </tr>
 <tr>
-<td><code>order.orders_request</code></td>
-<td>Request order list</td>
+<td><code>quote.new</code></td>
+<td>Submit two-sided quote</td>
 </tr>
 <tr>
-<td><code>system.symbols_request</code></td>
-<td>Request symbol list</td>
+<td><code>quote.cancel</code></td>
+<td>Cancel quote</td>
+</tr>
+<tr>
+<td><code>system.quote_bootstrap_request</code></td>
+<td>Active quotes (<code>QBOOT</code>)</td>
+</tr>
+<tr>
+<td><code>risk.kill_switch</code></td>
+<td>Kill switch (<code>KILL</code>)</td>
+</tr>
+<tr>
+<td><code>system.session_state_request</code></td>
+<td>Trading session state (<code>SESSION</code>)</td>
+</tr>
+<tr>
+<td><code>index.history_request</code></td>
+<td>Index structural history (<code>INDEX\|HISTORY</code>), to pm-index <code>:5559</code></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Messages subscribed</strong> (SUB from :5556):</p>
+<p><strong>Messages subscribed</strong> (SUB from engine <code>:5556</code>, receive buffer 200 000 messages):</p>
 <table>
 <thead>
 <tr>
@@ -10003,12 +10057,20 @@ is refused and the gateway exits.</p>
 <td>Expiry notifications</td>
 </tr>
 <tr>
+<td><code>order.triggered.{own GW_ID}</code></td>
+<td>Stop triggers</td>
+</tr>
+<tr>
 <td><code>order.orders.{own GW_ID}</code></td>
 <td>Order list replies</td>
 </tr>
 <tr>
 <td><code>combo.ack.{own GW_ID}</code></td>
 <td>Combo acknowledgements</td>
+</tr>
+<tr>
+<td><code>combo.cancel_ack.{own GW_ID}</code></td>
+<td>Combo cancel outcome</td>
 </tr>
 <tr>
 <td><code>combo.status.{own GW_ID}</code></td>
@@ -10019,12 +10081,20 @@ is refused and the gateway exits.</p>
 <td>OCO creation acknowledgements</td>
 </tr>
 <tr>
+<td><code>oco.cancel_ack.{own GW_ID}</code></td>
+<td>OCO cancel outcome</td>
+</tr>
+<tr>
 <td><code>oco.cancelled.{own GW_ID}</code></td>
 <td>OCO sibling-cancel notifications</td>
 </tr>
 <tr>
 <td><code>quote.ack.{own GW_ID}</code></td>
 <td>Quote acknowledgements</td>
+</tr>
+<tr>
+<td><code>quote.cancel_ack.{own GW_ID}</code></td>
+<td>Quote cancel outcome</td>
 </tr>
 <tr>
 <td><code>quote.status.{own GW_ID}</code></td>
@@ -10036,7 +10106,19 @@ is refused and the gateway exits.</p>
 </tr>
 <tr>
 <td><code>system.symbols.{own GW_ID}</code></td>
-<td>Symbol list reply</td>
+<td>Symbol list reply (tick sizes)</td>
+</tr>
+<tr>
+<td><code>system.quote_bootstrap.{own GW_ID}</code></td>
+<td><code>QBOOT</code> reply</td>
+</tr>
+<tr>
+<td><code>system.session_status.{own GW_ID}</code></td>
+<td><code>SESSION</code> reply</td>
+</tr>
+<tr>
+<td><code>system.position_snapshot.</code> (all ids)</td>
+<td>Own position and <code>POS\|GW=</code> replies</td>
 </tr>
 <tr>
 <td><code>trade.executed</code></td>
@@ -10044,6 +10126,14 @@ is refused and the gateway exits.</p>
 </tr>
 </tbody>
 </table>
+<p>SUBSCRIBE is a prefix match, so the console also receives the topics of a
+gateway whose id starts with its own (<code>GW1</code> and <code>GW10</code>); it handles only its
+exact own topics. A gap in an own topic's sequence numbers prints a lost-events
+warning and re-requests orders and position.</p>
+<p>Also subscribed: <code>index.update</code>, <code>index.history.{own GW_ID}</code> and
+<code>index.error.{own GW_ID}</code> from pm-index <code>:5558</code>, and
+<code>drop_copy.event.{own GW_ID}</code> from the engine's drop-copy feed <code>:5557</code>
+(shown only while <code>DC|STATE=ON</code>).</p>
 <p>See the <a href="../../../participant-guide/part-2-orders/010-the-trader-console/">ALF Console</a> for the full command list.</p>
 <h2 id="pm-alf-gwy-alf-tcp-gateway">pm-alf-gwy — ALF TCP Gateway<a class="headerlink" href="#pm-alf-gwy-alf-tcp-gateway" title="Permanent link">&para;</a></h2>
 <p>Accepts ALF order-entry commands from external bots and remote processes over a

@@ -7804,7 +7804,7 @@ TRADER01</code> and <code>--id TRADER02</code>) and try to buy something from <c
 <h2 id="step-3-pre-open-orders-wait">Step 3 — Pre-open: orders wait<a class="headerlink" href="#step-3-pre-open-orders-wait" title="Permanent link">&para;</a></h2>
 <p>Move the exchange to pre-open. From <code>CLOSED</code> this is the only legal step:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[OPS01|ADMIN]&gt; SESSION|STATE=PRE_OPEN
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>SESSION  CLOSED → PRE_OPEN
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>SESSION  now PRE_OPEN
 </code></pre></div>
 <p>Now send a buy at 150.00 from <code>TRADER01</code> and a sell at 149.00 from
 <code>TRADER02</code>:</p>
@@ -7818,13 +7818,13 @@ have matched instantly. In pre-open they wait.</p>
 <h2 id="step-4-the-opening-auction-and-the-uncross">Step 4 — The opening auction and the uncross<a class="headerlink" href="#step-4-the-opening-auction-and-the-uncross" title="Permanent link">&para;</a></h2>
 <p>Step through the auction into continuous trading:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>SESSION  PRE_OPEN → OPENING_AUCTION
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>SESSION  now OPENING_AUCTION
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>SESSION  OPENING_AUCTION → CONTINUOUS
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>SESSION  now CONTINUOUS
 </code></pre></div>
 <p>At the moment continuous trading starts, the auction <strong>uncrosses</strong>. Both
 traders receive a fill:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[09:59:13.304] FILL      0aeb15eef2df8ba63f2eaf806e628600  qty=100 @149.0  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[09:59:13.304] FILL      0aeb15eef2df8ba63f2eaf806e628600  qty=100 @149.00  remaining=0  [FILLED]
 </code></pre></div>
 <p>Every order matched in an auction trades at <strong>one price</strong>, the
 <strong>equilibrium price</strong>: the price at which the largest number of shares can

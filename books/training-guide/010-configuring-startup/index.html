@@ -8276,10 +8276,10 @@ it does not move the phase behind your back, then move the phase yourself:</p>
 <p><code>SESSION_STATUS</code> should now report <code>CONTINUOUS</code>. The engine only accepts the
 phase changes of a real trading day, in order — from <code>CLOSED</code> the only legal
 step is <code>PRE_OPEN</code> — so it takes two commands. If you try to skip one, for
-example <code>SESSION|STATE=CONTINUOUS</code> straight from <code>CLOSED</code>, the engine ignores
-the request and the console reports
-<code>TIMEOUT  No ack with prefix 'session.state' within 3000 ms</code>; the phase has
-not changed. Chapter 06 explains this
+example <code>SESSION|STATE=CONTINUOUS</code> straight from <code>CLOSED</code>, the engine refuses
+the request and the console prints its reason,
+<code>SESSION  REJECTED  Invalid transition CLOSED → CONTINUOUS (allowed: PRE_OPEN)</code>;
+the phase has not changed. Chapter 06 explains this
 "freeze and advance" technique properly; whenever a later exercise says the
 market must be open, this is how you open it.</p>
 <p>Now go back to Exercise 9 and send the three 1-lot test orders (AAPL, MSFT,

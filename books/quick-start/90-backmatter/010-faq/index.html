@@ -7834,7 +7834,9 @@ configuration files — are listed at the end under
     (<code>./edumatcher.sh shell</code>). The message bus is not published to your own
     machine unless you set <code>EM_ZMQ=1</code>.</p>
 <p>If the engine is down or unreachable, <code>pm-alf-console</code> exits after about three
-seconds with <code>Gateway authentication timed out</code>.</p>
+seconds with <code>Logon failed: Engine not reachable at tcp://…:5555 (is pm-engine
+running?)</code>. If the engine takes the connect but its reply cannot reach the
+console, the message is <code>Logon failed: Gateway authentication timed out</code>.</p>
 <h3 id="the-book-already-has-liquidity-before-i-submit-any-orders-why">The book already has liquidity before I submit any orders. Why?<a class="headerlink" href="#the-book-already-has-liquidity-before-i-submit-any-orders-why" title="Permanent link">&para;</a></h3>
 <p>If your <code>engine_config.yaml</code> has a <code>market_maker_quotes</code> block for the symbol,
 the engine injects a two-sided seed quote on behalf of the configured market-maker

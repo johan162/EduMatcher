@@ -1871,6 +1871,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#lost-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lost events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#input-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#quote-events" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8470,13 +8492,25 @@ The ID must be preconfigured in <code>engine_config.yaml</code> under <code>part
 <p>On startup, the terminal:</p>
 <ol>
 <li>Connects PUSH socket to the engine PULL port (5555)</li>
-<li>Connects SUB socket to the engine PUB port (5556)</li>
-<li>Subscribes to: <code>order.ack.{ID}</code>, <code>order.fill.{ID}</code>, <code>order.amended.{ID}</code>, <code>order.cancelled.{ID}</code>, <code>order.expired.{ID}</code>, <code>order.orders.{ID}</code>, <code>combo.ack.{ID}</code>, <code>combo.cancel_ack.{ID}</code>, <code>combo.status.{ID}</code>, <code>oco.ack.{ID}</code>, <code>oco.cancel_ack.{ID}</code>, <code>oco.cancelled.{ID}</code>, <code>quote.ack.{ID}</code>, <code>quote.cancel_ack.{ID}</code>, <code>quote.status.{ID}</code>, <code>risk.kill_switch_ack.{ID}</code>, <code>system.symbols.{ID}</code>, <code>system.quote_bootstrap.{ID}</code>, <code>system.gateway_auth.{ID}</code>, <code>trade.executed</code></li>
+<li>Connects SUB socket to the engine PUB port (5556), with a 200 000-message
+   receive buffer</li>
+<li>Subscribes to: <code>order.ack.{ID}</code>, <code>order.fill.{ID}</code>, <code>order.amended.{ID}</code>, <code>order.cancelled.{ID}</code>, <code>order.expired.{ID}</code>, <code>order.triggered.{ID}</code>, <code>order.orders.{ID}</code>, <code>combo.ack.{ID}</code>, <code>combo.cancel_ack.{ID}</code>, <code>combo.status.{ID}</code>, <code>oco.ack.{ID}</code>, <code>oco.cancel_ack.{ID}</code>, <code>oco.cancelled.{ID}</code>, <code>quote.ack.{ID}</code>, <code>quote.cancel_ack.{ID}</code>, <code>quote.status.{ID}</code>, <code>risk.kill_switch_ack.{ID}</code>, <code>system.symbols.{ID}</code>, <code>system.quote_bootstrap.{ID}</code>, <code>system.session_status.{ID}</code>, <code>system.gateway_auth.{ID}</code>, <code>system.position_snapshot.</code> (every participant's, for <code>POS</code> and <code>POS|GW=</code>), <code>trade.executed</code></li>
 <li>Sends <code>system.gateway_connect</code> and waits up to <strong>3 seconds</strong> for the auth response</li>
-<li>If accepted: enters the interactive prompt loop</li>
-<li>If rejected: prints the reason and exits immediately</li>
-<li>If timeout (engine not running): exits with "Gateway authentication timed out"</li>
+<li>If rejected: prints <code>Logon failed: &lt;the engine's reason&gt;</code> and exits with status 1</li>
+<li>If the connect cannot even be sent (engine not running or not reachable):
+   prints <code>Logon failed: Engine not reachable at tcp://…:5555 (is pm-engine
+   running?)</code> and exits with status 1</li>
+<li>If no reply within 3 seconds: prints <code>Logon failed: Gateway authentication
+   timed out</code> and exits with status 1</li>
+<li>If accepted: asks the engine for its symbol list, your resting orders and
+   your position, and opens the prompt once the symbol list has arrived (it
+   carries each symbol's tick size, which every price you type is converted
+   with). Without a symbol list within 3 seconds it prints <code>Logon failed: the
+   engine did not send its symbol list …</code> and exits with status 1.</li>
 </ol>
+<p>The exit status is 0 when you leave with <code>EXIT</code>, <code>QUIT</code>, Ctrl-D or Ctrl-C, and
+1 when the logon fails or the engine connection is lost, so a wrapper script
+can tell the cases apart.</p>
 <div class="admonition note">
 <p class="admonition-title">A second pair of sockets talks to pm-index</p>
 <p>Independently of the engine sockets above, <code>pm-alf-console</code> also opens a
@@ -8491,8 +8525,9 @@ not need to be running for the rest of the console to work, but <code>INDEX</cod
 <div class="admonition note">
 <p class="admonition-title">A third socket talks to the drop-copy feed</p>
 <p><code>pm-alf-console</code> also connects a SUB socket to the engine's drop-copy PUB
-port (<code>DROP_COPY_PUB_ADDR</code>, default <code>:5557</code>), but subscribes to nothing
-on it until <code>DC|STATE=ON</code> (or <code>--drop-copy</code> at startup) — see
+port (<code>DROP_COPY_PUB_ADDR</code>, default <code>:5557</code>), subscribed to this
+participant's own <code>drop_copy.event.{ID}</code> for the whole session; its fills
+are shown only while <code>DC|STATE=ON</code> (or <code>--drop-copy</code> at startup) — see
 <a href="#dc-toggle-drop-copy-relay">DC — Toggle Drop-Copy Relay</a> below.</p>
 </div>
 <pre class="mermaid"><code>sequenceDiagram
@@ -8502,12 +8537,14 @@ on it until <code>DC|STATE=ON</code> (or <code>--drop-copy</code> at startup) �
     GW-&gt;&gt;ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
     alt ID is in participants
         ENG--&gt;&gt;GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: true}
+        GW-&gt;&gt;ENG: system.symbols_request, order.orders_request, system.position_request
+        ENG--&gt;&gt;GW: system.symbols.TRADER01 (tick sizes), order.orders.TRADER01, system.position_snapshot.TRADER01
         Note over GW: Enters interactive command loop
     else ID not configured
         ENG--&gt;&gt;GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: false, reason: "Gateway not configured: TRADER01"}
-        Note over GW: Prints reason and exits
+        Note over GW: Prints "Logon failed: &lt;reason&gt;", exits 1
     else No reply within 3 seconds
-        Note over GW: Prints "Gateway authentication timed out" and exits
+        Note over GW: Prints "Logon failed: Gateway authentication timed out", exits 1
     end</code></pre>
 <p>The terminal does <strong>not</strong> subscribe to <code>session.state</code>. Use <code>pm-audit</code>,
 <code>pm-viewer</code>, <code>pm-orders</code>, or the scheduler output if you need to watch trading
@@ -8521,7 +8558,7 @@ phase transitions live.</p>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">High frequency</span>
 </code></pre></div>
 <p>If a session starts with an ID that is not listed there, the engine refuses
-the connection and the terminal exits.</p>
+the connection and the terminal exits with status 1.</p>
 <h2 id="session-lifecycle">Session lifecycle<a class="headerlink" href="#session-lifecycle" title="Permanent link">&para;</a></h2>
 <p>Every session follows this operator lifecycle:</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -8733,7 +8770,7 @@ answer the only question that usually matters.</p>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>[MM01]&gt; QLEGS|SYM=AAPL
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a># shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 <a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
 <a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>[MM01]&gt; QLEGS|SYM=AAPL|SHOW=ALL
 <a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a># BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
@@ -8840,6 +8877,10 @@ nothing.</p>
 the entire date, through the final nanosecond before the next local midnight;
 the same date can be used for both bounds to query one full day. Exact
 timestamp bounds on the history request are inclusive.</p>
+<p>A date that is not a valid <code>YYYY-MM-DD</code> (<code>FROM=2026-13-01</code>) is refused with
+<code>FROM= is not a date (YYYY-MM-DD): '2026-13-01'</code>, and a <code>FROM</code> after <code>TO</code>
+with <code>FROM= is after TO=</code>; nothing is sent in either case. With <code>FROM</code>
+omitted the request covers the last 30 days, with <code>TO</code> omitted up to now.</p>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; INDEX
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[09:31:00.512] TECH100  4213.55 [green]+12.30 +0.29%[/green] [dim]O=4201.25 H=4220.10 L=4198.00[/dim] OPEN
@@ -8856,14 +8897,16 @@ timestamp bounds on the history request are inclusive.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>DC|STATE=ON
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>DC|STATE=OFF
 </code></pre></div>
-<p><code>DC</code> subscribes (or unsubscribes) this session to the engine's drop-copy feed
+<p><code>DC</code> shows (or hides) this session's events from the engine's drop-copy feed
 (<code>DropCopyPublisher</code>, ZMQ PUB <code>:5557</code> — see <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/">Drop Copy</a>),
-scoped to <strong>this gateway's own fills only</strong>. Once <code>DC|STATE=ON</code> is active,
+scoped to <strong>this gateway's own fills only</strong>. The console is subscribed to its
+own drop-copy topic for the whole session; <code>DC</code> only switches the display, and
+prints <code>DC ON</code> or <code>DC OFF</code> at once. Once <code>DC|STATE=ON</code> is active,
 every subsequent fill for this gateway arrives asynchronously as a <code>DC_FILL</code>
 line, in addition to (not instead of) the usual <code>FILL</code> line driven by
 <code>order.fill.{GW_ID}</code> on the main event bus.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[GW01]&gt; DC|STATE=ON
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[dim]DC ON[/dim]
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>DC ON
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>...
 <a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[09:31:02.417] DC_FILL   7c4a91e2  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
 </code></pre></div>
@@ -9126,7 +9169,7 @@ with <code>Cannot amend &lt;TYPE&gt; orders</code>.</p>
 <tr>
 <td><code>ID</code></td>
 <td>Yes</td>
-<td>Full order UUID (visible in the <code>ORDERS</code> table)</td>
+<td>Full 32-character order ID (visible in the <code>ORDERS</code> table)</td>
 </tr>
 <tr>
 <td><code>PRICE</code></td>
@@ -9297,25 +9340,36 @@ real-time <code>combo.ack</code> and <code>combo.status</code> messages printed 
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>POS
 </code></pre></div>
 <p>Displays a position summary table showing net quantity, average entry cost,
-last trade price, unrealized P&amp;L, and realized P&amp;L for each symbol traded:</p>
+last trade price, unrealized P&amp;L, and realized P&amp;L for each symbol held or
+traded:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>┌─────────────────────────────────────────────────────────────────────────┐
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>│                            Positions                                    │
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>│                     Positions (P&amp;L since connect)                       │
 <a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>├──────────┬─────────┬──────────┬──────────┬────────────┬─────────────────┤
 <a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>│ Symbol   │ Net Qty │ Avg Cost │  Last Px │ Unreal P&amp;L │     Real P&amp;L    │
 <a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>├──────────┼─────────┼──────────┼──────────┼────────────┼─────────────────┤
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>│ AAPL     │    +100 │   150.25 │   151.00 │     +75.00 │          +0.00  │
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>│ MSFT     │     -50 │   415.00 │   414.50 │     +25.00 │        +120.00  │
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>│ AAPL     │    +100 │  150.250 │   151.00 │     +75.00 │          +0.00  │
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>│ MSFT     │     -50 │  415.000 │   414.50 │     +25.00 │        +120.00  │
 <a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>│ TSLA     │       0 │        — │        — │          — │        +340.00  │
 <a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>└──────────┴─────────┴──────────┴──────────┴────────────┴─────────────────┘
 </code></pre></div>
 <p><strong>How it works:</strong></p>
 <ul>
-<li>Positions are accumulated locally from <code>order.fill</code> events received by this gateway</li>
+<li>At connect the console asks the engine for this participant's position
+  (<code>system.position_request</code>), so net quantity and average cost start from
+  what the engine holds, also after a console restart</li>
+<li>Fills on <code>order.fill</code> events received by this gateway update it from there</li>
 <li>Last price per symbol is tracked from the <code>trade.executed</code> feed (all trades, not just this gateway's)</li>
 <li>Unrealized P&amp;L = (last price − avg cost) × net quantity</li>
-<li>Realized P&amp;L is booked when reducing or closing a position (average cost method)</li>
+<li>Realized P&amp;L is booked when reducing or closing a position (average cost
+  method). It counts only fills this session has seen ("since connect"):
+  the engine does not report realised P&amp;L, so it starts at 0.00 when the
+  console starts</li>
+<li>Prices are shown at the symbol's tick size, the average cost with one
+  more digit</li>
 <li>Flat positions (net qty = 0) with non-zero realized P&amp;L are shown dimmed</li>
-<li>Positions reset when the terminal disconnects (they are session-local)</li>
+<li>If events were lost (see <a href="#lost-events">Lost events</a>), the console asks the
+  engine for the position again; quantity and cost are then right, realised
+  P&amp;L still misses the lost fills</li>
 </ul>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -9343,13 +9397,14 @@ average cost):</p>
 positions).</code> instead of an empty table.</p>
 <p><strong>How it works:</strong></p>
 <ul>
-<li>The console sends <code>system.position_request</code> for the given <code>gateway_id</code>
-  and dynamically subscribes to <code>system.position_snapshot.{gateway_id}</code>
-  just for the duration of this one query, unsubscribing once the reply
-  arrives — a mistyped or offline gateway_id does not leave a stray
-  subscription behind.</li>
+<li>The console sends <code>system.position_request</code> for the given <code>gateway_id</code>.
+  It receives every participant's <code>system.position_snapshot.*</code> replies
+  (subscribed once at start) and shows only the one for the query it is
+  waiting for.</li>
 <li>A second <code>POS|GW=</code> query before the first one's reply arrives replaces
-  it (the earlier subscription is dropped).</li>
+  it.</li>
+<li>A mistyped or offline <code>gateway_id</code> also prints <code>flat (no open
+  positions)</code>: the engine answers an unknown id with an empty snapshot.</li>
 <li>This works for <em>any</em> gateway_id known to the engine, not just MM bots —
   it is exactly the same query a <code>pm-mm-bot</code>'s own inventory-skewing logic
   effectively answers itself, just visible to an operator from outside.
@@ -9381,10 +9436,18 @@ plus any available <code>symbol_meta</code> fields, which are printed as a rich 
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>SYMBOLS</code> returns symbols that have at least one active order book (created
-when the first order for a symbol arrives or when market-maker orders are
-injected at startup). It does NOT list all symbols from <code>engine_config.yaml</code>
-unless those symbols already have orders.</p>
+<p><code>SYMBOLS</code> returns symbols that have an order book in the engine. With an
+<code>engine_config.yaml</code>, the engine creates a book for every configured
+symbol at startup, so all of them are listed; an engine started without
+a config creates books only as orders arrive.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Tick sizes</p>
+<p>The console asks for the same list by itself at logon and does not print
+it then. Each symbol's tick size in it is what the console converts every
+price you type with, so the prompt opens only once the list has arrived.
+A price that is not on the symbol's tick grid is refused locally with
+<code>&lt;price&gt; is not a multiple of &lt;symbol&gt;'s tick size &lt;tick&gt;</code>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Gateway authorization</p>
@@ -9423,20 +9486,26 @@ phase-change broadcasts — see the "Session phase changes" note under
 <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>EXIT
 </code></pre></div>
 <h2 id="reconnect-and-state-re-sync-playbook">Reconnect and state re-sync playbook<a class="headerlink" href="#reconnect-and-state-re-sync-playbook" title="Permanent link">&para;</a></h2>
-<p>After restarting the terminal, rebuild local confidence in state with this sequence.</p>
+<p>At logon the console asks the engine for your resting orders and your
+position by itself. After restarting the terminal, check what it restored
+with this sequence.</p>
 <ol>
 <li>Run <code>SYMBOLS</code> to confirm active books and symbol metadata.</li>
-<li>Run <code>ORDERS</code> to recover your current resting single-leg orders.</li>
+<li>Run <code>ORDERS</code> to see your current resting orders, restored from the engine.</li>
 <li>If you are a market maker, run <code>QBOOT</code> then <code>QLEGS|SHOW=ALL</code>.</li>
-<li>Run <code>POS</code> to rebuild your session-local position view from current stream.</li>
+<li>Run <code>POS</code> to see the position restored from the engine: net quantity and
+   average cost are the engine's; realised P&amp;L starts at 0.00 (it counts
+   only this session's fills).</li>
 <li>Resume normal trading only after steps 1-4 look consistent.</li>
 </ol>
 <p>Why this matters:</p>
 <ul>
 <li><code>ORDERS</code> gives authoritative order IDs for follow-up <code>AMEND</code>/<code>CANCEL</code></li>
 <li><code>QBOOT</code>/<code>QLEGS</code> avoids accidental duplicate quoting after reconnect</li>
-<li><code>POS</code> helps detect drift between expected and observed exposure</li>
+<li><code>POS</code> shows the exposure the engine holds before you add to it</li>
 </ul>
+<p>The same re-sync happens automatically when events were lost during a
+session; see <a href="#lost-events">Lost events</a>.</p>
 <h2 id="gateway-responses">Gateway Responses<a class="headerlink" href="#gateway-responses" title="Permanent link">&para;</a></h2>
 <p>All events are printed inline with a <code>[HH:MM:SS.mmm]</code> timestamp prefix. A background thread receives events from the engine while you continue typing.</p>
 <h3 id="order-events">Order Events<a class="headerlink" href="#order-events" title="Permanent link">&para;</a></h3>
@@ -9465,7 +9534,7 @@ phase-change broadcasts — see the "Session phase changes" note under
 <td>Full fill</td>
 </tr>
 <tr>
-<td><code>AMENDED  &lt;id&gt;  price=151.0 qty=100 remaining=100</code></td>
+<td><code>AMENDED  &lt;id&gt;  price=151.00 qty=100 remaining=100</code></td>
 <td>Amendment confirmed</td>
 </tr>
 <tr>
@@ -9473,11 +9542,35 @@ phase-change broadcasts — see the "Session phase changes" note under
 <td>Cancel confirmed</td>
 </tr>
 <tr>
-<td><code>EXPIRED  &lt;id&gt;  (DAY order — trading day ended)</code></td>
-<td>Engine shut down or session phase change</td>
+<td><code>TRIGGERED  &lt;id&gt;  @148.00  → LIMIT</code></td>
+<td>A <code>STOP_LIMIT</code> reached its stop price and now rests as a <code>LIMIT</code> order (a <code>STOP</code> or <code>TRAILING_STOP</code> becomes <code>MARKET</code>); <code>ORDERS</code> shows the new type</td>
+</tr>
+<tr>
+<td><code>EXPIRED  &lt;id&gt;  (Trading day ended)</code></td>
+<td>A DAY order expired at the end of the trading day; an ATO or ATC order shows <code>(Opening auction ended)</code> / <code>(Closing auction ended)</code>, and the engine's own reason when it sends one</td>
 </tr>
 </tbody>
 </table>
+<p>Prices are printed at the symbol's tick size (<code>@150.50</code>, <code>@10.125</code> on a
+3-decimal symbol).</p>
+<h3 id="lost-events">Lost events<a class="headerlink" href="#lost-events" title="Permanent link">&para;</a></h3>
+<p>The engine numbers every event it sends you, per kind of event. If the
+console sees a jump (events were dropped on the way, for example while the
+host was overloaded), it prints</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>WARNING: 3 event(s) lost on order.fill — ORDERS and POS re-synced from the engine
+</code></pre></div>
+<p>and asks the engine for your resting orders and position again. An order the
+table still showed as <code>NEW</code> or <code>PARTIAL</code> but that is no longer resting gets
+the status <code>CLOSED</code>: it was filled or cancelled, but the event saying which
+was lost. <code>POS</code> gets the engine's quantity and cost back; its realised P&amp;L
+misses the lost fills. Check them with <code>pm-stats-cli trades</code> if it matters.</p>
+<h3 id="input-errors">Input errors<a class="headerlink" href="#input-errors" title="Permanent link">&para;</a></h3>
+<p>A mistyped value is refused before anything is sent, with the field named:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>[TRADER01]&gt; AMEND|ID=4f1c…|PRICE=1O0.5
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>Parse error: PRICE= is not a number: '1O0.5'
+</code></pre></div>
+<p>A line that fails in a way the console did not foresee prints <code>Command failed:
+&lt;error&gt;</code> and is logged with its traceback; the session carries on either way.</p>
 <h3 id="quote-events">Quote Events<a class="headerlink" href="#quote-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -9591,7 +9684,7 @@ phase-change broadcasts — see the "Session phase changes" note under
 <tbody>
 <tr>
 <td><code>DC ON</code> / <code>DC OFF</code></td>
-<td>Confirms the relay was toggled locally (printed immediately, no round trip to the engine)</td>
+<td>Confirms the display was switched locally (printed immediately, no round trip to the engine)</td>
 </tr>
 <tr>
 <td><code>DC_FILL  &lt;id&gt;  &lt;symbol&gt;  qty=&lt;n&gt; @&lt;price&gt;  [&lt;MAKER\|TAKER&gt;]  #&lt;seq&gt;  (drop_copy.event.&lt;GW_ID&gt;)</code></td>
@@ -9613,6 +9706,10 @@ phase-change broadcasts — see the "Session phase changes" note under
 <td>Response to <code>SYMBOLS</code> command</td>
 </tr>
 <tr>
+<td><code>SESSION  &lt;state&gt;  (&lt;description&gt;)</code></td>
+<td>Response to <code>SESSION</code></td>
+</tr>
+<tr>
 <td><code>&lt;INDEX_ID&gt;  &lt;level&gt;  ...</code></td>
 <td>Response to <code>INDEX</code>, printed from the cached <code>index.update</code> feed</td>
 </tr>
@@ -9632,30 +9729,30 @@ phase-change broadcasts — see the "Session phase changes" note under
 </div>
 <h2 id="end-to-end-operator-walkthrough">End-to-end operator walkthrough<a class="headerlink" href="#end-to-end-operator-walkthrough" title="Permanent link">&para;</a></h2>
 <p>This transcript shows a realistic manual session from connect to disconnect.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a># Start terminal
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>$ poetry run pm-alf-console --id TRADER01
-<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>
-<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>[TRADER01]&gt; SYMBOLS
-<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a># confirms AAPL/MSFT active
-<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>
-<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
-<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
-<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>
-<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a># copy full UUID from table if you plan to amend/cancel
-<a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>
-<a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
-<a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 (priority reset) rtag=AMD-001
-<a id="__codelineno-39-15" name="__codelineno-39-15" href="#__codelineno-39-15"></a>
-<a id="__codelineno-39-16" name="__codelineno-39-16" href="#__codelineno-39-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
-<a id="__codelineno-39-17" name="__codelineno-39-17" href="#__codelineno-39-17"></a>
-<a id="__codelineno-39-18" name="__codelineno-39-18" href="#__codelineno-39-18"></a>[TRADER01]&gt; POS
-<a id="__codelineno-39-19" name="__codelineno-39-19" href="#__codelineno-39-19"></a># exposure now reflects partial fill
-<a id="__codelineno-39-20" name="__codelineno-39-20" href="#__codelineno-39-20"></a>
-<a id="__codelineno-39-21" name="__codelineno-39-21" href="#__codelineno-39-21"></a>[TRADER01]&gt; CANCEL|ID=7c4a91e2-...
-<a id="__codelineno-39-22" name="__codelineno-39-22" href="#__codelineno-39-22"></a>[09:30:03.000] CANCELLED  7c4a91e2
-<a id="__codelineno-39-23" name="__codelineno-39-23" href="#__codelineno-39-23"></a>
-<a id="__codelineno-39-24" name="__codelineno-39-24" href="#__codelineno-39-24"></a>[TRADER01]&gt; EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a># Start terminal
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>$ poetry run pm-alf-console --id TRADER01
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>[TRADER01]&gt; SYMBOLS
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a># confirms AAPL/MSFT active
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a># copy the full 32-character order ID from the table if you plan to amend/cancel
+<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>
+<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
+<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.10 qty=100 remaining=100 (priority reset) rtag=AMD-001
+<a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a>
+<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
+<a id="__codelineno-41-17" name="__codelineno-41-17" href="#__codelineno-41-17"></a>
+<a id="__codelineno-41-18" name="__codelineno-41-18" href="#__codelineno-41-18"></a>[TRADER01]&gt; POS
+<a id="__codelineno-41-19" name="__codelineno-41-19" href="#__codelineno-41-19"></a># exposure now reflects partial fill
+<a id="__codelineno-41-20" name="__codelineno-41-20" href="#__codelineno-41-20"></a>
+<a id="__codelineno-41-21" name="__codelineno-41-21" href="#__codelineno-41-21"></a>[TRADER01]&gt; CANCEL|ID=7c4a91e2-...
+<a id="__codelineno-41-22" name="__codelineno-41-22" href="#__codelineno-41-22"></a>[09:30:03.000] CANCELLED  7c4a91e2
+<a id="__codelineno-41-23" name="__codelineno-41-23" href="#__codelineno-41-23"></a>
+<a id="__codelineno-41-24" name="__codelineno-41-24" href="#__codelineno-41-24"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
 <p>Recommended habits:</p>
 <ul>
@@ -9665,18 +9762,19 @@ phase-change broadcasts — see the "Session phase changes" note under
 </ul>
 <h2 id="multiple-pm-alf-console-sessions">Multiple <code>pm-alf-console</code> Sessions<a class="headerlink" href="#multiple-pm-alf-console-sessions" title="Permanent link">&para;</a></h2>
 <p>Run as many sessions as needed — each in its own terminal window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="c1"># Terminal A</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="c1"># Terminal B  </span>
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="c1"># Terminal C</span>
-<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER03
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="c1"># Terminal A</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="c1"># Terminal B  </span>
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="c1"># Terminal C</span>
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER03
 </code></pre></div>
 <p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
 <code>engine_config.yaml</code> in <code>participants</code> and restart the engine.</p>
-<p>Each session only receives events for its own orders. Use <code>pm-orders</code> to see all
+<p>Each session only shows events for its own orders, also when one ID is the
+start of another (<code>TRADER1</code> and <code>TRADER10</code>). Use <code>pm-orders</code> to see all
 gateways' activity.</p>
 <h2 id="interactive-features">Interactive Features<a class="headerlink" href="#interactive-features" title="Permanent link">&para;</a></h2>
 <h3 id="tab-completion">Tab Completion<a class="headerlink" href="#tab-completion" title="Permanent link">&para;</a></h3>
@@ -9691,15 +9789,15 @@ gateways' activity.</p>
 <tbody>
 <tr>
 <td>First word</td>
-<td><code>NEW</code>, <code>QUOTE</code>, <code>QUOTE_CANCEL</code>, <code>QBOOT</code>, <code>QLEGS</code>, <code>KILL</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>STATUS</code>, <code>ORDERS</code>, <code>POS</code>, <code>SYMBOLS</code>, <code>INDEX</code>, <code>HELP</code>, <code>CLEAR</code>, <code>EXIT</code>, <code>QUIT</code></td>
+<td><code>NEW</code>, <code>QUOTE</code>, <code>QUOTE_CANCEL</code>, <code>QBOOT</code>, <code>QLEGS</code>, <code>KILL</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>STATUS</code>, <code>ORDERS</code>, <code>POS</code>, <code>SYMBOLS</code>, <code>SESSION</code>, <code>DC</code>, <code>INDEX</code>, <code>HELP</code>, <code>CLEAR</code>, <code>EXIT</code>, <code>QUIT</code></td>
 </tr>
 <tr>
 <td>After <code>NEW\|</code></td>
-<td><code>SYM=</code>, <code>SIDE=</code>, <code>TYPE=</code>, <code>QTY=</code>, <code>PRICE=</code>, <code>STOP=</code>, <code>TRAIL=</code>, <code>TIF=</code>, <code>VISIBLE=</code>, <code>SMP=</code></td>
+<td><code>SYM=</code>, <code>SIDE=</code>, <code>TYPE=</code>, <code>TIF=</code>, <code>QTY=</code>, <code>PRICE=</code>, <code>STOP=</code>, <code>TRAIL=</code>, <code>VISIBLE=</code>, <code>SMP=</code>, <code>TAG=</code></td>
 </tr>
 <tr>
 <td>After <code>NEW\|TYPE=COMBO\|</code></td>
-<td><code>COMBO_ID=</code>, <code>COMBO_TYPE=</code>, <code>TIF=</code>, <code>LEG_COUNT=</code>, plus <code>LEG0.SYM=</code>, <code>LEG0.SIDE=</code>, etc.</td>
+<td><code>COMBO_ID=</code>, <code>COMBO_TYPE=</code>, <code>TIF=</code>, <code>LEG_COUNT=</code>, <code>SMP=</code>, <code>TAG=</code>, plus per leg <code>LEG0.SYM=</code>, <code>LEG0.SIDE=</code>, <code>LEG0.QTY=</code>, <code>LEG0.PRICE=</code>, <code>LEG0.STOP=</code>, <code>LEG0.TYPE=</code></td>
 </tr>
 <tr>
 <td>After <code>NEW\|TYPE=OCO\|</code></td>
@@ -9712,6 +9810,10 @@ gateways' activity.</p>
 <tr>
 <td>After <code>CANCEL\|</code></td>
 <td><code>ID=</code>, <code>COMBO_ID=</code>, <code>OCO_ID=</code>, <code>RTAG=</code></td>
+</tr>
+<tr>
+<td>After <code>DC\|</code></td>
+<td><code>STATE=</code>, then <code>ON</code>, <code>OFF</code></td>
 </tr>
 <tr>
 <td>After <code>TYPE=</code></td>
@@ -9741,8 +9843,9 @@ gateways' activity.</p>
 (in-memory, session-scoped — history is not persisted across restarts).</p>
 <h3 id="background-event-display">Background Event Display<a class="headerlink" href="#background-event-display" title="Permanent link">&para;</a></h3>
 <p>A background thread listens on the SUB socket and prints events (fills, cancels,
-combo status changes, session transitions) in real-time, interleaved cleanly with
-the command prompt. You can continue typing while events arrive.</p>
+stop triggers, combo status changes) in real-time, interleaved cleanly with
+the command prompt. You can continue typing while events arrive. Session
+phase changes are not printed; <code>SESSION</code> asks for the current one.</p>
 <h2 id="common-mistakes-and-fast-triage">Common mistakes and fast triage<a class="headerlink" href="#common-mistakes-and-fast-triage" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -9755,16 +9858,28 @@ the command prompt. You can continue typing while events arrive.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>Gateway authentication timed out</code></td>
-<td>Engine is not running/reachable</td>
+<td><code>Logon failed: Engine not reachable at tcp://…:5555</code></td>
+<td>Engine is not running, or not reachable from this host</td>
 <td>Is <code>pm-engine</code> running in another terminal?</td>
 <td>Start <code>pm-engine</code> first</td>
 </tr>
 <tr>
-<td><code>Gateway not configured: GW01</code></td>
+<td><code>Logon failed: Gateway authentication timed out</code></td>
+<td>The engine took the connect but its reply never came back</td>
+<td>Can this host reach the engine's publish port (5556)?</td>
+<td>Fix the address or firewall; check <code>pm-monitor-cli status</code></td>
+</tr>
+<tr>
+<td><code>Logon failed: Gateway not configured: GW01</code></td>
 <td>Gateway ID not in <code>engine_config.yaml</code></td>
 <td>Check <code>participants</code> list</td>
 <td>Add ID under <code>participants</code> and restart engine</td>
+</tr>
+<tr>
+<td><code>WARNING: n event(s) lost on …</code></td>
+<td>The console fell behind (host overloaded)</td>
+<td>Check the host's CPU load</td>
+<td>Check <code>ORDERS</code> and <code>POS</code>; see <a href="#lost-events">Lost events</a></td>
 </tr>
 <tr>
 <td><code>REJECTED ... code=UNKNOWN_SYMBOL</code></td>
@@ -9798,9 +9913,9 @@ the command prompt. You can continue typing while events arrive.</p>
 </tr>
 <tr>
 <td><code>AMEND</code>/<code>CANCEL</code> fails with unknown ID</td>
-<td>Short ID used instead of full UUID</td>
+<td>Short ID used instead of the full order ID</td>
 <td>Run <code>ORDERS</code> and inspect full ID</td>
-<td>Retry with full order UUID</td>
+<td>Retry with the full 32-character order ID</td>
 </tr>
 </tbody>
 </table>

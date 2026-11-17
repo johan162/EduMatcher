@@ -7980,7 +7980,7 @@ container. Run <code>pm-monitor-cli</code> inside the container (<code>make shel
 <tr>
 <td><strong>DEGRADED</strong></td>
 <td>Working, but something is off</td>
-<td>A threshold on this process is in breach, or its loop ran more than 1 s late since the previous beacon</td>
+<td>A threshold on this process is in breach, for example <code>loop_age_ms</code> or <code>loop_lag_ms</code> (its loop more than 1 s late), <code>rss_growth_pct_1h</code> or <code>engine_handle_p99_us</code>. The <code>PROCESS_STATUS</code> event names the breach(es)</td>
 </tr>
 <tr>
 <td><strong>HEALTHY</strong></td>
@@ -8065,7 +8065,7 @@ and nothing is MISSING.</p>
 <td>&gt; 30 %</td>
 </tr>
 <tr>
-<td><code>rss_growth_pct_1h</code> — judged once a process has been watched for 10 min, only when the hour added at least 100 MB and RSS rose at least 1 % in the last 15 min, with less than half of the hour's growth falling in those 15 min (a step, such as the ramp when continuous trading starts, is not a leak, neither while it happens nor after it has levelled off)</td>
+<td><code>rss_growth_pct_1h</code> — judged once a process has been watched for 10 min, only when the hour added at least 100 MB and each quarter of the hour (15 min) added at least a tenth of that growth. A leak grows across the whole hour; a step, such as memory filling over the first quarter of an hour of continuous trading, grows in one part of it and is not a leak. The percentage is of the RSS an hour ago, so a leak that goes on for hours shows a falling figure and eventually clears: watch the RSS chart, not only the alarm</td>
 <td>a process</td>
 <td>&gt; 50 %</td>
 <td>&gt; 100 %</td>
@@ -8077,10 +8077,16 @@ and nothing is MISSING.</p>
 <td>&gt; 3</td>
 </tr>
 <tr>
-<td><code>loop_age_ms</code> (fixed)</td>
+<td><code>loop_age_ms</code> (fixed) — time since the main loop last ticked</td>
 <td>a process</td>
 <td>&gt; 1 000 ms</td>
 <td>(HUNG)</td>
+</tr>
+<tr>
+<td><code>loop_lag_ms</code> (fixed) — the longest gap between two ticks since the previous beacon</td>
+<td>a process</td>
+<td>&gt; 1 000 ms</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>slow_client_disconnects</code>, <code>api_dropped_events</code>, <code>api_throttled</code>, <code>stats_feed_gaps</code> (fixed)</td>
@@ -8139,15 +8145,22 @@ they are not counted either; "Rejects today by reason" on the dashboard still
 lists every <code>MARKET_CLOSED</code> reject, and the participants table's own reject
 percentage still includes them.</p>
 <p>The configurable rules take their levels from <code>monitor.thresholds</code>. A breach
-is raised after five consecutive seconds over a warn level (a critical level
-is raised at once), so one noisy sample is not a breach. It clears (or eases
+is raised after five consecutive seconds over a warn level, so one noisy
+sample, or one late loop iteration, is not a breach. Exceptions: a critical
+level, an "any increase" rule and a loop already past the HUNG limit are
+raised at once; <code>engine_handle_p99_us</code> waits 90 seconds, because its figure
+covers the engine's last minute and a burst of a few slow messages holds it
+there for the whole minute. It clears (or eases
 from critical to warning) only after thirty consecutive seconds at the lower
 level, each with the value back inside 80 % of the threshold it crossed, so a
 value hovering around a threshold produces one breach and one clear, not a
 flood. Each breach and
 each clear is one <code>THRESHOLD</code> event and one log line through the log server
 (<code>threshold host_cpu_pct WARN 81 &gt; 80 on host</code> at WARNING, critical at ERROR,
-a clear at INFO), so the log console's alerting already covers notification.</p>
+a clear at INFO), so the log console's alerting already covers notification.
+A breach that holds while its value is already back inside the limit reads
+<code>host_cpu_pct WARN clearing (6.5)</code>; a rule that stops judging (it declined,
+or the process went away) clears as <code>cleared (no longer judged; last …)</code>.</p>
 <p><strong>Events</strong> — the event log <code>pm-monitor-cli events</code> shows:</p>
 <table>
 <thead>
@@ -8161,7 +8174,7 @@ a clear at INFO), so the log console's alerting already covers notification.</p>
 <tr>
 <td><code>PROCESS_STATUS</code></td>
 <td>a state change</td>
-<td>process key · <code>HEALTHY -&gt; HUNG</code> (a process first seen HEALTHY is not news)</td>
+<td>process key · the change and, after a colon, why: <code>HEALTHY -&gt; DEGRADED: engine_handle_p99_us CRIT 25000 &gt; 20000; host: host_cpu_pct CRIT 97.1 &gt; 95</code>, <code>HEALTHY -&gt; HUNG: loop_age_ms 6000 &gt; 5000</code>, <code>HEALTHY -&gt; DEAD: no beacon for 7.0 s, process gone</code> (a process first seen HEALTHY is not news)</td>
 </tr>
 <tr>
 <td><code>THRESHOLD</code></td>
@@ -8567,8 +8580,8 @@ new one), the follow carries on with the new numbers.</p>
 </tr>
 <tr>
 <td>A process DEGRADED</td>
-<td>A threshold on it, or its loop ran late</td>
-<td><code>status</code> lists the breach; <code>events --subject &lt;key&gt;</code></td>
+<td>A threshold on it: the <code>PROCESS_STATUS</code> event names it</td>
+<td><code>events --subject &lt;key&gt;</code>; <code>status</code> lists the breaches in force. With a <code>host:</code> breach beside it, the machine is saturated (another load on the host?)</td>
 </tr>
 <tr>
 <td><code>pm-monitor</code> exits: another <code>pm-monitor</code> writes <code>metrics.db</code></td>

@@ -10421,12 +10421,12 @@ rows to log viewers such as <code>pm-log-ui</code>:</p>
 <tr>
 <td><code>max_pending_rows</code></td>
 <td><code>20000</code></td>
-<td>Per-subscriber stream buffer; a slow viewer loses its oldest rows.</td>
+<td>Per-subscriber stream buffer; a slow viewer loses its oldest rows (counted in <code>dropped</code>). Also sets the ZeroMQ send high-water mark to <code>max_pending_rows / backfill_chunk_rows</code> messages per viewer, so a wedged viewer costs the server about twice this many rows at most.</td>
 </tr>
 <tr>
 <td><code>pub_sndhwm</code></td>
 <td><code>10000</code></td>
-<td>ZeroMQ send high-water mark.</td>
+<td>Upper cap on that ZeroMQ send high-water mark, in messages. Messages lost there show as <code>msg_no</code> gaps.</td>
 </tr>
 </tbody>
 </table>

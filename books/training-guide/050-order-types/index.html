@@ -7792,7 +7792,7 @@ book. Now let the market fall through 149.50 — <code>TRADER02</code> sells int
 </code></pre></div>
 <p>That trade at 149.30 is at or below the stop, so the stop triggers and becomes
 a market sell, which fills against the remaining 100 bid at 149.30:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.3  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.30  remaining=0  [FILLED]
 </code></pre></div>
 <p>Interpretation: 149.50 was the <strong>trigger</strong>, not the execution price. A stop
 guarantees that you get out, not at what price — in a falling market the fill
@@ -7899,7 +7899,7 @@ stayed at 149.80 this trade would not have touched it:</p>
 </code></pre></div>
 <p><code>TRADER01</code>'s console now reports the stop's market sell, filled against the
 149.70 bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.7  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.70  remaining=0  [FILLED]
 </code></pre></div>
 <p>The stop only moves <strong>up</strong> (for a sell) or <strong>down</strong> (for a buy) — never against
 you — and, like a plain stop, it guarantees the exit, not the price: it was

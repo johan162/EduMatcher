@@ -4508,6 +4508,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#order_status-0x22-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ORDER_STATUS (0x22) - Server -&gt; Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#heartbeat-0x30-bidirectional" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8095,7 +8106,7 @@
 <h1 id="balf-protocol-reference">BALF Protocol Reference<a class="headerlink" href="#balf-protocol-reference" title="Permanent link">&para;</a></h1>
 <blockquote>
 <p><strong>Status: Normative.</strong> This appendix is the single source of truth for the BALF
-<code>1.0.0</code> wire contract as implemented by <code>pm-balf-gwy</code> (<code>balf_gwy/</code>). For an
+<code>1.1.0</code> wire contract as implemented by <code>pm-balf-gwy</code> (<code>balf_gwy/</code>). For an
 operational, tutorial-style guide see <a href="../../../operator-guide/part-5-gateways/020-balf-gateway/">BALF TCP Gateway</a>; for
 the gateway's configuration block see
 <a href="../../../reference-manual/part-3-configuration/030-formal-specification/#62-balf_gateway-pm-balf-gwy">Engine Config Specification §6.2</a>.
@@ -8119,8 +8130,15 @@ replaces human-readable text parsing with deterministic byte offsets.</p>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>CANCEL_ORDER is always 24 bytes on the wire
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>EXECUTION_REPORT is always 64 bytes on the wire
 </code></pre></div>
-<p>This appendix is the <strong>normative reference</strong> for BALF <code>1.0.0</code>. If another tool,
+<p>This appendix is the <strong>normative reference</strong> for BALF <code>1.1.0</code>. If another tool,
 bot, or GUI wants to speak BALF, this document is the correct source to follow.</p>
+<p>BALF <code>1.1.0</code> adds one server-to-client message, <code>ORDER_STATUS</code> (0x22), with
+which a freshly started gateway hands a client back the orders its ID left on
+the book. Every rule this appendix states for <code>1.0.0</code> holds in <code>1.1.0</code>; the
+header's <code>version</code> byte is still <code>1</code>. A client MUST skip a frame whose
+<code>msg_type</code> it does not know (its size is in the summary table of the version
+it was written for, or it closes the session), so later additions of this
+kind do not break it.</p>
 <h2 id="scope-conformance">Scope &amp; conformance<a class="headerlink" href="#scope-conformance" title="Permanent link">&para;</a></h2>
 <p>BALF is the <strong>binary client protocol accepted by <code>pm-balf-gwy</code></strong>. The gateway
 translates BALF frames into the engine's internal ZeroMQ + JSON messages.</p>
@@ -8306,9 +8324,15 @@ When the same gateway ID logs on again to the same <code>pm-balf-gwy</code> proc
 the new session receives those orders' <code>EXECUTION_REPORT</code>, <code>STOP_TRIGGERED</code>
 and <code>CANCEL_ACK</code> frames under their original <code>order_id</code>s and can cancel or
 amend them; IDs keep counting up, so an old ID never names a new order.
-A <strong>restart of <code>pm-balf-gwy</code></strong> loses the map: orders left on the book are
-then out of reach over BALF (use drop-copy, REST or the clearing reports to
-see their fills).</p>
+A <strong>restart of <code>pm-balf-gwy</code></strong> starts with no map. At the first logon of each
+gateway ID it asks the engine for the ID's resting orders, gives each a new
+<code>order_id</code>, and sends one <code>ORDER_STATUS</code> per order right after <code>LOGON_ACK</code>;
+from then on their fills, cancels and amends work under the new ids. The
+<code>client_order_id</code> comes back too: <code>pm-balf-gwy</code> sends it to the engine with
+every <code>NEW_ORDER</code> (as the order's <code>client_tag</code>). An order the ID entered
+another way (REST, ALF) is reported with <code>client_order_id</code> <code>0</code>. Events that
+reach the gateway between <code>LOGON_ACK</code> and the engine's answer, for an order
+not yet adopted, are not delivered.</p>
 <h2 id="message-definitions">Message definitions<a class="headerlink" href="#message-definitions" title="Permanent link">&para;</a></h2>
 <h3 id="summary-table">Summary table<a class="headerlink" href="#summary-table" title="Permanent link">&para;</a></h3>
 <table>
@@ -8391,6 +8415,13 @@ see their fills).</p>
 <td>Server -&gt; Client</td>
 <td>48</td>
 <td>56</td>
+</tr>
+<tr>
+<td><code>0x22</code></td>
+<td><code>ORDER_STATUS</code></td>
+<td>Server -&gt; Client</td>
+<td>56</td>
+<td>64</td>
 </tr>
 <tr>
 <td><code>0x30</code></td>
@@ -8822,6 +8853,23 @@ the order's own <code>EXECUTION_REPORT</code>s.</p>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>Offset 41  |  becomes          |  u8      |  1 = MARKET, 2 = LIMIT
 <a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>Offset 42  |  _reserved        |  u8[6]   |  Must be zero
 </code></pre></div>
+<h3 id="order_status-0x22-server-client"><code>ORDER_STATUS</code> (0x22) - Server -&gt; Client<a class="headerlink" href="#order_status-0x22-server-client" title="Permanent link">&para;</a></h3>
+<p>BALF <code>1.1.0</code>. One resting order of this gateway ID that a freshly started
+<code>pm-balf-gwy</code> adopted (see <a href="#order-id-encoding">Order ID encoding</a>); sent after
+<code>LOGON_ACK</code>, once per order. Codes are <code>NEW_ORDER</code>'s.</p>
+<p><strong>Body (56 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  The order's NEW_ORDER client_order_id; 0 if it was not entered over BALF
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>Offset  8  |  order_id         |  u64 LE  |  The order's new BALF order ID
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>Offset 16  |  price            |  i64 LE  |  Limit price x 10^8; 0 if none
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>Offset 24  |  stop_price       |  i64 LE  |  Stop trigger x 10^8; 0 if none
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>Offset 32  |  quantity         |  u32 LE  |  Original quantity
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>Offset 36  |  remaining_qty    |  u32 LE  |  Unfilled quantity
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>Offset 40  |  symbol           |  u8[8]   |  Symbol
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>Offset 48  |  side             |  u8      |  1 = BUY, 2 = SELL
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>Offset 49  |  order_type       |  u8      |  NEW_ORDER's order type code
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>Offset 50  |  tif              |  u8      |  NEW_ORDER's TIF code
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>Offset 51  |  _reserved        |  u8[5]   |  Must be zero
+</code></pre></div>
 <h3 id="heartbeat-0x30-bidirectional"><code>HEARTBEAT</code> (0x30) - Bidirectional<a class="headerlink" href="#heartbeat-0x30-bidirectional" title="Permanent link">&para;</a></h3>
 <p>Either side may send a heartbeat at any time. The gateway answers a client
 <code>HEARTBEAT</code> with <code>HEARTBEAT_ACK</code>, and sends its own <code>HEARTBEAT</code> when it has
@@ -8832,11 +8880,11 @@ within <code>heartbeat_timeout_sec</code> (default 5 seconds) is closed.</p>
 <p>If the timeout is exceeded, the connection is considered stale and should be
 closed.</p>
 <p><strong>Body (8 bytes):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Offset  0  |  send_time_ns  |  u64 LE  |  Sender's wall-clock time in nanoseconds since Unix epoch
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>Offset  0  |  send_time_ns  |  u64 LE  |  Sender's wall-clock time in nanoseconds since Unix epoch
 </code></pre></div>
 <h3 id="heartbeat_ack-0x31-bidirectional"><code>HEARTBEAT_ACK</code> (0x31) - Bidirectional<a class="headerlink" href="#heartbeat_ack-0x31-bidirectional" title="Permanent link">&para;</a></h3>
 <p><strong>Body (8 bytes):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>Offset  0  |  orig_send_time_ns  |  u64 LE  |  Echo of the send_time_ns from the HEARTBEAT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>Offset  0  |  orig_send_time_ns  |  u64 LE  |  Echo of the send_time_ns from the HEARTBEAT
 </code></pre></div>
 <h3 id="logout-0x40-bidirectional"><code>LOGOUT</code> (0x40) - Bidirectional<a class="headerlink" href="#logout-0x40-bidirectional" title="Permanent link">&para;</a></h3>
 <p>Graceful disconnect. No body. After sending <code>LOGOUT</code>, the client must not send
@@ -8941,11 +8989,11 @@ parameters under <code>balf_gateway</code>.</p>
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">balf_gateway</span><span class="p">:</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5560</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="nt">heartbeat_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">balf_gateway</span><span class="p">:</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5560</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span><span class="nt">heartbeat_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 </code></pre></div>
 <p>The gateway ID allowlist is still enforced by the engine. BALF IDs do not need
 to match ALF IDs, but both use the same allowlist policy.</p>

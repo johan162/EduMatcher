@@ -7863,9 +7863,8 @@ gateway to freeze on a phase and advance only when you are ready:</p>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p>An illegal jump (for example <code>CLOSED</code> straight to <code>CONTINUOUS</code>) is
-   silently ignored by the engine, and the console just prints <code>TIMEOUT</code>
-   with no reason. If you see that, run <code>SESSION_STATUS</code> and check which
-   phase you are really in.</p>
+   refused by the engine, and the console prints <code>SESSION  REJECTED</code> with the
+   reason, which names the phases allowed from where you are.</p>
 <ol>
 <li>Confirm the change took effect with:</li>
 </ol>

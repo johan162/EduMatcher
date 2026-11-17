@@ -9046,7 +9046,7 @@ runs <code>pm-admin --id OPS01</code> (a gateway configured with <code>role: ADM
 in <code>pm-alf-console</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a># Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>SESSION  PRE_OPEN → OPENING_AUCTION
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>SESSION  now OPENING_AUCTION
 <a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
 <a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a># Terminal 2 — trader submits orders during auction
 <a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
@@ -9054,7 +9054,7 @@ in <code>pm-alf-console</code>.</p>
 <a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
 <a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a># Terminal 1 — trigger the uncross
 <a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>SESSION  OPENING_AUCTION → CONTINUOUS
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>SESSION  now CONTINUOUS
 <a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a># Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
 <a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a># and publishes an auction.result.AAPL message with the same fields.
 </code></pre></div>

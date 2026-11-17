@@ -8545,10 +8545,14 @@ those orders under their original <code>order_id</code> and <code>client_order_i
 cancel or amend them. New orders continue the numbering, so an old ID never
 names a new order.</p>
 <p>Events that arrive while no session of the ID is logged on are not replayed.
-A <strong>restart of <code>pm-balf-gwy</code></strong> forgets every <code>order_id</code>: orders left on the
-book can no longer be reached over BALF. A participant who cannot afford that
-should use <code>disconnect_behaviour: CANCEL_ALL</code>, or reconcile through
-drop-copy, REST or the clearing reports.</p>
+A <strong>restart of <code>pm-balf-gwy</code></strong> forgets every <code>order_id</code>, but not the orders:
+at each ID's first logon it asks the engine for the ID's resting orders and
+hands them back, one <code>ORDER_STATUS</code> frame each (BALF <code>1.1.0</code>), under new
+<code>order_id</code>s and with the client's own <code>client_order_id</code>. Their fills,
+cancels and amends then work as before. Events that arrive between the
+<code>LOGON_ACK</code> and the engine's answer, for an order not yet handed back, are
+not delivered; reconcile through drop-copy, REST or the clearing reports if
+that window matters.</p>
 <h2 id="message-reference">Message reference<a class="headerlink" href="#message-reference" title="Permanent link">&para;</a></h2>
 <p>See the <a href="../../../protocols-and-clients/part-2-specifications/020-balf/">BALF Protocol Reference</a> appendix for exact
 byte layouts, offset tables, and encoding rules for all messages.</p>

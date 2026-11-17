@@ -10627,16 +10627,16 @@ make in-place amendment ambiguous (STOP, STOP_LIMIT, TRAILING_STOP).</p>
 <a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>
 <a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a><span class="c1"># 2. Market moves — improve price (priority lost, back of queue at 151)</span>
 <a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>AMEND<span class="p">|</span><span class="nv">ID</span><span class="o">=</span>abc123...<span class="p">|</span><span class="nv">PRICE</span><span class="o">=</span><span class="m">151</span>.00<span class="p">|</span><span class="nv">RTAG</span><span class="o">=</span>amd-price-002
-<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># → AMENDED: price=151.0 qty=100 remaining=100 (priority reset)</span>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># → AMENDED: price=151.00 qty=100 remaining=100 (priority reset)</span>
 <a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>
 <a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a><span class="c1"># 3. Reduce size to manage risk (priority preserved at 151)</span>
 <a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>AMEND<span class="p">|</span><span class="nv">ID</span><span class="o">=</span>abc123...<span class="p">|</span><span class="nv">QTY</span><span class="o">=</span><span class="m">80</span><span class="p">|</span><span class="nv">RTAG</span><span class="o">=</span>amd-down-002
-<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a><span class="c1"># → AMENDED: price=151.0 qty=80 remaining=80</span>
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a><span class="c1"># → AMENDED: price=151.00 qty=80 remaining=80</span>
 <a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>
 <a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a><span class="c1"># 4. After a partial fill of 30, reduce remaining exposure</span>
 <a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a><span class="c1">#    (original qty was 80, filled 30, so remaining = 50)</span>
 <a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a>AMEND<span class="p">|</span><span class="nv">ID</span><span class="o">=</span>abc123...<span class="p">|</span><span class="nv">QTY</span><span class="o">=</span><span class="m">60</span><span class="p">|</span><span class="nv">RTAG</span><span class="o">=</span>amd-partial-001
-<a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a><span class="c1"># → AMENDED: price=151.0 qty=60 remaining=30</span>
+<a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a><span class="c1"># → AMENDED: price=151.00 qty=60 remaining=30</span>
 <a id="__codelineno-36-17" name="__codelineno-36-17" href="#__codelineno-36-17"></a><span class="c1">#    Note: new_qty (60) - filled (30) = 30 remaining</span>
 </code></pre></div>
 <h3 id="amendment-events">Amendment Events<a class="headerlink" href="#amendment-events" title="Permanent link">&para;</a></h3>
@@ -10673,7 +10673,7 @@ remainder) rests again. From the caller's point of view this looks like an
 <code>order.fill.{GW}</code> events for the same order ID.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a># Resting buy at 149.00; best ask is currently 150.00 (no cross)
 <a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>AMEND|ID=&lt;order-id&gt;|PRICE=150.50|RTAG=amd-cross-001
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a># → AMENDED: price=150.5 ...   (priority reset)
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a># → AMENDED: price=150.50 ...   (priority reset)
 <a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a># → FILL: ...                    (the amend crossed the book and filled immediately)
 </code></pre></div>
 <p>Quantity-only amends never trigger this path — only a price change (with or

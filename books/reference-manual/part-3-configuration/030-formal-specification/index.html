@@ -10121,7 +10121,7 @@ to point at a non-default engine address.</p>
 <td><code>Bool</code></td>
 <td style="text-align: center;">–</td>
 <td><code>true</code></td>
-<td>master switch; <code>pm-log-srv</code> refuses to accept connections when <code>false</code></td>
+<td>master switch; when <code>false</code>, <code>pm-log-srv</code> logs a warning and exits at once (exit 0)</td>
 </tr>
 <tr>
 <td><code>name</code></td>
@@ -10170,7 +10170,7 @@ to point at a non-default engine address.</p>
 <td><code>Int</code></td>
 <td style="text-align: center;">–</td>
 <td><code>10000</code></td>
-<td><code>&gt; 0</code>; per-connection outbound backlog limit before backpressure is applied</td>
+<td><code>&gt; 0</code>; two limits: a client whose unsent replies exceed it is not read until they drain, and while the writer holds more than this many accepted but uncommitted rows, no client is read at all (backpressure)</td>
 </tr>
 <tr>
 <td><code>write_batch_size</code></td>

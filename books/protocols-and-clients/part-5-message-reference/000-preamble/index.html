@@ -7851,7 +7851,7 @@ refused must not send <code>system.gateway_disconnect</code> for it, since that 
 tear down the live session.</p>
 <h3 id="systemgateway_heartbeat"><code>system.gateway_heartbeat</code><a class="headerlink" href="#systemgateway_heartbeat" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Frees a participant ID whose process died without sending <code>system.gateway_disconnect</code>.
-<strong>Published by:</strong> Every process that holds an ID (<code>pm-alf-console</code>, <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-api-gwy</code>, <code>pm-mm-bot</code>) via PUSH :5555</p>
+<strong>Published by:</strong> Every process that holds an ID (<code>pm-admin</code>, <code>pm-alf-console</code>, <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-api-gwy</code>, <code>pm-mm-bot</code>) via PUSH :5555</p>
 <p>Sent every 60 seconds (<code>GATEWAY_HEARTBEAT_INTERVAL_SEC</code>), the first one
 immediately after the connect is accepted. It is one-way: the engine does not
 reply. The payload carries the sender's own <code>interval_sec</code>, so the engine needs
@@ -7859,9 +7859,10 @@ no per-client setting. After <strong>3 consecutive missed beats</strong> the eng
 disconnects the session exactly as if <code>system.gateway_disconnect</code> had arrived,
 applying the participant's <code>disconnect_behaviour</code> and publishing
 <code>system.gateway_bye.{GW_ID}</code> with <code>reason: "heartbeat_timeout"</code>.</p>
-<p>Liveness is opt-in: a session that has never sent a heartbeat is never timed
-out, and a heartbeat for an ID that is not connected is ignored. Heartbeats are
-not re-published on the audit feed.</p>
+<p>The clock starts when the connect is accepted, at the default 60-second
+interval until the first beat carries the sender's own, so a session that never
+sends a heartbeat is timed out after three minutes. A heartbeat for an ID that
+is not connected is ignored. Heartbeats are not re-published on the audit feed.</p>
 <table>
 <thead>
 <tr>

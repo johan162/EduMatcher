@@ -10226,15 +10226,23 @@ for instance a halt that fired before you logged in — leave them blank
 until the symbol halts again. The halt itself is real regardless.</p>
 </div>
 <h3 id="gateway-management-and-the-kill-switch">Gateway Management and the Kill Switch<a class="headerlink" href="#gateway-management-and-the-kill-switch" title="Permanent link">&para;</a></h3>
-<p>The roster from <code>GET /admin/gateways</code> shows Gateway ID, Role, Description and
-a live connection dot (<code>Connected</code> / <code>Offline</code>), with an <code>N / M connected</code>
+<p>The roster from <code>GET /admin/gateways</code> shows Gateway ID, Role, Description,
+a live connection dot (<code>Connected</code> / <code>Offline</code>) and <strong>Connected since</strong>, the
+time the engine accepted the current connection (<code>YYYY-MM-DD HH:MM:SS</code> in the
+session timezone, <code>—</code> while offline), with an <code>N / M connected</code>
 count and a <strong>Refresh</strong> button in the header.</p>
-<p><strong>Kick</strong> disconnects a gateway. It always confirms, and the confirmation spells
+<p>Above the table, <strong>Find ID</strong> (part of an ID, any case) and the role filter
+narrow the whole roster, not just the page on show; the count beside them reads
+<em>"N participants of M"</em> while a filter is on. The pager on the right shows
+<em>Page N/M</em> with previous/next and 10, 30 (default), 50, 100 or all rows per
+page — the same controls as the Participants row in <code>pm-dash</code>. The browser
+remembers the rows-per-page choice.</p>
+<p><strong>Kill</strong> (red-bordered, in the row and in the participant drawer) disconnects a gateway. It always confirms, and the confirmation spells
 out the side effect: disconnecting a gateway also <strong>cancels all of its active
 orders and quotes</strong>. It is disabled for gateways that are already offline.</p>
-<p>The <strong>Kill Switch</strong> panel below cancels resting orders and quotes at three
+<p>The <strong>Mass Cancel</strong> panel above the roster (the engine kill switch) cancels resting orders and quotes at three
 scopes. All three always confirm regardless of the power-user setting, and all
-three report what they actually cancelled (<em>"Kill switch AAPL: 12 orders, 2
+three report what they actually cancelled (<em>"Mass cancel AAPL: 12 orders, 2
 quotes cancelled"</em>).</p>
 <table>
 <thead>
@@ -10249,8 +10257,8 @@ quotes cancelled"</em>).</p>
 <td>Cancels every resting order and quote for that symbol, across every gateway</td>
 </tr>
 <tr>
-<td><strong>By Gateway</strong></td>
-<td>Cancels everything belonging to one gateway; the gateway stays connected and may re-submit</td>
+<td><strong>By Participant</strong> (<strong>Cancel orders only</strong>)</td>
+<td>Cancels everything belonging to one gateway; unlike <strong>Kill</strong>, the gateway stays connected and may re-submit</td>
 </tr>
 <tr>
 <td><strong>Global</strong></td>
@@ -10261,8 +10269,8 @@ quotes cancelled"</em>).</p>
 <p>The <strong>Global</strong> scope additionally requires typing <code>CONFIRM</code> before it will
 run, since it is a full-market emergency stop.</p>
 <div class="admonition warning">
-<p class="admonition-title">The kill switch cancels; it does not halt</p>
-<p>Kill-switch scopes remove exposure. They do <strong>not</strong> stop trading —
+<p class="admonition-title">Mass Cancel cancels; it does not halt</p>
+<p>Mass Cancel scopes remove exposure. They do <strong>not</strong> stop trading —
 participants can immediately submit new orders. To stop trading, use a
 circuit-breaker halt or a session transition.</p>
 </div>
@@ -10561,8 +10569,8 @@ wording:</p>
 <td><em>"Resume submitted for <code>{symbol}</code> — awaiting confirmation"</em></td>
 </tr>
 <tr>
-<td>Kill switch</td>
-<td><em>"Kill switch submitted — awaiting engine confirmation"</em></td>
+<td>Mass cancel</td>
+<td><em>"Mass cancel submitted — awaiting engine confirmation"</em></td>
 </tr>
 </tbody>
 </table>
@@ -10809,8 +10817,8 @@ language rather than failing:</p>
    yourself, pick it, then either pick a level from its configured ladder (the
    real breaker, with auto-resume) or leave the level blank for an indefinite
    halt, and confirm.</li>
-<li><strong>Use the kill switch in an emergency</strong> — on <strong>Gateway Management</strong>, the
-   <strong>Kill Switch</strong> panel cancels resting orders and quotes by symbol, by
+<li><strong>Use Mass Cancel in an emergency</strong> — on <strong>Gateway Management</strong>, the
+   <strong>Mass Cancel</strong> panel cancels resting orders and quotes by symbol, by
    gateway, or globally. All three scopes always confirm, and the global scope
    additionally requires typing <code>CONFIRM</code>. Remember it cancels exposure but
    does <em>not</em> stop trading.</li>
@@ -10818,7 +10826,7 @@ language rather than failing:</p>
    transitions that are currently legal are offered as buttons; confirm
    to transition, and watch the resulting phase arrive over the live session
    broadcast a moment later.</li>
-<li><strong>Kick a misbehaving gateway</strong> — from the gateway roster, <strong>Kick</strong>
+<li><strong>Kill a misbehaving gateway</strong> — from the gateway roster, <strong>Kill</strong>
    disconnects it and, as a side effect, cancels its resting orders and
    quotes — useful if a bot or a stuck session needs to be forcibly cleared
    without waiting for a broader halt.</li>
@@ -10985,7 +10993,7 @@ them is reversible with an undo:</p>
 <li>Flatten All</li>
 <li>Session transition</li>
 <li>Circuit-breaker halt and clear</li>
-<li>Gateway Kick</li>
+<li>Gateway Kill</li>
 <li>Kill switch, all three scopes — and Global additionally requires typing
   <code>CONFIRM</code></li>
 </ul>
@@ -11206,7 +11214,7 @@ outside that network, and it has to be told how to get back in.</p>
 <tr>
 <td>Login fails with "<code>ENGINE_AUTH</code>: …"</td>
 <td>The key is valid but <code>pm-engine</code> refused its gateway id</td>
-<td>Confirm the <code>gateway_id</code> exists under <code>participants</code> in <code>engine_config.yaml</code>. "Gateway already connected" means another client holds that id — a bot, a console, or <code>pm-api-gwy</code> itself, which keeps every id it has authenticated for as long as it runs. An ADMIN can free it with <strong>Kick</strong> on <a href="#gateway-management-and-the-kill-switch">Gateway Management</a> (this cancels the gateway's orders and quotes)</td>
+<td>Confirm the <code>gateway_id</code> exists under <code>participants</code> in <code>engine_config.yaml</code>. "Gateway already connected" means another client holds that id — a bot, a console, or <code>pm-api-gwy</code> itself, which keeps every id it has authenticated for as long as it runs. An ADMIN can free it with <strong>Kill</strong> on <a href="#gateway-management-and-the-kill-switch">Gateway Management</a> (this cancels the gateway's orders and quotes)</td>
 </tr>
 <tr>
 <td>Login fails with "Gateway reached, but the engine did not answer. Is pm-engine running?"</td>

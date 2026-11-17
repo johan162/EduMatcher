@@ -9904,7 +9904,7 @@ order ID for readability.</p>
 </ul>
 <h3 id="step-2-identify-which-leg-filled">Step 2: identify which leg filled<a class="headerlink" href="#step-2-identify-which-leg-filled" title="Permanent link">&para;</a></h3>
 <p>Later the operator may see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>The operator identifies this as the quote bid leg because:</p>
 <ul>
@@ -9912,7 +9912,7 @@ order ID for readability.</p>
 <li>therefore the bid side of <code>Q123</code> traded</li>
 </ul>
 <p>If instead the operator saw:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[09:31:02.417] FILL      be2170fd  qty=100 @210.2  remaining=400  [PARTIAL]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[09:31:02.417] FILL      be2170fd  qty=100 @210.20  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>that would mean the ask side of <code>Q123</code> traded.</p>
 <p>With <code>QLEGS</code>, this becomes a direct read:</p>
@@ -9928,7 +9928,7 @@ order ID for readability.</p>
 <p>What the operator should do next depends on the configured refresh policy.</p>
 <h4 id="case-a-inactivate_on_any_fill">Case A: <code>INACTIVATE_ON_ANY_FILL</code><a class="headerlink" href="#case-a-inactivate_on_any_fill" title="Permanent link">&para;</a></h4>
 <p>Typical terminal output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[09:31:02.418] CANCELLED be2170fd
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[09:31:02.418] QUOTE INACTIVE_BID_FILLED  Q123
 </code></pre></div>
@@ -9952,7 +9952,7 @@ order ID for readability.</p>
 </ul>
 <h4 id="case-b-inactivate_on_full_fill">Case B: <code>INACTIVATE_ON_FULL_FILL</code><a class="headerlink" href="#case-b-inactivate_on_full_fill" title="Permanent link">&para;</a></h4>
 <p>Typical terminal output after a partial fill:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>Operator interpretation:</p>
 <ul>
@@ -9969,7 +9969,7 @@ order ID for readability.</p>
 </ul>
 <h4 id="case-c-never_inactivate">Case C: <code>NEVER_INACTIVATE</code><a class="headerlink" href="#case-c-never_inactivate" title="Permanent link">&para;</a></h4>
 <p>Typical terminal output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>Operator interpretation:</p>
 <ul>

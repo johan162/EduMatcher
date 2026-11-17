@@ -7908,7 +7908,7 @@ letting the sell order rest.</p>
 <h2 id="step-6-read-the-fill-confirmation">Step 6 — Read the fill confirmation<a class="headerlink" href="#step-6-read-the-fill-confirmation" title="Permanent link">&para;</a></h2>
 <p>Both windows receive a <code>FILL</code> line the moment the trade happens. In
 <code>TRADER01</code>'s window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[09:31:07.552] FILL      855b6f946fe9cb7ae96bbda1c8d1dc06  qty=100 @150.0  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[09:31:07.552] FILL      855b6f946fe9cb7ae96bbda1c8d1dc06  qty=100 @150.00  remaining=0  [FILLED]
 </code></pre></div>
 <p>TRADER02 sees the same for its own order ID. <code>remaining=0</code> and <code>[FILLED]</code>
 mean the whole order traded. A partial fill would show <code>remaining=&lt;n&gt;</code> and
@@ -7923,7 +7923,7 @@ mean the whole order traded. A partial fill would show <code>remaining=&lt;n&gt;
 <p>You can ask the engine to state this for every fill. Start a console with
 <code>--drop-copy</code> (or type <code>DC|STATE=ON</code> in a connected one) and each of your fills
 is followed by a <strong>drop-copy</strong> line carrying the flag:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[09:31:07.552] DC_FILL   855b6f946fe9cb7ae96bbda1c8d1dc06  AAPL  qty=100 @150.0  [MAKER]  #1  (drop_copy.event.TRADER01)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[09:31:07.552] DC_FILL   855b6f946fe9cb7ae96bbda1c8d1dc06  AAPL  qty=100 @150.00  [MAKER]  #1  (drop_copy.event.TRADER01)
 </code></pre></div>
 <p>Drop copy is the independent copy of fills that a firm's risk and compliance
 staff receive. The Participant Guide covers it in
@@ -7934,11 +7934,11 @@ negative after selling shares you did not have (<em>short</em>). At the
 <code>[TRADER01]&gt;</code> prompt:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>POS
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>                                   Positions
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>                        Positions (P&amp;L since connect)
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>┏━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>┃ Symbol   ┃  Net Qty ┃   Avg Cost ┃    Last Px ┃   Unreal P&amp;L ┃     Real P&amp;L ┃
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>┡━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>│ AAPL     │     +100 │     150.00 │     150.00 │        +0.00 │        +0.00 │
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>│ AAPL     │     +100 │    150.000 │     150.00 │        +0.00 │        +0.00 │
 <a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>└──────────┴──────────┴────────────┴────────────┴──────────────┴──────────────┘
 </code></pre></div>
 <p>TRADER01 is long 100 shares bought at an average cost of 150.00. The last
@@ -7989,10 +7989,10 @@ before the engine.</p>
 orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>ORDERS
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>┃ ID                               ┃ Symbol ┃ Side ┃ Type  ┃ TIF ┃ Qty ┃ Rem ┃ Price ┃ Status ┃ Time     ┃
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>│ a129aadacb20eaf85c4eef86386be6e9 │ AAPL   │ BUY  │ LIMIT │ DAY │  50 │  50 │ 148.0 │ NEW    │ 09:34:15 │
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>│ 9ceca6d5db612b51d2dcb94ea880055f │ AAPL   │ SELL │ LIMIT │ GTC │ 100 │   0 │ 152.0 │ FILLED │ 09:32:40 │
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>│ 855b6f946fe9cb7ae96bbda1c8d1dc06 │ AAPL   │ BUY  │ LIMIT │ DAY │ 100 │   0 │ 150.0 │ FILLED │ 09:31:02 │
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>┃ ID                               ┃ Symbol ┃ Side ┃ Type  ┃ TIF ┃ Qty ┃ Rem ┃  Price ┃ Status ┃ Time     ┃
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>│ a129aadacb20eaf85c4eef86386be6e9 │ AAPL   │ BUY  │ LIMIT │ DAY │  50 │  50 │ 148.00 │ NEW    │ 09:34:15 │
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>│ 9ceca6d5db612b51d2dcb94ea880055f │ AAPL   │ SELL │ LIMIT │ GTC │ 100 │   0 │ 152.00 │ FILLED │ 09:32:40 │
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>│ 855b6f946fe9cb7ae96bbda1c8d1dc06 │ AAPL   │ BUY  │ LIMIT │ DAY │ 100 │   0 │ 150.00 │ FILLED │ 09:31:02 │
 </code></pre></div>
 <p>Then cancel it with the full ID:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>CANCEL|ID=a129aadacb20eaf85c4eef86386be6e9
@@ -8011,7 +8011,7 @@ note its ID, and then change its price to 149.00 and its quantity to 30:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00|TIF=DAY
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>AMEND|ID=&lt;the new order's ID&gt;|PRICE=149.00|QTY=30
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[09:35:40.229] AMENDED   73cfaf47645825b341c93513a908bd81  price=149.0 qty=30 remaining=30 (priority reset)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[09:35:40.229] AMENDED   73cfaf47645825b341c93513a908bd81  price=149.00 qty=30 remaining=30 (priority reset)
 </code></pre></div>
 <p><code>(priority reset)</code> matters. Orders at the same price trade in the order they
 arrived — <strong>price-time priority</strong> — and an amendment can cost you your place
@@ -8033,7 +8033,7 @@ prices available"</em>. First give it something to trade against. From
 <p>Then, from <code>[TRADER01]&gt;</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[09:36:51.703] FILL      53d7d9eae488049000d4131a1729cd07  qty=100 @151.0  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[09:36:51.703] FILL      53d7d9eae488049000d4131a1729cd07  qty=100 @151.00  remaining=0  [FILLED]
 </code></pre></div>
 <p>It filled at 151.00 — the resting seller's price, not one you chose. A market
 order trades certainty of execution for control over the price. In a thin

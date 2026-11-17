@@ -7851,8 +7851,8 @@ expire, because an <code>ATO</code> order only lives for the opening auction.</p
 fill events, and confirm it equals <code>149.80</code> and the total filled quantity
 equals <code>400</code> (300 from TRADER01's first order + 100 from the
 second, against TRADER02's 400-share sell). On <code>TRADER01</code> you see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>FILL      &lt;first order id&gt;   qty=300 @149.8  remaining=0    [FILLED]
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>FILL      &lt;second order id&gt;  qty=100 @149.8  remaining=100  [PARTIAL]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>FILL      &lt;first order id&gt;   qty=300 @149.80  remaining=0    [FILLED]
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>FILL      &lt;second order id&gt;  qty=100 @149.80  remaining=100  [PARTIAL]
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>EXPIRED   &lt;second order id&gt;  (Opening auction ended)
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>EXPIRED   &lt;MSFT order id&gt;    (Opening auction ended)
 </code></pre></div>
@@ -7884,7 +7884,7 @@ are generated:</p>
 <p>Both orders fill in full at one price, <strong>150.60</strong>: the candidates 150.60 and
 150.80 both match 100 shares with no surplus, and the engine keeps the lower of
 two tied prices, exactly as in Exercise 2. Each console prints
-<code>FILL … qty=100 @150.6 remaining=0 [FILLED]</code>.</p>
+<code>FILL … qty=100 @150.60 remaining=0 [FILLED]</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> closing auction produces fills.</p>
 <h2 id="exercise-5-gtc-orders-in-auctions">Exercise 5: GTC Orders in Auctions<a class="headerlink" href="#exercise-5-gtc-orders-in-auctions" title="Permanent link">&para;</a></h2>
 <p>GTC orders participate in auctions alongside ATO/ATC orders. Prove it for the
@@ -7900,7 +7900,7 @@ and uncross:</p>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=ATO
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
-<p>Both consoles report <code>FILL … qty=50 @150.0 [FILLED]</code>: the GTC bid, placed
+<p>Both consoles report <code>FILL … qty=50 @150.00 [FILLED]</code>: the GTC bid, placed
 before the auction began, was matched in it. The same holds in the closing
 auction — rest a GTC bid during <code>CONTINUOUS</code>, send an <code>ATC</code> sell at the same
 price after <code>SESSION|STATE=CLOSING_AUCTION</code>, and they trade when the session

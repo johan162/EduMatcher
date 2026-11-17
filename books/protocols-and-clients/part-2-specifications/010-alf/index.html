@@ -9880,11 +9880,14 @@ gateway session's own local ledger — <code>pm-alf-console</code> only; <code>p
 rejects it with <code>ERR|CODE=MISSING_FIELD|DETAIL=POS requires GW=&lt;gateway_id&gt;</code>
 (see the note above).</p>
 <p><code>POS|GW=&lt;gateway_id&gt;</code> asks the engine what <em>any</em> gateway is holding —
-typically a running <code>pm-mm-bot</code> instance, but any connected gateway_id
-works, including your own. Both clients send <code>system.position_request</code> for
+typically a running <code>pm-mm-bot</code> instance, but any configured gateway_id
+works, connected or not, including your own. Both clients send <code>system.position_request</code> for
 that <code>gateway_id</code> and render the engine's <code>system.position_snapshot.
 {gateway_id}</code> reply: net quantity and average cost per symbol, for every
-symbol that gateway has a non-zero position in. This is always a genuine
+symbol that gateway has a non-zero position in. The reply's status tells a
+logged-off participant (<code>NOT_CONNECTED</code>, positions still listed) and an id
+no participant has (<code>UNKNOWN_GATEWAY</code>) apart from a flat one; <code>pm-alf-gwy</code>
+carries it as <code>STATUS=</code> on the <code>POSITION</code> line. This is always a genuine
 engine round trip, in both clients — it does not use either client's local
 fill ledger. See <a href="../../../operator-guide/part-5-gateways/010-alf-gateway/#posgwgateway_id-query-another-gateways-position">ALF TCP Gateway → POS</a>
 for the wire-level request/reply shape.</p>
