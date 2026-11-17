@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v0810-2026-11-17" class="md-skip">
+        <a href="#v0811-2026-11-17" class="md-skip">
           Skip to content
         </a>
       
@@ -7526,7 +7526,7 @@
 
   <h1>CHANGELOG</h1>
 
-<h2 id="v0810-2026-11-17">[v0.81.0] - 2026-11-17<a class="headerlink" href="#v0810-2026-11-17" title="Permanent link">&para;</a></h2>
+<h2 id="v0811-2026-11-17">[v0.81.1] - 2026-11-17<a class="headerlink" href="#v0811-2026-11-17" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
 <h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
 <p>This release makes halts survive an engine restart, lets subscribers detect trades lost at the end of a run, and adds a way to rebuild the clearing ledger from the audit trail. It also lets BALF participants recover their resting orders after a gateway restart, and improves the reliability of the ALF console, log server and monitor.</p>
@@ -7553,6 +7553,7 @@
 <li>Fixed refused connections from unknown gateway ids leaving engine session state behind</li>
 <li>Fixed <code>pm-admin</code> reporting <code>TIMEOUT</code> for an illegal session transition instead of the engine's reason</li>
 <li>Fixed REST admin queries for an unknown gateway; they now answer <code>404 UNKNOWN_GATEWAY</code></li>
+<li>Fixed cleanup on log-srv ven if it has been running for less than 1 h (fést failure on a fresh VM)</li>
 </ul>
 <h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
