@@ -148,7 +148,9 @@ class LogServer:
 
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
-        self._last_retention_check = 0.0
+        # -inf, not 0: monotonic() counts from host boot, so 0 delayed the
+        # first prune by up to an hour on a recently booted host.
+        self._last_retention_check = float("-inf")
         #: Cutoff of the prune in progress (one chunk per loop pass), or None.
         self._prune_cutoff: str | None = None
         self._pruned = 0

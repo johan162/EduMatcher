@@ -969,6 +969,34 @@ def test_one_retention_pass_deletes_at_most_one_chunk(
         server.close()
 
 
+def test_first_retention_pass_is_due_on_a_freshly_booted_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``time.monotonic()`` counts from host boot: on a host up for less than
+    the retention interval (a fresh CI runner, a rebooted server) a check
+    timestamp starting at 0 made the first prune wait for up to an hour."""
+    import types
+
+    import edumatcher.log_srv.server as server_mod
+
+    server = LogServer(LogServerConfig(bind_address=_HOST, db_path=tmp_path / "log.db"))
+    try:
+        _insert_old_rows(server, 1)
+        monkeypatch.setattr(
+            server_mod,
+            "time",
+            types.SimpleNamespace(
+                time=time.time, monotonic=lambda: 60.0, sleep=time.sleep
+            ),
+        )
+        server._run_retention_if_due()
+        assert server._conn.execute("SELECT COUNT(*) FROM log_events").fetchone() == (
+            0,
+        )
+    finally:
+        server.close()
+
+
 def test_err_replies_are_counted_without_a_commit_each(tmp_path: Path) -> None:
     server = LogServer(LogServerConfig(bind_address=_HOST, db_path=tmp_path / "log.db"))
     statements: list[str] = []
