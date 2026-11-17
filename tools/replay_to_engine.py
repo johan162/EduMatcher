@@ -40,6 +40,7 @@ from edumatcher.models.message import (
     decode,
     encode,
     make_gateway_connect_msg,
+    make_gateway_heartbeat_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
     make_order_new_msg,
@@ -178,6 +179,11 @@ class ReplayClient:
             if f"system.gateway_auth.{GATEWAY_ID}" in topic:
                 if payload.get("accepted"):
                     print(f"[REPLAY] Gateway {GATEWAY_ID} authenticated.")
+                    # The engine times out a session that does not beat; one
+                    # beat at the longest interval covers a replay (3 h).
+                    self.push_sock.send_multipart(
+                        make_gateway_heartbeat_msg(GATEWAY_ID, interval_sec=3600)
+                    )
                     return True
                 else:
                     reason = payload.get("reason", "unknown")

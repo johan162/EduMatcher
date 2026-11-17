@@ -166,6 +166,36 @@ def _close_registered_resources() -> Generator[None, None, None]:
         _OPENED.pop().close()
 
 
+@pytest.fixture
+def descriptors_above_1023() -> Generator[None, None, None]:
+    """Hold enough descriptors open that the next socket lands above 1023.
+
+    That is the range ``select()`` cannot watch. The soft limit is raised
+    for the duration of the test: macOS gives GUI-launched shells 256, where
+    opening 1100 descriptors fails halfway and -- before this fixture --
+    leaked the ones already opened, so every later test in the run failed
+    with EMFILE too.
+    """
+    import resource
+
+    held_count = 1100
+    needed = held_count + 256
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft != resource.RLIM_INFINITY and soft < needed:
+        if hard != resource.RLIM_INFINITY and hard < needed:
+            pytest.skip(f"needs {needed} file descriptors, hard limit is {hard}")
+        resource.setrlimit(resource.RLIMIT_NOFILE, (needed, hard))
+    held: list[int] = []
+    try:
+        for _ in range(held_count):
+            held.append(os.open(os.devnull, os.O_RDONLY))
+        yield
+    finally:
+        for fd in held:
+            os.close(fd)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--update-goldens",

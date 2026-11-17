@@ -43,7 +43,7 @@ def _make_gateway(gw_id: str = "GW01"):
         ),
         patch(
             "edumatcher.alf_console.main.make_subscriber",
-            side_effect=lambda _addr, *_t: sub_calls.pop(0),
+            side_effect=lambda _addr, *_t, **_kw: sub_calls.pop(0),
         ),
     ):
         gw = Gateway(gw_id)

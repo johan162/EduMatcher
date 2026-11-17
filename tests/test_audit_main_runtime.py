@@ -430,6 +430,18 @@ class TestMissedMessages:
             _record(proc, "trade.executed", eseq)
         assert _samples(proc)["audit.missed_messages"] == 4
 
+    def test_trades_lost_just_before_the_engine_stopped_are_counted(
+        self, tmp_path: Path
+    ) -> None:
+        """For-Later L022 (WP-FL04): system.eod is on the same publisher-wide
+        sequence, so the run's last trades lost before it show as a jump --
+        unlike a per-topic or trade-id check, which needs a later trade."""
+        proc = self._proc(tmp_path)
+        for eseq in (1, 2, 3):
+            _record(proc, "trade.executed", eseq)
+        _record(proc, "system.eod", 6)  # trades 4 and 5 never arrived
+        assert _samples(proc)["audit.missed_messages"] == 2
+
     def test_a_restart_of_the_engine_is_not_a_miss(self, tmp_path: Path) -> None:
         proc = self._proc(tmp_path)
         for eseq in (1, 2, 3):

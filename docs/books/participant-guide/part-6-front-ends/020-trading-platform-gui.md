@@ -1240,30 +1240,39 @@ confirms and then resumes trading.
 
 ### Gateway Management and the Kill Switch
 
-The roster from `GET /admin/gateways` shows Gateway ID, Role, Description and
-a live connection dot (`Connected` / `Offline`), with an `N / M connected`
+The roster from `GET /admin/gateways` shows Gateway ID, Role, Description,
+a live connection dot (`Connected` / `Offline`) and **Connected since**, the
+time the engine accepted the current connection (`YYYY-MM-DD HH:MM:SS` in the
+session timezone, `—` while offline), with an `N / M connected`
 count and a **Refresh** button in the header.
 
-**Kick** disconnects a gateway. It always confirms, and the confirmation spells
+Above the table, **Find ID** (part of an ID, any case) and the role filter
+narrow the whole roster, not just the page on show; the count beside them reads
+*"N participants of M"* while a filter is on. The pager on the right shows
+*Page N/M* with previous/next and 10, 30 (default), 50, 100 or all rows per
+page — the same controls as the Participants row in `pm-dash`. The browser
+remembers the rows-per-page choice.
+
+**Kill** (red-bordered, in the row and in the participant drawer) disconnects a gateway. It always confirms, and the confirmation spells
 out the side effect: disconnecting a gateway also **cancels all of its active
 orders and quotes**. It is disabled for gateways that are already offline.
 
-The **Kill Switch** panel below cancels resting orders and quotes at three
+The **Mass Cancel** panel above the roster (the engine kill switch) cancels resting orders and quotes at three
 scopes. All three always confirm regardless of the power-user setting, and all
-three report what they actually cancelled (*"Kill switch AAPL: 12 orders, 2
+three report what they actually cancelled (*"Mass cancel AAPL: 12 orders, 2
 quotes cancelled"*).
 
 | Scope | Effect |
 |---|---|
 | **By Symbol** | Cancels every resting order and quote for that symbol, across every gateway |
-| **By Gateway** | Cancels everything belonging to one gateway; the gateway stays connected and may re-submit |
+| **By Participant** (**Cancel orders only**) | Cancels everything belonging to one gateway; unlike **Kill**, the gateway stays connected and may re-submit |
 | **Global** | Cancels everything for every gateway, reporting the affected gateway count |
 
 The **Global** scope additionally requires typing `CONFIRM` before it will
 run, since it is a full-market emergency stop.
 
-!!! warning "The kill switch cancels; it does not halt"
-    Kill-switch scopes remove exposure. They do **not** stop trading —
+!!! warning "Mass Cancel cancels; it does not halt"
+    Mass Cancel scopes remove exposure. They do **not** stop trading —
     participants can immediately submit new orders. To stop trading, use a
     circuit-breaker halt or a session transition.
 
@@ -1407,7 +1416,7 @@ wording:
 | Session transition | *"Transition submitted — awaiting engine confirmation"* |
 | CB halt | *"Halt submitted for `{symbol}` — awaiting confirmation"* |
 | CB resume | *"Resume submitted for `{symbol}` — awaiting confirmation"* |
-| Kill switch | *"Kill switch submitted — awaiting engine confirmation"* |
+| Mass cancel | *"Mass cancel submitted — awaiting engine confirmation"* |
 
 Amend, cancel, group and quote cancels, and Flatten don't wait: the gateway
 answers at once and the outcome arrives in the blotter. Any error on them,
@@ -1536,8 +1545,8 @@ language rather than failing:
    yourself, pick it, then either pick a level from its configured ladder (the
    real breaker, with auto-resume) or leave the level blank for an indefinite
    halt, and confirm.
-4. **Use the kill switch in an emergency** — on **Gateway Management**, the
-   **Kill Switch** panel cancels resting orders and quotes by symbol, by
+4. **Use Mass Cancel in an emergency** — on **Gateway Management**, the
+   **Mass Cancel** panel cancels resting orders and quotes by symbol, by
    gateway, or globally. All three scopes always confirm, and the global scope
    additionally requires typing `CONFIRM`. Remember it cancels exposure but
    does *not* stop trading.
@@ -1545,7 +1554,7 @@ language rather than failing:
    transitions that are currently legal are offered as buttons; confirm
    to transition, and watch the resulting phase arrive over the live session
    broadcast a moment later.
-6. **Kick a misbehaving gateway** — from the gateway roster, **Kick**
+6. **Kill a misbehaving gateway** — from the gateway roster, **Kill**
    disconnects it and, as a side effect, cancels its resting orders and
    quotes — useful if a bot or a stuck session needs to be forcibly cleared
    without waiting for a broader halt.
@@ -1619,7 +1628,7 @@ them is reversible with an undo:
 - Flatten All
 - Session transition
 - Circuit-breaker halt and clear
-- Gateway Kick
+- Gateway Kill
 - Kill switch, all three scopes — and Global additionally requires typing
   `CONFIRM`
 
@@ -1721,7 +1730,7 @@ outside that network, and it has to be told how to get back in.
 |---|---|---|
 | Login fails with "Invalid API key" | The key is missing, mistyped, or not present in `engine_config.yaml` | Check `api_gateways.<name>.credentials` and confirm the key you pasted matches exactly |
 | Login fails with "`ROLE_UNSUPPORTED`: Unsupported role: READ_ONLY" | The key is a read-only credential (`gateway_id: null`) | Use a key bound to a `gateway_id`; read-only keys are for observer tools like TapeDeck |
-| Login fails with "`ENGINE_AUTH`: …" | The key is valid but `pm-engine` refused its gateway id | Confirm the `gateway_id` exists under `participants` in `engine_config.yaml`. "Gateway already connected" means another client holds that id — a bot, a console, or `pm-api-gwy` itself, which keeps every id it has authenticated for as long as it runs. An ADMIN can free it with **Kick** on [Gateway Management](#gateway-management-and-the-kill-switch) (this cancels the gateway's orders and quotes) |
+| Login fails with "`ENGINE_AUTH`: …" | The key is valid but `pm-engine` refused its gateway id | Confirm the `gateway_id` exists under `participants` in `engine_config.yaml`. "Gateway already connected" means another client holds that id — a bot, a console, or `pm-api-gwy` itself, which keeps every id it has authenticated for as long as it runs. An ADMIN can free it with **Kill** on [Gateway Management](#gateway-management-and-the-kill-switch) (this cancels the gateway's orders and quotes) |
 | Login fails with "Gateway reached, but the engine did not answer. Is pm-engine running?" | `pm-api-gwy` is up but cannot reach the matching engine | Confirm `pm-engine` is running and the gateway's connection to it is healthy |
 | "Cannot reach the API gateway. Is pm-api-gwy running?" | The browser's `fetch()` to `pm-api-gwy` failed outright | Confirm `pm-api-gwy` is running and reachable at `VITE_API_BASE` (dev) or behind your reverse proxy (production) |
 | Connection banner shows "Reconnecting…" or "Disconnected" after a successful login | The events/market-data WebSocket dropped | Confirm `pm-api-gwy` is still running; the banner clears automatically once the socket reconnects, and `orders.snapshot` resyncs the blotter |

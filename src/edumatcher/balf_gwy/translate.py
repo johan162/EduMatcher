@@ -121,6 +121,9 @@ def build_engine_new_order(
         "ts_ns": now_ns(),
         "smp_action": smp_str,
         "status": "NEW",
+        # So a fresh pm-balf-gwy can give the order back under the client's
+        # own reference when it adopts it at logon (ORDER_STATUS, L027).
+        "client_tag": str(parsed["client_order_id"]),
     }
     if price_ticks is not None:
         order["price_ticks"] = price_ticks

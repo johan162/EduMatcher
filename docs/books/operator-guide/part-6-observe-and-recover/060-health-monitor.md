@@ -150,7 +150,7 @@ Every second `pm-monitor` judges each process. The first matching rule wins:
 | **DEAD** | Gone | No beacon for `silent_after_beacons` × its beacon interval (6 s by default), and its process no longer exists. For a process on another host, which cannot be checked, after twice that |
 | **SILENT** | Stuck, still there | No beacon for that long, but the process still exists: the whole interpreter is stuck, or beacons cannot reach `pm-monitor` |
 | **HUNG** | Main loop stuck | Beacons arrive, but the main loop has not completed an iteration for more than `hung_after_sec` (5 s). While a process is still starting up (its loop has not run once yet) it gets 120 s instead. Time the whole process stood still — reported SILENT, after a `kill -STOP` or a suspended host — does not count |
-| **DEGRADED** | Working, but something is off | A threshold on this process is in breach, or its loop ran more than 1 s late since the previous beacon |
+| **DEGRADED** | Working, but something is off | A threshold on this process is in breach, for example `loop_age_ms` or `loop_lag_ms` (its loop more than 1 s late), `rss_growth_pct_1h` or `engine_handle_p99_us`. The `PROCESS_STATUS` event names the breach(es) |
 | **HEALTHY** | — | None of the above |
 
 A process that restarted (a new incarnation of the same name, instance and
@@ -180,9 +180,10 @@ and nothing is MISSING.
 | `disk_free_pct` (data directory) | `host` | < 15 % | < 5 % |
 | `engine_handle_p99_us` | the engine | > 5 000 µs | > 20 000 µs |
 | `reject_pct_5m` — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min; `MARKET_CLOSED` rejects are left out (see below) | `exchange` | > 10 % | > 30 % |
-| `rss_growth_pct_1h` — judged once a process has been watched for 10 min, only when the hour added at least 100 MB and RSS rose at least 1 % in the last 15 min, with less than half of the hour's growth falling in those 15 min (a step, such as the ramp when continuous trading starts, is not a leak, neither while it happens nor after it has levelled off) | a process | > 50 % | > 100 % |
+| `rss_growth_pct_1h` — judged once a process has been watched for 10 min, only when the hour added at least 100 MB and each quarter of the hour (15 min) added at least a tenth of that growth. A leak grows across the whole hour; a step, such as memory filling over the first quarter of an hour of continuous trading, grows in one part of it and is not a leak. The percentage is of the RSS an hour ago, so a leak that goes on for hours shows a falling figure and eventually clears: watch the RSS chart, not only the alarm | a process | > 50 % | > 100 % |
 | `heap_bloat_ratio` — a book's heap size over the size compaction tolerates; 1 is the limit | a symbol | > 1.5 | > 3 |
-| `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
+| `loop_age_ms` (fixed) — time since the main loop last ticked | a process | > 1 000 ms | (HUNG) |
+| `loop_lag_ms` (fixed) — the longest gap between two ticks since the previous beacon | a process | > 1 000 ms | — |
 | `slow_client_disconnects`, `api_dropped_events`, `api_throttled`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
 | `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
 | `md_bus_gaps` (fixed) — engine or `pm-index` messages that never reached `pm-md-gwy` (dropped at its receive buffer), so no CALF client saw them; `md.bus_gaps` counts them by topic family | `pm-md-gwy` | any increase in 5 min | — |
@@ -205,8 +206,12 @@ lists every `MARKET_CLOSED` reject, and the participants table's own reject
 percentage still includes them.
 
 The configurable rules take their levels from `monitor.thresholds`. A breach
-is raised after five consecutive seconds over a warn level (a critical level
-is raised at once), so one noisy sample is not a breach. It clears (or eases
+is raised after five consecutive seconds over a warn level, so one noisy
+sample, or one late loop iteration, is not a breach. Exceptions: a critical
+level, an "any increase" rule and a loop already past the HUNG limit are
+raised at once; `engine_handle_p99_us` waits 90 seconds, because its figure
+covers the engine's last minute and a burst of a few slow messages holds it
+there for the whole minute. It clears (or eases
 from critical to warning) only after thirty consecutive seconds at the lower
 level, each with the value back inside 80 % of the threshold it crossed, so a
 value hovering around a threshold produces one breach and one clear, not a
@@ -214,12 +219,15 @@ flood. Each breach and
 each clear is one `THRESHOLD` event and one log line through the log server
 (`threshold host_cpu_pct WARN 81 > 80 on host` at WARNING, critical at ERROR,
 a clear at INFO), so the log console's alerting already covers notification.
+A breach that holds while its value is already back inside the limit reads
+`host_cpu_pct WARN clearing (6.5)`; a rule that stops judging (it declined,
+or the process went away) clears as `cleared (no longer judged; last …)`.
 
 **Events** — the event log `pm-monitor-cli events` shows:
 
 | Kind | From | Subject · detail |
 |---|---|---|
-| `PROCESS_STATUS` | a state change | process key · `HEALTHY -> HUNG` (a process first seen HEALTHY is not news) |
+| `PROCESS_STATUS` | a state change | process key · the change and, after a colon, why: `HEALTHY -> DEGRADED: engine_handle_p99_us CRIT 25000 > 20000; host: host_cpu_pct CRIT 97.1 > 95`, `HEALTHY -> HUNG: loop_age_ms 6000 > 5000`, `HEALTHY -> DEAD: no beacon for 7.0 s, process gone` (a process first seen HEALTHY is not news) |
 | `THRESHOLD` | a breach or clear | the subject · `host_cpu_pct WARN 81 > 80` |
 | `CONNECT` / `AUTH_REJECT` | engine bus | gateway id · description or reason |
 | `DISCONNECT` | engine bus | gateway id · reason (`heartbeat_timeout` is a WARN) |
@@ -461,7 +469,7 @@ pm-monitor-cli --format json status | jq '.processes[] | {key, state}'
 | Every process MISSING or SILENT, `pm-monitor` itself fine | Beacons cannot reach `pm-monitor`: `host` does not reach `bind_address` | `pm-cverifier` reports `M031`; align `host` and `bind_address` |
 | A process SILENT | Its process exists but sends nothing: the whole interpreter is stuck | A Python stack dump (for example `py-spy dump --pid PID`, if installed) shows where; then restart it |
 | A process HUNG | Its main loop is stuck while its beacon thread runs | Its log around the time; restart it |
-| A process DEGRADED | A threshold on it, or its loop ran late | `status` lists the breach; `events --subject <key>` |
+| A process DEGRADED | A threshold on it: the `PROCESS_STATUS` event names it | `events --subject <key>`; `status` lists the breaches in force. With a `host:` breach beside it, the machine is saturated (another load on the host?) |
 | `pm-monitor` exits: another `pm-monitor` writes `metrics.db` | Two started on one data directory | Stop the other one |
 | `pm-monitor` exits: recorded with another timezone | `locale.session_timezone` changed | Restore it, or move `metrics.db` aside |
 | Today's counts start from zero after a `pm-monitor` restart | First start with this `metrics.db` (or it was cleared), or `pm-monitor` was down across midnight in the session timezone | Expected; later restarts on the same day resume exactly |

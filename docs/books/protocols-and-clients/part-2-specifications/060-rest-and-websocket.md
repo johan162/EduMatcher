@@ -210,6 +210,7 @@ the OpenAPI document lists all of them per operation.
 | `NOT_FOUND` | `404` | `UNKNOWN` | No such path |
 | `UNKNOWN_ORDER` | `404` | `UNKNOWN` | Order id unknown to the gateway (`GET /orders/{id}`) or absent from the audit trail (`GET /admin/orders/{id}`) |
 | `UNKNOWN_COMPANY` | `404` | `UNKNOWN` | No company profile for the symbol |
+| `UNKNOWN_GATEWAY` | `404` | `UNKNOWN` | No participant has the gateway id (`GET /admin/gateways/{id}/positions`, `/orders`) |
 | `UNKNOWN_SYMBOL` | `404` | `UNKNOWN` | The symbol is not in the venue's reference data (`GET /book/{symbol}`) |
 | `METHOD_NOT_ALLOWED` | `405` | `UNKNOWN` | The path exists but not for this method; the reply carries `Allow` |
 | `TRANSITION_REJECTED` | `409` | `UNKNOWN` | The engine refused the session transition |
@@ -2550,6 +2551,11 @@ Purpose: list configured gateways and live connection state.
 |---|---|---|
 | `200 OK` | `{ "gateways": [...] }` | Gateway roster and connection status |
 
+Each entry has `id`, `role`, `description` and `connected`. A connected
+gateway also carries `connected_since_ns`: when the engine accepted its current
+connection, in epoch nanoseconds. The field is absent while the gateway is
+offline.
+
 **Errors**
 
 | Code | Status | When |
@@ -2685,7 +2691,7 @@ gateway has seen since it started.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "orders": [...], "count": N }` | Same shape as `GET /orders` |
+| `200 OK` | `{ "orders": [...], "count": N, "status" }` | Same shape as `GET /orders`; `status` is `OK` for a connected gateway, `NOT_CONNECTED` for a logged-off participant, whose orders are still listed |
 
 **Errors**
 
@@ -2694,6 +2700,7 @@ gateway has seen since it started.
 | `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
 | `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_GATEWAY` | `404` | No participant has this gateway id |
 | `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/admin/symbols/{symbol}/orders`
@@ -2798,7 +2805,7 @@ command -- all three read the same `system.position_request` /
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "gateway_id", "count", "positions": [{ "symbol", "net_qty", "avg_cost" }, ...] }` | Net position and average cost per symbol for the target gateway |
+| `200 OK` | `{ "gateway_id", "count", "positions": [{ "symbol", "net_qty", "avg_cost" }, ...] }` | Net position and average cost per symbol for the target gateway, connected or not |
 
 **Errors**
 
@@ -2807,6 +2814,7 @@ command -- all three read the same `system.position_request` /
 | `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
 | `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_GATEWAY` | `404` | No participant has this gateway id |
 | `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/symbols/{symbol}/cancel-orders`

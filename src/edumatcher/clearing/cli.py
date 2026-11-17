@@ -498,6 +498,36 @@ def build_parser() -> argparse.ArgumentParser:
     gaps.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
     gaps.add_argument("--limit", type=int, default=500, metavar="N")
 
+    # rebuild
+    rebuild = sub.add_parser(
+        "rebuild",
+        help=(
+            "Replay the audit trail into a new clearing DB and list the positions "
+            "that differ from this one (exit 3 when any do)"
+        ),
+        description=(
+            "Rebuild the ledger from pm-audit's trade.executed lines, in order, "
+            "into a NEW database (the live one is only read), copy its close "
+            "snapshots over, and list every gateway/symbol position that differs. "
+            "The audit trail must reach back to the live ledger's first trading "
+            "day. Exit 0: no difference; 3: differences listed; 1: refused."
+        ),
+    )
+    rebuild.add_argument(
+        "--from-audit",
+        required=True,
+        type=Path,
+        metavar="DATA_DIR",
+        help="Data directory holding pm-audit's audit.log and audit/ archives",
+    )
+    rebuild.add_argument(
+        "--output",
+        required=True,
+        type=Path,
+        metavar="PATH",
+        help="The new database to write; must not exist",
+    )
+
     # prune
     prune = sub.add_parser(
         "prune",
@@ -797,6 +827,41 @@ def _upper(val: str | None) -> str | None:
     return val.upper() if val else None
 
 
+def _run_rebuild(db_path: Path, args: argparse.Namespace) -> None:
+    """Rebuild into ``--output`` and print the positions that differ."""
+    from edumatcher.clearing.rebuild import RebuildError, rebuild_from_audit
+
+    if not db_path.exists():
+        print(f"[ERROR] Clearing DB not found: {db_path}", file=sys.stderr)
+        raise SystemExit(1)
+    try:
+        report = rebuild_from_audit(args.from_audit, db_path, args.output)
+    except (RebuildError, sqlite3.Error) as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    rows = report.differences
+    columns = list(rows[0]) if rows else ["gateway_id", "symbol"]
+    if args.format == "json":
+        _render_json(rows, columns)
+    elif args.format == "csv":
+        _render_csv(rows, columns, no_header=args.no_header)
+    else:
+        print(
+            f"Rebuilt {args.output} from {report.trades} audited trade(s); "
+            f"{len(rows)} position(s) differ from {db_path}.",
+            file=sys.stderr,
+        )
+        if report.gaps:
+            print(
+                f"The audit trail itself misses trades: {report.gaps} gap(s), "
+                f"see `pm-clearing-cli --datapath {args.output} gaps`.",
+                file=sys.stderr,
+            )
+        _render_table(rows, columns, no_header=args.no_header)
+    if rows:
+        raise SystemExit(3)
+
+
 def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
     """Execute or dry-run the retention prune of an existing clearing DB."""
     days: int = args.days
@@ -1059,6 +1124,9 @@ def main() -> None:
     # prune needs write access; all other verbs are read-only.
     if args.command == "prune":
         _run_prune(db_path, args)
+        return
+    if args.command == "rebuild":
+        _run_rebuild(db_path, args)
         return
     try:
         conn = open_readonly_connection(db_path)

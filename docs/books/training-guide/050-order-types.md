@@ -80,7 +80,7 @@ That trade at 149.30 is at or below the stop, so the stop triggers and becomes
 a market sell, which fills against the remaining 100 bid at 149.30:
 
 ```
-[<time>] FILL      <order_id>  qty=100 @149.3  remaining=0  [FILLED]
+[<time>] FILL      <order_id>  qty=100 @149.30  remaining=0  [FILLED]
 ```
 
 Interpretation: 149.50 was the **trigger**, not the execution price. A stop
@@ -260,7 +260,7 @@ stayed at 149.80 this trade would not have touched it:
 149.70 bid:
 
 ```
-[<time>] FILL      <order_id>  qty=100 @149.7  remaining=0  [FILLED]
+[<time>] FILL      <order_id>  qty=100 @149.70  remaining=0  [FILLED]
 ```
 
 The stop only moves **up** (for a sell) or **down** (for a buy) — never against

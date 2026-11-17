@@ -448,3 +448,31 @@ def test_handwritten_broken_config_is_caught(tmp_path: Path) -> None:
         if r.path.startswith("log_server")
     }
     assert {"S099", "S102", "S103"} <= codes
+
+
+# ---------------------------------------------------------------------------
+# WP-LOG07: the loader refuses what pm-log-srv cannot honour (C10)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("enabled", "false"), ("pubsub_enabled", "no")]
+)
+def test_the_loader_refuses_a_non_boolean_switch(field: str, value: str) -> None:
+    from edumatcher.log_srv.config import validate_log_server_section
+
+    with pytest.raises(ValueError, match=f"log_server.{field}"):
+        validate_log_server_section({"log_server": {field: value}})
+
+
+@pytest.mark.parametrize("name", ["a|b", "a\nb"])
+def test_the_loader_refuses_a_name_the_welcome_line_cannot_carry(name: str) -> None:
+    from edumatcher.log_srv.config import validate_log_server_section
+
+    with pytest.raises(ValueError, match="log_server.name"):
+        validate_log_server_section({"log_server": {"name": name}})
+
+
+def test_cverifier_reports_a_name_with_a_separator() -> None:
+    findings = _log_server_findings({**_GOOD_LOG_SERVER, "name": "a|b"})
+    assert findings == [("S101", "log_server")]

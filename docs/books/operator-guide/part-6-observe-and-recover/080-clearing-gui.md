@@ -94,10 +94,13 @@ make dev                                             # Vite on :8196, /api → l
   of lag is normal; minutes mean `pm-clearing` is stalled or not receiving.
 - *Feed gap* (red alert): `pm-clearing` saw the engine's trade ids jump on
   the latest session date — trades it never received, either lost on the bus
-  while it ran or made while it was not running (`pm-clearing-cli gaps` shows
-  the reason, `feed` or `restart`). Positions and P&L are missing them.
-  Check the audit trail for the missing ids. No gap does not prove the feed
-  was complete: trades lost at the very end of an engine run cannot be seen.
+  while it ran, made while it was not running, or lost just before the engine
+  stopped (`pm-clearing-cli gaps` shows the reason, `feed`, `restart` or
+  `end_of_run`; the last comes from the run's last trade id on the engine's
+  `system.eod`). Positions and P&L are missing them. Check the audit trail
+  for the missing ids. A run's end is checked only if `pm-clearing` receives
+  that `system.eod`: an engine run that ended while `pm-clearing` was down
+  can still hide trades lost at its very end.
 - *Health*: two separate lines. **Database** — whether `clearing.db` could be
   read, its journal mode and row counts. **pm-clearing process** — whether
   its receive loop answered a ping. A readable database with a silent

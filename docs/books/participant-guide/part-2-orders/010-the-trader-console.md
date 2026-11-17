@@ -162,12 +162,25 @@ The ID must be preconfigured in `engine_config.yaml` under `participants`.
 On startup, the terminal:
 
 1. Connects PUSH socket to the engine PULL port (5555)
-2. Connects SUB socket to the engine PUB port (5556)
-3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.cancel_ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancel_ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.cancel_ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.quote_bootstrap.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
+2. Connects SUB socket to the engine PUB port (5556), with a 200 000-message
+   receive buffer
+3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.triggered.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.cancel_ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancel_ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.cancel_ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.quote_bootstrap.{ID}`, `system.session_status.{ID}`, `system.gateway_auth.{ID}`, `system.position_snapshot.` (every participant's, for `POS` and `POS|GW=`), `trade.executed`
 4. Sends `system.gateway_connect` and waits up to **3 seconds** for the auth response
-5. If accepted: enters the interactive prompt loop
-6. If rejected: prints the reason and exits immediately
-7. If timeout (engine not running): exits with "Gateway authentication timed out"
+5. If rejected: prints `Logon failed: <the engine's reason>` and exits with status 1
+6. If the connect cannot even be sent (engine not running or not reachable):
+   prints `Logon failed: Engine not reachable at tcp://…:5555 (is pm-engine
+   running?)` and exits with status 1
+7. If no reply within 3 seconds: prints `Logon failed: Gateway authentication
+   timed out` and exits with status 1
+8. If accepted: asks the engine for its symbol list, your resting orders and
+   your position, and opens the prompt once the symbol list has arrived (it
+   carries each symbol's tick size, which every price you type is converted
+   with). Without a symbol list within 3 seconds it prints `Logon failed: the
+   engine did not send its symbol list …` and exits with status 1.
+
+The exit status is 0 when you leave with `EXIT`, `QUIT`, Ctrl-D or Ctrl-C, and
+1 when the logon fails or the engine connection is lost, so a wrapper script
+can tell the cases apart.
 
 !!! note "A second pair of sockets talks to pm-index"
     Independently of the engine sockets above, `pm-alf-console` also opens a
@@ -181,8 +194,9 @@ On startup, the terminal:
 
 !!! note "A third socket talks to the drop-copy feed"
     `pm-alf-console` also connects a SUB socket to the engine's drop-copy PUB
-    port (`DROP_COPY_PUB_ADDR`, default `:5557`), but subscribes to nothing
-    on it until `DC|STATE=ON` (or `--drop-copy` at startup) — see
+    port (`DROP_COPY_PUB_ADDR`, default `:5557`), subscribed to this
+    participant's own `drop_copy.event.{ID}` for the whole session; its fills
+    are shown only while `DC|STATE=ON` (or `--drop-copy` at startup) — see
     [DC — Toggle Drop-Copy Relay](#dc-toggle-drop-copy-relay) below.
 
 ```mermaid
@@ -193,12 +207,14 @@ sequenceDiagram
     GW->>ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
     alt ID is in participants
         ENG-->>GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: true}
+        GW->>ENG: system.symbols_request, order.orders_request, system.position_request
+        ENG-->>GW: system.symbols.TRADER01 (tick sizes), order.orders.TRADER01, system.position_snapshot.TRADER01
         Note over GW: Enters interactive command loop
     else ID not configured
         ENG-->>GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: false, reason: "Gateway not configured: TRADER01"}
-        Note over GW: Prints reason and exits
+        Note over GW: Prints "Logon failed: <reason>", exits 1
     else No reply within 3 seconds
-        Note over GW: Prints "Gateway authentication timed out" and exits
+        Note over GW: Prints "Logon failed: Gateway authentication timed out", exits 1
     end
 ```
 
@@ -219,7 +235,7 @@ participants:
 ```
 
 If a session starts with an ID that is not listed there, the engine refuses
-the connection and the terminal exits.
+the connection and the terminal exits with status 1.
 
 
 ## Session lifecycle
@@ -396,7 +412,7 @@ answer the only question that usually matters.
 [MM01]> QLEGS|SYM=AAPL
 # shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
 
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 
 [MM01]> QLEGS|SYM=AAPL|SHOW=ALL
 # BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
@@ -485,6 +501,11 @@ the entire date, through the final nanosecond before the next local midnight;
 the same date can be used for both bounds to query one full day. Exact
 timestamp bounds on the history request are inclusive.
 
+A date that is not a valid `YYYY-MM-DD` (`FROM=2026-13-01`) is refused with
+`FROM= is not a date (YYYY-MM-DD): '2026-13-01'`, and a `FROM` after `TO`
+with `FROM= is after TO=`; nothing is sent in either case. With `FROM`
+omitted the request covers the last 30 days, with `TO` omitted up to now.
+
 Example:
 
 ```text
@@ -511,16 +532,18 @@ DC|STATE=ON
 DC|STATE=OFF
 ```
 
-`DC` subscribes (or unsubscribes) this session to the engine's drop-copy feed
+`DC` shows (or hides) this session's events from the engine's drop-copy feed
 (`DropCopyPublisher`, ZMQ PUB `:5557` — see [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)),
-scoped to **this gateway's own fills only**. Once `DC|STATE=ON` is active,
+scoped to **this gateway's own fills only**. The console is subscribed to its
+own drop-copy topic for the whole session; `DC` only switches the display, and
+prints `DC ON` or `DC OFF` at once. Once `DC|STATE=ON` is active,
 every subsequent fill for this gateway arrives asynchronously as a `DC_FILL`
 line, in addition to (not instead of) the usual `FILL` line driven by
 `order.fill.{GW_ID}` on the main event bus.
 
 ```text
 [GW01]> DC|STATE=ON
-[dim]DC ON[/dim]
+DC ON
 ...
 [09:31:02.417] DC_FILL   7c4a91e2  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
 ```
@@ -652,7 +675,7 @@ with `Cannot amend <TYPE> orders`.
 
 | Field   | Required    | Description                                      |
 |---------|-------------|--------------------------------------------------|
-| `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table)  |
+| `ID`    | Yes         | Full 32-character order ID (visible in the `ORDERS` table) |
 | `PRICE` | Conditional | New limit price; omit to keep current price      |
 | `QTY`   | Conditional | New total quantity; must exceed the already-filled quantity |
 | `RTAG`  | No          | Request tag echoed on `AMENDED` or rejected ACK  |
@@ -783,28 +806,39 @@ POS
 ```
 
 Displays a position summary table showing net quantity, average entry cost,
-last trade price, unrealized P&L, and realized P&L for each symbol traded:
+last trade price, unrealized P&L, and realized P&L for each symbol held or
+traded:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                            Positions                                    │
+│                     Positions (P&L since connect)                       │
 ├──────────┬─────────┬──────────┬──────────┬────────────┬─────────────────┤
 │ Symbol   │ Net Qty │ Avg Cost │  Last Px │ Unreal P&L │     Real P&L    │
 ├──────────┼─────────┼──────────┼──────────┼────────────┼─────────────────┤
-│ AAPL     │    +100 │   150.25 │   151.00 │     +75.00 │          +0.00  │
-│ MSFT     │     -50 │   415.00 │   414.50 │     +25.00 │        +120.00  │
+│ AAPL     │    +100 │  150.250 │   151.00 │     +75.00 │          +0.00  │
+│ MSFT     │     -50 │  415.000 │   414.50 │     +25.00 │        +120.00  │
 │ TSLA     │       0 │        — │        — │          — │        +340.00  │
 └──────────┴─────────┴──────────┴──────────┴────────────┴─────────────────┘
 ```
 
 **How it works:**
 
-- Positions are accumulated locally from `order.fill` events received by this gateway
+- At connect the console asks the engine for this participant's position
+  (`system.position_request`), so net quantity and average cost start from
+  what the engine holds, also after a console restart
+- Fills on `order.fill` events received by this gateway update it from there
 - Last price per symbol is tracked from the `trade.executed` feed (all trades, not just this gateway's)
 - Unrealized P&L = (last price − avg cost) × net quantity
-- Realized P&L is booked when reducing or closing a position (average cost method)
+- Realized P&L is booked when reducing or closing a position (average cost
+  method). It counts only fills this session has seen ("since connect"):
+  the engine does not report realised P&L, so it starts at 0.00 when the
+  console starts
+- Prices are shown at the symbol's tick size, the average cost with one
+  more digit
 - Flat positions (net qty = 0) with non-zero realized P&L are shown dimmed
-- Positions reset when the terminal disconnects (they are session-local)
+- If events were lost (see [Lost events](#lost-events)), the console asks the
+  engine for the position again; quantity and cost are then right, realised
+  P&L still misses the lost fills
 
 !!! tip
     Use `POS` after each fill to monitor your exposure without switching to `pm-orders`.
@@ -838,13 +872,14 @@ positions).` instead of an empty table.
 
 **How it works:**
 
-- The console sends `system.position_request` for the given `gateway_id`
-  and dynamically subscribes to `system.position_snapshot.{gateway_id}`
-  just for the duration of this one query, unsubscribing once the reply
-  arrives — a mistyped or offline gateway_id does not leave a stray
-  subscription behind.
+- The console sends `system.position_request` for the given `gateway_id`.
+  It receives every participant's `system.position_snapshot.*` replies
+  (subscribed once at start) and shows only the one for the query it is
+  waiting for.
 - A second `POS|GW=` query before the first one's reply arrives replaces
-  it (the earlier subscription is dropped).
+  it.
+- A mistyped or offline `gateway_id` also prints `flat (no open
+  positions)`: the engine answers an unknown id with an empty snapshot.
 - This works for *any* gateway_id known to the engine, not just MM bots —
   it is exactly the same query a `pm-mm-bot`'s own inventory-skewing logic
   effectively answers itself, just visible to an operator from outside.
@@ -881,10 +916,17 @@ When metadata is available, the columns mean:
 - `Min Qty`: effective `mm_min_qty`
 
 !!! note
-    `SYMBOLS` returns symbols that have at least one active order book (created
-    when the first order for a symbol arrives or when market-maker orders are
-    injected at startup). It does NOT list all symbols from `engine_config.yaml`
-    unless those symbols already have orders.
+    `SYMBOLS` returns symbols that have an order book in the engine. With an
+    `engine_config.yaml`, the engine creates a book for every configured
+    symbol at startup, so all of them are listed; an engine started without
+    a config creates books only as orders arrive.
+
+!!! note "Tick sizes"
+    The console asks for the same list by itself at logon and does not print
+    it then. Each symbol's tick size in it is what the console converts every
+    price you type with, so the prompt opens only once the list has arrived.
+    A price that is not on the symbol's tick grid is refused locally with
+    `<price> is not a multiple of <symbol>'s tick size <tick>`.
 
 !!! note "Gateway authorization"
     `SYMBOLS` and all trading commands are available only after successful
@@ -942,19 +984,26 @@ EXIT
 
 ## Reconnect and state re-sync playbook
 
-After restarting the terminal, rebuild local confidence in state with this sequence.
+At logon the console asks the engine for your resting orders and your
+position by itself. After restarting the terminal, check what it restored
+with this sequence.
 
 1. Run `SYMBOLS` to confirm active books and symbol metadata.
-2. Run `ORDERS` to recover your current resting single-leg orders.
+2. Run `ORDERS` to see your current resting orders, restored from the engine.
 3. If you are a market maker, run `QBOOT` then `QLEGS|SHOW=ALL`.
-4. Run `POS` to rebuild your session-local position view from current stream.
+4. Run `POS` to see the position restored from the engine: net quantity and
+   average cost are the engine's; realised P&L starts at 0.00 (it counts
+   only this session's fills).
 5. Resume normal trading only after steps 1-4 look consistent.
 
 Why this matters:
 
 - `ORDERS` gives authoritative order IDs for follow-up `AMEND`/`CANCEL`
 - `QBOOT`/`QLEGS` avoids accidental duplicate quoting after reconnect
-- `POS` helps detect drift between expected and observed exposure
+- `POS` shows the exposure the engine holds before you add to it
+
+The same re-sync happens automatically when events were lost during a
+session; see [Lost events](#lost-events).
 
 
 
@@ -970,9 +1019,41 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | `REJECTED  <id> code=<reject-code> rtag=<request-tag>  <reason>` | Order was rejected; `code` is stable for automation, `rtag` is present when the request supplied one |
 | `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill                                          |
 | `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]`  | Full fill                                             |
-| `AMENDED  <id>  price=151.0 qty=100 remaining=100`    | Amendment confirmed                                   |
+| `AMENDED  <id>  price=151.00 qty=100 remaining=100`   | Amendment confirmed                                   |
 | `CANCELLED  <id>`                                     | Cancel confirmed                                      |
-| `EXPIRED  <id>  (DAY order — trading day ended)`      | Engine shut down or session phase change              |
+| `TRIGGERED  <id>  @148.00  → LIMIT`                   | A `STOP_LIMIT` reached its stop price and now rests as a `LIMIT` order (a `STOP` or `TRAILING_STOP` becomes `MARKET`); `ORDERS` shows the new type |
+| `EXPIRED  <id>  (Trading day ended)`                  | A DAY order expired at the end of the trading day; an ATO or ATC order shows `(Opening auction ended)` / `(Closing auction ended)`, and the engine's own reason when it sends one |
+
+Prices are printed at the symbol's tick size (`@150.50`, `@10.125` on a
+3-decimal symbol).
+
+### Lost events
+
+The engine numbers every event it sends you, per kind of event. If the
+console sees a jump (events were dropped on the way, for example while the
+host was overloaded), it prints
+
+```text
+WARNING: 3 event(s) lost on order.fill — ORDERS and POS re-synced from the engine
+```
+
+and asks the engine for your resting orders and position again. An order the
+table still showed as `NEW` or `PARTIAL` but that is no longer resting gets
+the status `CLOSED`: it was filled or cancelled, but the event saying which
+was lost. `POS` gets the engine's quantity and cost back; its realised P&L
+misses the lost fills. Check them with `pm-stats-cli trades` if it matters.
+
+### Input errors
+
+A mistyped value is refused before anything is sent, with the field named:
+
+```text
+[TRADER01]> AMEND|ID=4f1c…|PRICE=1O0.5
+Parse error: PRICE= is not a number: '1O0.5'
+```
+
+A line that fails in a way the console did not foresee prints `Command failed:
+<error>` and is logged with its traceback; the session carries on either way.
 
 ### Quote Events
 
@@ -1015,7 +1096,7 @@ Only printed while `DC` is enabled (`DC|STATE=ON` or `--drop-copy`) — see
 
 | Message | Meaning |
 |---|---|
-| `DC ON` / `DC OFF` | Confirms the relay was toggled locally (printed immediately, no round trip to the engine) |
+| `DC ON` / `DC OFF` | Confirms the display was switched locally (printed immediately, no round trip to the engine) |
 | `DC_FILL  <id>  <symbol>  qty=<n> @<price>  [<MAKER\|TAKER>]  #<seq>  (drop_copy.event.<GW_ID>)` | One event per fill, sourced from the engine's drop-copy feed (`:5557`) rather than the main event bus — arrives in addition to the ordinary `FILL` line |
 
 ### System Events
@@ -1023,6 +1104,7 @@ Only printed while `DC` is enabled (`DC|STATE=ON` or `--drop-copy`) — see
 | Message                           | Meaning                                                   |
 |-------------------------------------|--------------------------------------------------------------|
 | `Active Instruments` table        | Response to `SYMBOLS` command                             |
+| `SESSION  <state>  (<description>)` | Response to `SESSION`                                    |
 | `<INDEX_ID>  <level>  ...`        | Response to `INDEX`, printed from the cached `index.update` feed |
 | `Index structural history` table  | Response to `INDEX\|HISTORY`                               |
 | `INDEX ERROR  <reason>`           | `pm-index` rejected an `INDEX\|HISTORY` request            |
@@ -1046,10 +1128,10 @@ $ poetry run pm-alf-console --id TRADER01
 [09:30:00.100] ACK  7c4a91e2  order accepted
 
 [TRADER01]> ORDERS
-# copy full UUID from table if you plan to amend/cancel
+# copy the full 32-character order ID from the table if you plan to amend/cancel
 
 [TRADER01]> AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
-[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 (priority reset) rtag=AMD-001
+[09:30:01.500] AMENDED  7c4a91e2  price=150.10 qty=100 remaining=100 (priority reset) rtag=AMD-001
 
 [09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
 
@@ -1088,7 +1170,8 @@ poetry run pm-alf-console --id TRADER03
 Before starting a new gateway ID (for example `TRADER03`), add it to
 `engine_config.yaml` in `participants` and restart the engine.
 
-Each session only receives events for its own orders. Use `pm-orders` to see all
+Each session only shows events for its own orders, also when one ID is the
+start of another (`TRADER1` and `TRADER10`). Use `pm-orders` to see all
 gateways' activity.
 
 
@@ -1101,12 +1184,13 @@ The terminal provides **context-aware tab completion**:
 
 | Position                  | Completions                                                                                                                               |
 |---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| First word                | `NEW`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `AMEND`, `CANCEL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `INDEX`, `HELP`, `CLEAR`, `EXIT`, `QUIT` |
-| After `NEW\|`             | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=`                                                 |
-| After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc.                                                    |
+| First word                | `NEW`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `AMEND`, `CANCEL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `SESSION`, `DC`, `INDEX`, `HELP`, `CLEAR`, `EXIT`, `QUIT` |
+| After `NEW\|`             | `SYM=`, `SIDE=`, `TYPE=`, `TIF=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `VISIBLE=`, `SMP=`, `TAG=`                                         |
+| After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, `SMP=`, `TAG=`, plus per leg `LEG0.SYM=`, `LEG0.SIDE=`, `LEG0.QTY=`, `LEG0.PRICE=`, `LEG0.STOP=`, `LEG0.TYPE=` |
 | After `NEW\|TYPE=OCO\|`   | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc.                                                                       |
 | After `AMEND\|`           | `ID=`, `PRICE=`, `QTY=`, `RTAG=`                                                                                                     |
 | After `CANCEL\|`          | `ID=`, `COMBO_ID=`, `OCO_ID=`, `RTAG=`                                                                                               |
+| After `DC\|`              | `STATE=`, then `ON`, `OFF`                                                                                                                |
 | After `TYPE=`             | All order types: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP`, `COMBO`, `OCO`                        |
 | After `SIDE=`             | `BUY`, `SELL`                                                                                                                             |
 | After `TIF=`              | `DAY`, `GTC`, `ATO`, `ATC`                                                                                                                |
@@ -1123,21 +1207,24 @@ Press **↑** / **↓** arrow keys to navigate through previously entered comman
 ### Background Event Display
 
 A background thread listens on the SUB socket and prints events (fills, cancels,
-combo status changes, session transitions) in real-time, interleaved cleanly with
-the command prompt. You can continue typing while events arrive.
+stop triggers, combo status changes) in real-time, interleaved cleanly with
+the command prompt. You can continue typing while events arrive. Session
+phase changes are not printed; `SESSION` asks for the current one.
 
 ## Common mistakes and fast triage
 
 | Symptom | Typical cause | Fast check | Action |
 |---|---|---|---|
-| `Gateway authentication timed out` | Engine is not running/reachable | Is `pm-engine` running in another terminal? | Start `pm-engine` first |
-| `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Check `participants` list | Add ID under `participants` and restart engine |
+| `Logon failed: Engine not reachable at tcp://…:5555` | Engine is not running, or not reachable from this host | Is `pm-engine` running in another terminal? | Start `pm-engine` first |
+| `Logon failed: Gateway authentication timed out` | The engine took the connect but its reply never came back | Can this host reach the engine's publish port (5556)? | Fix the address or firewall; check `pm-monitor-cli status` |
+| `Logon failed: Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Check `participants` list | Add ID under `participants` and restart engine |
+| `WARNING: n event(s) lost on …` | The console fell behind (host overloaded) | Check the host's CPU load | Check `ORDERS` and `POS`; see [Lost events](#lost-events) |
 | `REJECTED ... code=UNKNOWN_SYMBOL` | Symbol unknown to engine config | Run `SYMBOLS` | Use listed symbols or add symbol to config |
 | `REJECTED ... code=INSTRUMENT_HALTED` (or `CIRCUIT_BREAKER_ACTIVE`) | Circuit breaker/operator halt | Check audit/viewer output | Wait for resume or use admin controls |
 | `REJECTED ... code=COLLAR_BREACH` | Price too far from reference | Compare to recent trade prices | Reprice closer to market |
 | Order rests but does not fill | No crossing liquidity | Check opposite side activity | Wait or improve price |
 | `Quotes are only allowed for MARKET_MAKER participants` | Role is `TRADER` | Verify gateway role in config | Change role to `MARKET_MAKER` if intended |
-| `AMEND`/`CANCEL` fails with unknown ID | Short ID used instead of full UUID | Run `ORDERS` and inspect full ID | Retry with full order UUID |
+| `AMEND`/`CANCEL` fails with unknown ID | Short ID used instead of the full order ID | Run `ORDERS` and inspect full ID | Retry with the full 32-character order ID |
 
 ## See also
 

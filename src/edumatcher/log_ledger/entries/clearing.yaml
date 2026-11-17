@@ -48,9 +48,11 @@
     pm-clearing saw a gap in the engine's trade numbering: trades were executed
     but never reached it, so they are not booked. Positions and P&L of the
     participants in those trades are wrong. The reason is "feed" when trades
-    were lost while pm-clearing was running, and "restart" when they were
-    made while it was not running (the first trade after its start is
-    compared with the last one it stored). The gap is also stored in the
+    were lost while pm-clearing was running, "restart" when they were made
+    while it was not running (the first trade after its start is compared
+    with the last one it stored), and "end_of_run" when they were lost just
+    before the engine stopped (its end-of-day message names the run's last
+    trade). The gap is also stored in the
     clearing database, where `pm-clearing-cli gaps` lists it.
   actions:
     - "Run `pm-clearing-cli gaps` to see every gap recorded, with the trade ids either side."

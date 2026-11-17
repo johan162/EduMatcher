@@ -77,16 +77,12 @@ events (orders, fills) and market statistics have their own purpose-built
 collectors; `pm-log-srv` is for operational `logging`-module output only —
 think "what would otherwise have gone to a terminal or a log file."
 
-!!! note "Phased rollout"
-    As of this revision, `pm-log-srv` and `pm-log-cli` are fully implemented
-    and usable standalone — you can start the server and point a test client
-    at it today. Automatically wiring every existing `pm-*` process's own
-    logging into a `TcpLogHandler` (so it auto-detects and uses a running
-    `pm-log-srv` with zero configuration) is a follow-up phase of this
-    feature and has not yet been rolled out to every entrypoint. Until then,
-    use `pm-log-srv`/`pm-log-cli` to inspect logging emitted by any client
-    that already speaks LALF (see the wire protocol reference below if you
-    are writing one).
+!!! note "How processes find the server"
+    Every `pm-*` process probes for `pm-log-srv` once at start-up (for up to
+    3 seconds). If it answers, the process ships its log over LALF with a
+    `TcpLogHandler`; if not, it logs to its console as before. Start
+    `pm-log-srv` first so the processes started after it find it. A
+    process's `--log-target` option overrides the probe.
 
 
 
@@ -145,13 +141,15 @@ pm-log-srv [options]
 | `--pull-port PORT` | from config / `5602` | LALF-PS ZeroMQ `PULL` bind port (subscriber control in) |
 | `--lease-sec N` | from config / `30` | Subscription lease TTL; a subscriber that stops renewing is reaped after this long |
 | `--no-pubsub` | off | Disable LALF-PS entirely — bind no ZeroMQ sockets and run as a pure TCP collector |
-| `--config PATH` / `-c` | `engine_config.yaml` | Engine config YAML path, read for the optional `log_server:` block |
 | `--log-level LEVEL` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce log output to warnings/errors |
+| `--log-target stdout\|file` | `stdout` | Where `pm-log-srv`'s own log goes; never `server` (it does not log to itself) |
+| `--log-file PATH` | — | Its own log file; required with `--log-target file` |
 
-CLI flags override the corresponding field in `engine_config.yaml`'s
-`log_server:` block for that invocation only. See
+The `log_server:` block is read from the deployed configuration
+(`pm-config-deploy`). CLI flags override the corresponding field for that
+invocation only. See
 [Configuration — Configuring pm-log-srv](../part-2-configure/010-the-configuration-workflow.md#configuring-pm-log-srv)
 for the full config field reference.
 
@@ -175,12 +173,15 @@ pm-log-srv --no-pubsub
 pm-log-srv --port 5700 --pub-port 5701 --pull-port 5702
 ```
 
-Expected startup output:
+Expected startup output with `-v`. Paths are printed resolved: a relative
+`--db` is taken relative to the data directory (here
+`/srv/edumatcher/data`), not to the working directory shown as `cwd`.
 
 ```
 2026-07-29 09:30:00,180 INFO edumatcher.log_srv.main - starting pm-log-srv with log level INFO
-2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv 'log-srv01' listening on 0.0.0.0:5600 db=data/log.db retention_days=30
-2026-07-29 09:30:00,211 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://0.0.0.0:5601 PULL=tcp://0.0.0.0:5602 lease=30s max_subscribers=32
+2026-07-29 09:30:00,184 INFO edumatcher.config_artifact - using compiled config /srv/edumatcher/data/ref_data/engine_config.json (compiled 2026-07-29T08:00:00.000Z from /srv/edumatcher/data/ref_data/engine_config.yaml)
+2026-07-29 09:30:00,204 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://0.0.0.0:5601 PULL=tcp://0.0.0.0:5602 lease=30s max_subscribers=32
+2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv 'log-srv01' listening on 0.0.0.0:5600 db=/srv/edumatcher/data/log.db (cwd=/srv/edumatcher) retention_days=30
 ```
 
 `pm-log-srv` occupies a contiguous three-port block: `5600` for LALF/TCP
@@ -197,9 +198,12 @@ it has finished starting).
 `log_events` defaults to a bounded 30-day retention rather than growing
 unbounded like `pm-audit`'s/`pm-stats`' own deliberately-forever stores —
 operational logging is disposable in a way trading history and market
-statistics are not. Pruning runs automatically once per hour in the
-background; `pm-log-cli prune` (below) is also available for pruning on
-demand.
+statistics are not. Pruning starts automatically once per hour, inside
+`pm-log-srv`'s main loop: it deletes one chunk of 5 000 rows per loop pass
+(about 20 ms) until nothing older than the cutoff is left, so even a large
+prune (after you lower `retention_days`) spreads over many passes and
+collection carries on meanwhile. `pm-log-cli prune` (below) is also
+available for pruning on demand.
 
 
 
@@ -304,7 +308,8 @@ A subscription declares up front what it wants delivered, because the two
 plausible kinds of log UI want opposite things.
 
 **`STREAM`** — full rows are pushed as they are committed, on
-`log.event.{sub_id}`. This is what a live tail wants: the viewer never
+`log.event.{sub_id}`, in chunks of up to `backfill_chunk_rows`; a partial
+chunk waits at most 100 ms for more rows. This is what a live tail wants: the viewer never
 touches `log.db` at all and can run on a different host from the database.
 The cost is bus traffic proportional to the log volume that passes your
 filter, which is exactly why the filter matters.
@@ -425,16 +430,27 @@ Leases handle death. They do not handle a subscriber that is alive and
 renewing but simply cannot read as fast as the system logs — and left
 alone, that subscriber would grow the server's memory without bound.
 
-Two bounds apply. Each subscription's row buffer is capped at
-`max_pending_rows` (default 20 000): past that, the **oldest** buffered
-rows are shed and a running `dropped` counter is reported in every
-subsequent `log.event`. Separately, the `PUB` socket carries a bounded
-`pub_sndhwm` (default 10 000) so ZeroMQ's own queue for a wedged-but-
-connected peer cannot grow indefinitely either.
+Two bounds apply, and each has its own loss signal.
 
-`dropped` climbing is the signal that a viewer is not keeping up and its
-view has gaps. The cures, in order of preference: tighten the filter,
-switch to `NOTIFY`, or re-backfill to close the gap.
+- **The server's buffer.** Each subscription's row buffer is capped at
+  `max_pending_rows` (default 20 000): past that, the **oldest** buffered
+  rows are shed, and a running `dropped` counter is reported in every
+  subsequent `log.event`.
+- **ZeroMQ's queue.** The `PUB` socket holds at most
+  `max_pending_rows / backfill_chunk_rows` messages per connected peer
+  (default 20 000 / 500 = 40 messages, about 20 000 rows), further capped
+  by `pub_sndhwm` (default 10 000). At that mark ZeroMQ drops the message
+  silently, and `dropped` cannot count it. Instead every `log.event` and
+  `log.backfill` carries `msg_no`, numbered per subscription from 1: a jump
+  from 17 to 21 means messages 18–20 were lost. (A loss at the very end
+  shows when the next message arrives.)
+
+Together they keep a wedged-but-connected viewer from growing the server:
+measured with defaults, +5 MB however many rows were logged.
+
+A climbing `dropped` or a `msg_no` gap is the signal that a viewer is not
+keeping up and its view has holes. The cures, in order of preference:
+tighten the filter, switch to `NOTIFY`, or re-backfill to close the gap.
 
 ### Server liveness
 
@@ -530,6 +546,7 @@ push.send_multipart(
 
 renew_every = 15.0          # updated from the ack's renew_before_sec
 next_renew = time.monotonic() + renew_every
+last_msg_no = 0             # msg_no of the last log.event/log.backfill
 poller = zmq.Poller()
 poller.register(sub, zmq.POLLIN)
 
@@ -545,6 +562,10 @@ try:
                 next_renew = time.monotonic() + renew_every
 
             elif topic in (f"log.event.{SUB_ID}", f"log.backfill.{SUB_ID}"):
+                if payload["msg_no"] != last_msg_no + 1:
+                    lost = payload["msg_no"] - last_msg_no - 1
+                    print(f"!! {lost} messages lost — not keeping up")
+                last_msg_no = payload["msg_no"]
                 for row in payload["rows"]:
                     print(f"{row['client_ts']} {row['level']:<8} "
                           f"{row['process']:<12} {row['message']}")
@@ -596,7 +617,7 @@ for the authoritative table.
 | No `log.subscribe_ack` ever arrives | Slow-joiner race, or wrong `SUBSCRIBE` prefix | Re-send `log.subscribe` (it is idempotent); check you subscribed to `log.` or the exact reply topics |
 | Ack arrives, then nothing | Filter is stricter than you think, or the system really is quiet | Inspect the **normalised** `filter` in the ack; send `log.status_request`; try `min_level: "DEBUG"` |
 | `UNKNOWN_SUB` on renew | Your lease already expired | Re-send `log.subscribe`; renew at `renew_before_sec`, not at `lease_sec` |
-| `dropped` climbing in `log.event` | Subscriber is slower than the log volume | Tighten the filter, switch to `NOTIFY`, or re-backfill |
+| `dropped` climbing in `log.event`, or a gap in `msg_no` | Subscriber is slower than the log volume | Tighten the filter, switch to `NOTIFY`, or re-backfill |
 | Backfill seems to never end | You stopped reading before `done: true` | Keep consuming chunks until `done`; correlate by `request_id` |
 | `truncated: true` on the last chunk | Window held more rows than `max_backfill_rows` | Narrow the window or the filter, or raise the limit |
 | Nothing at all on `:5601` | LALF-PS disabled or on other ports | Check `--no-pubsub` / `pubsub_enabled`, and the `pub_port`/`pull_port` settings |
@@ -767,10 +788,13 @@ report. Both being stale is the case worth looking into.
 
 `disconnect_reason` says *how* a session ended: `client_exit` means the
 client sent `EXIT` and shut down deliberately, while `peer_closed`,
-`io_error` (the connection was reset, typically a crash), `idle_timeout`,
-`hello_timeout`, or `protocol_error` mean it went away without saying
-goodbye. It is empty for sessions still open, and for
-sessions recorded before this column existed.
+`io_error` (the connection was reset, typically a crash), `idle_timeout`
+or `protocol_error` mean it went away without saying goodbye.
+`server_stop` means `pm-log-srv` itself stopped while the session was
+connected, and `server_restart` that a `pm-log-srv` which stopped without a
+clean shutdown left the session open, so the next one closed it at start.
+It is empty only for sessions still open, and for sessions recorded before
+this column existed.
 
 A session appears here only once it has actually sent a `LOG` or `HB`
 frame, not merely completed the handshake. Every `pm-*` process probes for
@@ -867,7 +891,7 @@ pm-log-cli diagnose [options]
 | Clock skew | A process's `client_ts` is consistently ahead of or behind `pm-log-srv`'s own clock |
 | Truncated-message rate | A process sent one or more oversized log messages that were truncated |
 | Exception clustering | Most tracebacks in the window come from one specific logger |
-| Likely fallback-to-file event | A process's *most recent* session ended without a clean `EXIT` and it has not reconnected — it either exited abnormally or failed over to file logging. Deliberate shutdowns are ignored |
+| Likely fallback-to-file event | A process's *most recent* session ended without a clean `EXIT` and it has not reconnected — it either exited abnormally or failed over to file logging. Deliberate shutdowns are ignored. A session ended by `pm-log-srv` stopping (`server_stop`, `server_restart`) counts too, with its own wording: a process that never came back after a server restart most likely failed over to its file |
 
 Each finding cites the exact `pm-log-cli query` invocation that would
 reproduce it, so you can always drill from "here's what's flagged" to "here

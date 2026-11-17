@@ -554,10 +554,10 @@ it does not move the phase behind your back, then move the phase yourself:
 `SESSION_STATUS` should now report `CONTINUOUS`. The engine only accepts the
 phase changes of a real trading day, in order — from `CLOSED` the only legal
 step is `PRE_OPEN` — so it takes two commands. If you try to skip one, for
-example `SESSION|STATE=CONTINUOUS` straight from `CLOSED`, the engine ignores
-the request and the console reports
-`TIMEOUT  No ack with prefix 'session.state' within 3000 ms`; the phase has
-not changed. Chapter 06 explains this
+example `SESSION|STATE=CONTINUOUS` straight from `CLOSED`, the engine refuses
+the request and the console prints its reason,
+`SESSION  REJECTED  Invalid transition CLOSED → CONTINUOUS (allowed: PRE_OPEN)`;
+the phase has not changed. Chapter 06 explains this
 "freeze and advance" technique properly; whenever a later exercise says the
 market must be open, this is how you open it.
 

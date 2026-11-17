@@ -62,11 +62,15 @@ from edumatcher.monitor.store import MetricsStore
 from edumatcher.monitor.thresholds import (
     LOOP_AGE_RULE,
     LOOP_AGE_WARN_MS,
+    LOOP_LAG_RULE,
+    LOOP_LAG_WARN_MS,
     MIN_REQUESTS_5M,
+    RAISE_AFTER,
     Change,
     Reading,
     ThresholdBook,
     band_reading,
+    fmt_value,
     increase_reading,
 )
 from edumatcher.monitor.timefmt import iso_utc
@@ -569,15 +573,27 @@ class Monitor:
                 continue
             b = state.beacon
             if not b.starting:
+                # A loop past the HUNG limit is not one late iteration: its
+                # warning is raised at once, so it is up when the loop resumes
+                # and the way back passes through DEGRADED (I63).
+                hung = state.loop_age_ms > self.rules.hung_after_sec * 1000.0
                 out.append(
                     Reading(
                         LOOP_AGE_RULE,
                         state.key,
                         state.loop_age_ms,
                         warn=LOOP_AGE_WARN_MS,
-                        debounce=False,
+                        raise_after=1 if hung else RAISE_AFTER,
                     )
                 )
+            out.append(
+                Reading(
+                    LOOP_LAG_RULE,
+                    state.key,
+                    state.loop_lag_ms,
+                    warn=LOOP_LAG_WARN_MS,
+                )
+            )
             growth = state.rss_growth_pct(now)
             if growth is not None:
                 out.append(band_reading(t, "rss_growth_pct_1h", state.key, growth))
@@ -622,7 +638,7 @@ class Monitor:
             self._publish_threshold(change)
         breached = self.thresholds.breached_subjects()
         processes = self.processes(now, breached, refresh=False)
-        self._publish_transitions(processes)
+        self._publish_transitions(processes, self.thresholds.reasons())
         process_keys = {p["key"] for p in processes}
         gone = {p["key"] for p in processes if p["state"] in GONE_STATES}
         engine_live = any(
@@ -659,12 +675,16 @@ class Monitor:
     # events out
     # ------------------------------------------------------------------
 
-    def _publish_transitions(self, processes: list[dict[str, Any]]) -> None:
-        """A ``PROCESS_STATUS`` event per changed state.
+    def _publish_transitions(
+        self, processes: list[dict[str, Any]], reasons: dict[str, list[str]]
+    ) -> None:
+        """A ``PROCESS_STATUS`` event per changed state, with its reason.
 
         A process first heard from HEALTHY is not news; any other first state
         is. A MISSING process that starts beacons gets a new key (it now has a
         host), so its previous state is looked up under the hostless key.
+        ``reasons``: the breaches in force per subject
+        (:meth:`ThresholdBook.reasons`), which make a process DEGRADED.
         """
         last = self._last_states
         current: dict[str, str] = {}
@@ -681,6 +701,9 @@ class Monitor:
             detail = (
                 f"first seen {state}" if previous is None else f"{previous} -> {state}"
             )
+            reason = self._state_reason(record, reasons)
+            if reason:
+                detail = f"{detail}: {reason}"
             severity = STATE_SEVERITY[state]
             log.log(
                 logging.INFO if severity == "INFO" else THRESHOLD_LOG_LEVEL[severity],
@@ -690,6 +713,34 @@ class Monitor:
             )
             self.publish_event("PROCESS_STATUS", severity, key, detail)
         self._last_states = current
+
+    def _state_reason(
+        self, record: dict[str, Any], reasons: dict[str, list[str]]
+    ) -> str:
+        """What decided a process's state, as the §10 rules judged it; empty
+        for a state that needs no reason (HEALTHY, STOPPED, MISSING)."""
+        state = record["state"]
+        if state == "DEGRADED":
+            # A host breach at the same time is context (Q3): a process slow
+            # because the machine is saturated is still slow for its clients.
+            host = [f"host: {r}" for r in reasons.get("host", [])]
+            return "; ".join(reasons.get(record["key"], []) + host)
+        if state == "HUNG":
+            hung_after = (
+                self.rules.startup_grace_sec
+                if record["starting"]
+                else self.rules.hung_after_sec
+            )
+            return (
+                f"{LOOP_AGE_RULE} {fmt_value(record['loop_age_ms'])}"
+                f" > {fmt_value(hung_after * 1000.0)}"
+            )
+        if state in ("SILENT", "DEAD"):
+            silence = f"no beacon for {record['last_beacon_age_ms'] / 1000.0:.1f} s"
+            if record["host"] != self.rules.local_host:
+                return silence  # another host: time decided, not the PID
+            return f"{silence}, process {'runs' if state == 'SILENT' else 'gone'}"
+        return ""
 
     def _publish_threshold(self, change: Change) -> None:
         self.threshold_changes += 1

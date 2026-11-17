@@ -358,9 +358,9 @@ def test_the_wallclock_bound_is_unchanged() -> None:
 def test_an_idle_scheduler_is_not_degraded() -> None:
     """Its designed wait is the gap pm-monitor measures as loop_lag_ms, so it
     must sit well under the DEGRADED line (I76), with room for jitter."""
-    from edumatcher.monitor.state import LOOP_LAG_DEGRADED_MS
+    from edumatcher.monitor.thresholds import LOOP_LAG_WARN_MS
 
-    assert sched.LIVENESS_CHUNK_SEC * 1000 <= LOOP_LAG_DEGRADED_MS / 2
+    assert sched.LIVENESS_CHUNK_SEC * 1000 <= LOOP_LAG_WARN_MS / 2
 
 
 # ---------------------------------------------------------------------------

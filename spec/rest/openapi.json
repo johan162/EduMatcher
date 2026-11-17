@@ -477,6 +477,7 @@
                       "arrival_seq": 18457
                     }
                   ],
+                  "status": "OK",
                   "count": 2
                 }
               }
@@ -5387,6 +5388,7 @@
                 "example": {
                   "state": "CONTINUOUS",
                   "sessions_enabled": true,
+                  "last_trade_id": "000003-000004217",
                   "next": {
                     "state": "CLOSING_AUCTION",
                     "at": "2026-08-29T17:25:00+02:00"
@@ -13724,19 +13726,22 @@
                       "id": "TRADER01",
                       "role": "TRADER",
                       "description": "Student desk 1",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788012600000000000
                     },
                     {
                       "id": "MM01",
                       "role": "MARKET_MAKER",
                       "description": "Market maker",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788010200000000000
                     },
                     {
                       "id": "OPS01",
                       "role": "ADMIN",
                       "description": "Instructor console",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788009300000000000
                     }
                   ],
                   "count": 3
@@ -17394,7 +17399,7 @@
           "admin"
         ],
         "summary": "Positions of any gateway",
-        "description": "Ask the engine what *gateway_id* -- any gateway, not just the\ncaller's own -- is holding: signed net qty and VWAP average cost per\nsymbol, from the engine's own position ledger.\n\n``GET /positions`` is the caller's own view of the same engine round\ntrip on ``system.position_request`` / ``system.position_snapshot.<id>``,\nenriched with prices and P&L; ``pm-alf-console``'s and ``pm-alf-gwy``'s\n``POS|GW=<gateway_id>`` use the same pair, so all surfaces agree.",
+        "description": "Ask the engine what *gateway_id* -- any gateway, not just the\ncaller's own -- is holding: signed net qty and VWAP average cost per\nsymbol, from the engine's own position ledger.\n\n``GET /positions`` is the caller's own view of the same engine round\ntrip on ``system.position_request`` / ``system.position_snapshot.<id>``,\nenriched with prices and P&L; ``pm-alf-console``'s and ``pm-alf-gwy``'s\n``POS|GW=<gateway_id>`` use the same pair, so all surfaces agree.\nA logged-off participant is answered with what it holds; an id no\nparticipant has is a 404.",
         "operationId": "admin_positions",
         "security": [
           {
@@ -17551,6 +17556,28 @@
               }
             }
           },
+          "404": {
+            "description": "`UNKNOWN_GATEWAY`: No participant has this gateway id.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_GATEWAY": {
+                    "summary": "UNKNOWN_GATEWAY",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_GATEWAY",
+                        "message": "No participant has gateway id NOPE",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
             "content": {
@@ -17675,6 +17702,7 @@
                       "arrival_seq": 18457
                     }
                   ],
+                  "status": "OK",
                   "count": 2
                 }
               }
@@ -17778,6 +17806,28 @@
                         "code": "ROLE_DENIED",
                         "message": "ADMIN role required",
                         "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_GATEWAY`: No participant has this gateway id.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_GATEWAY": {
+                    "summary": "UNKNOWN_GATEWAY",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_GATEWAY",
+                        "message": "No participant has gateway id NOPE",
+                        "reject_code": "UNKNOWN"
                       }
                     }
                   }
@@ -18261,6 +18311,7 @@
                   "session": {
                     "state": "CONTINUOUS",
                     "sessions_enabled": true,
+                    "last_trade_id": "000003-000004217",
                     "next": {
                       "state": "CLOSING_AUCTION",
                       "at": "2026-08-29T17:25:00+02:00"
@@ -18696,6 +18747,7 @@
                   "session": {
                     "state": "CONTINUOUS",
                     "sessions_enabled": true,
+                    "last_trade_id": "000003-000004217",
                     "next": {
                       "state": "CLOSING_AUCTION",
                       "at": "2026-08-29T17:25:00+02:00"
@@ -19164,6 +19216,7 @@
                   "session": {
                     "state": "CONTINUOUS",
                     "sessions_enabled": true,
+                    "last_trade_id": "000003-000004217",
                     "next": {
                       "state": "CLOSING_AUCTION",
                       "at": "2026-08-29T17:25:00+02:00"
@@ -19176,19 +19229,22 @@
                       "id": "TRADER01",
                       "role": "TRADER",
                       "description": "Student desk 1",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788012600000000000
                     },
                     {
                       "id": "MM01",
                       "role": "MARKET_MAKER",
                       "description": "Market maker",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788010200000000000
                     },
                     {
                       "id": "OPS01",
                       "role": "ADMIN",
                       "description": "Instructor console",
-                      "connected": true
+                      "connected": true,
+                      "connected_since_ns": 1788009300000000000
                     }
                   ],
                   "halts": [],
@@ -23444,6 +23500,18 @@
           "connected": {
             "type": "boolean",
             "title": "Connected"
+          },
+          "connected_since_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected Since Ns",
+            "description": "When the engine accepted the current connection. Absent while offline. Unit:\nepoch_nanos."
           }
         },
         "type": "object",
@@ -25946,12 +26014,23 @@
             "type": "array",
             "title": "Orders",
             "description": "Resting orders, as the engine iterates its books."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "NOT_CONNECTED",
+              "UNKNOWN_GATEWAY"
+            ],
+            "title": "Status",
+            "description": "`OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that\nis logged off; the list is still its own, as the engine holds it.\n`UNKNOWN_GATEWAY`: no participant has this id, so the list is empty."
           }
         },
         "type": "object",
         "required": [
           "count",
-          "orders"
+          "orders",
+          "status"
         ],
         "title": "OrderList",
         "description": "The caller's orders as the engine holds them."
@@ -28229,6 +28308,19 @@
             ],
             "description": "The countdown target the engine holds, as `session.state.next` last carried it\nor `session.next` announced it. Lets a caller that missed the last transition\nstill count down to the next one."
           },
+          "last_trade_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Trade Id",
+            "description": "The id of the last trade this engine run has made so far, null before its\nfirst: what `system.eod` will name if the run ends now."
+          },
           "session_timezone": {
             "type": "string",
             "title": "Session Timezone",
@@ -28244,6 +28336,7 @@
         "required": [
           "state",
           "sessions_enabled",
+          "last_trade_id",
           "session_timezone",
           "session_date"
         ],

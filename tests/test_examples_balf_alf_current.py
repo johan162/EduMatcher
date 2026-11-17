@@ -185,6 +185,36 @@ class TestBalfExampleAgainstTheGateway:
             "becomes": "LIMIT",
         }
 
+    def test_order_status(self, balf: ModuleType) -> None:
+        """WP-FL07: BALF 1.1's adopted-order frame, as the gateway builds it."""
+        frame = codec.build_order_status(
+            client_order_id=7,
+            balf_order_id=3,
+            price=codec.encode_price(150.25),
+            stop_price=0,
+            quantity=100,
+            remaining_qty=40,
+            symbol="AAPL",
+            side=codec.SIDE_SELL,
+            order_type=0x02,
+            tif=0x02,
+            seq_no=4,
+        )
+        assert balf.FRAME_SIZES[balf.MSG_ORDER_STATUS] == len(frame)
+        _, body = balf.split_frame(frame)
+        assert balf.parse_order_status(body) == {
+            "client_order_id": 7,
+            "order_id": 3,
+            "price": 150.25,
+            "stop_price": 0.0,
+            "quantity": 100,
+            "remaining_qty": 40,
+            "symbol": "AAPL",
+            "side": "SELL",
+            "order_type": "LIMIT",
+            "tif": "GTC",
+        }
+
     def test_execution_report_names_side_and_status(self, balf: ModuleType) -> None:
         frame = serialise_execution_report_balf(
             {

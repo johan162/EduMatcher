@@ -174,6 +174,7 @@ OrderNewOrigin = Literal["ORDER", "QUOTE", "IMPLIED"]
 OrderComboComboType = Literal["AON"]
 OrderComboTif = Literal["DAY", "GTC", "ATO", "ATC"]
 OrderOcoTif = Literal["DAY", "GTC", "ATO", "ATC"]
+OrdersStatus = Literal["OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY"]
 
 
 class OcoLeg(BaseModel):
@@ -216,7 +217,8 @@ class ComboLeg(BaseModel):
     """Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg
     rather than on the combo, because a combo's legs trade different instruments
     and two instruments need not share a scale - which is exactly the distinction
-    that makes ComboLeg a separate record from OcoLeg.
+    that makes ComboLeg a separate record from OcoLeg. The engine refuses a combo
+    with a priced leg whose scale is not that leg's symbol's.
     """
     price_ticks: int | None
     """Limit price in engine ticks; null for a leg with none. Unit: ticks."""
@@ -889,7 +891,8 @@ class OrderNew(BaseModel):
     Without it the scale has to be recovered from a `book` or `trade.executed` for
     the same symbol, which a reader of a *window* of the audit trail may not have
     - the snapshot that declared it is usually at session start, hours outside the
-    window being read.
+    window being read. The engine refuses an order with a tick price whose scale
+    is not the symbol's configured one (`INVALID_VALUE`).
     """
     trail_offset_ticks: int | None
     """TRAILING_STOP: fixed distance to trail the market price. Unit: ticks."""
@@ -1016,7 +1019,8 @@ class OrderOco(BaseModel):
     tick_decimals: int = Field(ge=0, le=8)
     """Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One
     value for the pair rather than one per leg, because both legs trade the
-    instrument named above.
+    instrument named above. The engine refuses a pair whose scale is not the
+    symbol's.
     """
     quantity: int
     """Size of each leg; they are equal by construction. Unit: shares."""
@@ -1052,13 +1056,19 @@ class OrdersRequest(BaseModel):
 
 class Orders(BaseModel):
     """Engine to caller: the gateway's resting orders in display units, one
-    OrderDisplay record each. Empty when the gateway is unknown or flat.
+    OrderDisplay record each, connected or not; `status` says which. Empty when
+    the gateway has none or no participant has the id.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     orders: list[OrderDisplay]
     """Resting orders, as the engine iterates its books."""
+    status: OrdersStatus
+    """`OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that
+    is logged off; the list is still its own, as the engine holds it.
+    `UNKNOWN_GATEWAY`: no participant has this id, so the list is empty.
+    """
 
 
 class PriceLevelOrdersRequest(BaseModel):

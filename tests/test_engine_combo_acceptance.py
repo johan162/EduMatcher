@@ -20,8 +20,8 @@ from edumatcher.models.order import OrderType, Side, SmpAction
 from tests.engine_harness import all_msgs, connect, make_engine, msgs, order_payload
 from tests.engine_invariants import assert_aon_combo_atomic_at_acceptance
 
-AAPL_IOC = {"symbol": "AAPL", "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000}  # fmt: skip
-MSFT_LIMIT = {"symbol": "MSFT", "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000}  # fmt: skip
+AAPL_IOC = {"symbol": "AAPL", "tick_decimals": 2, "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000}  # fmt: skip
+MSFT_LIMIT = {"symbol": "MSFT", "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000}  # fmt: skip
 
 
 def sell(engine: Any, symbol: str, gw: str, qty: int = 5) -> None:

@@ -16,11 +16,19 @@ from edumatcher.models.price import from_ticks, get_tick_decimals
 # unique and lexicographically sortable across restarts.
 _run_seq: int | None = None
 _trade_counter = itertools.count(1)
+#: The id of the newest trade this run minted: ``system.eod`` and the session
+#: status name it, so a subscriber can tell it received the whole run (L022).
+_last_trade_id: str | None = None
 
 
 def current_run_seq() -> int | None:
     """The engine-run sequence set by ``set_run_seq`` (None before it)."""
     return _run_seq
+
+
+def last_trade_id() -> str | None:
+    """The id of the newest trade this engine run minted (None before one)."""
+    return _last_trade_id
 
 
 def set_run_seq(run_seq: int) -> None:
@@ -35,9 +43,10 @@ def set_run_seq(run_seq: int) -> None:
 
 def reset_trade_ids_for_tests() -> None:
     """Reset module-global id state for tests that exercise startup ordering."""
-    global _run_seq, _trade_counter
+    global _run_seq, _trade_counter, _last_trade_id
     _run_seq = None
     _trade_counter = itertools.count(1)
+    _last_trade_id = None
 
 
 # ---------------------------------------------------------------------------
@@ -93,13 +102,15 @@ class Trade:
         now: int | None = None,
         trigger_order_id: str | None = None,
     ) -> "Trade":
+        global _last_trade_id
         if _run_seq is None:
             raise RuntimeError("trade id requested before set_run_seq()")
         trade_seq = next(_trade_counter)
         if trade_seq > 999_999_999:
             raise RuntimeError("trade sequence exhausted for this engine run")
+        _last_trade_id = f"{_run_seq:06d}-{trade_seq:09d}"
         return cls(
-            id=f"{_run_seq:06d}-{trade_seq:09d}",
+            id=_last_trade_id,
             symbol=symbol,
             buy_order_id=buy_order_id,
             sell_order_id=sell_order_id,

@@ -264,7 +264,7 @@ tear down the live session.
 ### `system.gateway_heartbeat`
 
 **Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
-**Published by:** Every process that holds an ID (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
+**Published by:** Every process that holds an ID (`pm-admin`, `pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
 
 Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
 immediately after the connect is accepted. It is one-way: the engine does not
@@ -274,9 +274,10 @@ disconnects the session exactly as if `system.gateway_disconnect` had arrived,
 applying the participant's `disconnect_behaviour` and publishing
 `system.gateway_bye.{GW_ID}` with `reason: "heartbeat_timeout"`.
 
-Liveness is opt-in: a session that has never sent a heartbeat is never timed
-out, and a heartbeat for an ID that is not connected is ignored. Heartbeats are
-not re-published on the audit feed.
+The clock starts when the connect is accepted, at the default 60-second
+interval until the first beat carries the sender's own, so a session that never
+sends a heartbeat is timed out after three minutes. A heartbeat for an ID that
+is not connected is ignored. Heartbeats are not re-published on the audit feed.
 
 | Field | Type | Description |
 |---|---|---|
@@ -943,6 +944,8 @@ Engine to all: one symbol has stopped trading. New orders rest rather than match
 
     `resume_at_ns` is null for an indefinite halt -- `halt_all` and a per-symbol halt named without a level both produce one, and it lasts until an explicit resume.
 
+    Such an operator halt also outlasts an engine restart: the engine checkpoints it and publishes it again at start-up, with its `level` (`ADMIN_ALL`, or `ADMIN_SYMBOL` when the symbol has no breaker).
+
 **See also:** `circuit_breaker.extend.{SYMBOL}`, `circuit_breaker.resume.{SYMBOL}`
 
 ### `circuit_breaker.extend.{symbol}`
@@ -998,13 +1001,13 @@ Engine to all: the symbol is trading again. It rejoins whatever the exchange is 
 
 !!! note
 
-    Four producers, two shapes.
+    Five producers, two shapes.
 
-    Three of them -- ACE expiry, ADMIN resume-all and ADMIN per-symbol resume -- send `symbol` and `halt_source` alone.
+    Four of them -- ACE expiry, ADMIN resume-all, ADMIN per-symbol resume, and an engine start that ended a breaker-level halt its checkpoint held (its timer does not survive the restart) -- send `symbol` and `halt_source` alone.
 
     The closing backstop sends three fields more, because it is the one resume where the reopening price was imposed rather than discovered: it prints *at* the corridor boundary for a symbol that could not reopen inside it, which can leave the book crossed by design.
 
-    The three extra fields are regime 3 and 4 rather than always-present nulls, so the three ordinary producers keep the two-key payload they have always sent.
+    The three extra fields are regime 3 and 4 rather than always-present nulls, so the four ordinary producers keep the two-key payload they have always sent.
 
     `normalise_cb_resume` reads each through a falsy guard, so an absent key and an empty one are the same event to it.
 
@@ -1767,14 +1770,14 @@ One persisted log line, exactly the columns log_events stores. Carried by both l
 | `client_ts` | `string` | required | — | Producer wall-clock, ISO-8601 (e.g. 2026-07-29T10:00:00.000Z). |
 | `server_ts` | `string` | required | — | Server receive time, ISO-8601; the log_events columns are TEXT. |
 | `process` | `string` | required | max_len 64 |  |
-| `instance` | `string` | required | max_len 64 |  |
+| `instance` | `string` | required | max_len 64 | NULL when the producer sent no INSTANCE. |
 | `pid` | `int` | required | unit `dimensionless` |  |
 | `host` | `string` | required | max_len 128 |  |
 | `session` | `string` | required | max_len 64 |  |
 | `level` | `string` | required | max_len 16 |  |
 | `logger` | `string` | required | max_len 128 |  |
-| `module` | `string` | required | max_len 128 |  |
-| `line` | `int` | required | unit `dimensionless` |  |
+| `module` | `string` | required | max_len 128 | NULL when the producer sent no MODULE. |
+| `line` | `int` | required | unit `dimensionless` | NULL when the producer sent no LINE, or one outside int64. |
 | `has_exception` | `bool` | required | — |  |
 | `truncated` | `bool` | required | — |  |
 | `message` | `string` | required | — |  |
@@ -2004,6 +2007,7 @@ One chunk of replayed history for a subscription.
 | `total_sent` | `int` | required | unit `dimensionless` |  |
 | `truncated` | `bool` | required | — |  |
 | `last_seq` | `int` | required | unit `dimensionless` |  |
+| `msg_no` | `int` | required | unit `dimensionless` | Per-subscription number shared with log.event, from 1; a gap is a lost message. |
 | `timestamp` | `float` | required | unit `epoch_seconds` |  |
 
 !!! note
@@ -2032,7 +2036,8 @@ A batch of live rows for a STREAM subscription.
 | `seq_from` | `int` | required | unit `dimensionless` |  |
 | `seq_to` | `int` | required | unit `dimensionless` |  |
 | `server_last_seq` | `int` | required | unit `dimensionless` |  |
-| `dropped` | `int` | required | unit `dimensionless` | Lifetime rows dropped for this subscription, not this batch. |
+| `dropped` | `int` | required | unit `dimensionless` | Lifetime rows the server shed for this subscription, not this batch. Messages lost in transport show as msg_no gaps instead. |
+| `msg_no` | `int` | required | unit `dimensionless` | Per-subscription number shared with log.backfill, from 1; a gap is a lost message. |
 | `timestamp` | `float` | required | unit `epoch_seconds` |  |
 
 **See also:** `log.notify.{SUB_ID}`
@@ -2187,7 +2192,7 @@ One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity: the legs o
 | `side` | enum: `BUY`, `SELL` | required | — |  |
 | `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
 | `quantity` | `int` | required | gt 0, unit `shares` |  |
-| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg rather than on the combo, because a combo's legs trade different instruments and two instruments need not share a scale - which is exactly the distinction that makes ComboLeg a separate record from OcoLeg. |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg rather than on the combo, because a combo's legs trade different instruments and two instruments need not share a scale - which is exactly the distinction that makes ComboLeg a separate record from OcoLeg. The engine refuses a combo with a priced leg whose scale is not that leg's symbol's. |
 | `price_ticks` | `ticks` | `null` when unset | unit `ticks` | Limit price in engine ticks; null for a leg with none. |
 | `stop_price_ticks` | `ticks` | `null` when unset | unit `ticks` |  |
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Null means the client did not specify SMP, which is distinct from an explicit NONE. Combo-level in the ALF protocols, so every leg carries the same value. |
@@ -2566,7 +2571,7 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 | `quantity` | `int` | required | gt 0, unit `shares` | Total original quantity. |
 | `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled; equals quantity on submission. |
 | `gateway_id` | `string` | required | max_len 32 |  |
-| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for every `_ticks` field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a `book` or `trade.executed` for the same symbol, which a reader of a *window* of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read. |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for every `_ticks` field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a `book` or `trade.executed` for the same symbol, which a reader of a *window* of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read. The engine refuses an order with a tick price whose scale is not the symbol's configured one (`INVALID_VALUE`). |
 | `trail_offset_ticks` | `ticks` | `null` when unset | unit `ticks` | TRAILING_STOP: fixed distance to trail the market price. |
 | `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
 | `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Client-supplied submission time. NOT what the book uses for time priority - see arrival_seq. BALF has no timestamp field on NEW_ORDER, so balf_gwy stamps one at ingress. |
@@ -2704,7 +2709,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 | `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 | `symbol` | `string` | defaults to `''` | max_len 16 | Both legs trade this instrument. |
-| `tick_decimals` | `int` | defaults to `0` | ge 0, le 8, unit `dimensionless` | Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. |
+| `tick_decimals` | `int` | defaults to `0` | ge 0, le 8, unit `dimensionless` | Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. The engine refuses a pair whose scale is not the symbol's. |
 | `quantity` | `int` | defaults to `0` | unit `shares` | Size of each leg; they are equal by construction. |
 | `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | defaults to `'DAY'` | — |  |
 | `leg1` | [`OcoLeg`](#ocoleg) | required | — |  |
@@ -2763,12 +2768,13 @@ Caller to engine: the resting (unfilled, non-cancelled) orders a gateway current
 
 **Since:** 1.0
 
-Engine to caller: the gateway's resting orders in display units, one OrderDisplay record each. Empty when the gateway is unknown or flat.
+Engine to caller: the gateway's resting orders in display units, one OrderDisplay record each, connected or not; `status` says which. Empty when the gateway has none or no participant has the id.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
 | `orders` | list of [`OrderDisplay`](#orderdisplay) | required | — | Resting orders, as the engine iterates its books. |
+| `status` | enum: `OK`, `NOT_CONNECTED`, `UNKNOWN_GATEWAY` | defaults to `'OK'` | — | `OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that is logged off; the list is still its own, as the engine holds it. `UNKNOWN_GATEWAY`: no participant has this id, so the list is empty. |
 
 !!! note
 
@@ -2831,7 +2837,7 @@ Market maker to engine: submit or replace a two-sided quote on one instrument. A
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `symbol` | `string` | required | max_len 16 |  |
-| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for both `_ticks` prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a `book` for the same symbol that may be outside the window being read. |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for both `_ticks` prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a `book` for the same symbol that may be outside the window being read. The engine refuses a quote whose scale is not the symbol's configured one, naming both values. |
 | `bid_price_ticks` | `ticks` | required | gt 0, unit `ticks` |  |
 | `bid_qty` | `int` | required | gt 0, unit `shares` |  |
 | `ask_price_ticks` | `ticks` | required | gt 0, unit `ticks` |  |
@@ -4175,6 +4181,7 @@ One configured participant, and whether it is connected right now.
 | `role` | `string` | required | max_len 32 |  |
 | `description` | `string` | defaults to `''` | max_len 128 |  |
 | `connected` | `bool` | required | — |  |
+| `connected_since_ns` | `int` | omitted when unset | unit `epoch_nanos` | When the engine accepted the current connection. Absent while offline. |
 
 #### `SymbolVolume`
 
@@ -4281,7 +4288,7 @@ Gateway to engine: I am leaving cleanly. PUSH/PULL, like `gateway_connect`; the 
 
 **Since:** 1.0
 
-Gateway to engine: this participant's process is still alive. A process that dies without sending `gateway_disconnect` (kill -9, a crashed host, a dropped network) would otherwise keep its ID marked connected for ever, and the engine refuses a second connect for an ID that is already connected. The engine counts the beats it expects -- one per `interval_sec` -- and disconnects the session, applying its `disconnect_behaviour`, after three consecutive misses. Liveness is opt-in: a session that has never sent one is never timed out.
+Gateway to engine: this participant's process is still alive. A process that dies without sending `gateway_disconnect` (kill -9, a crashed host, a dropped network) would otherwise keep its ID marked connected for ever, and the engine refuses a second connect for an ID that is already connected. The engine counts the beats it expects -- one per `interval_sec` -- and disconnects the session, applying its `disconnect_behaviour`, after three consecutive misses. The clock starts at connect, at the default 60-second interval until the first beat carries the sender's own, so a session that never sends one is timed out too.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -4326,6 +4333,7 @@ Engine to all subscribers, once, before shutdown: the closing book of every inst
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `books` | list of [`EodBook`](#eodbook) | required | — | One per instrument the engine had a book for, unordered. |
+| `last_trade_id` | `string` | `null` when unset | max_len 32 | The id of the last trade this engine run made, null for a run without trades. Trade ids restart with every run, so without it a subscriber cannot tell trades lost just before the stop from a clean end: one that holds an older id of this run lost the rest. |
 
 !!! note
 
@@ -4667,6 +4675,7 @@ Engine to caller: the current session state, on request. The polled answer to th
 | `state` | `string` | required | max_len 32 | Same values as `session.state.state`. |
 | `sessions_enabled` | `bool` | required | — | False when the deployment runs continuously with no session schedule at all, which makes `state` advisory. |
 | `next` | [`NextTransition`](#nexttransition) | omitted when unset | — | The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one. |
+| `last_trade_id` | `string` | `null` when unset | max_len 32 | The id of the last trade this engine run has made so far, null before its first: what `system.eod` will name if the run ends now. |
 
 !!! note
 
@@ -4769,7 +4778,7 @@ Gateway to engine: what am I holding.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `gateway_id` | `string` | required | max_len 32 | Both the correlation key and the account being asked about. A gateway can only ask about itself: the handler answers from `_gateway_positions[gateway_id]` and nothing else. |
+| `gateway_id` | `string` | required | max_len 32 | Both the correlation key and the account being asked about. Any caller may ask about any gateway (`POS\|GW=`, the admin REST endpoint): the handler answers from `_gateway_positions[gateway_id]` and nothing else. |
 
 **See also:** `system.position_snapshot.{GW_ID}`
 
@@ -4787,10 +4796,13 @@ Engine to gateway: per-symbol net position and average cost, for the asking gate
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped by the default projection. |
 | `positions` | list of [`Position`](#position) | required | — |  |
+| `status` | enum: `OK`, `NOT_CONNECTED`, `UNKNOWN_GATEWAY` | defaults to `'OK'` | — | `OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that is logged off; the list is still its own, as the engine holds it. `UNKNOWN_GATEWAY`: no participant has this id, so the list is empty. |
 
 !!! note
 
-    An unauthenticated or unknown gateway gets an empty list rather than a rejection -- flat and not-a-gateway are the same answer here, which is deliberate: the alternative tells an unauthenticated caller whether an id exists.
+    Any configured participant is answered, connected or not, and `status` tells "logged off" and "no such id" apart from "flat".
+
+    A logged-off trader keeps its position, so an empty list for it would be wrong rather than discreet; and whether an id exists is no secret (a refused logon names it).
 
     pm-mm-bot asks for its own gateway's snapshot at start-up and seeds each symbol's tracked position from it, so `inventory_skew` does not restart flat while the gateway holds inventory.
 

@@ -1,3 +1,40 @@
+## [v0.81.0] - 2026-11-17
+
+Release Type: minor
+
+### 📋 Summary
+This release makes halts survive an engine restart, lets subscribers detect trades lost at the end of a run, and adds a way to rebuild the clearing ledger from the audit trail. It also lets BALF participants recover their resting orders after a gateway restart, and improves the reliability of the ALF console, log server and monitor.
+
+### ✨ Additions
+- Added `pm-clearing-cli rebuild --from-audit` to rebuild the clearing ledger from the audit trail once a feed gap is known
+- Added `last_trade_id` to `system.eod` and `system.session_status`, so pm-stats and pm-clearing record trades lost just before an engine stop as a feed gap
+- Added BALF `ORDER_STATUS` order adoption, so a participant can reach its resting orders again after a pm-balf-gwy restart
+- Added participant connection time to the API and paging to the Trader GUI participant list
+
+### 🚀 Improvements
+- Improved ALF console event filtering, tick-size handling, and resilience to malformed commands
+- Improved log-server delivery so records are not silently lost, sessions are closed reliably, and slow subscribers are bounded
+- Improved monitor explanations and calibration for the `DEGRADED` health state
+- Made Trader GUI mass cancellation more visible
+- Improved admin position and order queries to answer for any configured participant, with its connection status, instead of showing a disconnected trader as flat with no orders
+
+### 🐛 Bug Fixes
+- Fixed engine restarts silently clearing operator and circuit-breaker halts; operator halts are now restored, and breaker halts end with a published resume
+- Fixed sessions that never send a heartbeat holding their gateway id indefinitely; they now time out at the default 60-second interval, so clients must send heartbeats
+- Fixed quotes submitted with a mismatched `tick_decimals` resting at 1/100 or 100× the intended price; the engine now rejects them
+- Fixed refused connections from unknown gateway ids leaving engine session state behind
+- Fixed `pm-admin` reporting `TIMEOUT` for an illegal session transition instead of the engine's reason
+- Fixed REST admin queries for an unknown gateway; they now answer `404 UNKNOWN_GATEWAY`
+
+### 📚 Documentation
+- Updated the ALF, BALF, REST, message-reference, clearing, statistics and session documentation for the new fields, commands and behaviour
+- Added ALF console, log-server, and monitor health-diagnosis review documentation
+- Corrected a typo in the exchange introduction
+
+### 🛠 Internal
+- Added regression coverage for tick scale, gateway sessions, restart contracts, run-end gaps, clearing rebuild, admin queries and BALF order adoption
+- Fixed macOS test failures caused by open-file limits
+
 ## [v0.80.0] - 2026-11-15
 
 Release Type: major

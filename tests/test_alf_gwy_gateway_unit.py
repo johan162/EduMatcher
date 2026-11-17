@@ -1750,3 +1750,46 @@ def test_a_field_validation_refusal_is_not_reported(gateway: AlfGateway) -> None
     gateway._handle_client_line(session, "NOT A VALID LINE")
     assert _gateway_rejects(gateway) == []
     peer.close()
+
+
+@pytest.mark.parametrize("status", ["NOT_CONNECTED", "UNKNOWN_GATEWAY"])
+def test_position_reply_says_whether_the_gateway_is_logged_off_or_unknown(
+    gateway: AlfGateway, status: str
+) -> None:
+    """WP-FL06 (L030): flat, logged off and no-such-id were one answer."""
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    session.out_queue.clear()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode("system.position_snapshot.MM_AAPL_01", {"positions": [], "status": status})  # fmt: skip
+    )
+    gateway._poll_engine_events()
+
+    header = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert header.fields["STATUS"] == status
+    peer.close()
+
+
+def test_position_reply_of_a_connected_gateway_says_ok(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    session.out_queue.clear()
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode("system.position_snapshot.MM_AAPL_01", {"positions": [], "status": "OK"})  # fmt: skip
+    )
+    gateway._poll_engine_events()
+    assert parse_alf_line(session.out_queue[0].decode("utf-8")).fields["STATUS"] == "OK"
+    peer.close()

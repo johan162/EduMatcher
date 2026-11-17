@@ -22,6 +22,10 @@ What a BALF client must handle besides the happy path
 * An order for a symbol the engine does not list is refused with an
   ``ORDER_ACK`` ``reject_code`` 0x03, never silently priced; one refused by
   the rate limit gets 0x0D, by a risk limit 0x0E.
+* After a ``LOGON_ACK`` from a freshly started gateway, one ``ORDER_STATUS``
+  (0x22, BALF 1.1) per order the ID still has on the book: its new
+  ``order_id`` and your ``client_order_id`` (0 if it was not entered over
+  BALF).
 * ``CANCEL_ACK``, ``AMEND_ACK`` and ``STOP_TRIGGERED`` (sent before the stop
   order's own execution reports) are decoded below; a non-zero
   ``cancel_reason`` means the exchange cancelled the order and names why
@@ -47,6 +51,7 @@ MSG_AMEND_ORDER = 0x14
 MSG_AMEND_ACK = 0x15
 MSG_EXECUTION_REPORT = 0x20
 MSG_STOP_TRIGGERED = 0x21
+MSG_ORDER_STATUS = 0x22  # BALF 1.1
 MSG_HEARTBEAT = 0x30
 MSG_HEARTBEAT_ACK = 0x31
 MSG_LOGOUT = 0x40
@@ -104,6 +109,12 @@ SIDE_NAMES: Dict[int, str] = {1: "BUY", 2: "SELL"}
 #: STOP_TRIGGERED.order_type (the order's armed type) and .becomes
 STOP_TYPE_NAMES: Dict[int, str] = {5: "STOP", 6: "STOP_LIMIT", 8: "TRAILING_STOP"}
 BECOMES_NAMES: Dict[int, str] = {1: "MARKET", 2: "LIMIT"}
+#: NEW_ORDER's order type and TIF codes, as ORDER_STATUS reports them.
+ORDER_TYPE_NAMES: Dict[int, str] = {
+    1: "MARKET", 2: "LIMIT", 3: "IOC", 4: "FOK",
+    5: "STOP", 6: "STOP_LIMIT", 7: "ICEBERG", 8: "TRAILING_STOP",
+}  # fmt: skip
+TIF_NAMES: Dict[int, str] = {1: "DAY", 2: "GTC", 3: "ATO", 4: "ATC"}
 
 FRAME_SIZES: Dict[int, int] = {
     MSG_LOGON: 32,
@@ -116,6 +127,7 @@ FRAME_SIZES: Dict[int, int] = {
     MSG_AMEND_ACK: 48,
     MSG_EXECUTION_REPORT: 64,
     MSG_STOP_TRIGGERED: 56,
+    MSG_ORDER_STATUS: 64,
     MSG_HEARTBEAT: 16,
     MSG_HEARTBEAT_ACK: 16,
     MSG_LOGOUT: 8,
@@ -283,6 +295,27 @@ def parse_stop_triggered(body: bytes) -> dict[str, Any]:
         "symbol": _read_ascii_zp(body[32:40]),
         "order_type": STOP_TYPE_NAMES.get(order_type, order_type),
         "becomes": BECOMES_NAMES.get(becomes, becomes),
+    }
+
+
+def parse_order_status(body: bytes) -> dict[str, Any]:
+    """An order this gateway ID left on the book under an earlier pm-balf-gwy,
+    adopted at logon under a new ``order_id`` (BALF 1.1). ``client_order_id``
+    is your NEW_ORDER's, or 0 for an order not entered over BALF. Its fills
+    and cancels arrive under the new id, and you can cancel or amend it."""
+    if len(body) != 56:
+        raise ValueError("ORDER_STATUS body must be 56 bytes")
+    return {
+        "client_order_id": _read_u64_le(body, 0),
+        "order_id": _read_u64_le(body, 8),
+        "price": decode_price(_read_i64_le(body, 16)),
+        "stop_price": decode_price(_read_i64_le(body, 24)),
+        "quantity": _read_u32_le(body, 32),
+        "remaining_qty": _read_u32_le(body, 36),
+        "symbol": _read_ascii_zp(body[40:48]),
+        "side": SIDE_NAMES.get(body[48], body[48]),
+        "order_type": ORDER_TYPE_NAMES.get(body[49], body[49]),
+        "tif": TIF_NAMES.get(body[50], body[50]),
     }
 
 

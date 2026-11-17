@@ -108,6 +108,11 @@ class WriterThread:
         enough for a throttle threshold."""
         return self._queue.qsize() + len(self._retry)
 
+    @property
+    def is_alive(self) -> bool:
+        """Whether the writer thread is running (``False`` before start)."""
+        return self._thread is not None and self._thread.is_alive()
+
     def enqueue(self, row: LogEventRow) -> None:
         self._queue.put(row)
 
@@ -221,10 +226,12 @@ class WriterThread:
                         UPDATE_PROCESS_LAST_SEEN_AND_COUNT_BY_N,
                         (ts, n, session_id),
                     )
-        except sqlite3.Error as exc:
+        except Exception as exc:
             # Kept, not dropped: the rows go first into the next attempt, and
             # until then they count towards ``pending``, so a persistently
             # failing disk throttles producers instead of losing their logs.
+            # Any exception, not only sqlite3.Error: one escaping here would
+            # end this thread and with it every later write.
             self._retry = rows
             log.error(
                 "writer thread: failed to persist batch of %d rows (will retry): %s",

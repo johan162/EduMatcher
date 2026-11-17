@@ -1894,6 +1894,7 @@ class GatewayInfo:
     role: str
     connected: bool
     description: str = ""
+    connected_since_ns: int | None = None  # unit: epoch_nanos
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1928,16 +1929,24 @@ class GatewayInfo:
             role=str(p["role"]),
             description=str(p.get("description", "")),
             connected=bool(p["connected"]),
+            connected_since_ns=(
+                None
+                if p.get("connected_since_ns") is None
+                else int(p["connected_since_ns"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "role": self.role,
             "description": self.description,
             "connected": self.connected,
         }
+        if self.connected_since_ns is not None:
+            payload["connected_since_ns"] = self.connected_since_ns
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -2698,7 +2707,9 @@ class GatewayHeartbeat:
     refuses a second connect for an ID that is already connected. The engine
     counts the beats it expects -- one per `interval_sec` -- and disconnects the
     session, applying its `disconnect_behaviour`, after three consecutive misses.
-    Liveness is opt-in: a session that has never sent one is never timed out.
+    The clock starts at connect, at the default 60-second interval until the first
+    beat carries the sender's own, so a session that never sends one is timed out
+    too.
     """
 
     gateway_id: str
@@ -2969,6 +2980,14 @@ _EOD_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "One per instrument the engine had a book for, unordered.",
     },
+    {
+        "name": "last_trade_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The id of the last trade this engine run made, null for a run without trades. Trade ids restart with every run, so without it a subscriber cannot tell trades lost just before the stop from a clean end: one that holds an older id of this run lost the rest.",
+        "constraints": {"max_len": 32},
+    },
 )
 
 
@@ -2985,6 +3004,7 @@ class Eod:
     """
 
     books: list[EodBook]
+    last_trade_id: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2995,6 +3015,11 @@ class Eod:
         """
         for books_item in self.books:
             books_item.validate()
+        if self.last_trade_id is not None:
+            if len(self.last_trade_id) > 32:
+                raise MessageValidationError(
+                    f"last_trade_id: length {len(self.last_trade_id)} exceeds max_len 32"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "Eod":
@@ -3006,12 +3031,16 @@ class Eod:
         """
         return cls(
             books=[EodBook.from_dict(item) for item in p["books"]],
+            last_trade_id=(
+                None if p.get("last_trade_id") is None else str(p["last_trade_id"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
         return {
             "books": [item.to_dict() for item in self.books],
+            "last_trade_id": self.last_trade_id,
         }
 
 
@@ -5389,6 +5418,14 @@ _SESSION_STATUS_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one.",
     },
+    {
+        "name": "last_trade_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The id of the last trade this engine run has made so far, null before its first: what `system.eod` will name if the run ends now.",
+        "constraints": {"max_len": 32},
+    },
 )
 
 
@@ -5407,6 +5444,7 @@ class SessionStatus:
     state: str
     sessions_enabled: bool
     next: NextTransition | None = None
+    last_trade_id: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -5425,6 +5463,11 @@ class SessionStatus:
             )
         if self.next is not None:
             self.next.validate()
+        if self.last_trade_id is not None:
+            if len(self.last_trade_id) > 32:
+                raise MessageValidationError(
+                    f"last_trade_id: length {len(self.last_trade_id)} exceeds max_len 32"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "SessionStatus":
@@ -5439,6 +5482,9 @@ class SessionStatus:
             state=str(p["state"]),
             sessions_enabled=bool(p["sessions_enabled"]),
             next=None if p.get("next") is None else NextTransition.from_dict(p["next"]),
+            last_trade_id=(
+                None if p.get("last_trade_id") is None else str(p["last_trade_id"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -5446,6 +5492,7 @@ class SessionStatus:
         payload: dict[str, Any] = {
             "state": self.state,
             "sessions_enabled": self.sessions_enabled,
+            "last_trade_id": self.last_trade_id,
         }
         if self.next is not None:
             payload["next"] = self.next.to_dict()
@@ -5995,7 +6042,7 @@ _POSITION_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": True,
-        "doc": "Both the correlation key and the account being asked about. A gateway can only ask about itself: the handler answers from `_gateway_positions[gateway_id]` and nothing else.",
+        "doc": "Both the correlation key and the account being asked about. Any caller may ask about any gateway (`POS|GW=`, the admin REST endpoint): the handler answers from `_gateway_positions[gateway_id]` and nothing else.",
         "constraints": {"max_len": 32},
     },
 )
@@ -6102,6 +6149,8 @@ def describe_position_request() -> tuple[dict[str, Any], ...]:
 TOPIC_POSITION_SNAPSHOT = "system.position_snapshot.{gateway_id}"
 PREFIX_POSITION_SNAPSHOT = "system.position_snapshot."
 _POSITION_SNAPSHOT_RE = re.compile("system\\.position_snapshot\\.(?P<gateway_id>[^.]+)")
+_POSITION_SNAPSHOT_STATUS_VALUES = ("OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY")
+PositionSnapshotStatus = Literal["OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY"]
 
 
 _POSITION_SNAPSHOT_FIELDS: tuple[dict[str, Any], ...] = (
@@ -6120,6 +6169,14 @@ _POSITION_SNAPSHOT_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "",
     },
+    {
+        "name": "status",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "`OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that is logged off; the list is still its own, as the engine holds it. `UNKNOWN_GATEWAY`: no participant has this id, so the list is empty.",
+        "values": _POSITION_SNAPSHOT_STATUS_VALUES,
+    },
 )
 
 
@@ -6128,15 +6185,17 @@ class PositionSnapshot:
     """Engine to gateway: per-symbol net position and average cost, for the asking
     gateway only.
 
-    An unauthenticated or unknown gateway gets an empty list rather than a rejection --
-    flat and not-a-gateway are the same answer here, which is deliberate: the
-    alternative tells an unauthenticated caller whether an id exists. pm-mm-bot asks for
-    its own gateway's snapshot at start-up and seeds each symbol's tracked position from
-    it, so `inventory_skew` does not restart flat while the gateway holds inventory.
+    Any configured participant is answered, connected or not, and `status` tells "logged
+    off" and "no such id" apart from "flat". A logged-off trader keeps its position, so
+    an empty list for it would be wrong rather than discreet; and whether an id exists
+    is no secret (a refused logon names it). pm-mm-bot asks for its own gateway's
+    snapshot at start-up and seeds each symbol's tracked position from it, so
+    `inventory_skew` does not restart flat while the gateway holds inventory.
     """
 
     gateway_id: str
     positions: list[Position]
+    status: PositionSnapshotStatus = "OK"
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -6151,6 +6210,10 @@ class PositionSnapshot:
             )
         for positions_item in self.positions:
             positions_item.validate()
+        if self.status not in _POSITION_SNAPSHOT_STATUS_VALUES:
+            raise MessageValidationError(
+                f"status: {self.status!r} is not one of {_POSITION_SNAPSHOT_STATUS_VALUES!r}"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "PositionSnapshot":
@@ -6163,12 +6226,14 @@ class PositionSnapshot:
         return cls(
             gateway_id=str(p.get("gateway_id", "")),
             positions=[Position.from_dict(item) for item in p["positions"]],
+            status=cast(PositionSnapshotStatus, str(p.get("status", "OK"))),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
         return {
             "positions": [item.to_dict() for item in self.positions],
+            "status": self.status,
         }
 
 

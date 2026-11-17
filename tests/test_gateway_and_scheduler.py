@@ -251,7 +251,12 @@ class TestGatewayHelpers:
             ]
         }
 
-        with patch("edumatcher.alf_console.main.console.print") as mock_print:
+        gw._parse_and_send("SYMBOLS")  # the table is printed only when asked for
+        with (
+            patch("edumatcher.alf_console.main.console.print") as mock_print,
+            # The tick registry is process-wide: keep MSFT=3 out of it.
+            patch("edumatcher.alf_console.main.register_tick_decimals"),
+        ):
             gw._handle_event("system.symbols.GW01", payload)
 
         table = mock_print.call_args[0][0]
@@ -1835,11 +1840,12 @@ class TestIndexDisplay:
         gw._parse_and_send("INDEX|HISTORY|INDEX=EDU100|FROM=2024-01-01|TO=2024-06-30")
         assert gw._index_push_sock.send_multipart.called
 
-    def test_index_history_bad_date_falls_back_to_default(self) -> None:
+    def test_index_history_bad_date_is_refused(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("INDEX|HISTORY|INDEX=EDU100|FROM=NOTADATE")
-        # Bad date → falls back to 30-day default window
-        assert gw._index_push_sock.send_multipart.called
+        # A bad date used to become the 30-day default window silently
+        # (ALF console review C7).
+        assert not gw._index_push_sock.send_multipart.called
 
     def test_handle_event_index_history_empty(self) -> None:
         gw = _make_gateway()
@@ -1948,22 +1954,23 @@ class TestParseDate:
     def test_none_returns_none(self) -> None:
         from edumatcher.alf_console.main import Gateway
 
-        assert Gateway._parse_date(None) is None
+        assert Gateway._parse_date("FROM", None) is None
 
     def test_empty_string_returns_none(self) -> None:
         from edumatcher.alf_console.main import Gateway
 
-        assert Gateway._parse_date("") is None
+        assert Gateway._parse_date("FROM", "") is None
 
-    def test_invalid_format_returns_none(self) -> None:
+    def test_invalid_format_raises_naming_the_field(self) -> None:
         from edumatcher.alf_console.main import Gateway
 
-        assert Gateway._parse_date("not-a-date") is None
+        with pytest.raises(ValueError, match="FROM="):
+            Gateway._parse_date("FROM", "not-a-date")
 
     def test_valid_date_returns_datetime(self) -> None:
         from edumatcher.alf_console.main import Gateway
 
-        result = Gateway._parse_date("2024-01-15")
+        result = Gateway._parse_date("FROM", "2024-01-15")
         assert result is not None
         assert result.year == 2024
         assert result.month == 1
@@ -1977,8 +1984,8 @@ class TestParseDate:
         gw._parse_and_send("INDEX|HISTORY|INDEX=EDU100|FROM=2024-06-25|TO=2024-06-25")
 
         _topic, payload = decode(gw._index_push_sock.send_multipart.call_args.args[0])
-        from_date = Gateway._parse_date("2024-06-25")
-        to_date = Gateway._parse_date("2024-06-26")
+        from_date = Gateway._parse_date("FROM", "2024-06-25")
+        to_date = Gateway._parse_date("TO", "2024-06-26")
         assert from_date is not None
         assert to_date is not None
         expected_midnight_after_date = int(to_date.timestamp()) * 1_000_000_000

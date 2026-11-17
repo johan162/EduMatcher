@@ -194,3 +194,37 @@ def test_build_log_frame_carries_tpl_only_when_given() -> None:
 
     assert fields("0123456789ab")["TPL"] == "0123456789ab"
     assert "TPL" not in fields(None)
+
+
+def test_frame_reader_bounds_a_huge_declared_payload() -> None:
+    """C9: LEN beyond the ceiling is kept up to it, the rest discarded."""
+    reader = FrameReader(max_payload_bytes=1000)
+    declared = 10**9
+    reader.feed(f"LOG|SEQ=1|TS=x|LEVEL=INFO|LOGGER=y|LEN={declared}\n".encode())
+    assert reader.next_frame() is None
+    chunk = b"a" * 4096
+    fed = 0
+    for _ in range(256):  # 1 MiB
+        reader.feed(chunk)
+        fed += len(chunk)
+        assert reader.next_frame() is None
+        assert reader.buffered_bytes() <= 1000 + len(chunk)
+    # The rest of the declared length, then the next frame.
+    reader.feed(b"b" * (declared - fed))
+    reader.feed(b"PING\n")
+    frame = reader.next_frame()
+    assert frame is not None
+    assert frame.msg_type == "LOG"
+    assert frame.payload == b"a" * 1000
+    assert frame.truncated
+    nxt = reader.next_frame()
+    assert nxt is not None and nxt.msg_type == "PING"
+
+
+def test_frame_reader_within_the_ceiling_is_not_truncated() -> None:
+    reader = FrameReader(max_payload_bytes=5)
+    reader.feed(b"LOG|SEQ=1|TS=x|LEVEL=INFO|LOGGER=y|LEN=5\nhello")
+    frame = reader.next_frame()
+    assert frame is not None
+    assert frame.payload == b"hello"
+    assert not frame.truncated

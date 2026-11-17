@@ -36,6 +36,7 @@ from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.log_srv.config import LogServerConfig
 from edumatcher.log_srv.schema import (
+    CLOSE_OPEN_PROCESSES,
     DELETE_OLD_LOG_EVENTS,
     INCREMENT_TOTAL_CONNECTIONS,
     INCREMENT_TOTAL_ERRORS_SENT,
@@ -58,6 +59,7 @@ from edumatcher.logclient.protocol import (
     ERR_PROTO_MISMATCH,
     HELLO_TIMEOUT_SEC,
     PROTO_VERSION,
+    FrameReader,
     LalfProtocolError,
     build_header_line,
     iso_utc,
@@ -66,7 +68,27 @@ from edumatcher.logclient.protocol import (
 
 log = logging.getLogger(__name__)
 
+
+def _sqlite_int(raw: str | None) -> int | None:
+    """``raw`` as an int SQLite can store, or ``None`` (missing, not an
+    integer, or outside the signed 64-bit range)."""
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if _SQLITE_INT_MIN <= value <= _SQLITE_INT_MAX else None
+
+
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+#: Most bytes read from one client in one main-loop pass, so one busy client
+#: cannot starve the others, while a burst is not limited to one recv a pass.
+_READ_BUDGET_BYTES = 64 * 1024
+#: SQLite stores INTEGER as a signed 64-bit value; a larger bind raises
+#: OverflowError, which no sqlite3.Error handler catches.
+_SQLITE_INT_MIN = -(2**63)
+_SQLITE_INT_MAX = 2**63 - 1
 _RETENTION_CHECK_INTERVAL_SEC = 3600  # once per hour, per §6.5/§7.2 step 6
 
 
@@ -83,8 +105,14 @@ class LogServer:
         self._reporter: HealthReporter | None = None
         self._events_in = 0
 
+        self._closed = False
         self._conn = open_db(Path(config.db_path))
         self._conn.execute(UPSERT_SERVER_STATS_INIT, (iso_utc(time.time()),))
+        # A row still open here was left by a server that stopped without
+        # close() (a crash): no client of it is connected any more.
+        self._conn.execute(
+            CLOSE_OPEN_PROCESSES, (iso_utc(time.time()), "server_restart")
+        )
         self._conn.commit()
 
         # LALF-PS is constructed before the writer so the writer can be
@@ -121,7 +149,12 @@ class LogServer:
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
         self._last_retention_check = 0.0
+        #: Cutoff of the prune in progress (one chunk per loop pass), or None.
+        self._prune_cutoff: str | None = None
+        self._pruned = 0
         self._last_heartbeat_flush = 0.0
+        #: ERR replies not yet added to server_stats (flushed with heartbeats).
+        self._errors_sent_unflushed = 0
         #: Set each loop pass while the writer backlog exceeds
         #: max_client_queue and client reads are suspended (§5.8).
         self._backlogged = False
@@ -199,14 +232,20 @@ class LogServer:
                 if reporter is not None:
                     reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
-                self._read_client_data()
+                busy = self._read_client_data() > 0
                 self._send_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
                 self._persist_heartbeats_if_due()
                 self._service_pubsub()
                 self._run_retention_if_due()
-                time.sleep(0.01)
+                if not self._writer.is_alive:
+                    # Nothing accepted from here on could ever be stored,
+                    # and backpressure would soon stop every client.
+                    log.critical("log writer thread stopped; stopping pm-log-srv")
+                    raise RuntimeError("log writer thread stopped")
+                if not busy:
+                    time.sleep(0.01)
         finally:
             self.close()
 
@@ -234,16 +273,18 @@ class LogServer:
         ]
 
     def close(self) -> None:
+        """Stop everything once; ``run()`` and ``main()`` both call this."""
+        if self._closed:
+            return
+        self._closed = True
         if self._reporter is not None:
             self._reporter.stop()
         self._flush_debug_summary(force=True)
         log.info("closing pm-log-srv")
         for session in list(self._clients.values()):
-            try:
-                session.sock.close()
-            except OSError:
-                pass
+            self._disconnect(session, reason="server_stop")
         self._clients.clear()
+        self._flush_errors_sent()
 
         if self._server is not None:
             self._server.close()
@@ -252,11 +293,13 @@ class LogServer:
         if self._pubsub is not None:
             self._pubsub.stop()
 
-        self._writer.stop()
-        if hasattr(self, "_conn"):
-            self._conn.close()
-        if hasattr(self, "_prune_conn"):
-            self._prune_conn.close()
+        try:
+            self._writer.stop()
+        finally:
+            if hasattr(self, "_conn"):
+                self._conn.close()
+            if hasattr(self, "_prune_conn"):
+                self._prune_conn.close()
 
     # ------------------------------------------------------------------
     # Network IO
@@ -276,13 +319,18 @@ class LogServer:
                 break
 
             conn.setblocking(False)
-            session = LogSession(sock=conn, addr=addr)
+            session = LogSession(
+                sock=conn,
+                addr=addr,
+                reader=FrameReader(max_payload_bytes=self.config.max_message_bytes),
+            )
             self._clients[conn.fileno()] = session
             log.info(
                 "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
             )
 
-    def _read_client_data(self) -> None:
+    def _read_client_data(self) -> int:
+        """Read what the clients sent; return the number of bytes read."""
         # Backpressure (§5.8/§7.4/§15.13): while the writer thread holds more
         # than max_client_queue uncommitted rows, read from no socket at all.
         # Unread bytes stay in the kernel buffers, so TCP flow control slows
@@ -291,20 +339,22 @@ class LogServer:
         self._backlogged = self._writer.pending > self.config.max_client_queue
         if self._backlogged:
             self._dbg_count("reads_throttled")
-            return
+            return 0
         if not self._clients:
-            return
+            return 0
 
         # A session closing after an ERR or EXIT is only flushed, not read:
         # anything it sends after that point is not accepted.
         readable = [s.sock for s in self._clients.values() if not s.closing]
         if not readable:
-            return
+            return 0
         try:
             ready, _, _ = select.select(readable, [], [], 0)
         except (OSError, ValueError) as exc:
             log.warning("read select failed: %s", exc)
-            return
+            return 0
+
+        total = 0
 
         for sock_obj in ready:
             self._dbg_count("readable_sockets")
@@ -317,22 +367,31 @@ class LogServer:
             if len(session.out_queue) > self.config.max_client_queue:
                 continue
 
+            total += self._read_session(session)
+        return total
+
+    def _read_session(self, session: LogSession) -> int:
+        """Read one ready client until EAGAIN or the per-pass byte budget."""
+        read = 0
+        while read < _READ_BUDGET_BYTES and not session.closing:
             try:
                 chunk = session.sock.recv(4096)
             except BlockingIOError:
-                continue
+                break
             except OSError:
                 # ECONNRESET and friends: the peer is gone, not idle.
                 self._disconnect(session, reason="io_error")
-                continue
+                break
 
             if not chunk:
                 self._disconnect(session, reason="peer_closed")
-                continue
+                break
 
+            read += len(chunk)
             session.reader.feed(chunk)
             session.last_activity = time.monotonic()
             self._drain_frames(session)
+        return read
 
     def _drain_frames(self, session: LogSession) -> None:
         while True:
@@ -417,7 +476,7 @@ class LogServer:
 
         if msg_type == "LOG":
             self._register_process(session)
-            self._handle_log(session, fields, frame.payload or b"")
+            self._handle_log(session, fields, frame.payload or b"", frame.truncated)
         elif msg_type == "HB":
             self._register_process(session)
             session.last_activity = time.monotonic()
@@ -458,13 +517,12 @@ class LogServer:
             self._close_after_flush(session)
             return
 
-        try:
-            pid = int(pid_raw)
-        except TypeError, ValueError:
+        pid = _sqlite_int(pid_raw)
+        if pid is None:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": ERR_MISSING_FIELD, "MSG": "PID must be an integer"},
+                {"CODE": ERR_MISSING_FIELD, "MSG": "PID must be a 64-bit integer"},
             )
             self._close_after_flush(session)
             return
@@ -500,7 +558,11 @@ class LogServer:
         )
 
     def _handle_log(
-        self, session: LogSession, fields: dict[str, str], payload: bytes
+        self,
+        session: LogSession,
+        fields: dict[str, str],
+        payload: bytes,
+        cut_by_reader: bool = False,
     ) -> None:
         err_code = validate_log_fields(fields)
         if err_code == ERR_MISSING_FIELD:
@@ -523,10 +585,7 @@ class LogServer:
             self._dbg_count("log_rejected_invalid_level")
             return
 
-        try:
-            seq = int(fields["SEQ"])
-        except TypeError, ValueError:
-            seq = 0
+        seq = _sqlite_int(fields["SEQ"]) or 0
         if seq and session.last_seq and seq != session.last_seq + 1:
             log.debug(
                 "SEQ gap on fd=%d client=%s: expected %d got %d",
@@ -541,7 +600,7 @@ class LogServer:
         truncated = False
         message = payload.decode("utf-8", errors="replace")
         max_bytes = self.config.max_message_bytes
-        if len(payload) > max_bytes:
+        if cut_by_reader or len(payload) > max_bytes:
             # Truncate, store anyway, advisory ERR — never drop (§15.7/§15.9).
             truncated = True
             cut = payload[:max_bytes]
@@ -562,13 +621,7 @@ class LogServer:
                 },
             )
 
-        line_raw = fields.get("LINE")
-        line_no: int | None = None
-        if line_raw is not None:
-            try:
-                line_no = int(line_raw)
-            except TypeError, ValueError:
-                line_no = None
+        line_no = _sqlite_int(fields.get("LINE"))
 
         row = LogEventRow(
             client_ts=fields.get("TS", iso_utc(time.time())),
@@ -697,6 +750,7 @@ class LogServer:
         if now - self._last_heartbeat_flush < self.config.heartbeat_interval_sec:
             return
         self._last_heartbeat_flush = now
+        self._flush_errors_sent()
 
         due = [
             s
@@ -717,34 +771,54 @@ class LogServer:
         for s in due:
             s.persisted_activity = s.last_activity
 
+    def _flush_errors_sent(self) -> None:
+        """Add the ERR replies counted since the last flush to server_stats.
+
+        Counted in memory rather than committed per reply: on disk each
+        commit costs a WAL fsync on the main loop (1.24 ms measured).
+        """
+        if not self._errors_sent_unflushed:
+            return
+        with self._writer.lock, self._conn:
+            self._conn.execute(
+                INCREMENT_TOTAL_ERRORS_SENT, (self._errors_sent_unflushed,)
+            )
+        self._errors_sent_unflushed = 0
+
     def _run_retention_if_due(self) -> None:
+        """Prune hourly, one chunk per loop pass until a chunk comes back short.
+
+        One chunk (``PRUNE_CHUNK_ROWS`` rows, about 25 ms) per pass keeps a
+        large prune from stopping the loop: deleting 1.1 M rows in one go
+        blocked every read and publish for 5 s.
+        """
         if self.config.retention_days is None:
             return
-        now = time.monotonic()
-        if now - self._last_retention_check < _RETENTION_CHECK_INTERVAL_SEC:
-            return
-        self._last_retention_check = now
-        self._prune_older_than(self.config.retention_days)
-
-    def _prune_older_than(self, days: int) -> int:
-        cutoff = iso_utc(time.time() - days * 86400)
-        deleted = 0
-        while True:
-            # One committed chunk per statement, so the writer thread never
-            # waits behind more than one bounded DELETE.
-            with self._prune_conn:
-                cur = self._prune_conn.execute(
-                    DELETE_OLD_LOG_EVENTS, (cutoff, PRUNE_CHUNK_ROWS)
-                )
-                count = max(cur.rowcount, 0)
-            deleted += count
-            if count < PRUNE_CHUNK_ROWS:
-                break
-        if deleted:
-            log.info(
-                "retention: pruned %d log_events rows older than %s", deleted, cutoff
+        if self._prune_cutoff is None:
+            now = time.monotonic()
+            if now - self._last_retention_check < _RETENTION_CHECK_INTERVAL_SEC:
+                return
+            self._last_retention_check = now
+            self._prune_cutoff = iso_utc(
+                time.time() - self.config.retention_days * 86400
             )
-        return deleted
+            self._pruned = 0
+        # One committed chunk per statement, so the writer thread never
+        # waits behind more than one bounded DELETE.
+        with self._prune_conn:
+            cur = self._prune_conn.execute(
+                DELETE_OLD_LOG_EVENTS, (self._prune_cutoff, PRUNE_CHUNK_ROWS)
+            )
+            count = max(cur.rowcount, 0)
+        self._pruned += count
+        if count < PRUNE_CHUNK_ROWS:
+            if self._pruned:
+                log.info(
+                    "retention: pruned %d log_events rows older than %s",
+                    self._pruned,
+                    self._prune_cutoff,
+                )
+            self._prune_cutoff = None
 
     # ------------------------------------------------------------------
     # Queue/disconnect helpers
@@ -755,8 +829,7 @@ class LogServer:
     ) -> None:
         self._queue_raw(session, build_header_line(msg_type, fields))
         if msg_type == "ERR":
-            with self._writer.lock, self._conn:
-                self._conn.execute(INCREMENT_TOTAL_ERRORS_SENT)
+            self._errors_sent_unflushed += 1
 
     def _queue_raw(self, session: LogSession, payload: bytes) -> None:
         session.out_queue.append(payload)

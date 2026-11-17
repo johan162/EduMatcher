@@ -50,7 +50,7 @@ Reduce the order to 200 shares:
 [TRADER01]> AMEND|ID=<order_id>|QTY=200|RTAG=AMD-DOWN-001
 ```
 
-Expected: `AMENDED <order_id>  price=419.5 qty=200 remaining=200 rtag=AMD-DOWN-001`. There is no `(priority reset)` note, because priority was kept.
+Expected: `AMENDED <order_id>  price=419.50 qty=200 remaining=200 rtag=AMD-DOWN-001`. There is no `(priority reset)` note, because priority was kept.
 
 !!! note "Priority preserved"
     Reducing quantity does **not** lose time priority — your order keeps its
@@ -71,7 +71,7 @@ Move the order to a more aggressive price:
 [TRADER01]> AMEND|ID=<order_id>|PRICE=419.70|RTAG=AMD-PRICE-001
 ```
 
-Expected: `AMENDED <order_id>  price=419.7 qty=200 remaining=200 (priority reset) rtag=AMD-PRICE-001`.
+Expected: `AMENDED <order_id>  price=419.70 qty=200 remaining=200 (priority reset) rtag=AMD-PRICE-001`.
 
 !!! warning "Priority lost"
     A price change **always** loses time priority — the order moves to the back
@@ -146,7 +146,7 @@ console clear it (this cancels every order and quote on TSLA, and stop any
    ```
    [TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=250.00|TIF=DAY
    ```
-   Expected: `FILL … qty=200 @250.0  remaining=300  [PARTIAL]`. Note the order
+   Expected: `FILL … qty=200 @250.00  remaining=300  [PARTIAL]`. Note the order
    ID of this buy.
 
 2. Amend it. `QTY=` in an `AMEND` is the order's new **total** quantity, not the
@@ -164,7 +164,7 @@ console clear it (this cancels every order and quote on TSLA, and stop any
    ```
    [TRADER01]> AMEND|ID=<order_id>|QTY=700|RTAG=AMD-PARTIAL-003
    ```
-   Expected: `AMENDED … price=250.0 qty=700 remaining=500 (priority reset)`.
+   Expected: `AMENDED … price=250.00 qty=700 remaining=500 (priority reset)`.
 
 !!! note
     The new qty must be **strictly greater than** the already-filled quantity. Setting it equal to the filled quantity is rejected — use `CANCEL` if you want the remainder gone. You cannot amend below

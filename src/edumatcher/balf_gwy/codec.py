@@ -51,6 +51,7 @@ MSG_AMEND_ORDER: Final[int] = 0x14
 MSG_AMEND_ACK: Final[int] = 0x15
 MSG_EXECUTION_REPORT: Final[int] = 0x20
 MSG_STOP_TRIGGERED: Final[int] = 0x21
+MSG_ORDER_STATUS: Final[int] = 0x22  # BALF 1.1
 MSG_HEARTBEAT: Final[int] = 0x30
 MSG_HEARTBEAT_ACK: Final[int] = 0x31
 MSG_LOGOUT: Final[int] = 0x40
@@ -67,6 +68,7 @@ FRAME_SIZE: Final[dict[int, int]] = {
     MSG_AMEND_ACK: 48,  # body 40
     MSG_EXECUTION_REPORT: 64,  # body 56
     MSG_STOP_TRIGGERED: 56,  # body 48
+    MSG_ORDER_STATUS: 64,  # body 56
     MSG_HEARTBEAT: 16,  # body 8
     MSG_HEARTBEAT_ACK: 16,  # body 8
     MSG_LOGOUT: 8,  # body 0
@@ -460,6 +462,71 @@ def build_amend_ack(
 # only producer of this frame and calls that directly. MSG_EXECUTION_REPORT and
 # its FRAME_SIZE entry remain here as the client-side parse registry. The same
 # holds for STOP_TRIGGERED (0x21, 56 bytes): serialise_stop_triggered_balf.
+
+
+# ---------------------------------------------------------------------------
+# ORDER_STATUS  (0x22, 64 bytes total; BALF 1.1)
+# ---------------------------------------------------------------------------
+# One resting order a fresh pm-balf-gwy adopted at logon, under a new BALF id
+# (For-Later L027). Body: client_order_id Q, order_id Q, price q, stop_price
+# q, quantity I, remaining_qty I, symbol 8s, side B, order_type B, tif B,
+# reserved 5x. Codes are NEW_ORDER's.
+
+_ORDER_STATUS_FMT = "<QQqqII8sBBB5x"
+
+SIDE_CODE: Final[dict[str, int]] = {v: k for k, v in SIDE_TO_STR.items()}
+ORDER_TYPE_CODE: Final[dict[str, int]] = {v: k for k, v in ORDER_TYPE_TO_STR.items()}
+TIF_CODE: Final[dict[str, int]] = {v: k for k, v in TIF_TO_STR.items()}
+
+
+def build_order_status(
+    *,
+    client_order_id: int,
+    balf_order_id: int,
+    price: int,
+    stop_price: int,
+    quantity: int,
+    remaining_qty: int,
+    symbol: str,
+    side: int,
+    order_type: int,
+    tif: int,
+    seq_no: int,
+) -> bytes:
+    """Build an ORDER_STATUS frame (64 bytes); prices are wire fixed point."""
+    body = struct.pack(
+        _ORDER_STATUS_FMT,
+        client_order_id,
+        balf_order_id,
+        price,
+        stop_price,
+        quantity,
+        remaining_qty,
+        _encode_fixed(symbol, 8),
+        side,
+        order_type,
+        tif,
+    )
+    return build_header(MSG_ORDER_STATUS, seq_no) + body
+
+
+def parse_order_status(body: bytes) -> dict[str, Any]:
+    """Decode an ORDER_STATUS body (the client side of the frame)."""
+    cid, oid, price, stop, qty, remaining, sym, side, otype, tif = struct.unpack(
+        _ORDER_STATUS_FMT, body
+    )
+    return {
+        "client_order_id": cid,
+        "order_id": oid,
+        "price": price,
+        "stop_price": stop,
+        "quantity": qty,
+        "remaining_qty": remaining,
+        "symbol": _decode_fixed(sym),
+        "side": side,
+        "order_type": otype,
+        "tif": tif,
+    }
 
 
 # ---------------------------------------------------------------------------

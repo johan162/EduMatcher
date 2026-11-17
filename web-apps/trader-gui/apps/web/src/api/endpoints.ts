@@ -310,7 +310,7 @@ export const adminSymbolKillSwitch = (symbol: string, reason?: string) =>
   );
 
 // Cancel every resting order/quote of one named gateway (does NOT disconnect it
-// — that is the separate Kick action). The gateway is the path segment.
+// — that is the separate Kill action). The gateway is the path segment.
 export const adminGatewayKillSwitch = (targetGatewayId: string, reason?: string) =>
   apiFetch<AdminGatewayKillSwitchResponse>(
     `/api/v1/admin/gateways/${encodeURIComponent(targetGatewayId)}/kill-switch`,

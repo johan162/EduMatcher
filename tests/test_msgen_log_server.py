@@ -262,6 +262,7 @@ class TestTheRowShapeIsSharedByBothPaths:
             "seq_to": 7,
             "server_last_seq": 7,
             "dropped": 0,
+            "msg_no": 1,
             "timestamp": 1700000000.0,
         }
         assert G.LogEvent.from_dict(payload).to_dict() == payload
@@ -277,6 +278,7 @@ class TestTheRowShapeIsSharedByBothPaths:
             "total_sent": 1,
             "truncated": False,
             "last_seq": 7,
+            "msg_no": 2,
             "timestamp": 1700000000.0,
         }
         parsed = G.LogBackfill.from_dict(payload)
@@ -293,6 +295,7 @@ class TestTheRowShapeIsSharedByBothPaths:
             "seq_to": 0,
             "server_last_seq": 0,
             "dropped": 0,
+            "msg_no": 1,
             "timestamp": 1700000000.0,
         }
         with pytest.raises(MessageValidationError, match="rows"):

@@ -70,6 +70,19 @@
     - "See the id ranges with `pm-stats-cli gaps`, and the trades in `pm-audit-cli trades`."
 
 - logger: edumatcher.stats.main
+  template: "detected %d trade(s) lost before the engine run ended: expected id %d, the run ended at %d"
+  level: ERROR
+  explanation: >
+    The engine's end-of-day message names the last trade of its run, and
+    pm-stats never received the trades up to it: they were executed just
+    before the engine stopped and are missing from stats.db. Today's volume,
+    trade count and OHLC figures are too low for the affected symbols. The
+    gap is stored in the feed_gaps table.
+  actions:
+    - "See the missing id range with `pm-stats-cli gaps`."
+    - "Find the trades themselves in the audit trail with `pm-audit-cli trades`."
+
+- logger: edumatcher.stats.main
   template: "detected %d missing message(s) on %s: expected %d, received %d"
   level: ERROR
   explanation: >

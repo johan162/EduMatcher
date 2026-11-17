@@ -320,17 +320,16 @@ ERR|CODE=INVALID_LEVEL|MSG=unknown LEVEL value: TRACE
 | `MISSING_FIELD` | A required header field absent on the message | No, same as `INVALID_LEVEL` |
 | `PAYLOAD_TOO_LARGE` | `LOG.LEN` exceeded `max_message_bytes` | No — advisory only; the server has already truncated and stored the record |
 | `PROTO_MISMATCH` | `HELLO.PROTO` was not `LALF1`, or a second `HELLO` was sent on an established connection | Yes — server MUST close the connection after queuing this `ERR` |
-| `HELLO_TIMEOUT` | No `HELLO` received within 5 seconds of accept | Yes — the server queues this `ERR` and disconnects in the same step, without an intervening flush of the outbound queue; a client SHOULD NOT rely on receiving this `ERR` before the socket closes, and MUST instead treat an unexpected close with no prior `WELCOME` as an implicit handshake timeout |
+| `HELLO_TIMEOUT` | No `HELLO` received within 5 seconds of accept | Yes — the server queues this `ERR` and gives it one flush pass before closing, whether or not it went out; a client SHOULD NOT rely on receiving this `ERR` before the socket closes, and MUST instead treat an unexpected close with no prior `WELCOME` as an implicit handshake timeout |
 
-**Implementation note on `HELLO_TIMEOUT` delivery.** Unlike every other
-terminal `ERR` code above — which are queued and then the connection is
-marked closing-after-flush, guaranteeing the `ERR` bytes are sent before the
-socket closes — `HELLO_TIMEOUT` is queued and the connection is closed
-immediately afterward, in the same pass through the server's idle-connection
-sweep, with no guarantee the outbound queue was flushed first. In practice
-this means a client is unlikely to ever observe this specific `ERR` on the
-wire; it should be treated as effectively equivalent to a bare connection
-close with no prior `WELCOME`.
+**Implementation note on `HELLO_TIMEOUT` delivery.** Like the other
+terminal `ERR` codes, `HELLO_TIMEOUT` is queued and the connection is marked
+closing-after-flush. The difference is the bound: a client that has not
+sent `HELLO` may not be reading either, so the server gives the `ERR` one
+flush pass and closes the connection at the next idle-connection sweep even
+if the bytes did not go out. A client that is reading will usually see the
+`ERR`; one that is not sees a bare close with no prior `WELCOME`, and both
+mean the same.
 
 ### `HB`
 
@@ -395,8 +394,14 @@ explicit `EXIT` for the purpose of flushing buffered rows and marking the
 connection's stored process record disconnected.
 
 The shipped `pm-log-srv` does, however, record *which* of the two happened
-in `processes.disconnect_reason` (`client_exit` versus `peer_closed`,
-`idle_timeout`, `hello_timeout`, or `protocol_error`). Sending `EXIT` is
+in `processes.disconnect_reason`: `client_exit` (the client sent `EXIT`)
+versus `peer_closed` (the socket closed), `io_error` (the connection was
+reset or a read or write failed), `idle_timeout` (no message for
+2 × `HBINT`) or `protocol_error`. Two more reasons come from the server
+itself: `server_stop` for every session still connected when `pm-log-srv`
+stops, and `server_restart` for a session a previous `pm-log-srv` left open
+(it stopped without a clean shutdown), closed when the next one starts. A
+connection that never completed its handshake has no stored record. Sending `EXIT` is
 therefore worth doing even though its absence is legal: it is what lets
 `pm-log-cli diagnose` tell a deliberate shutdown from a process that
 crashed or failed over to file logging.
@@ -484,10 +489,10 @@ wire beyond `WELCOME.HBINT`:
   header-only. An implementation that defaults to expecting a payload after
   every message type will stall waiting for bytes that are never sent.
 - **Do not assume `HELLO_TIMEOUT` is reliably observable.** As noted under
-  `ERR` above, the reference server implementation queues this `ERR` and
-  closes the connection without guaranteeing a flush first. Client code
-  should treat "connected but no `WELCOME` within a few seconds, then the
-  socket closes" as the practical signal, not a specific received `ERR` code.
+  `ERR` above, the reference server gives this `ERR` one flush pass and then
+  closes the connection whether or not it was sent. Client code should
+  treat "connected but no `WELCOME` within a few seconds, then the socket
+  closes" as the practical signal, not a specific received `ERR` code.
 
 
 

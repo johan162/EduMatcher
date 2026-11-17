@@ -48,6 +48,7 @@ DiagnosticComponent = Literal[
     "UNDECODABLE_MESSAGE",
     "UNROUTED_TOPIC",
 ]
+PositionSnapshotStatus = Literal["OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY"]
 QuoteLegsRequestShow = Literal["ACTIVE", "RECENT", "ALL"]
 QuoteLegsShowRequested = Literal["ACTIVE", "RECENT", "ALL"]
 
@@ -620,6 +621,10 @@ class GatewayInfo(BaseModel):
     role: str = Field(max_length=32)
     description: str = Field(max_length=128)
     connected: bool
+    connected_since_ns: int | None = Field(default=None)
+    """When the engine accepted the current connection. Absent while offline. Unit:
+    epoch_nanos.
+    """
 
 
 class SymbolVolume(BaseModel):
@@ -722,7 +727,9 @@ class GatewayHeartbeat(BaseModel):
     refuses a second connect for an ID that is already connected. The engine
     counts the beats it expects -- one per `interval_sec` -- and disconnects the
     session, applying its `disconnect_behaviour`, after three consecutive misses.
-    Liveness is opt-in: a session that has never sent one is never timed out.
+    The clock starts at connect, at the default 60-second interval until the first
+    beat carries the sender's own, so a session that never sends one is timed out
+    too.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -759,6 +766,12 @@ class Eod(BaseModel):
 
     books: list[EodBook]
     """One per instrument the engine had a book for, unordered."""
+    last_trade_id: str | None = Field(max_length=32)
+    """The id of the last trade this engine run made, null for a run without trades.
+    Trade ids restart with every run, so without it a subscriber cannot tell
+    trades lost just before the stop from a clean end: one that holds an older id
+    of this run lost the rest.
+    """
 
 
 class BookCheckpoint(BaseModel):
@@ -1087,6 +1100,10 @@ class SessionStatus(BaseModel):
     or `session.next` announced it. Lets a caller that missed the last transition
     still count down to the next one.
     """
+    last_trade_id: str | None = Field(max_length=32)
+    """The id of the last trade this engine run has made so far, null before its
+    first: what `system.eod` will name if the run ends now.
+    """
 
 
 class SessionScheduleRequest(BaseModel):
@@ -1136,9 +1153,9 @@ class PositionRequest(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     gateway_id: str = Field(max_length=32)
-    """Both the correlation key and the account being asked about. A gateway can only
-    ask about itself: the handler answers from `_gateway_positions[gateway_id]`
-    and nothing else.
+    """Both the correlation key and the account being asked about. Any caller may ask
+    about any gateway (`POS|GW=`, the admin REST endpoint): the handler answers
+    from `_gateway_positions[gateway_id]` and nothing else.
     """
 
 
@@ -1150,6 +1167,11 @@ class PositionSnapshot(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     positions: list[Position]
+    status: PositionSnapshotStatus
+    """`OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that
+    is logged off; the list is still its own, as the engine holds it.
+    `UNKNOWN_GATEWAY`: no participant has this id, so the list is empty.
+    """
 
 
 class QuoteBootstrapRequest(BaseModel):

@@ -292,3 +292,56 @@ def test_query_missing_database_fails_with_actionable_error(
     err = capsys.readouterr().err
     assert "Log database not found" in err
     assert "pm-log-srv" in err
+
+
+def test_after_a_server_stop_no_session_is_active_or_stuck(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """C1: a stopped pm-log-srv leaves no open session for diagnose to flag."""
+    import socket
+    import threading
+
+    from edumatcher.log_srv.config import LogServerConfig
+    from edumatcher.log_srv.server import LogServer
+    from tests.conftest import free_ports
+
+    port, pub_port, pull_port = free_ports(3)
+    db = tmp_path / "log.db"
+    server = LogServer(
+        LogServerConfig(
+            bind_address="127.0.0.1",
+            port=port,
+            db_path=db,
+            heartbeat_interval_sec=1,
+            pub_port=pub_port,
+            pull_port=pull_port,
+        )
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    socks = []
+    for i in range(3):
+        s = socket.create_connection(("127.0.0.1", port), timeout=2)
+        s.sendall(f"HELLO|CLIENT=pm-proc{i}|PID=1|HOST=h|PROTO=LALF1\n".encode())
+        s.recv(4096)
+        s.sendall(b"HB\n")
+        socks.append(s)
+    time.sleep(0.3)
+    server.stop()
+    thread.join(timeout=3)
+    for s in socks:
+        s.close()
+
+    monkeypatch.setattr(
+        sys, "argv", ["pm-log-cli", "--db", str(db), "processes", "--active"]
+    )
+    log_cli_main.main()
+    assert "pm-proc" not in capsys.readouterr().out
+
+    monkeypatch.setattr(sys, "argv", ["pm-log-cli", "--db", str(db), "diagnose"])
+    try:
+        log_cli_main.main()
+    except SystemExit as exc:
+        assert exc.code in (0, None), capsys.readouterr().out
+    assert "process_silence" not in capsys.readouterr().out

@@ -28,6 +28,7 @@
 #define MSG_AMEND_ACK        0x15u
 #define MSG_EXECUTION_REPORT 0x20u
 #define MSG_STOP_TRIGGERED   0x21u
+#define MSG_ORDER_STATUS     0x22u  /* BALF 1.1 */
 #define MSG_HEARTBEAT        0x30u
 #define MSG_HEARTBEAT_ACK    0x31u
 #define MSG_LOGOUT           0x40u
@@ -90,6 +91,7 @@ static int frame_size(uint8_t msg_type) {
         case MSG_AMEND_ACK: return 48;
         case MSG_EXECUTION_REPORT: return 64;
         case MSG_STOP_TRIGGERED: return 56;
+        case MSG_ORDER_STATUS: return 64;
         case MSG_HEARTBEAT: return 16;
         case MSG_HEARTBEAT_ACK: return 16;
         case MSG_LOGOUT: return 8;

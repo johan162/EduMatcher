@@ -129,6 +129,8 @@ class _PubSubHarness:
         level: str = "INFO",
         logger: str = "edumatcher.engine",
         tpl: str | None = None,
+        module: str | None = "mod",
+        line: str | None = "1",
     ) -> None:
         assert self.producer is not None
         self._seq += 1
@@ -138,9 +140,11 @@ class _PubSubHarness:
             "TS": iso_utc(time.time()),
             "LEVEL": level,
             "LOGGER": logger,
-            "MODULE": "mod",
-            "LINE": "1",
         }
+        if module is not None:
+            fields["MODULE"] = module
+        if line is not None:
+            fields["LINE"] = line
         if tpl is not None:
             fields["TPL"] = tpl
         fields["LEN"] = str(len(body))
@@ -653,3 +657,459 @@ def test_pubsub_can_be_disabled(tmp_path: Path) -> None:
         h.server.stop()
         time.sleep(0.4)
         h.ctx.term()
+
+
+# ---------------------------------------------------------------------------
+# WP-LOG04: NULL columns go out as null; only what was sent is counted
+# ---------------------------------------------------------------------------
+
+
+def test_null_columns_reach_a_stream_subscriber_as_null(
+    harness: _PubSubHarness,
+) -> None:
+    harness.send(make_log_subscribe_msg("v1", "STREAM"))
+    time.sleep(0.4)
+    harness.emit("bare", module=None, line=None)  # HELLO carried no INSTANCE
+    rows = [r for p in harness.collect("log.event.v1", seconds=1.0) for r in p["rows"]]
+    assert len(rows) == 1
+    assert rows[0]["instance"] is None
+    assert rows[0]["module"] is None
+    assert rows[0]["line"] is None
+
+
+def _emit_mixed(harness: _PubSubHarness) -> None:
+    for i in range(300):
+        harness.emit(f"row-{i}")
+        if i % 100 == 50:
+            harness.emit(f"noline-{i}", line=None, module=None)
+
+
+def test_rows_with_null_line_do_not_lose_their_live_chunk(
+    harness: _PubSubHarness,
+) -> None:
+    harness.send(make_log_subscribe_msg("v1", "STREAM"))
+    time.sleep(0.4)
+    _emit_mixed(harness)
+    rows = [r for p in harness.collect("log.event.v1", seconds=2.5) for r in p["rows"]]
+    assert len(rows) == 303
+
+
+def test_a_backfill_over_null_columns_sends_what_it_counts(
+    harness: _PubSubHarness,
+) -> None:
+    _emit_mixed(harness)
+    time.sleep(1.0)
+    harness.send(make_log_subscribe_msg("v1", "NOTIFY", backfill_minutes=5))
+    chunks = harness.collect("log.backfill.v1", seconds=3.0)
+    assert chunks and chunks[-1]["done"] is True
+    assert sum(len(c["rows"]) for c in chunks) == 303
+    assert chunks[-1]["total_sent"] == 303
+
+
+class _CapturingHub:
+    """A started hub whose publishes are decoded into a list, not sent."""
+
+    def __init__(self, tmp_path: Path, **kwargs: Any) -> None:
+        from edumatcher.log_srv.schema import open_db
+
+        open_db(tmp_path / "log.db").close()
+        pub_port, pull_port = free_ports(2)
+        self.hub = LogPubSubHub(
+            pub_addr=f"tcp://127.0.0.1:{pub_port}",
+            pull_addr=f"tcp://127.0.0.1:{pull_port}",
+            db_path=tmp_path / "log.db",
+            server_name="t",
+            **kwargs,
+        )
+        self.hub.start()
+        self.sent: list[tuple[str, dict[str, Any]]] = []
+        self.hub._publish = lambda frames: self.sent.append(decode(frames))
+
+    def subscribe(self, sub_id: str, filt: LogFilter | None = None) -> Subscription:
+        sub = Subscription(
+            sub_id=sub_id,
+            mode="STREAM",
+            filt=filt or LogFilter(),
+            lease_sec=30.0,
+            notify_interval_sec=0.25,
+            max_pending_rows=1000,
+            expires_at=time.monotonic() + 30,
+        )
+        sub.last_stream_at = 0.0  # a partial chunk is due at once
+        self.hub._subs[sub_id] = sub
+        return sub
+
+    def topics(self) -> list[str]:
+        return [t for t, _ in self.sent]
+
+    def close(self) -> None:
+        self.hub._publish = lambda frames: None
+        self.hub.stop()
+
+
+def _persisted(seq: int, **overrides: Any) -> tuple[int, LogEventRow]:
+    row = _row(**overrides)
+    row.pop("seq")
+    return seq, LogEventRow(**row)
+
+
+def test_a_row_that_cannot_be_serialised_is_an_internal_error(tmp_path: Path) -> None:
+    cap = _CapturingHub(tmp_path)
+    try:
+        sub = cap.subscribe("v1")
+        expired = cap.subscribe("gone")
+        expired.expires_at = 0.0
+        cap.hub.on_batch_persisted(
+            [_persisted(1), _persisted(2, logger="x" * 200), _persisted(3)]
+        )
+        cap.hub.poll()
+        errors = [p for t, p in cap.sent if t == "log.error.v1"]
+        assert errors and errors[0]["code"] == "INTERNAL"
+        assert sub.sent_rows == 0
+        assert sub.dropped_rows == 3
+        assert not sub.pending_rows
+        # The rest of the pass still ran: reaping and the server state.
+        assert "log.lease_expired.gone" in cap.topics()
+        assert "log.server_state" in cap.topics()
+    finally:
+        cap.close()
+
+
+def test_a_backfill_chunk_that_cannot_be_serialised_ends_the_job(
+    tmp_path: Path,
+) -> None:
+    from edumatcher.log_srv.pubsub import BackfillJob
+
+    conn = sqlite3.connect(str(tmp_path / "log.db"))
+    cap = _CapturingHub(tmp_path)
+    try:
+        for i, logger in enumerate(["ok", "x" * 200, "ok"], start=1):
+            conn.execute(
+                "INSERT INTO log_events (client_ts, server_ts, process, pid, host, "
+                "session, level, logger, has_exception, truncated, message) "
+                "VALUES (?, ?, 'p', 1, 'h', 's', 'INFO', ?, 0, 0, ?)",
+                (iso_utc(time.time()), iso_utc(time.time()), logger, f"m{i}"),
+            )
+        conn.commit()
+        sub = cap.subscribe("v1")
+        cap.hub._backfills["v1"] = BackfillJob(
+            sub_id="v1",
+            request_id="r1",
+            where_sql=" WHERE 1 = 1",
+            params=[],
+            max_seq=3,
+            cursor_seq=0,
+        )
+        cap.hub.poll()
+        errors = [p for t, p in cap.sent if t == "log.error.v1"]
+        chunks = [p for t, p in cap.sent if t == "log.backfill.v1"]
+        assert errors and errors[0]["code"] == "INTERNAL"
+        assert len(chunks) == 1
+        assert chunks[0]["rows"] == []
+        assert chunks[0]["done"] is True and chunks[0]["truncated"] is True
+        assert chunks[0]["total_sent"] == 0
+        assert chunks[0]["last_seq"] == 0
+        assert sub.sent_rows == 0
+        assert not cap.hub._backfills
+    finally:
+        cap.close()
+        conn.close()
+
+
+def test_resubscribing_with_a_new_filter_counts_buffered_rows_and_ends_the_backfill(
+    tmp_path: Path,
+) -> None:
+    from edumatcher.log_srv.pubsub import BackfillJob
+
+    cap = _CapturingHub(tmp_path)
+    try:
+        sub = cap.subscribe("v1")
+        sub.pending_rows = [_row(), _row()]
+        cap.hub._backfills["v1"] = BackfillJob(
+            sub_id="v1",
+            request_id="r-old",
+            where_sql=" WHERE 1 = 1",
+            params=[],
+            max_seq=10**6,
+            cursor_seq=5,
+            sent_rows=7,
+        )
+        cap.hub._handle_subscribe(
+            "v1",
+            {"mode": "STREAM", "filter": {"min_level": "ERROR"}},
+            time.monotonic(),
+        )
+        new = cap.hub._subs["v1"]
+        assert new.dropped_rows == 2
+        assert not new.pending_rows
+        ends = [
+            p
+            for t, p in cap.sent
+            if t == "log.backfill.v1" and p["request_id"] == "r-old"
+        ]
+        assert ends and ends[0]["done"] is True and ends[0]["truncated"] is True
+        assert "v1" not in cap.hub._backfills
+    finally:
+        cap.close()
+
+
+def test_resubscribing_with_the_same_terms_keeps_buffered_rows(
+    tmp_path: Path,
+) -> None:
+    cap = _CapturingHub(tmp_path)
+    try:
+        sub = cap.subscribe("v1")
+        sub.pending_rows = [_row(), _row()]
+        cap.hub._handle_subscribe("v1", {"mode": "STREAM"}, time.monotonic())
+        new = cap.hub._subs["v1"]
+        assert len(new.pending_rows) == 2
+        assert new.dropped_rows == 0
+    finally:
+        cap.close()
+
+
+# ---------------------------------------------------------------------------
+# WP-LOG05: a slow subscriber can see every loss; the PUB queue is bounded
+# ---------------------------------------------------------------------------
+
+
+def _batch(first_seq: int, n: int) -> list[tuple[int, LogEventRow]]:
+    return [_persisted(first_seq + i, message=f"m{first_seq + i}") for i in range(n)]
+
+
+class _LiveHub:
+    """A started hub publishing for real, with one registered STREAM sub."""
+
+    def __init__(self, tmp_path: Path, **kwargs: Any) -> None:
+        from edumatcher.log_srv.schema import open_db
+
+        open_db(tmp_path / "log.db").close()
+        self.pub_port, pull_port = free_ports(2)
+        self.hub = LogPubSubHub(
+            pub_addr=f"tcp://127.0.0.1:{self.pub_port}",
+            pull_addr=f"tcp://127.0.0.1:{pull_port}",
+            db_path=tmp_path / "log.db",
+            server_name="t",
+            **kwargs,
+        )
+        self.hub.start()
+        self.ctx = zmq.Context()
+        self.sub = self.ctx.socket(zmq.SUB)
+        self.sub.setsockopt(zmq.RCVHWM, 100)
+        self.sub.setsockopt(zmq.SUBSCRIBE, b"log.event.v1")
+        self.sub.connect(f"tcp://127.0.0.1:{self.pub_port}")
+        time.sleep(0.3)
+        self.subscription = Subscription(
+            sub_id="v1",
+            mode="STREAM",
+            filt=LogFilter(),
+            lease_sec=300.0,
+            notify_interval_sec=0.25,
+            max_pending_rows=self.hub._max_pending_rows,
+            expires_at=time.monotonic() + 300,
+        )
+        self.hub._subs["v1"] = self.subscription
+
+    def drain(self) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        idle_since = time.monotonic()
+        while time.monotonic() - idle_since < 0.5:
+            try:
+                out.append(decode(self.sub.recv_multipart(zmq.NOBLOCK))[1])
+                idle_since = time.monotonic()
+            except zmq.Again:
+                time.sleep(0.01)
+        return out
+
+    def close(self) -> None:
+        self.sub.close(linger=0)
+        self.ctx.term()
+        self.hub.stop()
+
+
+def test_a_slow_subscriber_can_account_for_every_lost_row(tmp_path: Path) -> None:
+    """C5: msg_no gaps plus `dropped` explain every row not received."""
+    live = _LiveHub(tmp_path)
+    try:
+        committed = 200_000
+        for first in range(1, committed + 1, 500):
+            live.hub.on_batch_persisted(_batch(first, 500))
+            live.hub.poll()
+        while live.subscription.pending_rows:
+            time.sleep(0.11)
+            live.hub.poll()
+        msgs = live.drain()
+        # Messages lost at the tail show as a gap once the next one arrives.
+        live.hub.on_batch_persisted(_batch(committed + 1, 500))
+        live.hub.poll()
+        committed += 500
+        msgs += live.drain()
+    finally:
+        live.close()
+
+    assert msgs
+    msg_nos = [m["msg_no"] for m in msgs]
+    assert msg_nos == sorted(msg_nos)
+    lost_messages = 0
+    for a, b in zip(msgs, msgs[1:]):
+        missing = b["seq_from"] - a["seq_to"] - 1
+        shed = b["dropped"] - a["dropped"]
+        if b["msg_no"] == a["msg_no"] + 1:
+            assert missing == shed, (a["msg_no"], b["msg_no"])
+        else:
+            lost_messages += b["msg_no"] - a["msg_no"] - 1
+            assert missing > shed
+    received = sum(m["row_count"] for m in msgs)
+    assert received < committed
+    assert lost_messages > 0
+
+
+def test_a_fast_subscriber_sees_consecutive_msg_no_and_no_drops(
+    tmp_path: Path,
+) -> None:
+    live = _LiveHub(tmp_path)
+    try:
+        for first in range(1, 2001, 100):
+            live.hub.on_batch_persisted(_batch(first, 100))
+            live.hub.poll()
+            time.sleep(0.12)
+            live.hub.poll()
+        msgs = live.drain()
+    finally:
+        live.close()
+    assert [m["msg_no"] for m in msgs] == list(range(1, len(msgs) + 1))
+    assert sum(m["row_count"] for m in msgs) == 2000
+    assert all(m["dropped"] == 0 for m in msgs)
+
+
+def test_backfill_chunks_share_the_subscription_msg_no(harness: _PubSubHarness) -> None:
+    for i in range(7):
+        harness.emit(f"old-{i}")
+    time.sleep(0.6)
+    harness.send(make_log_subscribe_msg("v1", "STREAM", backfill_minutes=5))
+    time.sleep(0.4)
+    harness.emit("live-1")
+    msgs = [
+        p for t, p in harness.drain(1.5) if t in ("log.backfill.v1", "log.event.v1")
+    ]
+    assert [p["msg_no"] for p in msgs] == list(range(1, len(msgs) + 1))
+
+
+def test_the_pub_queue_is_bounded_in_rows(tmp_path: Path) -> None:
+    """P1: SNDHWM = max_pending_rows / backfill_chunk_rows, capped by pub_sndhwm."""
+    live = _LiveHub(tmp_path, max_pending_rows=2000, backfill_chunk_rows=100)
+    try:
+        assert live.hub._pub is not None
+        assert live.hub._pub.getsockopt(zmq.SNDHWM) == 20
+    finally:
+        live.close()
+    capped = _LiveHub(tmp_path / "c", pub_sndhwm=5)
+    try:
+        assert capped.hub._pub is not None
+        assert capped.hub._pub.getsockopt(zmq.SNDHWM) == 5
+    finally:
+        capped.close()
+
+
+_RSS_CHILD = """
+import gc, sys, time
+from pathlib import Path
+from edumatcher.log_srv.pubsub import LogFilter, LogPubSubHub, Subscription
+from edumatcher.log_srv.schema import open_db
+from edumatcher.log_srv.writer import LogEventRow
+
+def rss_mb():
+    for line in Path("/proc/self/status").read_text().splitlines():
+        if line.startswith("VmRSS:"):
+            return int(line.split()[1]) / 1024
+    raise RuntimeError("no VmRSS")
+
+db, pub_port, pull_port, rows_total = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+open_db(Path(db)).close()
+hub = LogPubSubHub(pub_addr="tcp://127.0.0.1:" + pub_port,
+                   pull_addr="tcp://127.0.0.1:" + pull_port,
+                   db_path=Path(db), server_name="t")
+hub.start()
+print("ready", flush=True)
+sys.stdin.readline()
+hub._subs["v1"] = Subscription(sub_id="v1", mode="STREAM", filt=LogFilter(),
+    lease_sec=999.0, notify_interval_sec=0.25,
+    max_pending_rows=hub._max_pending_rows, expires_at=time.monotonic() + 999)
+row = LogEventRow(client_ts="2026-11-10T10:00:00.000Z",
+    server_ts="2026-11-10T10:00:00.001Z", process="pm-engine", instance=None,
+    pid=1, host="h", session="abcd1234", level="INFO",
+    logger="edumatcher.engine.book", module="book", line=10,
+    has_exception=False, truncated=False, message="order accepted " + "x" * 60,
+    tpl=None)
+gc.collect()
+base = rss_mb()
+for first in range(1, rows_total + 1, 500):
+    hub.on_batch_persisted([(first + i, row) for i in range(500)])
+    hub.poll()
+time.sleep(1.0)
+gc.collect()
+print(round(rss_mb() - base, 1), flush=True)
+hub.stop()
+"""
+
+
+def test_a_wedged_subscriber_does_not_grow_the_server(tmp_path: Path) -> None:
+    """P1: measured 2026-11-16, defaults, a SUB that never reads: +5 MB flat
+    from 100 000 to 1 000 000 rows (before: +15 MB at 100 000, +163 MB at
+    500 000). 300 000 rows here; the bound leaves room for allocator noise."""
+    import subprocess
+    import sys
+
+    pub_port, pull_port = free_ports(2)
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            _RSS_CHILD,
+            str(tmp_path / "log.db"),
+            str(pub_port),
+            str(pull_port),
+            "300000",
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert child.stdin is not None and child.stdout is not None
+    ctx = zmq.Context()
+    sub = ctx.socket(zmq.SUB)
+    try:
+        assert child.stdout.readline().strip() == "ready"
+        sub.setsockopt(zmq.RCVHWM, 100)
+        sub.setsockopt(zmq.SUBSCRIBE, b"log.event.v1")
+        sub.connect(f"tcp://127.0.0.1:{pub_port}")
+        time.sleep(0.5)
+        child.stdin.write("go\n")
+        child.stdin.flush()
+        growth_mb = float(child.stdout.readline())
+        child.wait(timeout=60)
+    finally:
+        sub.close(linger=0)
+        ctx.term()
+        if child.poll() is None:
+            child.kill()
+    assert growth_mb < 30.0
+
+
+def test_backfill_start_uses_the_client_ts_index(tmp_path: Path) -> None:
+    """P2: the first-seq lookup must not walk the primary key from the oldest row."""
+    cap = _CapturingHub(tmp_path)
+    try:
+        assert cap.hub._read_conn is not None
+        statements: list[str] = []
+        cap.hub._read_conn.set_trace_callback(statements.append)
+        cap.hub._first_seq_at_or_after("2026-11-16T00:00:00.000Z")
+        cap.hub._read_conn.set_trace_callback(None)
+        (sql,) = [s for s in statements if "MIN(seq)" in s]
+        plan = " | ".join(
+            str(row[3])
+            for row in cap.hub._read_conn.execute(f"EXPLAIN QUERY PLAN {sql}")
+        )
+    finally:
+        cap.close()
+    assert "idx_le_client_ts" in plan, plan

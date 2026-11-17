@@ -1252,8 +1252,8 @@ rows to log viewers such as `pm-log-ui`:
 | `backfill_chunk_rows` | `500` | Rows per backfill chunk. |
 | `max_backfill_minutes` | `1440` | Largest "last n minutes" window a viewer may ask for. |
 | `max_backfill_rows` | `100000` | Hard cap on rows in one backfill. |
-| `max_pending_rows` | `20000` | Per-subscriber stream buffer; a slow viewer loses its oldest rows. |
-| `pub_sndhwm` | `10000` | ZeroMQ send high-water mark. |
+| `max_pending_rows` | `20000` | Per-subscriber stream buffer; a slow viewer loses its oldest rows (counted in `dropped`). Also sets the ZeroMQ send high-water mark to `max_pending_rows / backfill_chunk_rows` messages per viewer, so a wedged viewer costs the server about twice this many rows at most. |
+| `pub_sndhwm` | `10000` | Upper cap on that ZeroMQ send high-water mark, in messages. Messages lost there show as `msg_no` gaps. |
 
 `port`, `pub_port` and `pull_port` must all differ. See
 [Centralized Log Server](../part-6-observe-and-recover/040-log-server.md).

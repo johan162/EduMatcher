@@ -789,7 +789,7 @@ in `pm-alf-console`.
 ```text
 # Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
 [OPS01|ADMIN]> SESSION|STATE=OPENING_AUCTION
-SESSION  PRE_OPEN → OPENING_AUCTION
+SESSION  now OPENING_AUCTION
 
 # Terminal 2 — trader submits orders during auction
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
@@ -797,7 +797,7 @@ SESSION  PRE_OPEN → OPENING_AUCTION
 
 # Terminal 1 — trigger the uncross
 [OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
-SESSION  OPENING_AUCTION → CONTINUOUS
+SESSION  now CONTINUOUS
 # Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
 # and publishes an auction.result.AAPL message with the same fields.
 ```

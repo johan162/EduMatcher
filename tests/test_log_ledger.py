@@ -62,6 +62,15 @@ def test_every_warning_call_site_is_understood(report: CheckReport) -> None:
     assert not report.problems, [f"{s.where}: {s.problem}" for s in report.problems]
 
 
+def test_a_process_state_line_is_explained_by_its_reason() -> None:
+    """pm-monitor's ``process %s: %s`` names the rule after the colon
+    (WP-MHD01); the entry must send the reader there, not elsewhere (D1)."""
+    entry = load_ledger()[template_id("edumatcher.monitor.collector", "process %s: %s")]
+    text = " ".join([entry.explanation, *entry.actions])
+    assert "after the colon" in text
+    assert "own rows" not in text
+
+
 def test_the_log_client_stamps_the_entry_key_on_a_real_record(tmp_path: Path) -> None:
     """The handler's TPL and the ledger's key are the same function of a call."""
     entry = next(iter(load_ledger().values()))

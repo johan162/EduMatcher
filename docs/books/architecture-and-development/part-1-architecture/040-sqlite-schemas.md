@@ -158,8 +158,10 @@ CREATE TABLE feed_gaps (
     stream          TEXT    NOT NULL,
     -- Which check found the gap, and so which counter the ids below are in:
     -- 'publisher_seq' (the per-topic publisher sequence; any stream, counts
-    -- messages) or 'trade_id' (the engine trade-id suffix; trade.executed
-    -- only, counts trades). One lost trade is usually found by both.
+    -- messages), 'trade_id' (the engine trade-id suffix; trade.executed
+    -- only, counts trades) or 'run_end' (the run's last trade id on
+    -- system.eod; received_id is one past it). One lost trade is usually
+    -- found by both of the first two.
     source          TEXT    NOT NULL,
     -- The id we expected next, the one that actually arrived, and how many
     -- are unaccounted for between them.

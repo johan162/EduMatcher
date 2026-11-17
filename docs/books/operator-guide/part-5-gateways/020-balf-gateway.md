@@ -361,10 +361,14 @@ cancel or amend them. New orders continue the numbering, so an old ID never
 names a new order.
 
 Events that arrive while no session of the ID is logged on are not replayed.
-A **restart of `pm-balf-gwy`** forgets every `order_id`: orders left on the
-book can no longer be reached over BALF. A participant who cannot afford that
-should use `disconnect_behaviour: CANCEL_ALL`, or reconcile through
-drop-copy, REST or the clearing reports.
+A **restart of `pm-balf-gwy`** forgets every `order_id`, but not the orders:
+at each ID's first logon it asks the engine for the ID's resting orders and
+hands them back, one `ORDER_STATUS` frame each (BALF `1.1.0`), under new
+`order_id`s and with the client's own `client_order_id`. Their fills,
+cancels and amends then work as before. Events that arrive between the
+`LOGON_ACK` and the engine's answer, for an order not yet handed back, are
+not delivered; reconcile through drop-copy, REST or the clearing reports if
+that window matters.
 
 
 ## Message reference

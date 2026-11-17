@@ -171,6 +171,7 @@ from edumatcher.models.generated.order import (
 from edumatcher.models.generated.risk import make_band_unchecked
 from edumatcher.models.generated.system import make_book_checkpoint
 from edumatcher.models.message import (
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     dumps,
     decode,
     decode_push_envelope,
@@ -250,7 +251,7 @@ from edumatcher.models.order_fields import (
     check_type_fields,
 )
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
-from edumatcher.models.trade import current_run_seq, set_run_seq
+from edumatcher.models.trade import current_run_seq, last_trade_id, set_run_seq
 from edumatcher.models.quote import (
     QuoteEntry,
     QuoteIndex,
@@ -684,6 +685,14 @@ class Engine:
 
         # Halt state — keyed by symbol; True means halted (circuit breaker fired)
         self._halted_symbols: dict[str, bool] = {}
+        # The halts the last checkpoint wrote (_halt_records): a change forces
+        # the next one, so a halt survives an abrupt exit (L021).
+        self._saved_halts: dict[str, dict[str, str]] = {}
+        # What _load_config found in the checkpoint: operator halts it put
+        # back, and other halts the restart ended (symbol, halt_source).
+        # _startup announces both once the restore is done.
+        self._restored_halts: list[tuple[str, str]] = []
+        self._ended_halts: list[tuple[str, str]] = []
         # Persisted book stats — loaded once during _load_config and kept for
         # _handle_symbols_request so prev_close is available without re-reading
         self._book_stats: dict[str, dict[str, Any]] = {}
@@ -1226,6 +1235,34 @@ class Engine:
             prev_close = persisted.get("prev_close")
             last = to_ticks(float(prev_close), sym) if prev_close is not None else None
             book.restore_stats(lbp, lsp, last)
+            # L021: an operator's halt (no level, no timer) is the operator's
+            # to lift and outlasts a restart; any other halt was on a timer
+            # this process does not have, so the restart ends it. Set before
+            # the seeds below, so they rest rather than match.
+            halt = persisted.get("halt")
+            if halt is not None:
+                if halt["level"] in _OPERATOR_HALT_LEVELS:
+                    self._halted_symbols[sym] = True
+                    self._restored_halts.append((sym, halt["level"]))
+                    log.warning(
+                        "Restored the operator halt on %s (%s) from the checkpoint",
+                        sym,
+                        halt["level"],
+                    )
+                else:
+                    self._ended_halts.append((sym, halt["source"]))
+                    log.warning(
+                        "Ended the %s halt on %s at the restart (halt_source %s)",
+                        halt["level"],
+                        sym,
+                        halt["source"],
+                    )
+        for sym, entry in stats.items():
+            if "halt" in entry and sym not in self._engine_config.symbols:
+                log.warning(
+                    "Dropped the checkpointed halt on %s: the symbol is not configured",
+                    sym,
+                )
         if stats:
             log.info(f"Restored book statistics for {len(stats)} symbol(s).")
 
@@ -1357,7 +1394,11 @@ class Engine:
                 book = self._book(sym)
                 # #16: seeded quotes must not cross-match if the engine starts in
                 # a non-continuous phase (e.g. CLOSED) — they rest for the open.
-                seed_do_match = is_matching_enabled(self._session_state)
+                # A restored halt (L021) holds them too, like any limit order
+                # entered during a halt.
+                seed_do_match = is_matching_enabled(
+                    self._session_state
+                ) and not self._halted_symbols.get(sym)
                 for quote_order in (bid, ask):
                     trades, events = book.process(
                         quote_order, match=seed_do_match, now=now
@@ -1457,6 +1498,15 @@ class Engine:
                     )
                 elif cb_ref_ticks is not None:
                     cb_state.seed_reference(cb_ref_ticks, now_ns())
+                if self._halted_symbols.get(sym):
+                    # A restored operator halt, as the halt handlers set it.
+                    cb_state.halted = True
+                    cb_state.halted_at_ns = now_ns()
+                    cb_state.resume_at_ns = None
+                    cb_state.triggered_level = next(
+                        level for s, level in self._restored_halts if s == sym
+                    )
+                    cb_state.halt_source = "ADMIN"
                 self._circuit_breakers[sym] = cb_state
 
     # ------------------------------------------------------------------
@@ -1475,6 +1525,7 @@ class Engine:
         self._announce_startup(run_seq)
         restored = self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
+        self._publish_restart_halts()
         if restored:
             # Only now: the books' last prices are restored by _load_config.
             for symbol, book in self.books.items():
@@ -1494,7 +1545,10 @@ class Engine:
             save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
             save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
             save_book_stats(
-                self.books, self._circuit_breakers, target / BOOK_STATS_FILE.name
+                self.books,
+                self._circuit_breakers,
+                target / BOOK_STATS_FILE.name,
+                self._halt_records(),
             )
         except Exception as exc:
             self._dbg_count("eod_archive_errors")
@@ -1882,6 +1936,16 @@ class Engine:
         # M7: quantity must be positive.
         if order.quantity <= 0 or order.remaining_qty <= 0:
             return "QTY_OUT_OF_RANGE", "Quantity must be positive"
+        # L032: tick prices at the sender's scale must be at the symbol's. An
+        # order without one (MARKET) has nothing the scale could misplace.
+        if (
+            order.price_ticks is not None
+            or order.stop_price_ticks is not None
+            or order.trail_offset_ticks is not None
+        ):
+            mismatch = self._tick_scale_mismatch(order.symbol, order.tick_decimals)
+            if mismatch:
+                return "INVALID_VALUE", mismatch
         # WP-API16: the per-type field rule every gateway applies too, here as
         # the backstop for all of them (and for any client that bypasses one).
         violation = check_type_fields(
@@ -2587,6 +2651,7 @@ class Engine:
                 self._sessions_enabled,
                 next_state=self._next_session_state,
                 next_at=self._next_session_at,
+                last_trade_id=last_trade_id(),
             )
         )
 
@@ -2643,12 +2708,26 @@ class Engine:
         gw_pos[symbol] = new_pos
         gw_cost[symbol] = new_cost if new_pos != 0 else 0.0
 
+    def _query_status(self, gateway_id: str) -> str:
+        """How a position or orders query about *gateway_id* is answered
+        (L030): a configured participant is answered whether or not it is
+        connected, and the status says which; an unknown id gets nothing."""
+        ok, reason = self._gateway_status(gateway_id)
+        if ok:
+            return "OK"
+        if reason.startswith("Gateway not configured"):
+            return "UNKNOWN_GATEWAY"
+        return "NOT_CONNECTED"
+
     def _handle_position_request(self, payload: dict[str, Any]) -> None:
-        """Reply with a per-symbol position snapshot for the requesting gateway."""
+        """Reply with a per-symbol position snapshot for the gateway named,
+        connected or not."""
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
-        ok, _ = self._gateway_status(gateway_id)
-        if not ok:
-            self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, []))
+        status = self._query_status(gateway_id)
+        if status == "UNKNOWN_GATEWAY":
+            self.pub_sock.send_multipart(
+                make_position_snapshot_msg(gateway_id, [], status)
+            )
             return
         gw_pos = self._gateway_positions.get(gateway_id, {})
         gw_cost = self._gateway_avg_cost.get(gateway_id, {})
@@ -2661,7 +2740,9 @@ class Engine:
             for sym, qty in gw_pos.items()
             if qty != 0
         ]
-        self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, positions))
+        self.pub_sock.send_multipart(
+            make_position_snapshot_msg(gateway_id, positions, status)
+        )
 
     def _handle_halt_status_request(self, payload: dict[str, Any]) -> None:
         """Reply with a snapshot of all currently halted symbols."""
@@ -2772,6 +2853,9 @@ class Engine:
                         "role": cfg.role.value,
                         "description": cfg.description,
                         "connected": connected,
+                        "connected_since_ns": (
+                            session.connected_since_ns if session else None
+                        ),
                     }
                 )
         self.pub_sock.send_multipart(make_gateways_msg(gateway_id, gateways))
@@ -2810,6 +2894,24 @@ class Engine:
         if not gateway_id:
             return
 
+        # L031: refuse an id that is no participant before anything is kept
+        # for it -- any client can send one (ALF HELLO), so a session per
+        # refused id would grow without bound.
+        if (
+            self._allowed_participants is not None
+            and gateway_id not in self._allowed_participants
+        ):
+            self.metrics.count(self.metrics.auth_rejects, gateway_id)
+            self.pub_sock.send_multipart(
+                make_gateway_auth_msg(
+                    gateway_id,
+                    accepted=False,
+                    reason=f"Gateway not configured: {gateway_id}",
+                )
+            )
+            log.info(f"REFUSED gateway connect: {gateway_id}")
+            return
+
         session = self._session_for_gateway(gateway_id)
 
         if session.connected:
@@ -2827,26 +2929,21 @@ class Engine:
             log.info(f"REFUSED gateway connect (already connected): {gateway_id}")
             return
 
+        # L029: the silence clock starts now, at the default interval, so a
+        # client that dies before its first heartbeat still frees its id. The
+        # first beat replaces the interval with the client's own.
+        session.heartbeat_interval_sec = GATEWAY_HEARTBEAT_INTERVAL_SEC
+        session.last_heartbeat = time.monotonic()
+
         if self._allowed_participants is None:
             # No configuration loaded: no gateway restrictions.
             self._connected_participants.add(gateway_id)
             session.connected = True
+            session.connected_since_ns = now_ns()
             self.metrics.count(self.metrics.connects, gateway_id)
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(gateway_id, accepted=True)
             )
-            return
-
-        if gateway_id not in self._allowed_participants:
-            self.metrics.count(self.metrics.auth_rejects, gateway_id)
-            self.pub_sock.send_multipart(
-                make_gateway_auth_msg(
-                    gateway_id,
-                    accepted=False,
-                    reason=f"Gateway not configured: {gateway_id}",
-                )
-            )
-            log.info(f"REFUSED gateway connect: {gateway_id}")
             return
 
         cfg = (
@@ -2860,6 +2957,7 @@ class Engine:
 
         self._connected_participants.add(gateway_id)
         session.connected = True
+        session.connected_since_ns = now_ns()
         self.metrics.count(self.metrics.connects, gateway_id)
         self.pub_sock.send_multipart(
             make_gateway_auth_msg(
@@ -2880,22 +2978,20 @@ class Engine:
             self.pub_sock.send_multipart(
                 make_book_msg(symbol, self.books[symbol].snapshot())
             )
-        # If symbol unknown (no orders yet), there is nothing to send;
-        # the viewer will get its first update when the first order arrives.
+        # Every configured symbol has a book from start-up (_load_config), so
+        # only an unconfigured symbol goes unanswered: it has no book to give.
 
     def _handle_orders_request(self, payload: dict[str, Any]) -> None:
         gateway_id = str(payload.get("gateway_id", "")).upper()
-        ok, _ = self._gateway_status(gateway_id)
-        if not ok:
-            self.pub_sock.send_multipart(make_orders_msg(gateway_id, []))
-            return
+        status = self._query_status(gateway_id)
         orders: list[dict[str, Any]] = []
-        for book in self.books.values():
-            orders.extend(
-                order_to_display_dict(order)
-                for order in book.orders_for_gateway(gateway_id)
-            )
-        self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
+        if status != "UNKNOWN_GATEWAY":
+            for book in self.books.values():
+                orders.extend(
+                    order_to_display_dict(order)
+                    for order in book.orders_for_gateway(gateway_id)
+                )
+        self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders, status))
 
     def _handle_price_level_orders_request(self, payload: dict[str, Any]) -> None:
         """ADMIN -> engine: every resting order for one symbol, across every
@@ -4167,6 +4263,7 @@ class Engine:
             ask_price = _quote_ticks("ask_price_ticks")
             bid_qty = int(payload["bid_qty"])
             ask_qty = int(payload["ask_qty"])
+            tick_decimals = int(payload["tick_decimals"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
         except KeyError, TypeError, ValueError:
             self._dbg_count("quote_reject_payload")
@@ -4178,6 +4275,14 @@ class Engine:
                     "Invalid quote payload",
                     symbol=symbol,
                 )
+            )
+            return
+
+        mismatch = self._tick_scale_mismatch(symbol, tick_decimals)
+        if mismatch:
+            self._dbg_count("quote_reject_payload")
+            self.pub_sock.send_multipart(
+                self._quote_ack(gateway_id, quote_id, False, mismatch, symbol=symbol)
             )
             return
 
@@ -4493,9 +4598,18 @@ class Engine:
         if not gateway_id:
             return
 
+        if (
+            self._allowed_participants is not None
+            and gateway_id not in self._allowed_participants
+        ):
+            # Never connected, so nothing to end -- and no session to create
+            # for an id anyone can send (L031).
+            return
+
         self.metrics.count(self.metrics.disconnects, gateway_id)
         session = self._session_for_gateway(gateway_id)
         session.connected = False
+        session.connected_since_ns = None
         session.heartbeat_interval_sec = 0
         self._connected_participants.discard(gateway_id)
 
@@ -5193,6 +5307,8 @@ class Engine:
                 cb.activate(now, selected, self._reopening_rng)
                 cb.halt_source = "ADMIN"
                 triggered_level = selected.name
+                # As a trip does: halt_status and the checkpoint name it.
+                cb.triggered_level = triggered_level
                 resume_at_ns = cb.resume_at_ns
             else:
                 cb.halted = True
@@ -5886,6 +6002,20 @@ class Engine:
             )
             return
         for i, leg in enumerate(combo.legs):
+            # L032: each leg at its own symbol's scale; a priceless leg has
+            # nothing the scale could misplace.
+            if leg.price_ticks is not None or leg.stop_price_ticks is not None:
+                mismatch = self._tick_scale_mismatch(leg.symbol, leg.tick_decimals)
+                if mismatch:
+                    self.pub_sock.send_multipart(
+                        self._combo_ack(
+                            combo.gateway_id,
+                            combo.combo_id,
+                            False,
+                            f"Leg {i}: {mismatch}",
+                        )
+                    )
+                    return
             breach = self._collar_breach(leg.symbol, leg.price_ticks)
             if breach:
                 self.pub_sock.send_multipart(
@@ -5909,6 +6039,19 @@ class Engine:
             price_ticks, collar, self._book(symbol).last_trade_price
         )
         return result.reason if result.rejected else ""
+
+    def _tick_scale_mismatch(self, symbol: str, tick_decimals: int) -> str:
+        """Why *tick_decimals* is the wrong scale for *symbol*'s tick prices,
+        or "" (L032). A sender that converted with a wrong scale -- a stale or
+        defaulted tick registry -- would otherwise rest its price 10^n away
+        from the one it meant. The configured value is the authority."""
+        cfg = self._engine_config.symbols.get(symbol) if self._engine_config else None
+        if cfg is None or tick_decimals == cfg.tick_decimals:
+            return ""
+        return (
+            f"tick_decimals {tick_decimals} does not match "
+            f"{symbol}'s {cfg.tick_decimals}"
+        )
 
     def _handle_combo_cancel(self, payload: dict[str, Any]) -> None:
         """Handle ``order.combo_cancel``: cancel a combo and all its resting legs.
@@ -6609,6 +6752,14 @@ class Engine:
         if quantity <= 0:
             self.pub_sock.send_multipart(
                 self._oco_ack(gateway_id, oco_id, False, "Quantity must be positive")
+            )
+            return
+
+        # L032: one scale covers both legs' tick prices.
+        mismatch = self._tick_scale_mismatch(symbol, payload.get("tick_decimals", 0))
+        if mismatch:
+            self.pub_sock.send_multipart(
+                self._oco_ack(gateway_id, oco_id, False, mismatch)
             )
             return
 
@@ -7427,6 +7578,46 @@ class Engine:
                     resting.append(order)
         return resting
 
+    def _halt_records(self) -> dict[str, dict[str, str]]:
+        """Each halted symbol's ``level`` and ``source``, as the checkpoint
+        keeps them. A symbol halted without a breaker can only have been
+        halted by an operator (halt-sym or halt-all), without a level."""
+        records: dict[str, dict[str, str]] = {}
+        for symbol, halted in self._halted_symbols.items():
+            if not halted:
+                continue
+            cb = self._circuit_breakers.get(symbol)
+            if cb is not None and cb.halted:
+                records[symbol] = {
+                    "level": cb.triggered_level or "UNKNOWN",
+                    "source": cb.halt_source or "CB",
+                }
+            else:
+                records[symbol] = {"level": "ADMIN_SYMBOL", "source": "ADMIN"}
+        return records
+
+    def _publish_restart_halts(self) -> None:
+        """Tell every subscriber what the restart did to the halts it found:
+        an operator halt is in force again; any other halt has ended, and a
+        subscriber that cached it would otherwise show it for good (L021)."""
+        for symbol, level in self._restored_halts:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_halt(
+                    symbol=symbol,
+                    trigger_price=None,
+                    reference_price=None,
+                    resume_at_ns=None,
+                    halt_source="ADMIN",
+                    level=level,
+                )
+            )
+        for symbol, source in self._ended_halts:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_resume(symbol=symbol, halt_source=source)
+            )
+        self._restored_halts = []
+        self._ended_halts = []
+
     def _flush_persistence(self, force: bool = False) -> None:
         """Checkpoint the resting book, at most once per interval.
 
@@ -7440,14 +7631,20 @@ class Engine:
         mid-session on the poll tick.
         """
         now = time.monotonic()
-        if not force and now - self._last_persist < _PERSIST_INTERVAL_SEC:
+        halts = self._halt_records()
+        if (
+            not force
+            and halts == self._saved_halts
+            and now - self._last_persist < _PERSIST_INTERVAL_SEC
+        ):
             return
         self._last_persist = now
         started = time.perf_counter()
         try:
             save_gtc_orders(self._resting_gtc_orders(), GTC_ORDERS_FILE)
             save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
-            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
+            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE, halts)
+            self._saved_halts = halts
             self.metrics.gtc_flush_ms = (time.perf_counter() - started) * 1000.0
         except Exception as exc:
             # A failed checkpoint must not end the session — the previous
@@ -7498,7 +7695,12 @@ class Engine:
                 log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
         def _save_stats() -> None:
-            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
+            save_book_stats(
+                self.books,
+                self._circuit_breakers,
+                BOOK_STATS_FILE,
+                self._halt_records(),
+            )
             log.info(
                 f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
             )
@@ -7508,7 +7710,9 @@ class Engine:
             # EOD -- subscribers record closing prices before sockets close.
             self._publish_checkpoints("EOD")
             eod_books = [book.snapshot() for book in self.books.values()]
-            self.pub_sock.send_multipart(make_eod_msg(eod_books))
+            self.pub_sock.send_multipart(
+                make_eod_msg(eod_books, last_trade_id=last_trade_id())
+            )
 
         for what, step in (
             ("saving resting orders", _save_orders),

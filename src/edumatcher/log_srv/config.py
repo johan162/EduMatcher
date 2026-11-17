@@ -181,6 +181,13 @@ def _as_int(raw: object, field: str) -> int:
     return as_int(raw, f"log_server.{field}")
 
 
+def _as_bool(raw: object, field: str) -> bool:
+    if not isinstance(raw, bool):
+        # bool() would read "false" (a quoted string) as true.
+        raise ValueError(f"log_server.{field} must be true or false, got {raw!r}")
+    return raw
+
+
 def _as_optional_int(raw: object, field: str) -> int | None:
     if raw is None:
         return None
@@ -194,8 +201,13 @@ def _load_log_server_config_from_raw(raw: dict[str, Any]) -> LogServerConfig:
     if not isinstance(ls_raw, dict):
         raise ValueError("log_server must be a mapping")
 
-    enabled = bool(ls_raw.get("enabled", True))
+    enabled = _as_bool(ls_raw.get("enabled", True), "enabled")
     name = str(ls_raw.get("name", "log-srv01"))
+    if any(ch in name for ch in "|\r\n"):
+        # The name goes into WELCOME|SRV=...; a separator there breaks the line.
+        raise ValueError(
+            f"log_server.name must not contain '|' or a line break, got {name!r}"
+        )
     bind_address = resolve_gateway_bind_host(ls_raw.get("bind_address"))
     port = _as_int(ls_raw.get("port", LOG_SRV_PORT), "port")
     db_path_raw = ls_raw.get("db_path", str(LOG_DB_FILE))
@@ -217,7 +229,7 @@ def _load_log_server_config_from_raw(raw: dict[str, Any]) -> LogServerConfig:
         ls_raw.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"
     )
 
-    pubsub_enabled = bool(ls_raw.get("pubsub_enabled", True))
+    pubsub_enabled = _as_bool(ls_raw.get("pubsub_enabled", True), "pubsub_enabled")
     pub_port = _as_int(ls_raw.get("pub_port", LOG_SRV_PUB_PORT), "pub_port")
     pull_port = _as_int(ls_raw.get("pull_port", LOG_SRV_PULL_PORT), "pull_port")
     lease_sec = _as_int(ls_raw.get("lease_sec", DEFAULT_LEASE_SEC), "lease_sec")

@@ -4516,7 +4516,7 @@ _ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "dimensionless",
         "required": True,
-        "doc": "Decimal scale for every `_ticks` field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a `book` or `trade.executed` for the same symbol, which a reader of a *window* of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read.",
+        "doc": "Decimal scale for every `_ticks` field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a `book` or `trade.executed` for the same symbol, which a reader of a *window* of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read. The engine refuses an order with a tick price whose scale is not the symbol's configured one (`INVALID_VALUE`).",
         "constraints": {"ge": 0, "le": 8},
     },
     {
@@ -5666,7 +5666,7 @@ _ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "dimensionless",
         "required": False,
-        "doc": "Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above.",
+        "doc": "Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. The engine refuses a pair whose scale is not the symbol's.",
         "constraints": {"ge": 0, "le": 8},
     },
     {
@@ -6112,6 +6112,8 @@ def describe_orders_request() -> tuple[dict[str, Any], ...]:
 TOPIC_ORDERS = "order.orders.{gateway_id}"
 PREFIX_ORDERS = "order.orders."
 _ORDERS_RE = re.compile("order\\.orders\\.(?P<gateway_id>[^.]+)")
+_ORDERS_STATUS_VALUES = ("OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY")
+OrdersStatus = Literal["OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY"]
 
 
 _ORDERS_FIELDS: tuple[dict[str, Any], ...] = (
@@ -6130,13 +6132,22 @@ _ORDERS_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "Resting orders, as the engine iterates its books.",
     },
+    {
+        "name": "status",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "`OK`: the gateway is connected. `NOT_CONNECTED`: a configured participant that is logged off; the list is still its own, as the engine holds it. `UNKNOWN_GATEWAY`: no participant has this id, so the list is empty.",
+        "values": _ORDERS_STATUS_VALUES,
+    },
 )
 
 
 @dataclass(frozen=True, slots=True)
 class Orders:
     """Engine to caller: the gateway's resting orders in display units, one
-    OrderDisplay record each. Empty when the gateway is unknown or flat.
+    OrderDisplay record each, connected or not; `status` says which. Empty when
+    the gateway has none or no participant has the id.
 
     gateway_id names the caller in the topic and is dropped from the body by the default
     projection, so the body is a single `orders` list - the same shape system.symbols
@@ -6145,6 +6156,7 @@ class Orders:
 
     gateway_id: str
     orders: list[OrderDisplay]
+    status: OrdersStatus = "OK"
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -6159,6 +6171,10 @@ class Orders:
             )
         for orders_item in self.orders:
             orders_item.validate()
+        if self.status not in _ORDERS_STATUS_VALUES:
+            raise MessageValidationError(
+                f"status: {self.status!r} is not one of {_ORDERS_STATUS_VALUES!r}"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "Orders":
@@ -6171,12 +6187,14 @@ class Orders:
         return cls(
             gateway_id=str(p.get("gateway_id", "")),
             orders=[OrderDisplay.from_dict(item) for item in p["orders"]],
+            status=cast(OrdersStatus, str(p.get("status", "OK"))),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
         return {
             "orders": [item.to_dict() for item in self.orders],
+            "status": self.status,
         }
 
 

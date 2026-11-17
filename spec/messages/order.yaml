@@ -78,6 +78,8 @@ types:
           different instruments and two instruments need not share a scale -
           which is exactly the distinction that makes ComboLeg a separate
           record from OcoLeg.
+          The engine refuses a combo with a priced leg whose scale is not
+          that leg's symbol's.
       - { name: price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true,
           doc: "Limit price in engine ticks; null for a leg with none." }
@@ -1284,6 +1286,8 @@ messages:
           which a reader of a *window* of the audit trail may not have - the
           snapshot that declared it is usually at session start, hours
           outside the window being read.
+          The engine refuses an order with a tick price whose scale is not
+          the symbol's configured one (`INVALID_VALUE`).
       - { name: trail_offset_ticks, type: ticks, unit: ticks, required: false,
           nullable: true,
           doc: "TRAILING_STOP: fixed distance to trail the market price." }
@@ -1526,6 +1530,7 @@ messages:
           Decimal scale for both legs' `_ticks` prices; 1 tick =
           10^-tick_decimals. One value for the pair rather than one per leg,
           because both legs trade the instrument named above.
+          The engine refuses a pair whose scale is not the symbol's.
       - { name: quantity, type: int, unit: shares, required: false, default: 0,
           doc: "Size of each leg; they are equal by construction." }
       - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC],
@@ -1589,7 +1594,8 @@ messages:
     doc:
       motivation: >
         Engine to caller: the gateway's resting orders in display units, one
-        OrderDisplay record each. Empty when the gateway is unknown or flat.
+        OrderDisplay record each, connected or not; `status` says which.
+        Empty when the gateway has none or no participant has the id.
       published_by: [engine]
       since: "1.0"
       see_also: ["order.orders_request", "order.new"]
@@ -1602,6 +1608,16 @@ messages:
           doc: "Topic-only; dropped from the body by the default projection." }
       - { name: orders, type: list, ref: OrderDisplay,
           doc: "Resting orders, as the engine iterates its books." }
+      - name: status
+        type: enum
+        values: [OK, NOT_CONNECTED, UNKNOWN_GATEWAY]
+        required: false
+        default: OK
+        doc: >
+          `OK`: the gateway is connected. `NOT_CONNECTED`: a configured
+          participant that is logged off; the list is still its own, as the
+          engine holds it. `UNKNOWN_GATEWAY`: no participant has this id, so
+          the list is empty.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 

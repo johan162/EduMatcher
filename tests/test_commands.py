@@ -21,8 +21,10 @@ from __future__ import annotations
 
 from edumatcher.models.generated.quote import make_quote_cancel_ack
 
+import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 import zmq
@@ -836,30 +838,95 @@ class TestIndexCommands:
 
 
 class TestSessionControl:
-    def test_session_advance_sends_transition(self) -> None:
-        state_msg = encode(
-            "session.state", {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION"}
-        )
-        client, push = _client(recv_queue=_q(state_msg))
+    def test_session_advance_asks_for_the_engines_answer(self) -> None:
+        ack = encode(
+            "session.transition_ack.GW_ADMIN",
+            {"gateway_id": "GW_ADMIN", "command_id": "c", "accepted": True, "to_state": "CONTINUOUS"},
+        )  # fmt: skip
+        client, push = _client(recv_queue=_q(ack))
         result = client.session_advance("continuous")  # lowercase input
 
         topic, payload = _last_sent(push)
         assert topic == "session.transition"
         assert payload["to_state"] == "CONTINUOUS"  # uppercased
+        assert payload["reply_to"]["gateway_id"] == "GW_ADMIN"
+        assert payload["reply_to"]["command_id"]
+        assert result["accepted"] is True
 
-        assert result["state"] == "CONTINUOUS"
-        assert result["prev_state"] == "OPENING_AUCTION"
-        assert "reply_to" not in payload
-
-    def test_session_advance_times_out_without_state_broadcast(self) -> None:
-        client, push = _client()
+    def test_session_advance_times_out_without_an_answer(self) -> None:
+        client, _push = _client()
         with pytest.raises(CommandTimeoutError):
             client.session_advance("continuous")
 
-        topic, payload = _last_sent(push)
-        assert topic == "session.transition"
-        assert payload["to_state"] == "CONTINUOUS"
-        assert "reply_to" not in payload
+
+class _EnginePush:
+    """The client's PUSH socket wired to a real Engine: each frame is
+    dispatched, and what the engine publishes goes to the client's queue."""
+
+    def __init__(self, engine: Any, pub: Any, queue: deque[list[bytes]]) -> None:
+        self._engine, self._pub, self._queue = engine, pub, queue
+
+    def send_multipart(self, frames: list[bytes]) -> None:
+        topic, payload = decode(frames)
+        self._engine._dispatch_pull_message(topic, payload)
+        self._queue.extend(self._pub.sent)
+        self._pub.sent.clear()
+
+    def close(self) -> None:
+        pass
+
+
+class TestSessionAgainstTheEngine:
+    """WP-FL08 (L009): an illegal transition printed TIMEOUT after three
+    seconds, although the engine answers with its reason."""
+
+    def _wired(self, monkeypatch: Any, tmp_path: Any) -> ExchangeCommandClient:
+        from edumatcher.models.session import SessionState
+        from tests.engine_harness import make_engine
+
+        engine, pub = make_engine(
+            monkeypatch,
+            tmp_path,
+            gateways=("GW_ADMIN",),
+            admin_gateways=("GW_ADMIN",),
+            sessions_enabled=True,
+        )
+        engine._handle_gateway_connect({"gateway_id": "GW_ADMIN"})
+        engine._session_state = SessionState.CONTINUOUS
+        pub.sent.clear()
+        queue: deque[list[bytes]] = deque()
+        return ExchangeCommandClient(
+            "GW_ADMIN", _push_sock=_EnginePush(engine, pub, queue), _recv_queue=queue
+        )
+
+    def test_an_illegal_transition_returns_the_engines_reason(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        client = self._wired(monkeypatch, tmp_path)
+        started = time.monotonic()
+        result = client.session_advance("CONTINUOUS")
+        assert time.monotonic() - started < 1.0
+        assert result["accepted"] is False
+        assert "Invalid transition" in result["reason"]
+
+    def test_a_legal_transition_returns_the_new_state(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        client = self._wired(monkeypatch, tmp_path)
+        result = client.session_advance("CLOSING_AUCTION")
+        assert (result["accepted"], result["to_state"]) == (True, "CLOSING_AUCTION")
+
+    def test_pm_admin_prints_the_reason_and_fails(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        from edumatcher.commands import console as console_mod
+
+        client = self._wired(monkeypatch, tmp_path)
+        printed: list[str] = []
+        monkeypatch.setattr(console_mod.console, "print", lambda *a, **_k: printed.append(" ".join(map(str, a))))  # fmt: skip
+        ok, _ = console_mod.execute_command(client, "SESSION", {"STATE": "CONTINUOUS"})
+        assert ok is False
+        assert any("REJECTED" in line and "Invalid transition" in line for line in printed)  # fmt: skip
 
 
 # ---------------------------------------------------------------------------

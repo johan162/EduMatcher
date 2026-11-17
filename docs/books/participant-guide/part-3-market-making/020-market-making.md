@@ -1244,7 +1244,7 @@ The minimum safe correlation set for a human operator is:
 Later the operator may see:
 
 ```text
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
 
 The operator identifies this as the quote bid leg because:
@@ -1255,7 +1255,7 @@ The operator identifies this as the quote bid leg because:
 If instead the operator saw:
 
 ```text
-[09:31:02.417] FILL      be2170fd  qty=100 @210.2  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      be2170fd  qty=100 @210.20  remaining=400  [PARTIAL]
 ```
 
 that would mean the ask side of `Q123` traded.
@@ -1281,7 +1281,7 @@ What the operator should do next depends on the configured refresh policy.
 Typical terminal output:
 
 ```text
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 [09:31:02.418] CANCELLED be2170fd
 [09:31:02.418] QUOTE INACTIVE_BID_FILLED  Q123
 ```
@@ -1309,7 +1309,7 @@ Operator action:
 Typical terminal output after a partial fill:
 
 ```text
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
 
 Operator interpretation:
@@ -1330,7 +1330,7 @@ Operator action choices:
 Typical terminal output:
 
 ```text
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
 
 Operator interpretation:

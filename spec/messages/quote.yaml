@@ -60,6 +60,8 @@ messages:
           Carried so a reader can turn a tick price into money from this
           message alone, rather than recovering the scale from a `book` for
           the same symbol that may be outside the window being read.
+          The engine refuses a quote whose scale is not the symbol's
+          configured one, naming both values.
       - { name: bid_price_ticks, type: ticks, unit: ticks, validate: { gt: 0 } }
       - { name: bid_qty, type: int, unit: shares, validate: { gt: 0 } }
       - { name: ask_price_ticks, type: ticks, unit: ticks, validate: { gt: 0 } }

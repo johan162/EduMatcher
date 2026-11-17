@@ -28,6 +28,7 @@ describe("ThresholdSource", () => {
     expect(r.rules["host_cpu_pct"]).toEqual({ warn: 80, crit: 95, invert: false, configurable: true });
     expect(r.rules["disk_free_pct"]).toEqual({ warn: 15, crit: 5, invert: true, configurable: true });
     expect(r.rules["loop_age_ms"]).toEqual({ warn: 1000, crit: null, invert: false, configurable: false });
+    expect(r.rules["loop_lag_ms"]).toEqual({ warn: 1000, crit: null, invert: false, configurable: false });
     expect(Object.keys(r.rules).sort()).toEqual([...Object.keys(DEFAULT_THRESHOLDS), ...Object.keys(FIXED_RULES)].sort());
   });
 

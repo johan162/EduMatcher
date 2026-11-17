@@ -35,7 +35,7 @@ def _make_gateway(gw_id: str = "GW01"):
 
     sub_calls = [fake_sub, fake_index_sub, fake_dc_sub]
 
-    def _fake_make_subscriber(_addr, *_topics):
+    def _fake_make_subscriber(_addr, *_topics, **_kw):
         return sub_calls.pop(0)
 
     push_calls = [fake_push, fake_index_push]

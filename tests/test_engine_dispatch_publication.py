@@ -218,8 +218,8 @@ def test_a_combo_child_rejected_outside_matching_says_why(monkeypatch, tmp_path)
         engine,
         "GW01",
         [
-            {"symbol": "AAPL", "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000},  # fmt: skip
-            {"symbol": "MSFT", "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
+            {"symbol": "AAPL", "tick_decimals": 2, "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000},  # fmt: skip
+            {"symbol": "MSFT", "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
         ],
     )
 
@@ -236,8 +236,8 @@ def test_a_combo_child_rejected_on_a_halted_symbol_says_so(monkeypatch, tmp_path
         engine,
         "GW01",
         [
-            {"symbol": "AAPL", "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000},  # fmt: skip
-            {"symbol": "MSFT", "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
+            {"symbol": "AAPL", "tick_decimals": 2, "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000},  # fmt: skip
+            {"symbol": "MSFT", "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
         ],
     )
 
@@ -254,8 +254,8 @@ def test_an_amend_that_fills_a_combo_child_updates_the_combo(monkeypatch, tmp_pa
         engine,
         "GW01",
         [
-            {"symbol": "AAPL", "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
-            {"symbol": "MSFT", "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
+            {"symbol": "AAPL", "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
+            {"symbol": "MSFT", "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000},  # fmt: skip
         ],
     )
 
@@ -287,8 +287,8 @@ def test_a_quote_cascade_that_fills_a_combo_child_updates_the_combo(
         engine,
         "GW01",
         [
-            {"symbol": "AAPL", "side": "SELL", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10200},  # fmt: skip
-            {"symbol": "MSFT", "side": "SELL", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10200},  # fmt: skip
+            {"symbol": "AAPL", "tick_decimals": 2, "side": "SELL", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10200},  # fmt: skip
+            {"symbol": "MSFT", "tick_decimals": 2, "side": "SELL", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10200},  # fmt: skip
         ],
     )
     new_order(engine, side=Side.BUY, order_type=OrderType.LIMIT, qty=5, gateway_id="GW02", price=101.0)  # fmt: skip

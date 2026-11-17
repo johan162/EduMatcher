@@ -898,3 +898,98 @@ def test_main_parses_id_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:
 
     console_mod.main()
     assert observed == {"gw_id": "GW_ADMIN", "ran": True}
+
+
+# ---------------------------------------------------------------------------
+# WP-FL02 (L029): the console tells the engine it is alive
+# ---------------------------------------------------------------------------
+
+
+class _RecordingPusher:
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, dict[str, Any]]] = []
+        self.closed = False
+
+    def send_multipart(self, frames: list[bytes]) -> None:
+        from edumatcher.models.message import decode
+
+        self.sent.append(decode(frames))
+
+    def close(self, linger: int | None = None) -> None:
+        self.closed = True
+
+
+def test_admin_run_heartbeats_while_logged_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Since the engine times out a session that never beats, an idle
+    console must beat, on a socket of its own (ZMQ sockets are not shared
+    across threads), from logon until it logs off."""
+    _capture_print(monkeypatch)
+
+    class _HappyClient(_FakeClient):
+        def connect(self) -> dict[str, Any]:
+            return {"accepted": True}
+
+        def symbol_list(self) -> list[str]:
+            return []
+
+        def disconnect(self) -> None:
+            self.calls.append(("disconnect", (), {}))
+
+        def close(self) -> None:
+            self.calls.append(("close", (), {}))
+
+    monkeypatch.setattr(
+        console_mod, "ExchangeCommandClient", lambda _gw: _HappyClient()
+    )
+    pusher = _RecordingPusher()
+    monkeypatch.setattr(console_mod, "make_pusher", lambda _addr: pusher)
+
+    class _FakePromptSession:
+        def __init__(self, **_kwargs: Any) -> None:
+            pass
+
+        def prompt(self, _prompt_str: Any, **_kwargs: Any) -> str:
+            return "EXIT"
+
+    monkeypatch.setattr(console_mod, "PromptSession", _FakePromptSession)
+    monkeypatch.setattr(console_mod, "pt_patch_stdout", lambda raw=True: nullcontext())
+
+    console_mod.AdminConsole("GW_ADMIN").run()
+
+    assert pusher.sent and pusher.sent[0][0] == "system.gateway_heartbeat"
+    assert pusher.sent[0][1]["gateway_id"] == "GW_ADMIN"
+    assert pusher.closed
+
+
+def test_admin_heartbeat_loop_beats_until_stopped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(console_mod, "ExchangeCommandClient", lambda _gw: _FakeClient())
+    pusher = _RecordingPusher()
+    monkeypatch.setattr(console_mod, "make_pusher", lambda _addr: pusher)
+    c = console_mod.AdminConsole("GW_ADMIN")
+    c._heartbeat_stop.set()
+
+    c._heartbeat_loop()
+
+    assert [t for t, _ in pusher.sent] == ["system.gateway_heartbeat"]
+    assert pusher.closed
+
+
+def test_admin_heartbeat_loop_survives_an_unreachable_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(console_mod, "ExchangeCommandClient", lambda _gw: _FakeClient())
+
+    class _Unreachable(_RecordingPusher):
+        def send_multipart(self, frames: list[bytes]) -> None:
+            raise zmq.Again()
+
+    pusher = _Unreachable()
+    monkeypatch.setattr(console_mod, "make_pusher", lambda _addr: pusher)
+    c = console_mod.AdminConsole("GW_ADMIN")
+    c._heartbeat_stop.set()
+
+    c._heartbeat_loop()
+
+    assert pusher.closed

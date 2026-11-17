@@ -35,11 +35,15 @@ cancels any in-flight backfill job, and publishes a final
 the server at most one lease period of buffering, with no dependence on
 TCP-level disconnect detection (which ``PUB`` would not surface anyway).
 
-As a second, purely defensive line, the ``PUB`` socket carries a bounded
-``SNDHWM`` and each subscription's own row buffer is bounded — a
-subscriber that is alive but too slow to keep up loses its oldest
-buffered rows (reported back to it as ``dropped``) rather than growing
-the server's memory without limit.
+As a second, purely defensive line, a subscriber that is alive but too
+slow to keep up cannot grow the server's memory without limit. Rows wait
+in the subscription's own buffer (at most ``max_pending_rows``; past that
+the oldest are shed and counted in ``dropped``), and the ``PUB`` socket's
+per-peer ``SNDHWM`` is ``max_pending_rows / backfill_chunk_rows`` messages
+(capped by ``pub_sndhwm``), so ZeroMQ holds about ``max_pending_rows``
+more. ZeroMQ drops a message silently at that mark, so every ``log.event``
+and ``log.backfill`` carries a per-subscription ``msg_no``: a gap is a lost
+message, which ``dropped`` cannot count.
 
 Threading
 ---------
@@ -142,6 +146,12 @@ _ROW_COLUMNS = (
 
 _SELECT_BACKFILL = f"SELECT {', '.join(_ROW_COLUMNS)} FROM log_events"
 
+
+#: A partial live chunk waits at most this long for more rows; a full one
+#: goes at once. Without it every main-loop pass would send a message of a
+#: row or two, and the PUB high-water mark, which counts messages, would hold
+#: only a fraction of a second of a slow subscriber's backlog.
+_STREAM_FLUSH_INTERVAL_SEC = 0.1
 
 #: A backfill chunk query examines at most this many chunks' worth of ``seq``
 #: values, so a selective filter cannot turn one main-loop pass into a scan
@@ -369,8 +379,12 @@ class Subscription:
     pending_last_seq: int = 0
     last_notify_at: float = field(default_factory=time.monotonic)
 
-    # STREAM-mode buffer, drained (chunked) on every poll.
+    # STREAM-mode buffer, drained in chunks (see _STREAM_FLUSH_INTERVAL_SEC).
     pending_rows: list[dict[str, Any]] = field(default_factory=list)
+    last_stream_at: float = field(default_factory=time.monotonic)
+
+    #: Number of the last log.event/log.backfill sent to this subscription.
+    msg_no: int = 0
 
     # Lifetime counters, reported by log.status.{sub_id}.
     sent_rows: int = 0
@@ -497,10 +511,11 @@ class LogPubSubHub:
         ctx = get_context()
         pub: zmq.Socket[bytes] = ctx.socket(zmq.PUB)
         # A PUB socket with no send high-water mark queues without bound for
-        # a subscriber that has stopped reading. Bounding it means the worst
-        # case for a wedged-but-connected subscriber is dropped messages, not
-        # unbounded growth in pm-log-srv's own resident set.
-        pub.setsockopt(zmq.SNDHWM, self._pub_sndhwm)
+        # a subscriber that has stopped reading. The mark counts messages and
+        # a message holds up to backfill_chunk_rows rows, so it is derived
+        # from max_pending_rows: a wedged-but-connected subscriber costs about
+        # max_pending_rows rows here, and its losses show as msg_no gaps.
+        pub.setsockopt(zmq.SNDHWM, self.pub_hwm)
         pub.setsockopt(zmq.LINGER, 0)
         pub.bind(self._pub_addr)
         self._pub = pub
@@ -593,7 +608,7 @@ class LogPubSubHub:
         self._handle_control_requests(now)
         self._fan_out_new_rows()
         self._flush_notifies(now)
-        self._flush_streams()
+        self._flush_streams(now)
         self._pump_backfills()
         self._reap_expired(now)
         self._publish_server_state(now)
@@ -706,6 +721,19 @@ class LogPubSubHub:
             sub.sent_messages = existing.sent_messages
             sub.dropped_rows = existing.dropped_rows
             sub.renewals = existing.renewals
+            sub.msg_no = existing.msg_no
+            if existing.mode == mode and existing.filt == filt:
+                # Same terms (the slow-joiner retry): nothing buffered changes.
+                sub.pending_rows = existing.pending_rows
+                sub.pending_count = existing.pending_count
+                sub.pending_levels = existing.pending_levels
+                sub.pending_last_seq = existing.pending_last_seq
+            else:
+                # Rows matched under the old terms are not sent; say so.
+                sub.dropped_rows += len(existing.pending_rows) + existing.pending_count
+            if existing.filt != filt and sub_id in self._backfills:
+                # A backfill under the old filter would mix two row sets.
+                self._end_backfill(self._backfills.pop(sub_id))
         self._subs[sub_id] = sub
 
         # Built before the ack so the ack can name the request id the
@@ -877,31 +905,38 @@ class LogPubSubHub:
             chunk_rows=self._backfill_chunk_rows,
         )
 
+    def _end_backfill(self, old: BackfillJob) -> None:
+        """End a job the subscriber is still waiting on, as truncated.
+
+        The caller has removed it from ``_backfills``; the empty final chunk
+        tells the subscriber not everything was delivered.
+        """
+        self._publish(
+            make_log_backfill(
+                sub_id=old.sub_id,
+                request_id=old.request_id,
+                chunk=old.chunk_index,
+                rows=[],
+                row_count=0,
+                done=True,
+                total_sent=old.sent_rows,
+                truncated=True,
+                last_seq=old.cursor_seq,
+                msg_no=self._next_msg_no(old.sub_id),
+                timestamp=time.time(),
+            )
+        )
+        log.info(
+            "LALF-PS backfill ended early sub_id=%s request_id=%s",
+            old.sub_id,
+            old.request_id,
+        )
+
     def _launch_backfill(self, job: BackfillJob) -> None:
         """Register ``job``, closing any job it replaces for the same sub."""
         old = self._backfills.pop(job.sub_id, None)
         if old is not None:
-            # The subscriber is still waiting on the old request id; end it
-            # explicitly (truncated: not everything was delivered).
-            self._publish(
-                make_log_backfill(
-                    sub_id=old.sub_id,
-                    request_id=old.request_id,
-                    chunk=old.chunk_index,
-                    rows=[],
-                    row_count=0,
-                    done=True,
-                    total_sent=old.sent_rows,
-                    truncated=True,
-                    last_seq=old.cursor_seq,
-                    timestamp=time.time(),
-                )
-            )
-            log.info(
-                "LALF-PS backfill superseded sub_id=%s request_id=%s",
-                old.sub_id,
-                old.request_id,
-            )
+            self._end_backfill(old)
         self._backfills[job.sub_id] = job
         log.info(
             "LALF-PS backfill start sub_id=%s request_id=%s seq=(%d, %d] max_rows=%d",
@@ -913,7 +948,12 @@ class LogPubSubHub:
         )
 
     def _first_seq_at_or_after(self, cutoff: str) -> int:
-        """Lowest ``seq`` whose ``client_ts`` is in the window, via its index.
+        """Lowest ``seq`` whose ``client_ts`` is in the window.
+
+        ``INDEXED BY`` is required: left alone, SQLite plans ``MIN(seq)`` as a
+        walk of the primary key from the oldest row until one matches, which
+        costs every row older than the window (269 ms at 31 days of 100 000
+        rows a day); through ``idx_le_client_ts`` it reads only the window.
 
         Starting the cursor here keeps a backfill from walking every row
         older than its window. With no such row, one past ``_last_seq``:
@@ -923,7 +963,9 @@ class LogPubSubHub:
             return self._last_seq + 1
         try:
             row = self._read_conn.execute(
-                "SELECT MIN(seq) FROM log_events WHERE client_ts >= ?", (cutoff,)
+                "SELECT MIN(seq) FROM log_events INDEXED BY idx_le_client_ts "
+                "WHERE client_ts >= ?",
+                (cutoff,),
             ).fetchone()
         except sqlite3.Error:  # pragma: no cover - defensive
             return 1
@@ -966,29 +1008,40 @@ class LogPubSubHub:
                 continue
 
             rows = [self._sqlite_row_to_dict(r) for r in fetched]
-            job.sent_rows += len(rows)
+            sent_rows = job.sent_rows + len(rows)
             # A full chunk may have stopped short of ``upper``; otherwise the
             # whole range has been examined.
-            job.cursor_seq = int(rows[-1]["seq"]) if len(rows) == limit else upper
-            truncated = job.sent_rows >= job.max_rows and job.cursor_seq < job.max_seq
-            done = job.cursor_seq >= job.max_seq or truncated
+            cursor_seq = int(rows[-1]["seq"]) if len(rows) == limit else upper
+            truncated = sent_rows >= job.max_rows and cursor_seq < job.max_seq
+            done = cursor_seq >= job.max_seq or truncated
             if not rows and not done:
+                job.cursor_seq = cursor_seq
                 continue
 
-            self._publish(
-                make_log_backfill(
+            # Built before any state moves: rows that cannot be serialised
+            # end the job where it stands instead of being counted as sent.
+            try:
+                frames = make_log_backfill(
                     sub_id=sub_id,
                     request_id=job.request_id,
                     chunk=job.chunk_index,
                     rows=rows,
                     row_count=len(rows),
                     done=done,
-                    total_sent=job.sent_rows,
+                    total_sent=sent_rows,
                     truncated=truncated,
-                    last_seq=job.cursor_seq,
+                    last_seq=cursor_seq,
+                    msg_no=self._peek_msg_no(sub_id),
                     timestamp=time.time(),
                 )
-            )
+            except Exception as exc:
+                self._unserialisable(sub_id, rows, exc)
+                self._end_backfill(self._backfills.pop(sub_id))
+                continue
+            job.sent_rows = sent_rows
+            job.cursor_seq = cursor_seq
+            self._next_msg_no(sub_id)
+            self._publish(frames)
             job.chunk_index += 1
             sub = self._subs.get(sub_id)
             if sub is not None:
@@ -1080,27 +1133,44 @@ class LogPubSubHub:
             sub.pending_levels.clear()
             sub.last_notify_at = now
 
-    def _flush_streams(self) -> None:
+    def _flush_streams(self, now: float) -> None:
+        """Send every full chunk; a partial one once it has waited long enough."""
         for sub in self._subs.values():
-            if sub.mode != MODE_STREAM or not sub.pending_rows:
+            if sub.mode != MODE_STREAM:
                 continue
-            chunk = sub.pending_rows[: self._backfill_chunk_rows]
-            del sub.pending_rows[: len(chunk)]
-            dropped = sub.dropped_rows
-            self._publish(
-                make_log_event(
-                    sub_id=sub.sub_id,
-                    rows=chunk,
-                    row_count=len(chunk),
-                    seq_from=int(chunk[0]["seq"]),
-                    seq_to=int(chunk[-1]["seq"]),
-                    server_last_seq=self._last_seq,
-                    dropped=dropped,
-                    timestamp=time.time(),
-                )
+            while sub.pending_rows:
+                if (
+                    len(sub.pending_rows) < self._backfill_chunk_rows
+                    and now - sub.last_stream_at < _STREAM_FLUSH_INTERVAL_SEC
+                ):
+                    break
+                self._send_stream_chunk(sub)
+                sub.last_stream_at = now
+
+    def _send_stream_chunk(self, sub: Subscription) -> None:
+        chunk = sub.pending_rows[: self._backfill_chunk_rows]
+        del sub.pending_rows[: len(chunk)]
+        try:
+            frames = make_log_event(
+                sub_id=sub.sub_id,
+                rows=chunk,
+                row_count=len(chunk),
+                seq_from=int(chunk[0]["seq"]),
+                seq_to=int(chunk[-1]["seq"]),
+                server_last_seq=self._last_seq,
+                dropped=sub.dropped_rows,
+                msg_no=sub.msg_no + 1,
+                timestamp=time.time(),
             )
-            sub.sent_rows += len(chunk)
-            sub.sent_messages += 1
+        except Exception as exc:
+            # Not sent, so counted as dropped rather than as sent.
+            sub.dropped_rows += len(chunk)
+            self._unserialisable(sub.sub_id, chunk, exc)
+            return
+        sub.msg_no += 1
+        self._publish(frames)
+        sub.sent_rows += len(chunk)
+        sub.sent_messages += 1
 
     # ------------------------------------------------------------------
     # Lease expiry / server state
@@ -1197,6 +1267,36 @@ class LogPubSubHub:
             return 0
         return int(row[0]) if row else 0
 
+    def _unserialisable(
+        self, sub_id: str, rows: list[dict[str, Any]], exc: Exception
+    ) -> None:
+        """Report rows that failed the message spec, to the log and the sub."""
+        first, last = (int(rows[0]["seq"]), int(rows[-1]["seq"])) if rows else (0, 0)
+        log.error(
+            "LALF-PS: rows seq %d-%d for %s could not be serialised: %s",
+            first,
+            last,
+            sub_id,
+            exc,
+        )
+        self._error(
+            sub_id,
+            ERR_INTERNAL,
+            f"rows seq {first}-{last} could not be serialised and were not sent: {exc}",
+        )
+
+    def _peek_msg_no(self, sub_id: str) -> int:
+        sub = self._subs.get(sub_id)
+        return sub.msg_no + 1 if sub is not None else 0
+
+    def _next_msg_no(self, sub_id: str) -> int:
+        """Take the subscription's next ``msg_no`` (0 if it is gone)."""
+        sub = self._subs.get(sub_id)
+        if sub is None:
+            return 0
+        sub.msg_no += 1
+        return sub.msg_no
+
     def _error(self, sub_id: str, code: str, msg: str) -> None:
         log.debug("LALF-PS error to sub_id=%s code=%s msg=%s", sub_id, code, msg)
         self._publish(
@@ -1212,19 +1312,22 @@ class LogPubSubHub:
     def _publish(self, frames: list[bytes]) -> None:
         if self._pub is None:
             return
+        # A PUB socket never blocks or raises at its high-water mark: it drops
+        # the message for that peer, which the subscriber sees as a msg_no gap.
         try:
             self._pub.send_multipart(frames, zmq.NOBLOCK)
-        except zmq.Again:
-            # SNDHWM reached — by design we drop rather than block the loop.
-            log.debug(
-                "LALF-PS: PUB high-water mark hit, dropped %s", frames[0].decode()
-            )
         except zmq.ZMQError as exc:  # pragma: no cover - defensive
             log.warning("LALF-PS: publish failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Introspection (used by tests and the server's debug summary)
     # ------------------------------------------------------------------
+
+    @property
+    def pub_hwm(self) -> int:
+        """Per-peer ``SNDHWM`` in messages: about ``max_pending_rows`` rows."""
+        derived = max(1, self._max_pending_rows // self._backfill_chunk_rows)
+        return min(self._pub_sndhwm, derived)
 
     @property
     def subscriber_count(self) -> int:

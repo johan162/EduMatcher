@@ -501,7 +501,7 @@ _shtab_pm_alf_console_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
   "--id[Unique gateway identifier, e.g. GW01]:GW_ID:"
-  "--drop-copy[Enable drop-copy relay on startup (equivalent to sending DC\|STATE\=ON immediately after connecting). Default\: off. Can also be toggled at runtime with the DC\|STATE\=ON \/ DC\|STATE\=OFF command. See ..\/..\/..\/docs\/books\/protocols-and-clients\/part-3-session-behaviour\/060-drop-copy.md]"
+  "--drop-copy[Enable drop-copy relay on startup (equivalent to sending DC\|STATE\=ON immediately after connecting). Default\: off. Can also be toggled at runtime with the DC\|STATE\=ON \/ DC\|STATE\=OFF command. See the Drop copy chapter of the Protocols and Clients book.]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce output to warnings\/errors]"
@@ -1713,6 +1713,7 @@ _shtab_pm_clearing_cli_commands() {
     pnl:'Realized/unrealized/total P&L'
     positions:'Current positions by gateway/symbol'
     prune:'Delete trade_events rows older than N days (default: 90); the file keeps its size, SQLite reuses the freed pages'
+    rebuild:'Rebuild the ledger from pm-audit'"'"'s trade.executed lines, in order, into a NEW database (the live one is only read), copy its close snapshots over, and list every gateway/symbol position that differs. The audit trail must reach back to the live ledger'"'"'s first trading day. Exit 0: no difference; 3: differences listed; 1: refused.'
     reconcile:'Compare raw trade_events against gateway_daily_summary aggregates'
     sessions:'Gateway connection and disconnection history'
     snapshots:'Position snapshots taken at each session close (basis for settlement)'
@@ -1840,6 +1841,15 @@ _shtab_pm_clearing_cli_prune_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_clearing_cli_prune_defaults_added=0
 
+_shtab_pm_clearing_cli_rebuild_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--from-audit[Data directory holding pm-audit\'s audit.log and audit\/ archives]:DATA_DIR:"
+  "--output[The new database to write\; must not exist]:PATH:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_clearing_cli_rebuild_defaults_added=0
+
 _shtab_pm_clearing_cli_reconcile_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--gateway[GW_ID]:GW_ID:"
@@ -1931,6 +1941,7 @@ _shtab_pm_clearing_cli() {
         pnl) _arguments -C -s $_shtab_pm_clearing_cli_pnl_options ;;
         positions) _arguments -C -s $_shtab_pm_clearing_cli_positions_options ;;
         prune) _arguments -C -s $_shtab_pm_clearing_cli_prune_options ;;
+        rebuild) _arguments -C -s $_shtab_pm_clearing_cli_rebuild_options ;;
         reconcile) _arguments -C -s $_shtab_pm_clearing_cli_reconcile_options ;;
         sessions) _arguments -C -s $_shtab_pm_clearing_cli_sessions_options ;;
         snapshots) _arguments -C -s $_shtab_pm_clearing_cli_snapshots_options ;;

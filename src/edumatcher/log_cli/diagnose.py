@@ -483,7 +483,18 @@ def _check_fallback_to_file(
 
         # Rows written before disconnect_reason existed carry no evidence,
         # so say what is actually known rather than guessing a cause.
-        if reason:
+        if reason == "server_stop":
+            summary = (
+                f"pm-log-srv stopped at {disconnected_at} while {proc} was "
+                f"connected; {proc} has not reconnected"
+            )
+        elif reason == "server_restart":
+            summary = (
+                f"pm-log-srv stopped without a clean shutdown while {proc} was "
+                f"connected (the session was closed when pm-log-srv started again "
+                f"at {disconnected_at}); {proc} has not reconnected"
+            )
+        elif reason:
             summary = (
                 f"{proc} disconnected from pm-log-srv at {disconnected_at} without "
                 f"sending EXIT (reason: {reason}) and has not reconnected"

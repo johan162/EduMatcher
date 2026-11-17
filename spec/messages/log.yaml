@@ -72,14 +72,17 @@ types:
       - { name: server_ts, type: string,
           doc: "Server receive time, ISO-8601; the log_events columns are TEXT." }
       - { name: process, type: string, validate: { max_len: 64 } }
-      - { name: instance, type: string, validate: { max_len: 64 } }
+      - { name: instance, type: string, nullable: true, validate: { max_len: 64 },
+          doc: "NULL when the producer sent no INSTANCE." }
       - { name: pid, type: int, unit: dimensionless }
       - { name: host, type: string, validate: { max_len: 128 } }
       - { name: session, type: string, validate: { max_len: 64 } }
       - { name: level, type: string, validate: { max_len: 16 } }
       - { name: logger, type: string, validate: { max_len: 128 } }
-      - { name: module, type: string, validate: { max_len: 128 } }
-      - { name: line, type: int, unit: dimensionless }
+      - { name: module, type: string, nullable: true, validate: { max_len: 128 },
+          doc: "NULL when the producer sent no MODULE." }
+      - { name: line, type: int, unit: dimensionless, nullable: true,
+          doc: "NULL when the producer sent no LINE, or one outside int64." }
       - { name: has_exception, type: bool }
       - { name: truncated, type: bool }
       - { name: message, type: string }
@@ -333,12 +336,14 @@ messages:
       - { name: total_sent, type: int, unit: dimensionless }
       - { name: truncated, type: bool }
       - { name: last_seq, type: int, unit: dimensionless }
+      - { name: msg_no, type: int, unit: dimensionless,
+          doc: "Per-subscription number shared with log.event, from 1; a gap is a lost message." }
       - { name: timestamp, type: float, unit: epoch_seconds }
     encoding:
       engine_pub:
         frames: [topic, json_payload]
         include: [sub_id, request_id, chunk, rows, row_count, done, total_sent,
-                  truncated, last_seq, timestamp]
+                  truncated, last_seq, msg_no, timestamp]
 
   - name: log_event
     topic: "log.event.{sub_id}"
@@ -357,13 +362,15 @@ messages:
       - { name: seq_to, type: int, unit: dimensionless }
       - { name: server_last_seq, type: int, unit: dimensionless }
       - { name: dropped, type: int, unit: dimensionless,
-          doc: "Lifetime rows dropped for this subscription, not this batch." }
+          doc: "Lifetime rows the server shed for this subscription, not this batch. Messages lost in transport show as msg_no gaps instead." }
+      - { name: msg_no, type: int, unit: dimensionless,
+          doc: "Per-subscription number shared with log.backfill, from 1; a gap is a lost message." }
       - { name: timestamp, type: float, unit: epoch_seconds }
     encoding:
       engine_pub:
         frames: [topic, json_payload]
         include: [sub_id, rows, row_count, seq_from, seq_to, server_last_seq,
-                  dropped, timestamp]
+                  dropped, msg_no, timestamp]
 
   - name: log_notify
     topic: "log.notify.{sub_id}"

@@ -199,8 +199,12 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         ),
         notes=(
             "Full command vocabulary: NEW (LIMIT, MARKET, STOP, STOP_LIMIT, FOK, ICEBERG, "
-            "IOC, TRAILING_STOP), AMEND, CANCEL, QUOTE, QUOTE_CANCEL, QLEGS, ORDERS, "
-            "SYMBOLS, KILL, HELP, EXIT/QUIT.",
+            "IOC, TRAILING_STOP, OCO, COMBO), AMEND, CANCEL, QUOTE, QUOTE_CANCEL, QBOOT, "
+            "QLEGS, KILL, DC, STATUS, ORDERS, POS, POS|GW=, SYMBOLS, SESSION, INDEX, "
+            "HELP, CLEAR, EXIT/QUIT.",
+            "Exit status: 0 when the user leaves (EXIT, QUIT, Ctrl-D, Ctrl-C); 1 when "
+            "the logon is refused, the engine is not reachable or does not send its "
+            "symbol list, or the engine connection is lost.",
         ),
     ),
     CommandInfo(
@@ -1647,6 +1651,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 purpose="Trade-feed gaps: trades pm-clearing never received (limit 500)",
             ),
             Subcommand(
+                "rebuild",
+                args="--from-audit DATA_DIR --output PATH",
+                purpose="Replay the audit trail into a new DB and list positions that differ (exit 3)",
+            ),
+            Subcommand(
                 "prune",
                 args="[--days N] [--dry-run]",
                 purpose="Delete old trade_events rows by retention window",
@@ -2658,13 +2667,18 @@ _LOGGING: tuple[CommandInfo, ...] = (
                 "stdout",
                 "Never server -- pm-log-srv must not depend on itself",
             ),
+            Option(
+                "--log-file PATH",
+                "-",
+                "Operational log file; required with --log-target file",
+            ),
         ),
         ports="Listens on TCP 5600 (LALF collection), binds ZMQ 5601 (PUB) and 5602 (PULL) unless --no-pubsub",
         related=("pm-log-cli",),
         doc_anchor="pm-log-srv-centralized-log-server",
         doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md",
         notes=(
-            "Fully implemented; auto-detection by every other pm-* process is a follow-up phase not yet rolled out.",
+            "Every other pm-* process probes for pm-log-srv at start-up and ships its log there when it answers (unless --log-target says otherwise); a process started while it is down logs to its console.",
         ),
     ),
     CommandInfo(

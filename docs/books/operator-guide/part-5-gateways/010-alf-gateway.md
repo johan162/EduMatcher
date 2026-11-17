@@ -624,15 +624,18 @@ own `POSITION` block. `GW` must be a valid gateway ID (a letter, then up to
 **Multi-line response:**
 
 ```text
-POSITION|GW=MM_AAPL_01|COUNT=1
+POSITION|GW=MM_AAPL_01|COUNT=1|STATUS=OK
 POS_ENTRY|SYM=AAPL|NET_QTY=-300|AVG_COST=150.05
 END|TYPE=POSITION
 ```
 
-A flat gateway (or one with no position in any symbol) still gets a
-well-formed, empty reply (`POSITION|GW=<gateway_id>|COUNT=0` followed
-immediately by `END|TYPE=POSITION`) rather than an error — same convention
-as `QLEGS` and `QBOOT` for an unconnected/unknown/flat gateway.
+`STATUS` says whose answer it is: `OK` for a connected gateway,
+`NOT_CONNECTED` for a configured participant that is logged off (its
+positions are still listed: the engine keeps them), and `UNKNOWN_GATEWAY`
+for an id no participant has. A flat gateway still gets a well-formed,
+empty reply (`POSITION|GW=<gateway_id>|COUNT=0|STATUS=OK` followed
+immediately by `END|TYPE=POSITION`) rather than an error, as does an
+unknown one (with `STATUS=UNKNOWN_GATEWAY`).
 
 ### `SESSION` — query current trading session state
 

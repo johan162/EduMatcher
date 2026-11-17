@@ -428,3 +428,47 @@
   actions:
     - "Check that symbol's breaker reference with `GET /api/v1/admin/risk/state`."
     - "Report it: a saved window that cannot be read is a bug."
+
+- logger: edumatcher.engine.persistence
+  template: "Dropping corrupt halt state for %s — the symbol starts tradable; the original file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved halt of one symbol could not be read, so pm-engine started that
+    symbol tradable: if an operator had halted it, the halt is gone. Its last
+    prices were restored. Before going on, pm-engine copied the file to the
+    name at the end of the message, because its first checkpoint rewrites the
+    original.
+  actions:
+    - "Check which symbols are halted with `GET /api/v1/admin/risk/state`; halt the symbol again with `pm-admin-cli --id <admin> halt-sym --sym <SYMBOL>` if it should be."
+    - "Report it: a saved halt that cannot be read is a bug."
+
+- logger: edumatcher.engine.main
+  template: "Restored the operator halt on %s (%s) from the checkpoint"
+  level: WARNING
+  explanation: >
+    An operator had halted the symbol before pm-engine stopped, and that halt
+    was still in force. An operator halt has no timer and outlasts a restart,
+    so the symbol is halted again and the halt was published once more. Limit
+    orders rest without matching until an operator resumes it.
+  actions:
+    - "Resume the symbol when it should trade: `pm-admin-cli --id <admin> resume-sym --sym <SYMBOL>`."
+
+- logger: edumatcher.engine.main
+  template: "Ended the %s halt on %s at the restart (halt_source %s)"
+  level: WARNING
+  explanation: >
+    The symbol was in a circuit-breaker halt (one set off by a price move, or
+    started by an operator at a breaker level) when pm-engine stopped. Such a
+    halt ends on a timer, which does not survive a restart, so the symbol
+    trades again and a resume was published so every screen clears the halt.
+  actions:
+    - "If the move that set off the breaker still needs a pause, halt the symbol again: `pm-admin-cli --id <admin> halt-sym --sym <SYMBOL>`."
+
+- logger: edumatcher.engine.main
+  template: "Dropped the checkpointed halt on %s: the symbol is not configured"
+  level: WARNING
+  explanation: >
+    The checkpoint held a halt for a symbol the current configuration does not
+    list, so there is nothing to halt and the entry was ignored.
+  actions:
+    - "Nothing to do if the symbol was removed on purpose; otherwise add it back to the configuration."

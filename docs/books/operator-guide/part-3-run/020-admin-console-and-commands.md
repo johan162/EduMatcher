@@ -524,18 +524,18 @@ pm-admin-cli --id GW_ADMIN symbols
 pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 ```
 ```
-SESSION  OPENING_AUCTION → CONTINUOUS
+SESSION  now CONTINUOUS
 ```
 
 | Flag            | Required | Description                                                                                           |
 |-----------------|----------|-------------------------------------------------------------------------------------------------------|
 | `--state STATE` | yes      | Target state (case-insensitive): `PRE_OPEN` `OPENING_AUCTION` `CONTINUOUS` `CLOSING_AUCTION` `CLOSED` |
 
-Invalid transitions are rejected by the engine before anything is published,
-so no reply of any kind is sent back for a rejected transition — the CLI call
-times out (`Timeout: ...` on stderr, exit code 1) rather than printing a
-result to check. A successful transition, by contrast, is confirmed by the
-`session.state` broadcast.
+The engine answers every request on `session.transition_ack.<id>`. An invalid
+transition is refused with its reason and exit code 1, for example
+`SESSION  REJECTED  Invalid transition CONTINUOUS → CONTINUOUS (allowed:
+CLOSED, CLOSING_AUCTION)`; nothing is published for it. A successful one is
+also announced to everyone by the `session.state` broadcast.
 
 
 

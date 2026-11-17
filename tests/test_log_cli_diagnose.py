@@ -387,6 +387,52 @@ def test_fallback_to_file_is_honest_when_the_reason_is_unrecorded(
     assert "not recorded" in findings[0].message
 
 
+@pytest.mark.parametrize(
+    ("reason", "wording"),
+    [
+        ("server_stop", "pm-log-srv stopped at"),
+        ("server_restart", "pm-log-srv stopped without a clean shutdown"),
+    ],
+)
+def test_fallback_to_file_names_a_server_stop_the_process_never_returned_from(
+    conn: sqlite3.Connection, reason: str, wording: str
+) -> None:
+    """Q3 (a): the newest session closed by the server itself still counts."""
+    _insert_process(
+        conn,
+        process="pm-md-gwy",
+        disconnected_at=_iso_seconds_ago(120),
+        disconnect_reason=reason,
+    )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "fallback_to_file"]
+    assert len(findings) == 1
+    assert wording in findings[0].message
+    assert "while pm-md-gwy was connected" in findings[0].message
+    assert "has not reconnected" in findings[0].message
+
+
+def test_a_process_that_reconnected_after_a_server_stop_is_not_reported(
+    conn: sqlite3.Connection,
+) -> None:
+    _insert_process(
+        conn,
+        process="pm-md-gwy",
+        session="s1",
+        connected_at=_iso_seconds_ago(300),
+        disconnected_at=_iso_seconds_ago(120),
+        disconnect_reason="server_stop",
+    )
+    _insert_process(
+        conn,
+        process="pm-md-gwy",
+        session="s2",
+        connected_at=_iso_seconds_ago(60),
+        last_seen_at=_iso_seconds_ago(1),
+    )
+    findings = run_diagnostics(conn)
+    assert not any(f.heuristic == "fallback_to_file" for f in findings)
+
+
 def test_silence_and_fallback_are_mutually_exclusive_on_same_fixture_set(
     conn: sqlite3.Connection,
 ) -> None:

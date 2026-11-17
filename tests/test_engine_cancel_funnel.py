@@ -35,7 +35,7 @@ OTHER = "MSFT"
 
 def _oco(engine: Any, gw: str, oco_id: str, tif: str = "DAY") -> tuple[str, str]:
     engine._handle_oco_order(
-        {"oco_id": oco_id, "gateway_id": gw, "symbol": SYMBOL, "quantity": 5,
+        {"oco_id": oco_id, "gateway_id": gw, "symbol": SYMBOL, "tick_decimals": 2, "quantity": 5,
          "tif": tif,
          "leg1": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10100},
          "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9900}}
@@ -53,9 +53,9 @@ def _combo(engine: Any, gw: str, combo_id: str, tif: str = "DAY") -> Any:
             "combo_type": "AON",
             "tif": tif,
             "legs": [
-                {"symbol": SYMBOL, "side": "BUY", "order_type": "LIMIT",
+                {"symbol": SYMBOL, "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT",
                  "quantity": 5, "price_ticks": to_ticks(50.0, SYMBOL)},
-                {"symbol": OTHER, "side": "SELL", "order_type": "LIMIT",
+                {"symbol": OTHER, "tick_decimals": 2, "side": "SELL", "order_type": "LIMIT",
                  "quantity": 5, "price_ticks": to_ticks(150.0, OTHER)},
             ],
         }
