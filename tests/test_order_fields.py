@@ -90,12 +90,53 @@ def test_a_type_the_record_cannot_carry_is_an_invalid_value() -> None:
     )
     assert violation is not None
     assert violation.reject_code == "INVALID_VALUE"
-    assert violation.message == (
-        "ICEBERG is not supported on a combo leg: it needs visible_qty"
-    )
+    assert violation.message == "ICEBERG is not supported on a combo leg"
     assert (
         check_type_fields(
             OrderType.TRAILING_STOP, {"trail_offset"}, carried=OCO_LEG_FIELDS
         )
         is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("order_type", "present"),
+    [
+        (OrderType.TRAILING_STOP, set()),
+        (OrderType.TRAILING_STOP, {"trail_offset"}),
+        (OrderType.TRAILING_STOP, {"trail_offset", "stop_price"}),
+        (OrderType.ICEBERG, {"price"}),
+        (OrderType.ICEBERG, {"price", "visible_qty"}),
+    ],
+)
+@pytest.mark.parametrize(
+    ("carried", "where"),
+    [(COMBO_LEG_FIELDS, "on a combo leg"), (OCO_LEG_FIELDS, "on an OCO leg")],
+)
+def test_an_unsupported_leg_type_does_not_ask_for_a_field(
+    order_type: OrderType,
+    present: set[str],
+    carried: tuple[str, ...],
+    where: str,
+) -> None:
+    """L012: "it needs trail_offset" was shown even when TRAIL= was given;
+    the leg cannot carry the field, so no value the client sends helps."""
+    violation = check_type_fields(order_type, present, carried=carried, where=where)
+    if order_type is OrderType.TRAILING_STOP and carried is OCO_LEG_FIELDS:
+        return  # an OCO leg carries trail_offset
+    assert violation is not None
+    assert violation.message == f"{order_type.value} is not supported {where}"
+
+
+def test_a_transport_with_field_names_is_told_which_leg() -> None:
+    violation = check_type_fields(
+        OrderType.TRAILING_STOP,
+        {"trail_offset"},
+        carried=COMBO_LEG_FIELDS,
+        names={"order_type": "LEG0.TYPE", "trail_offset": "LEG0.TRAIL"},
+        where="on a combo leg",
+    )
+    assert violation is not None
+    assert violation.message == (
+        "TRAILING_STOP is not supported on a combo leg (LEG0.TYPE)"
     )

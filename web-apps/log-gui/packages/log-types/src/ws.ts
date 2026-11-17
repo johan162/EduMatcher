@@ -48,6 +48,16 @@ export interface MarketSession {
   nextAt: string | null;
 }
 
+/**
+ * Rows the live tail did not receive (L038): shed by the server (`dropped`,
+ * `lost` known), a lost `log.event` message (`msg_no`), or a log-server
+ * restart before the bridge re-subscribed (`restart`). `log.db` still has them.
+ */
+export interface LiveGap {
+  reason: "restart" | "dropped" | "msg_no";
+  lost: number | null;
+}
+
 export type ServerFrame =
   | {
       t: "hello";
@@ -61,6 +71,7 @@ export type ServerFrame =
   | { t: "issue"; issue: Issue }
   | { t: "ack"; fingerprint: string; ack: AckRecord | null }
   | { t: "server_state"; state: ServerState }
+  | { t: "gap"; gap: LiveGap }
   | { t: "market_session"; session: MarketSession }
   | {
       t: "bridge_status";

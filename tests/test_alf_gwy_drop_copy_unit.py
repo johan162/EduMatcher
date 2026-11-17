@@ -213,8 +213,9 @@ def test_disconnect_without_dc_enabled_does_not_unsubscribe(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("flag", ["TAKER", "AUCTION"])
 def test_dc_event_relayed_as_dc_fill(
-    gateway: tuple[AlfGateway, _FakeSub, _FakeSub],
+    gateway: tuple[AlfGateway, _FakeSub, _FakeSub], flag: str
 ) -> None:
     gw, _sub, dc_sub = gateway
     session = _authed_session(gw)
@@ -232,7 +233,7 @@ def test_dc_event_relayed_as_dc_fill(
                 "symbol": "AAPL",
                 "fill_qty": 100,
                 "fill_price": 150.05,
-                "liquidity_flag": "TAKER",
+                "liquidity_flag": flag,
             },
         )
     )
@@ -246,7 +247,7 @@ def test_dc_event_relayed_as_dc_fill(
     assert frame.fields["SYMBOL"] == "AAPL"
     assert frame.fields["FILL_QTY"] == "100"
     assert frame.fields["FILL_PRICE"] == "150.05"
-    assert frame.fields["LIQUIDITY"] == "TAKER"
+    assert frame.fields["LIQUIDITY"] == flag
     assert frame.fields["ORDER_ID"] == "ORD-001"  # ALF uppercases field values
 
 

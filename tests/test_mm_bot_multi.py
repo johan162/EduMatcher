@@ -2409,3 +2409,50 @@ class TestAnchorSim:
             bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 100.0}]})
             bot._handle_book(stale, symbol="AAPL")
         assert st.pricer.mid_price == pytest.approx(100.0, abs=0.02)
+
+
+class TestAnchorSimStartupReference:
+    """For-Later L014 (WP-FL19): with --anchor-sim the bot starts from the
+    market model's value when the book gives no reference; the sim.value it
+    received during the start-up waits was dropped."""
+
+    def _bot(self, anchor_sim: float) -> tuple[MMBot, Any]:
+        from edumatcher.mm_bot.bot import _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=anchor_sim)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        bot._symbols_state = {"AAPL": st}
+        bot._symbol_topics = {"book.AAPL": ("book", "AAPL")}
+        bot.gateway_id = "MM01"
+        bot._session_state = None
+        bot._debug = lambda msg: None
+        bot._log = lambda msg: None
+        return bot, st
+
+    def _sim_value_during_startup(self, bot: MMBot, value: float) -> None:
+        from edumatcher.models.generated.sim import TOPIC_SIM_VALUE
+
+        bot._buffer_event(TOPIC_SIM_VALUE, {"values": [{"symbol": "AAPL", "value": value}]})  # fmt: skip
+
+    def test_an_empty_book_starts_from_the_models_value(self) -> None:
+        bot, st = self._bot(anchor_sim=0.25)
+        self._sim_value_during_startup(bot, 123.45)
+        assert bot._resolve_bootstrap_reference(None, symbol="AAPL") is True
+        assert st.pricer.mid_price == pytest.approx(123.45)
+
+    def test_a_two_sided_book_is_still_preferred(self) -> None:
+        bot, st = self._bot(anchor_sim=0.25)
+        bot._handle_book(
+            {"bids": [{"price": 99.9}], "asks": [{"price": 100.1}]}, symbol="AAPL"
+        )
+        self._sim_value_during_startup(bot, 123.45)
+        assert bot._resolve_bootstrap_reference(None, symbol="AAPL") is True
+        assert st.pricer.mid_price == pytest.approx(100.0)
+
+    def test_without_anchor_sim_the_value_is_not_used(self) -> None:
+        bot, st = self._bot(anchor_sim=0.0)
+        self._sim_value_during_startup(bot, 123.45)
+        assert bot._resolve_bootstrap_reference(None, symbol="AAPL") is False
+        assert st.pricer.mid_price is None

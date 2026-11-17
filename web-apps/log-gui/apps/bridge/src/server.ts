@@ -95,6 +95,9 @@ uplink.on("event", (rows) => {
   }
 });
 
+// Rows the live view will not get: tell every tab, so it can mark the hole.
+uplink.on("gap", (gap) => wsHub.broadcastAll({ t: "gap", gap }));
+
 let lastServerState: ServerState | null = null;
 
 uplink.on("server_state", (payload) => {

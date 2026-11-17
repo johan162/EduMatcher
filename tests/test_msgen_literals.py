@@ -234,3 +234,65 @@ class TestTheDetectorSeesFStrings:
         """Without the anchor ``"risk.kill_switch"`` would match its siblings."""
         (tmp_path / "sub.py").write_text('topic = "risk.kill_switch_global"\n', "utf-8")
         assert lit.scan([tmp_path], self._family("risk.kill_switch")) == []
+
+
+class TestForensicsTopicsAreDeclared:
+    """For-Later L001, WP-FL15 (option 2). pm-sim-forensics keeps its topic
+    literals (an offline oracle restating the wire contract by hand), but
+    each one must be a declared topic or a prefix of one: a rename then fails
+    here instead of silently emptying a forensic check."""
+
+    def _check(self, tmp_path: Path, source: str) -> list[lit.Hit]:
+        _registry, families = load_all(SPEC_ROOT)
+        (tmp_path / "check.py").write_text(source, encoding="utf-8")
+        return lit.undeclared_topics([tmp_path], families)
+
+    def test_a_misspelt_topic_is_reported(self, tmp_path: Path) -> None:
+        found = self._check(tmp_path, 'TOPIC = "trade.exectued"\n')
+        assert [(h.topic, h.line) for h in found] == [("trade.exectued", 1)]
+
+    @pytest.mark.parametrize(
+        "literal",
+        [
+            '"trade.executed"',  # a declared topic
+            '"order.ack."',  # the prefix of order.ack.{gateway_id}
+            '"circuit_breaker."',  # a family prefix
+            'f"order.fill.{gw}"',  # an f-string instance
+            '"order.ack.GW01"',  # a hard-coded instance
+        ],
+    )
+    def test_a_declared_topic_or_prefix_passes(
+        self, tmp_path: Path, literal: str
+    ) -> None:
+        assert self._check(tmp_path, f"X = {literal}\n") == []
+
+    def test_a_misspelt_prefix_and_f_string_are_reported(self, tmp_path: Path) -> None:
+        found = self._check(tmp_path, 'A = "order.akc."\nB = f"order.fil.{gw}"\n')
+        assert [(h.topic, h.line) for h in found] == [
+            ("order.akc.", 1),
+            ("order.fil.", 2),
+        ]
+
+    def test_dotted_strings_of_other_kinds_are_not_topics(self, tmp_path: Path) -> None:
+        """A file name or a module path is not a topic: only a literal whose
+        first part is a topic family is checked."""
+        assert self._check(tmp_path, 'A = "audit.log"\nB = "foo.bar.baz"\n') == []
+
+    def test_sim_forensics_matches_only_declared_topics(self) -> None:
+        _registry, families = load_all(SPEC_ROOT)
+        found = lit.undeclared_topics([SRC / "edumatcher" / "sim_forensics"], families)
+        assert found == [], "\n".join(
+            f"{h.path.relative_to(REPO_ROOT)}:{h.line}: {h.topic}" for h in found
+        )
+
+
+def test_a_metric_name_under_a_shared_root_is_not_a_topic(tmp_path: Path) -> None:
+    """``engine.`` and ``health.`` are topic roots and beacon-metric
+    namespaces; there only a subscription prefix is checked."""
+    _registry, families = load_all(SPEC_ROOT)
+    (tmp_path / "ops.py").write_text(
+        'A = "engine.busy_pct"\nB = "engine.trace."\nC = "engine.trcae."\n',
+        encoding="utf-8",
+    )
+    found = lit.undeclared_topics([tmp_path], families)
+    assert [h.topic for h in found] == ["engine.trcae."]

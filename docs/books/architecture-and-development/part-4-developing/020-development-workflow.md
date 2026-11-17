@@ -59,7 +59,7 @@ Everything below assumes this has been done once.
 ```bash
 cd deployment/docker
 make build            # backend image, from a wheel built from your checkout
-make up-all           # the exchange and five GUIs; builds any missing GUI image
+make up-all           # the exchange and six GUIs; builds any missing GUI image
 ```
 
 The first run is slow (every GUI image runs `npm ci` and a Vite build) and needs
@@ -93,7 +93,7 @@ builds an image that does not exist yet, so an image tagged
 `edumatcher-terminal-gui:latest` from an hour ago is reused as-is. Your change
 is in the working tree, not in the image, and nothing warns you.
 
-The reason it is not simply `--build` by default: that re-evaluates six build
+The reason it is not simply `--build` by default: that re-evaluates seven build
 contexts on every start (the six GUIs plus the backend), which turns a
 three-second start into a multi-minute one. Building is a separate decision
 from starting.

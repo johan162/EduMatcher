@@ -52,7 +52,7 @@ class TestMessagingBus:
         fake_sock.bind.assert_called_once_with("tcp://127.0.0.1:9999")
 
     def test_make_publisher_creates_socket(self) -> None:
-        from edumatcher.messaging.bus import make_publisher
+        from edumatcher.messaging.bus import BusSocket, make_publisher
         import zmq
 
         fake_sock = MagicMock(spec=zmq.Socket)
@@ -60,11 +60,11 @@ class TestMessagingBus:
         fake_ctx.socket.return_value = fake_sock
         with patch("edumatcher.messaging.bus.get_context", return_value=fake_ctx):
             make_publisher("tcp://127.0.0.1:9998")
-        fake_ctx.socket.assert_called_once_with(zmq.PUB)
+        fake_ctx.socket.assert_called_once_with(zmq.PUB, socket_class=BusSocket)
         fake_sock.bind.assert_called_once_with("tcp://127.0.0.1:9998")
 
     def test_make_pusher_creates_socket(self) -> None:
-        from edumatcher.messaging.bus import make_pusher
+        from edumatcher.messaging.bus import BusSocket, make_pusher
         import zmq
 
         fake_sock = MagicMock(spec=zmq.Socket)
@@ -72,7 +72,7 @@ class TestMessagingBus:
         fake_ctx.socket.return_value = fake_sock
         with patch("edumatcher.messaging.bus.get_context", return_value=fake_ctx):
             make_pusher("tcp://127.0.0.1:9997")
-        fake_ctx.socket.assert_called_once_with(zmq.PUSH)
+        fake_ctx.socket.assert_called_once_with(zmq.PUSH, socket_class=BusSocket)
         fake_sock.connect.assert_called_once_with("tcp://127.0.0.1:9997")
 
     def test_make_subscriber_with_topics(self) -> None:

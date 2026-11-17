@@ -13,6 +13,7 @@ the generated constant turns that silence into an import error.
 
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -96,6 +97,87 @@ def scan(roots: list[Path], families: list[Family]) -> list[Hit]:
                 for family, topic, pattern in patterns:
                     if pattern.search(line):
                         hits.append(Hit(family, topic, path, number, stripped))
+    return hits
+
+
+#: A literal shaped like a topic or a topic prefix: dotted lower-case parts.
+_TOPICISH = re.compile(r"[a-z][a-z0-9_]*(\.[A-Za-z0-9_]*)+")
+#: Topic roots that are also health-beacon metric namespaces
+#: (``engine.busy_pct``, ``health.gc_gen2``). Under them only a subscription
+#: prefix (ending in ``.``, as ``"engine.trace."``) is checked as a topic; a
+#: full name there is taken for a metric, which no registry lists.
+_METRIC_NAMESPACES = frozenset({"engine", "health"})
+
+
+def _topic_literals(tree: ast.AST) -> list[tuple[int, str]]:
+    """(line, text) of every string literal, and of each f-string's leading
+    text (``f"order.fill.{gw}"`` is the prefix ``order.fill.``)."""
+    out: list[tuple[int, str]] = []
+    in_fstring: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            in_fstring.update(id(v) for v in node.values)
+            first = node.values[0] if node.values else None
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                out.append((node.lineno, first.value))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in in_fstring
+        ):
+            out.append((node.lineno, node.value))
+    return sorted(out)
+
+
+def undeclared_topics(roots: list[Path], families: list[Family]) -> list[Hit]:
+    """Topic literals under ``roots`` that name no declared topic (L001).
+
+    For code that keeps its literals on purpose (pm-sim-forensics). A literal
+    is taken for a topic when it is dotted and its first part is a topic
+    family's (``trade.``, ``order.``, ...), so ``"audit.log"`` is not one. It
+    passes when it is a declared topic, a prefix of one ending at a part
+    boundary (``"order.ack."``, ``"circuit_breaker."``), or an instance of a
+    parameterised one (``"order.ack.GW01"``); anything else is reported.
+    """
+    declared: set[str] = set()
+    prefixes: set[str] = set()
+    instances: list[str] = []
+    for family in families:
+        for message in family.messages:
+            topic = message.topic
+            if topic is None:
+                continue
+            fixed = topic[: topic.index("{")] if message.topic_params else topic
+            if message.topic_params:
+                instances.append(fixed)
+            else:
+                declared.add(topic)
+            parts = fixed.rstrip(".").split(".")
+            for n in range(1, len(parts) + 1):
+                prefixes.add(".".join(parts[:n]) + ".")
+    roots_seen = {p.split(".")[0] for p in prefixes}
+
+    def known(text: str) -> bool:
+        if text in declared or text in prefixes:
+            return True
+        return any(
+            text.startswith(fixed) and "." not in text[len(fixed) :]
+            for fixed in instances
+        )
+
+    hits: list[Hit] = []
+    for root in roots:
+        for path in sorted(root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for line, text in _topic_literals(tree):
+                first = text.split(".")[0]
+                if first not in roots_seen or not _TOPICISH.fullmatch(text):
+                    continue
+                if first in _METRIC_NAMESPACES and not text.endswith("."):
+                    continue
+                if not known(text):
+                    hits.append(Hit(first, text, path, line, text))
     return hits
 
 

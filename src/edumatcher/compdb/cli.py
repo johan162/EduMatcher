@@ -28,6 +28,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.compdb.store import (
     COLUMNS,
     COMPANIES_DB,
@@ -388,6 +389,7 @@ def run(args: argparse.Namespace) -> None:
             print(f"{args.symbol.upper()} {args.command}d")
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     try:

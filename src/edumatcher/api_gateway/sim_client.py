@@ -14,7 +14,7 @@ import errno
 import logging
 import threading
 from collections import deque
-from typing import Any
+from typing import Any, Callable
 
 import zmq
 
@@ -44,6 +44,9 @@ class SimClient:
         )
         self._running = False
         self._thread: threading.Thread | None = None
+        #: Called on the event loop when the receive thread dies; pm-api-gwy
+        #: then stops with exit status 1, as for the engine listener.
+        self.on_listener_failure: Callable[[], None] | None = None
         self.state: dict[str, Any] | None = None
         self.values: dict[str, Any] | None = None
         self._sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -65,6 +68,9 @@ class SimClient:
         if self._thread is not None:
             self._thread.join(timeout=1.0)
         self._sub.close(linger=0)
+
+    def is_running(self) -> bool:
+        return self._running
 
     def add_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._sinks.add(queue)
@@ -103,7 +109,7 @@ class SimClient:
                 except zmq.ZMQError as exc:
                     if exc.errno != errno.EINTR:
                         raise
-                    break
+                    continue
                 if self._sub not in ready:
                     continue
                 try:
@@ -112,6 +118,13 @@ class SimClient:
                     log.warning("Dropping malformed sim PUB message: %s", exc)
                     continue
                 self._loop.call_soon_threadsafe(self.handle_event, topic, payload)
+        except Exception:
+            # Still meant to run, so not a stop_listener() closing the
+            # sockets under it: as the engine listener (L033).
+            if self._running:
+                log.exception("sim listener died; stopping pm-api-gwy")
+                if self.on_listener_failure is not None:
+                    self._loop.call_soon_threadsafe(self.on_listener_failure)
         finally:
             self._running = False
 

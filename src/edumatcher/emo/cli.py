@@ -144,6 +144,7 @@ from typing import Any
 import psutil
 import yaml
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.cli_version import package_version
 from edumatcher.config_deploy import examples_root
 from edumatcher.config import (
@@ -1385,6 +1386,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@pipe_safe
 def main() -> int:
     args = build_parser().parse_args()
     try:

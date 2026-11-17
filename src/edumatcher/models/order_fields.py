@@ -74,12 +74,15 @@ def check_type_fields(
     def name(field: str) -> str:
         return (names or {}).get(field, field)
 
-    uncarried = [f for f in required if f not in carried]
-    if uncarried:
+    if any(f not in carried for f in required):
+        # Not "it needs <field>": the record has no such field, so no value
+        # the client sends can satisfy it (L012). A transport that names its
+        # fields gets the type field named too, so the leg is identified.
+        type_field = (names or {}).get("order_type")
         return FieldViolation(
             "INVALID_VALUE",
-            f"{order_type.value} is not supported {where}: it needs "
-            + " and ".join(name(f) for f in uncarried),
+            f"{order_type.value} is not supported {where}"
+            + (f" ({type_field})" if type_field else ""),
             None,
         )
     missing = [f for f in required if f not in present]

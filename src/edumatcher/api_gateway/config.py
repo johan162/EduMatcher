@@ -29,7 +29,7 @@ from edumatcher.config import (
     resolve_data_path,
     resolve_gateway_bind_host,
 )
-from edumatcher.config_coerce import as_float, as_int
+from edumatcher.config_coerce import as_bool, as_float, as_int, as_str
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,15 @@ def _as_int(raw: object, section: str, field: str) -> int:
     return as_int(raw, f"{section}.{field}")
 
 
+def _as_db_path(raw: object, section: str, field: str) -> object:
+    """A path from the file (a string) or the module default (a ``Path``)."""
+    return raw if isinstance(raw, Path) else _as_str(raw, section, field)
+
+
+def _as_str(raw: object, section: str, field: str) -> str:
+    return as_str(raw, f"{section}.{field}")
+
+
 def _as_float(raw: object, section: str, field: str) -> float:
     return as_float(raw, f"{section}.{field}")
 
@@ -212,16 +221,22 @@ def _load_api_gateway_section(
         raise ValueError(f"{section_name}.port must be > 0")
 
     stats_db_raw = section.get("stats_db", STATS_DB_FILE)
-    stats_db = resolve_data_path(str(stats_db_raw))
+    stats_db = resolve_data_path(
+        str(_as_db_path(stats_db_raw, section_name, "stats_db"))
+    )
 
     audit_db_raw = section.get("audit_db", AUDIT_INDEX_DB_FILE)
-    audit_db = resolve_data_path(str(audit_db_raw))
+    audit_db = resolve_data_path(
+        str(_as_db_path(audit_db_raw, section_name, "audit_db"))
+    )
 
     clearing_db_raw = section.get("clearing_db", CLEARING_DB_FILE)
-    clearing_db = resolve_data_path(str(clearing_db_raw))
+    clearing_db = resolve_data_path(
+        str(_as_db_path(clearing_db_raw, section_name, "clearing_db"))
+    )
 
     eod_db_raw = section.get("eod_db", EOD_DB_FILE)
-    eod_db = resolve_data_path(str(eod_db_raw))
+    eod_db = resolve_data_path(str(_as_db_path(eod_db_raw, section_name, "eod_db")))
 
     order_retention_sec = _as_int(
         section.get("order_retention_sec", 3600), section_name, "order_retention_sec"
@@ -235,23 +250,44 @@ def _load_api_gateway_section(
     if market_data_cache_sec < 0:
         raise ValueError(f"{section_name}.market_data_cache_sec must be >= 0")
 
+    host_raw = section.get("host")
     return ApiGatewayConfig(
         name=gateway_name,
-        enabled=bool(section.get("enabled", True)),
-        host=resolve_gateway_bind_host(section.get("host")),
+        enabled=as_bool(section.get("enabled", True), f"{section_name}.enabled"),
+        host=resolve_gateway_bind_host(
+            None if host_raw is None else _as_str(host_raw, section_name, "host")
+        ),
         port=port,
-        engine_pull_addr=str(section.get("engine_pull_addr", ENGINE_PULL_ADDR)),
-        engine_pub_addr=str(section.get("engine_pub_addr", ENGINE_PUB_ADDR)),
-        index_pull_addr=str(section.get("index_pull_addr", INDEX_PULL_ADDR)),
-        index_pub_addr=str(section.get("index_pub_addr", INDEX_PUB_ADDR)),
+        engine_pull_addr=_as_str(
+            section.get("engine_pull_addr", ENGINE_PULL_ADDR),
+            section_name,
+            "engine_pull_addr",
+        ),
+        engine_pub_addr=_as_str(
+            section.get("engine_pub_addr", ENGINE_PUB_ADDR),
+            section_name,
+            "engine_pub_addr",
+        ),
+        index_pull_addr=_as_str(
+            section.get("index_pull_addr", INDEX_PULL_ADDR),
+            section_name,
+            "index_pull_addr",
+        ),
+        index_pub_addr=_as_str(
+            section.get("index_pub_addr", INDEX_PUB_ADDR),
+            section_name,
+            "index_pub_addr",
+        ),
         stats_db=stats_db,
         audit_db=audit_db,
         clearing_db=clearing_db,
         eod_db=eod_db,
         order_retention_sec=order_retention_sec,
         market_data_cache_sec=market_data_cache_sec,
-        log_level=str(section.get("log_level", "info")),
-        swagger_enabled=bool(section.get("swagger_enabled", True)),
+        log_level=_as_str(section.get("log_level", "info"), section_name, "log_level"),
+        swagger_enabled=as_bool(
+            section.get("swagger_enabled", True), f"{section_name}.swagger_enabled"
+        ),
         credentials=_load_credentials(section.get("credentials"), section_name),
         rate_limit=RateLimitConfig(writes_per_second=writes_per_second, burst=burst),
         timeouts=TimeoutConfig(

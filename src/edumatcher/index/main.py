@@ -1319,8 +1319,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--quiet",
         action="store_true",
         help=(
-            "Log warnings and errors only; this is the default, and -v or "
-            "--log-level override it"
+            "Explicit WARNING log level (the default); -v and --log-level take precedence"
         ),
     )
     parser.add_argument(

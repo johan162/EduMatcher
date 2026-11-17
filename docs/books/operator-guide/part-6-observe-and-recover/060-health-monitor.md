@@ -382,8 +382,8 @@ Healthy when a snapshot arrives within `--timeout`. Snapshots come from
 `pm-monitor`'s main loop, so this proves the loop runs — the same guarantee
 the recorders' health pings give, without a port of its own.
 
-- `-q` prints nothing; exit 0 when healthy, 255 otherwise (what
-  `pm-opctl-cli` uses).
+- `-q` prints nothing; exit 0 when healthy, 1 otherwise, as without it
+  (what `pm-opctl-cli` uses).
 - `--extended` also checks `metrics.db`: integrity (`PRAGMA quick_check`),
   that it is a `pm-monitor` database, that its pinned session timezone
   matches the deployed one (`pm-monitor` would refuse to start otherwise), and

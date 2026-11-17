@@ -416,7 +416,7 @@ def test_health_quiet_exits_zero_without_output(
     assert capsys.readouterr() == ("", "")
 
 
-def test_health_quiet_exits_minus_one_without_output(
+def test_health_quiet_exits_one_without_output(
     monkeypatch: pytest.MonkeyPatch,
     seeded_db: Path,
     capsys: pytest.CaptureFixture[str],
@@ -429,7 +429,8 @@ def test_health_quiet_exits_minus_one_without_output(
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(seeded_db), "health", "-q"])
 
-    assert exc_info.value.code == -1
+    # L017: 1, as without -q; it was -1 (status 255 in a shell).
+    assert exc_info.value.code == 1
     assert capsys.readouterr() == ("", "")
 
 

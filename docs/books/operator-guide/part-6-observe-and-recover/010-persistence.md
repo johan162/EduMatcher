@@ -68,7 +68,7 @@ startup so the market resumes where it left off.
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
 | `gtc_orders.json` | `pm-engine` | Periodic checkpoint and clean shutdown (Ctrl-C / SIGTERM) | Resting GTC orders, and resting same-day DAY orders (including MM quote legs), restored with their price-time priority at next startup — a stale DAY order (from an earlier business day) is discarded at restore instead | JSON; loaded by the engine at startup |
-| `gtc_combos.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Resting GTC combo parents and their child-leg links | JSON; loaded by the engine at startup |
+| `gtc_combos.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Working GTC and DAY combo parents and their child-leg links | JSON; loaded by the engine at startup |
 | `book_stats.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the `SYMBOLS` command's `prev_close` field. Also each circuit breaker's reference window (`cb_window`: the trades its reference averages): a restart on the same business day takes it back, so the breaker goes on with the reference the market had; a later day seeds the breaker from the last price | JSON; loaded by the engine at startup |
 | `engine_run_seq.json` | `pm-engine` | Once, at the very start of every engine run — **not** checkpointed periodically | A durable, monotonically-increasing run counter, bumped and saved before anything else happens on startup (even before GTC restore). Prefixed into every trade ID (`{run_seq:06d}-{trade_seq:09d}`) so trade IDs never collide across restarts even though the in-memory per-run trade counter resets to zero each time | JSON; loaded and incremented by the engine at startup |
 
@@ -168,7 +168,7 @@ process exiting.
 
 1. The engine collects all **resting** orders (status `NEW` or `PARTIAL`) from every order book with `TIF = GTC` or `TIF = DAY`.
 2. Those orders are serialized to `<DATA_DIR>/gtc_orders.json`.
-3. GTC combos (status `PENDING` or `PARTIALLY_MATCHED`) are serialized to `<DATA_DIR>/gtc_combos.json`. `DAY` combos are out of scope for this persistence: only their individual child orders survive per step 1-2 above, as plain resting orders — the combo parent record itself does not currently survive a restart.
+3. Working combos (status `PENDING` or `PARTIALLY_MATCHED`), `GTC` and `DAY` alike, are serialized to `<DATA_DIR>/gtc_combos.json`: their `DAY` legs persist as orders (steps 1-2), so their parents must too.
 4. Book statistics (`last_buy_price`, `last_sell_price`, and `prev_close` per symbol) are saved to `<DATA_DIR>/book_stats.json`.
 5. A `system.eod` message is published with final book snapshots for all symbols (allows stats/viewers to record closing state).
 6. ZMQ sockets are closed.
@@ -191,9 +191,10 @@ at all — it is only ever written once, at the following startup.
 3. Each `TIF = DAY` order is re-injected **only if its own timestamp falls on the current business day** (the calendar date in the session timezone, `locale.session_timezone`, whatever the host's own zone). A `DAY` order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at `INFO` level. This is the mechanism that ultimately gives `TIF = DAY` its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
 3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by `(gateway_id, quote_id)` and re-registered as active quotes in the engine's in-memory `QuoteIndex`, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale `TIF=DAY` order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."
 3b. Restored OCO legs are linked back into their pairs by `oco_group_id`, so a leg that fills or ends after the restart still ends its sibling. A pair with only one surviving leg is not re-linked: that leg rests as an ordinary order.
-4. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps for restored `GTC` combos.
+4. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists), discards a `DAY` combo whose business day has passed (logged at INFO, as its legs were), and rebuilds the parent-child tracking maps for the rest. After a same-day restart a `DAY` combo is back, and `CANCEL|COMBO_ID=` works on it.
 5. If any orders were restored, initial book snapshots are published. Restoring never matches, so a book saved during pre-open or an auction call comes back crossed. With sessions enabled the engine starts `CLOSED` and the crossed book waits for its auction, as it would have without the restart. With sessions disabled the engine starts in continuous trading, which must not hold a crossed book, so each crossed book is uncrossed at once (`auction.result` reason `RECOVERY`).
 6. The engine reads `<DATA_DIR>/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` / `prev_close` per symbol.  Persisted values take priority over config-seeded values. `prev_close` is also the book's last trade price again — the collar reference, a new trailing stop's starting point, the depth window's centre — unless a `RECOVERY` uncross in step 5 has printed a newer one.
+6a. Halts. An **operator halt** (`halt-sym` or `halt-all`, without a level) is restored before the market-maker seeds of step 7, so a seed does not trade on a halted symbol, and is announced again with `circuit_breaker.halt` (`halt_source` `ADMIN`, no `resume_at_ns`): only an operator `resume` lifts it. A halt **at a breaker level** — a tripped circuit breaker, or an operator halt with `--level` — is timed, and its timer means nothing after a restart: it ends, and the engine publishes `circuit_breaker.resume` for it, so every subscriber that cached the halt clears it. Each decision is logged at WARNING.
 7. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs, unless `seed_once: true` (the default) and this `(gateway_id, symbol)` pair already has an active entry in `QuoteIndex` — i.e. a live quote was restored in step 3a. **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step. This can also happen **between two different market makers**: a restored quote leg from one gateway can cross a freshly-injected seed from a different gateway — e.g. one gateway's quote only partially survived the restart (see [Operational edge cases](#operational-edge-cases) below), so `seed_once` still allows a second gateway's seed to fire, and that seed happens to cross the first gateway's surviving leg. Same startup-crossing behaviour as above, just a new pair of counterparties.
 8. Market-maker combos from the `market_maker_combos` config section are injected.
 9. Book snapshots are published for any symbol where MM quotes were injected.
@@ -245,7 +246,7 @@ flowchart TD
         S_QIDX[QuoteIndex: fully rebuilt\nfrom restored quote legs]
         S_SEED[seed_once market-maker seeds:\nskipped — a live quote already\nrestored into QuoteIndex]
         S_BSTAT[book_stats.json: restored\nlast_buy/sell + prev_close carry over]
-        S_COMBO[GTC combos: restored unchanged\nDAY combo parents: not persisted,\nchild legs follow order rules above]
+        S_COMBO[GTC and DAY combos: restored unchanged\nchild legs follow order rules above]
     end
 
     subgraph ROLLED["Business day has rolled over (first restart after date change)"]
@@ -255,7 +256,7 @@ flowchart TD
         R_QIDX[QuoteIndex: rebuilt only from\nsurviving GTC quote legs;\nDAY quote legs are gone]
         R_SEED[seed_once market-maker seeds:\nfire again for any gateway/symbol\nwhose quote did not survive the purge]
         R_BSTAT[book_stats.json: restored unchanged\n— last trade context always carries\nforward regardless of day rollover]
-        R_COMBO[GTC combos: restored unchanged;\nany DAY combo child legs\nfollow the DAY order rule above]
+        R_COMBO[GTC combos: restored unchanged;\nDAY combos and their legs:\ndiscarded, as DAY orders]
     end
 
     RESTART --> CHECK
@@ -287,10 +288,10 @@ The practical consequences of the "rolled over" branch:
   `last_sell_price` / `prev_close` restore unchanged across a day rollover.
   This is intentional — `prev_close` exists specifically to carry the prior
   session's closing price into the new session.
-- `gtc_combos.json` combo parents are GTC-only by construction (see
-  [The `gtc_combos.json` File](#the-gtc_combosjson-file)) and are therefore
-  never subject to the day check either; only their child orders, if any
-  leg were ever a DAY order, would be.
+- `gtc_combos.json` holds `GTC` and `DAY` combo parents (see
+  [The `gtc_combos.json` File](#the-gtc_combosjson-file)). A `DAY` parent
+  follows the same day check as its legs: kept on a same-day restart,
+  discarded after a rollover.
 - There is currently **no live, mid-session sweep** for a day rollover that
   happens while the engine keeps running — the check above only runs at
   startup. See the note below.
@@ -465,9 +466,16 @@ back on restore, so values round-trip exactly regardless of a symbol's `tick_dec
 ```json
 {
   "AAPL": {"last_buy_price": 150.25, "last_sell_price": 149.80, "prev_close": 150.10},
-  "MSFT": {"last_buy_price": null, "last_sell_price": 415.50, "prev_close": 415.50}
+  "MSFT": {"last_buy_price": null, "last_sell_price": 415.50, "prev_close": 415.50,
+           "halt": {"level": "ADMIN_SYMBOL", "source": "ADMIN"}}
 }
 ```
+
+A halted symbol also has a `halt` entry (its level and source). The engine
+writes the file as soon as a halt starts or ends, not only at the next
+checkpoint, so a crash right after a halt still restarts with it. What a
+restart does with each kind of halt is step 6a of
+[At Startup](#at-startup).
 
 - `last_buy_price`: display price of the most recent trade where the buyer was the aggressor
 - `last_sell_price`: display price of the most recent trade where the seller was the aggressor
@@ -491,7 +499,7 @@ This file is never day-sensitive — see
 
 ### The `gtc_combos.json` File
 
-Format: a JSON array of serialized `ComboOrder` objects (only combos with TIF=GTC and
+Format: a JSON array of serialized `ComboOrder` objects (combos with TIF=GTC or DAY and
 status `PENDING` or `PARTIALLY_MATCHED`):
 
 ```json
@@ -587,7 +595,7 @@ flowchart TD
     SESSION([Trading session\norders arrive, match, fill])
     SIGTERM([Ctrl-C / SIGTERM])
     SAVEGTC[Save resting GTC + DAY orders\nincl. quote legs → gtc_orders.json]
-    SAVECMB[Save GTC combos → gtc_combos.json\nDAY combo parent records not persisted]
+    SAVECMB[Save working GTC + DAY combos\n→ gtc_combos.json]
     SAVEBST[Save book stats → book_stats.json]
     EOD[Publish system.eod\nfinal book snapshots]
     DONE([Shutdown])
@@ -694,6 +702,36 @@ are documented in [Positions and P&L](../../participant-guide/part-5-positions-a
 
 If `pm-clearing` is not running when a trade executes, that trade is not recorded
 here (it is still in `stats.db` and `audit.log`).
+
+#### Repairing `clearing.db` after a feed gap
+
+A trade `pm-clearing` never received shows up as a feed gap
+(`pm-clearing-cli gaps`: reasons `feed`, `restart` and `end_of_run`), but
+the positions stay without it, and applying it late would not give the same
+average cost and realized P&L, which depend on the order of the trades.
+pm-audit holds every `trade.executed` in order, so the ledger can be rebuilt
+from it:
+
+1. Check that pm-audit's trail is complete for the period (`pm-audit-cli`;
+   the rebuild names any hole in it as a GAP of its own).
+2. Build a new database next to the live one; the live file is only read:
+
+    ```bash
+    pm-clearing-cli --datapath data/clearing.db rebuild \
+        --from-audit data --output data/clearing.rebuilt.db
+    ```
+
+    `--from-audit` is the data directory that holds `audit.log` and its
+    `audit/` archives. The trail must reach back to the live ledger's first
+    trading day, because the rebuild starts from flat positions; otherwise it
+    refuses and names both dates. The close snapshots are copied over
+    unchanged.
+3. Read the result: exit `0` means no position differs; exit `3` lists each
+   gateway and symbol whose `net_qty`, `avg_cost` or `realized_pnl` differs
+   (live and rebuilt side by side); exit `1` means it refused.
+4. To use the new ledger: stop `pm-clearing` (with the market closed), keep a
+   copy of the live file, move the rebuilt one into its place, and start
+   `pm-clearing` again. Nothing replaces the live file for you.
 
 ---
 

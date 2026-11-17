@@ -385,8 +385,10 @@ initial reference price. It resolves one using this priority:
 1. **QBOOT** — active quote from a previous session (restart recovery)
 2. **Book mid / last trade** — the current book mid if another participant has
    posted orders, otherwise the most recent `trade.executed` price
-3. **Bootstrap quote** — inactive quote prices from QBOOT
-4. **Random range** — `--initial_min` to `--initial_max` (configurable)
+3. **Market model** — with `--anchor-sim`, pm-market-sim's value for the
+   symbol, when one arrived during start-up
+4. **Bootstrap quote** — inactive quote prices from QBOOT
+5. **Random range** — `--initial_min` to `--initial_max` (configurable)
 
 If no source is available and no random range is configured, the bot exits with
 a clear error message.

@@ -132,7 +132,7 @@ OrderAckRejectCode = Literal[
 OrderAckSmpAction = Literal["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
 OrderAckRequest = Literal["NEW", "CANCEL", "AMEND"]
 OrderFillStatus = Literal["PARTIAL", "FILLED"]
-OrderFillLiquidityFlag = Literal["MAKER", "TAKER"]
+OrderFillLiquidityFlag = Literal["MAKER", "TAKER", "AUCTION"]
 OrderCancelledCancelReason = Literal[
     "SELF_MATCH_PREVENTED",
     "INSUFFICIENT_LIQUIDITY",
@@ -603,11 +603,12 @@ class OrderFill(BaseModel):
     """
     liquidity_flag: OrderFillLiquidityFlag | None = Field(default=None)
     """Derived from the trade's aggressor side: the aggressor is the TAKER and the
-    resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag).
-    Nullable/omit_when_none for the same reason trade_ids is typed as an empty-
-    able list: every current call site only publishes order_fill from a real
-    trade, so this is never actually absent today, but nothing enforces that a
-    future fill notification always has a trade behind it.
+    resting side the MAKER; both sides of an uncross print are AUCTION (same
+    derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the
+    same reason trade_ids is typed as an empty-able list: every current call site
+    only publishes order_fill from a real trade, so this is never actually absent
+    today, but nothing enforces that a future fill notification always has a trade
+    behind it.
     """
     fill_notional_ticks: int | None = Field(default=None, ge=0)
     """Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money

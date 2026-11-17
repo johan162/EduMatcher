@@ -7,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 Then open <http://localhost:8090>.
 
 That starts a complete exchange — the matching engine, all the protocol
-gateways, the REST API — plus six web applications, from prebuilt images.
+gateways, the REST API — plus seven web applications, from prebuilt images.
 The only requirement is **Podman or Docker**. Nothing is compiled: no Python,
 no Node, no checkout of this repository.
 
@@ -213,7 +213,7 @@ is no configuration GUI in this stack; the other five are on the usual ports.
 
 !!! warning
     The two installs use the same host ports (5560–5600, 8080/8081,
-    8090–8095), so only one of them can run at a time. `start` refuses if the
+    8090–8096), so only one of them can run at a time. `start` refuses if the
     other one's containers are up.
 
 What the simulation *is* — the hidden true value, the traders, the news — is
@@ -235,7 +235,7 @@ asking.
 ## The web GUIs for a pipx exchange
 
 If you run the exchange itself with `pipx` (a plain exchange, or the simulation
-started by hand), `--guis` installs only the six web GUIs, as containers
+started by hand), `--guis` installs only the seven web GUIs, as containers
 pointed at the exchange on your own machine:
 
 ```bash

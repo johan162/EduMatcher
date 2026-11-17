@@ -143,7 +143,7 @@ pm-log-srv [options]
 | `--no-pubsub` | off | Disable LALF-PS entirely — bind no ZeroMQ sockets and run as a pure TCP collector |
 | `--log-level LEVEL` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce log output to warnings/errors |
+| `-q` / `--quiet` | off | Explicit WARNING log level (the default) |
 | `--log-target stdout\|file` | `stdout` | Where `pm-log-srv`'s own log goes; never `server` (it does not log to itself) |
 | `--log-file PATH` | — | Its own log file; required with `--log-target file` |
 
@@ -464,6 +464,13 @@ what to ask for.
 Absence of `log.server_state` for more than a couple of intervals is how
 a subscriber distinguishes "the *server* went away" from "*my
 subscription* went away" — two situations that need different responses.
+
+Each server start picks a new random `instance_id`, carried on every
+`log.server_state`. A server that crashes and restarts between two
+heartbeats publishes no `DOWN`, and `last_seq` continues across the
+restart, so a changed `instance_id` is the only sign: subscribe again at
+once, because the new server holds no subscriptions. Rows logged before the
+new subscription are in `log.db`, not in the live stream.
 
 ### Ordering, durability and the slow-joiner race
 

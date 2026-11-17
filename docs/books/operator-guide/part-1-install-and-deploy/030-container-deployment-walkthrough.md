@@ -34,7 +34,7 @@ each one means in an EduMatcher deployment.
 | Term | In general | In EduMatcher |
 |---|---|---|
 | **Image** | A read-only template: a file system plus a default command | Seven of them: `edumatcher` (the whole exchange), `edumatcher-ai-sim` (the same exchange preset to trade by itself) and one per web GUI |
-| **Container** | A running instance of an image, with its own processes, network interface and writable layer | Up to seven run at once: the exchange container and six GUI containers |
+| **Container** | A running instance of an image, with its own processes, network interface and writable layer | Up to eight run at once: the exchange container and seven GUI containers |
 | **Compose file** | A YAML file that describes several containers and how they connect, so you start them with one command instead of six | `compose.yaml` and its overlays. Several files can be combined, each adding to the last |
 | **Bind mount** and **named volume** | Two ways to give a container storage that outlives it. A bind mount is a directory on your disk; a named volume is storage the container engine manages for you | Everything the exchange produces lives in a bind mount (`./data`), so you can see it. The GUIs keep small private state in named volumes |
 | **Published port** | A port on your machine forwarded to a port in a container | How *you* — your browser, `curl`, a protocol client — reach the system. The containers do not use them to reach each other |
@@ -86,7 +86,7 @@ flowchart LR
 Because they describe one system, the compose files in `deployment/curl/` are
 **twins** of those in `deployment/docker/`. They differ in only two ways:
 they name images on GHCR instead of having `build:` sections, and they put all
-six GUIs in one file.
+seven GUIs in one file.
 
 ### What is in each directory
 
@@ -99,9 +99,9 @@ six GUIs in one file.
 | `compose.yaml` | The base compose file: the exchange container alone, with its gateway ports |
 | `compose.zmq.yaml` | Overlay: also publish the internal ZeroMQ bus |
 | `compose.ssh.yaml` | Overlay: run an SSH server in the exchange container |
-| `compose.guis.yaml` | Overlay: the five web GUIs that talk to the exchange |
+| `compose.guis.yaml` | Overlay: every GUI that talks to the exchange (all but `config-gui`) |
 | `compose.config-gui.yaml` | Overlay: the configuration builder, which talks to nothing |
-| `compose.ai-sim.yaml` | A separate, self-contained stack: the AI-trader simulation and five GUIs |
+| `compose.ai-sim.yaml` | A separate, self-contained stack: the AI-trader simulation and six GUIs |
 | `Makefile` | Every build and run command, with the right files and variables filled in |
 | `.env.example` | The default settings, copied to `.env` on first use |
 | `.dockerignore` | Keeps everything except the wheel and the entrypoint out of the build |
@@ -114,7 +114,7 @@ six GUIs in one file.
 |---|---|
 | `install.sh` | The one-line installer: resolves a release, downloads the files below, writes `.env` and starts everything |
 | `edumatcher.sh` | The control script copied into the install directory: `start`, `stop`, `status`, `config`, `update` and the rest |
-| `compose.yaml` | The exchange and all six GUIs, from GHCR images |
+| `compose.yaml` | The exchange and all seven GUIs, from GHCR images |
 | `compose.zmq.yaml` | Overlay: publish the ZeroMQ bus (`EM_ZMQ=1` in `.env`) |
 | `compose.ai-sim.yaml` | The AI-trader simulation, from GHCR images (`install.sh --sim`) |
 | `.env.example` / `.env.sim.example` | The default settings for the exchange and for the simulation |
@@ -276,7 +276,7 @@ your `.env` or shell.
 
 ### The web GUI images
 
-All six GUI Dockerfiles follow one pattern, also in two stages:
+All seven GUI Dockerfiles follow one pattern, also in two stages:
 
 ```mermaid
 flowchart LR
@@ -314,7 +314,7 @@ installation chapter lists which of them the compose files actually pass on.
 
 You never need to do this yourself, but it explains what you pull. Publishing a
 GitHub release runs `.github/workflows/publish-images.yml`. It builds all
-eight images (`edumatcher`, `edumatcher-ai-sim` and the six GUIs) natively on
+nine images (`edumatcher`, `edumatcher-ai-sim` and the seven GUIs) natively on
 an `amd64` and an `arm64` runner, and joins each pair into one multi-arch
 manifest. Both backend images and the log console get the release's own wheel
 in their `.wheel/` drop box, so their Python code is exactly the release. The
@@ -961,7 +961,7 @@ right files.
 | | `make info` | Show the detected engine, compose tool and image name |
 | Build | `make build` | Build a wheel from your checkout with Poetry, place it in `.wheel/`, build the exchange image |
 | | `make build PYPI=1` / `VERSION=x.y.z` | Build the exchange image from a PyPI release instead |
-| | `make build-guis [GUI=<name>]` | Rebuild all six GUI images, or one. `log-gui` gets a wheel from your checkout (or PyPI with `PYPI=1` / `VERSION=`) |
+| | `make build-guis [GUI=<name>]` | Rebuild all seven GUI images, or one. `log-gui` gets a wheel from your checkout (or PyPI with `PYPI=1` / `VERSION=`) |
 | | `make build-sim` | Build `edumatcher-ai-sim:local` from your checkout |
 | Run | `make up [ZMQ=1] [SSH=1] [CONFIG=…] [PROFILE=…]` | Start the exchange alone |
 | | `make up-all [BUILD=1] [CONFIG_GUI=1] …` | Start the exchange and the GUIs in two phases |

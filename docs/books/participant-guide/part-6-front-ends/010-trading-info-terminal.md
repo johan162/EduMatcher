@@ -160,7 +160,7 @@ make up
     already defaults to `:8081` — keep the port when you change the host.
 
 If port 8090 is taken, move the *host* side of it. Pick something outside
-8090–8095, which the other applications use:
+8090–8096, which the other applications use:
 
 ```bash
 TERMINAL_GUI_PORT=8100 make up

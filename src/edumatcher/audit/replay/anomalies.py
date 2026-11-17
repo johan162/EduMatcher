@@ -216,7 +216,7 @@ FILL_STATUS_DISAGREE = "FILL_STATUS_DISAGREE"
 
 #: A ``liquidity_flag`` that contradicts its trade's ``aggressor_side``. The
 #: aggressing side is the TAKER and the resting side the MAKER; an auction
-#: print has no aggressor and both sides are MAKER. A billing invariant --
+#: print has no aggressor and both sides are AUCTION. A billing invariant --
 #: maker and taker fees invert on it. Section 12.2.
 LIQUIDITY_FLAG_DISAGREE = "LIQUIDITY_FLAG_DISAGREE"
 

@@ -81,7 +81,11 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "CANCEL_BOTH": "cancelling both sides",
     },
     "combo_type": {"AON": "all-or-none"},
-    "liquidity_flag": {"MAKER": "resting", "TAKER": "aggressing"},
+    "liquidity_flag": {
+        "MAKER": "resting",
+        "TAKER": "aggressing",
+        "AUCTION": "crossed in an auction",
+    },
     # order.ack.request: which request an ack answers.
     "request": {"NEW": "a new order", "CANCEL": "a cancel", "AMEND": "an amend"},
     "becomes": {"MARKET": "a market order", "LIMIT": "a limit order"},
@@ -309,10 +313,8 @@ def fill_verb(role: str | None, side: str | None, uncrossed: bool) -> tuple[str,
 
     Returns ``(verb, preposition)`` so a template never has to agree them.
 
-    An uncross is checked first and wins: the engine flags **both** sides of an
-    auction print MAKER, because neither equals an ``aggressor_side`` of
-    ``AUCTION``, so a rule that read the role alone would narrate an uncross as
-    a passive fill and imply an aggressor on the other side of it.
+    An uncross is checked first and wins: both sides of an auction print are
+    AUCTION, and neither was passive nor aggressing.
     """
     if uncrossed:
         return VERB_CROSSED, PREP_WITH

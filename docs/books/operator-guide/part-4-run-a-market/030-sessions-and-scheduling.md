@@ -290,7 +290,7 @@ poetry run pm-scheduler
 | `--on-close-delay SECONDS` | `30`              | Wait this long after `CLOSED` before starting `--on-close`, so `pm-clearing` has saved its close snapshot |
 | `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
 | `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
-| `--quiet` / `-q`         | off                 | Reduce log output to warnings/errors (this is already the default level)     |
+| `--quiet` / `-q`         | off                 | Explicit WARNING log level (the default)     |
 
 ### After the close: `--on-close`
 

@@ -459,7 +459,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce output to warnings/errors; applies to the workers too",
+        help="Explicit WARNING log level (the default); applies to the workers too",
     )
     parser.add_argument(
         "--log-target",

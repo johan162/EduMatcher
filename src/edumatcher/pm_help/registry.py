@@ -85,7 +85,7 @@ COMMON_LOG_OPTIONS: tuple[Option, ...] = (
         "off",
         "Increase verbosity (-v -> INFO, -vv -> DEBUG)",
     ),
-    Option("-q, --quiet", "off", "Reduce output to warnings/errors"),
+    Option("-q, --quiet", "off", "Explicit WARNING log level (the default)"),
     Option(
         "--log-target TARGET",
         "server",
@@ -2661,7 +2661,7 @@ _LOGGING: tuple[CommandInfo, ...] = (
                 "Explicit level: CRITICAL, ERROR, WARNING, INFO, DEBUG",
             ),
             Option("-v, --verbose", "off", "Increase verbosity"),
-            Option("-q, --quiet", "off", "Reduce output to warnings/errors"),
+            Option("-q, --quiet", "off", "Explicit WARNING log level (the default)"),
             Option(
                 "--log-target stdout|file",
                 "stdout",

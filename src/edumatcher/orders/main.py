@@ -427,20 +427,32 @@ def _build_rows_table(rows: list[dict[str, Any]]) -> Table:
             )
             continue
 
-        side = o.get("side", "?")
+        # A reject carries only the ids and the reason (L015): the columns it
+        # cannot fill stay blank rather than "?", and the reason is shown.
+        rejected = st == "REJECTED"
+        unknown = "" if rejected else "?"
+        status_text = f"{st} ({o['reason']})" if rejected and o.get("reason") else st
+        side = o.get("side", unknown)
         side_colour = _SIDE_STYLE.get(side, _FLAT)
         t.add_row(
             o.get("time", "?"),
             o.get("order_id", "?")[:8],
             o.get("gateway_id", "?"),
-            o.get("symbol", "?"),
+            o.get("symbol", unknown),
             Text(side, style=side_colour),
-            o.get("order_type", "?"),
-            o.get("tif", "?"),
-            str(o.get("qty", "?")),
-            str(o.get("remaining", "?")),
-            Text(_format_price(o.get("price"), o.get("symbol")), style=side_colour),
-            Text(st, style=status_colour),
+            o.get("order_type", unknown),
+            o.get("tif", unknown),
+            str(o.get("qty", unknown)),
+            str(o.get("remaining", unknown)),
+            Text(
+                (
+                    ""
+                    if rejected and o.get("price") is None
+                    else _format_price(o.get("price"), o.get("symbol"))
+                ),
+                style=side_colour,
+            ),
+            Text(status_text, style=status_colour),
         )
     return t
 
@@ -589,6 +601,7 @@ class OrderMonitor:
                         entry["remaining"] = entry["qty"]
                 else:
                     entry["status"] = "REJECTED"
+                    entry["reason"] = payload.get("reason", "")
 
             elif PREFIX_ORDER_FILL in topic:
                 # gateway_id from topic for counterparty fills that skipped an ack
@@ -929,7 +942,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",

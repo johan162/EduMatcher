@@ -20,6 +20,7 @@ import json
 import sys
 from typing import Any
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 from edumatcher.commands.console import execute_command
 from edumatcher.config import ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
@@ -294,6 +295,7 @@ def _args_to_fields(args: Any) -> dict[str, str]:
     return fields
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

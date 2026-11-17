@@ -29,7 +29,7 @@ The usual causes are:
 - *Permission denied on the Docker socket* (Linux). Your user must be allowed
   to use Docker (see Docker's "post-installation steps for Linux"), or use
   Podman, which needs no special rights.
-- *A port is already in use.* The exchange publishes 8080, 8081 and 8090–8095
+- *A port is already in use.* The exchange publishes 8080, 8081 and 8090–8096
   on your computer. Stop whatever else uses them, or change a browser
   application's port in `.env` (for example `TERMINAL_GUI_PORT=8190`) and run
   `./edumatcher.sh restart`; `./edumatcher.sh urls` prints the addresses in

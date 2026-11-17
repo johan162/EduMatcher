@@ -1048,7 +1048,7 @@ class _FakeContext:
     def __init__(self, sock: _FakePushSocket) -> None:
         self._sock = sock
 
-    def socket(self, _sock_type: int) -> _FakePushSocket:
+    def socket(self, _sock_type: int, **_kwargs: object) -> _FakePushSocket:
         return self._sock
 
 
@@ -1792,4 +1792,48 @@ def test_position_reply_of_a_connected_gateway_says_ok(gateway: AlfGateway) -> N
     )
     gateway._poll_engine_events()
     assert parse_alf_line(session.out_queue[0].decode("utf-8")).fields["STATUS"] == "OK"
+    peer.close()
+
+
+def test_qboot_lists_an_active_quote_with_its_state(gateway: AlfGateway) -> None:
+    """For-Later L015 (WP-FL17): the engine's ActiveQuote carries ``state``;
+    the gateway read ``status`` and printed an empty ``STATUS=``."""
+    from edumatcher.models.message import make_quote_bootstrap_msg
+
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "MM01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["MM01"] = session.sock.fileno()
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        make_quote_bootstrap_msg(
+            "MM01",
+            [
+                {
+                    "quote_id": "Q1",
+                    "gateway_id": "MM01",
+                    "symbol": "AAPL",
+                    "state": "ACTIVE",
+                    "bid_order_id": "B1",
+                    "ask_order_id": "A1",
+                    "bid_price": 149.5,
+                    "ask_price": 150.5,
+                    "bid_qty": 500,
+                    "ask_qty": 500,
+                    "bid_status": "NEW",
+                    "ask_status": "NEW",
+                    "bid_remaining_qty": 500,
+                    "ask_remaining_qty": 500,
+                }
+            ],
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    frames = [parse_alf_line(b.decode("utf-8")) for b in session.out_queue]
+    (quote,) = [f for f in frames if f.command == "QUOTE"]
+    assert quote.fields["STATUS"] == "ACTIVE"
     peer.close()

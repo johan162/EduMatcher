@@ -1,6 +1,6 @@
-Version: 1.1.0
+Version: 1.2.0
 
-Date: 2026-11-16
+Date: 2026-11-17
 
 Status: Design and Research Proposal
 
@@ -63,18 +63,18 @@ paths are High).
 | 6 | WP-FL06 | Admin position/order queries and book requests always get a truthful answer | L030, L028 | Med | Med | Q5 | 1 d | ☑ | 2026-11-16 |
 | 7 | WP-FL07 | A participant's resting orders stay reachable over BALF after a gateway restart (BALF 1.1) | L027 | Med | High | Q6, WP-FL06 | 1.5 d | ☑ | 2026-11-16 |
 | 8 | WP-FL08 | pm-admin and pm-admin-cli print the engine's answer to a session transition, not TIMEOUT | L009 | Med | Low | — | 0.5 d | ☑ | 2026-11-16 |
-| 9 | WP-FL09 | Every configuration loader refuses the values it cannot hold | L024 | Low | Med | — | 1 d | ☐ | |
-| 10 | WP-FL10 | Engine rejection texts name the real problem; an uncross print has a defined liquidity flag | L012, L026, L037 | Low | Med | Q7 | 0.5 d | ☐ | |
-| 11 | WP-FL11 | Line gateways serve past 1024 descriptors, stop with `EXIT`, and answer a half-closed client | L036, L011 | Low | Med | Q8 | 1 d | ☐ | |
-| 12 | WP-FL12 | pm-api-gwy's index and sim listeners fail loudly | L033 | Low | Low | — | 0.5 d | ☐ | |
-| 13 | WP-FL13 | The log-GUI live view re-subscribes after a server restart and marks lost rows | L038 | Low | Med | Q9 | 1 d | ☐ | |
-| 14 | WP-FL14 | Close snapshots in `clearing.db` are pruned, the last settled date never | L019 | Low | Med | — | 0.5 d | ☐ | |
-| 15 | WP-FL15 | Every topic pm-sim-forensics matches on is a declared topic | L001 | Low | Low | — | 0.5 d | ☐ | |
-| 16 | WP-FL16 | CLIs behave in pipes and scripts: no `BrokenPipeError`, `health -q` exits 1, `-q` means one thing | L013, L017, L034 | Low | Low | Q10 | 1 d | ☐ | |
-| 17 | WP-FL17 | pm-admin, ALF `QBOOT` and pm-orders print prices and states readably | L006, L008, L015 | Low | Low | — | 0.5 d | ☐ | |
-| 18 | WP-FL18 | trader-gui: no "-0.00%", and the order-audit modal shows the index's reach | L002, L018 | Low | Low | — | 0.5 d | ☐ | |
-| 19 | WP-FL19 | pm-mm-bot with `--anchor-sim` starts from the market model when the book gives no reference | L014 | Low | Low | — | 0.5 d | ☐ | |
-| 20 | WP-FL20 | The books describe what the code does | L003, L007, L016, L025, L020 (interim) | Med | Low | Q11, all above | 1 d | ☐ | |
+| 9 | WP-FL09 | Every configuration loader refuses the values it cannot hold | L024 | Low | Med | — | 1 d | ☑ | 2026-11-17 |
+| 10 | WP-FL10 | Engine rejection texts name the real problem; an uncross print has a defined liquidity flag | L012, L026, L037 | Low | Med | Q7 | 0.5 d | ☑ | 2026-11-17 |
+| 11 | WP-FL11 | Line gateways serve past 1024 descriptors, stop with `EXIT`, and answer a half-closed client | L036, L011 | Low | Med | Q8 | 1 d | ☑ | 2026-11-17 |
+| 12 | WP-FL12 | pm-api-gwy's index and sim listeners fail loudly | L033 | Low | Low | — | 0.5 d | ☑ | 2026-11-17 |
+| 13 | WP-FL13 | The log-GUI live view re-subscribes after a server restart and marks lost rows | L038 | Low | Med | Q9 | 1 d | ☑ | 2026-11-17 |
+| 14 | WP-FL14 | Close snapshots in `clearing.db` are pruned, the last settled date never | L019 | Low | Med | — | 0.5 d | ☑ | 2026-11-17 |
+| 15 | WP-FL15 | Every topic pm-sim-forensics matches on is a declared topic | L001 | Low | Low | — | 0.5 d | ☑ | 2026-11-17 |
+| 16 | WP-FL16 | CLIs behave in pipes and scripts: no `BrokenPipeError`, `health -q` exits 1, `-q` means one thing | L013, L017, L034 | Low | Low | Q10 | 1 d | ☑ | 2026-11-17 |
+| 17 | WP-FL17 | pm-admin, ALF `QBOOT` and pm-orders print prices and states readably | L006, L008, L015 | Low | Low | — | 0.5 d | ☑ | 2026-11-17 |
+| 18 | WP-FL18 | trader-gui: no "-0.00%", and the order-audit modal shows the index's reach | L002, L018 | Low | Low | — | 0.5 d | ☑ | 2026-11-17 |
+| 19 | WP-FL19 | pm-mm-bot with `--anchor-sim` starts from the market model when the book gives no reference | L014 | Low | Low | — | 0.5 d | ☑ | 2026-11-17 |
+| 20 | WP-FL20 | The books describe what the code does | L003, L007, L016, L025, L020 (interim) | Med | Low | Q11, all above | 1 d | ☑ | 2026-11-17 |
 | 21 | WP-FL21 | Exchange-side corporate actions (1.x, design first) | L020 | Med | Very high | WP-FL20 | design 1 d | ☐ | |
 
 Suggested order: **WP-FL01 → WP-FL02 → WP-FL03 → WP-FL04 → WP-FL05 →
@@ -106,46 +106,47 @@ way.
 
 | ID | Date | Area | Finding | Priority | Status |
 |----|------|------|---------|----------|--------|
-| L001 | 2026-11-11 | sim_forensics / msgen | pm-sim-forensics hard-codes 185 topic literals and is exempt from the literal gate | Low | Open |
-| L002 | 2026-11-11 | trader-gui | `formatChangePct` shows "-0.00%" (and "+0.00%" for zero) for a change that rounds to zero | Low | Open |
-| L003 | 2026-11-13 | docs (operator guide, quick start, participant guide) | Container install has seven web applications (Clearing GUI on 8096), the books say six / 8090–8095 | Low | Open |
+| L001 | 2026-11-11 | sim_forensics / msgen | pm-sim-forensics hard-codes 185 topic literals and is exempt from the literal gate | Low | Fixed (WP-FL15) |
+| L002 | 2026-11-11 | trader-gui | `formatChangePct` shows "-0.00%" (and "+0.00%" for zero) for a change that rounds to zero | Low | Fixed (WP-FL18) |
+| L003 | 2026-11-13 | docs (operator guide, quick start, participant guide) | Container install has seven web applications (Clearing GUI on 8096), the books say six / 8090–8095 | Low | Fixed (WP-FL20) |
 | L004 | 2026-11-13 | pm-config-gen | `[HINT] Validate with: poetry run python -c … Path("engine_config.yaml")` is wrong for installed users and names the wrong file | Low | Fixed (Config-Tools review WP-CFG04) |
 | L005 | 2026-11-13 | pm-cverifier | Header counts `Semantic: 2 warnings` while the verdict says `1 WARNING` (the INFO M004 is counted as a warning) | Low | Fixed (Config-Tools review WP-CFG07) |
-| L006 | 2026-11-13 | consoles / pm-mm-bot | Prices printed as raw floats: `149.8`, `@149.93333333333334`, `book mid=150.51999999999998` | Low | Open |
-| L007 | 2026-11-13 | docs (operator guide, persistence) | Two diagrams say DAY combo parents are not persisted; the engine persists and restores them on a same-day restart | Low | Open |
-| L008 | 2026-11-13 | pm-admin / pm-admin-cli | `BOOK` prints `Last trade: 150.0 × None` after an engine restart (restored price, unknown quantity) | Low | Open |
+| L006 | 2026-11-13 | consoles / pm-mm-bot | Prices printed as raw floats: `149.8`, `@149.93333333333334`, `book mid=150.51999999999998` | Low | Fixed (WP-FL17) |
+| L007 | 2026-11-13 | docs (operator guide, persistence) | Two diagrams say DAY combo parents are not persisted; the engine persists and restores them on a same-day restart | Low | Fixed (WP-FL20) |
+| L008 | 2026-11-13 | pm-admin / pm-admin-cli | `BOOK` prints `Last trade: 150.0 × None` after an engine restart (restored price, unknown quantity) | Low | Fixed (WP-FL17) |
 | L009 | 2026-11-13 | ExchangeCommandClient / pm-admin / pm-admin-cli | An illegal session transition prints `TIMEOUT`, although the engine answers on `session.transition_ack` (REST shows `409` with the reason) | Medium | Fixed (WP-FL08) |
 | L010 | 2026-11-13 | pm-api-gwy | Once hung at shutdown on "Waiting for background tasks to complete"; second Ctrl-C needed (not reproduced) | Low | Fixed (API Gateway review WP-AGW01) |
-| L011 | 2026-11-13 | pm-alf-gwy | A client that half-closes (`printf … \| nc`) loses the replies still on their way from the engine | Low | Open |
-| L012 | 2026-11-13 | engine (combo/OCO validation) | `TRAILING_STOP is not supported on a combo leg: it needs trail_offset` is shown even when `LEG0.TRAIL=` was given | Low | Open |
-| L013 | 2026-11-13 | pm-stats-cli (CLIs) | `pm-stats-cli daily \| head` ends with a `BrokenPipeError` traceback | Low | Open |
-| L014 | 2026-11-13 | pm-mm-bot | With `--anchor-sim` the bot still needs a two-sided book or a range to start; it could start from the market model's value | Low | Open |
-| L015 | 2026-11-13 | pm-alf-gwy / pm-orders | ALF `QBOOT` lines carry an empty `STATUS=`; `pm-orders` shows `?` in every column of a rejected order | Low | Open |
-| L016 | 2026-11-13 | docs (participant combo guide) | Introduction promises atomic all-or-none execution for combos, although AON is an entry guard and later legs can fill independently | Medium | Open |
-| L017 | 2026-11-13 | CLIs (`health -q`) | `health -q` exits `-1` (status 255) while the non-quiet path exits 1, in four CLIs | Low | Open |
-| L018 | 2026-11-13 | trader-gui (admin order detail) | A 404 from the order-audit endpoint shows "No audited events for this order." without the index's reach (`indexed_through`), so an order newer than the last index build looks unknown | Low | Open |
-| L019 | 2026-11-14 | pm-clearing (close snapshots) | `position_close_snapshot` is never pruned and keeps every flat position: one full position table per day in `clearing.db` and in every nightly backup | Low | Open |
-| L020 | 2026-11-14 | engine / market sim / bots (corporate actions) | A split or dividend is applied to the index only; nothing adjusts the market's price, so the next trade moves the index by the split factor | Medium | Open |
+| L011 | 2026-11-13 | pm-alf-gwy | A client that half-closes (`printf … \| nc`) loses the replies still on their way from the engine | Low | Fixed (WP-FL11) |
+| L012 | 2026-11-13 | engine (combo/OCO validation) | `TRAILING_STOP is not supported on a combo leg: it needs trail_offset` is shown even when `LEG0.TRAIL=` was given | Low | Fixed (WP-FL10) |
+| L013 | 2026-11-13 | pm-stats-cli (CLIs) | `pm-stats-cli daily \| head` ends with a `BrokenPipeError` traceback | Low | Fixed (WP-FL16) |
+| L014 | 2026-11-13 | pm-mm-bot | With `--anchor-sim` the bot still needs a two-sided book or a range to start; it could start from the market model's value | Low | Fixed (WP-FL19) |
+| L015 | 2026-11-13 | pm-alf-gwy / pm-orders | ALF `QBOOT` lines carry an empty `STATUS=`; `pm-orders` shows `?` in every column of a rejected order | Low | Fixed (WP-FL17) |
+| L016 | 2026-11-13 | docs (participant combo guide) | Introduction promises atomic all-or-none execution for combos, although AON is an entry guard and later legs can fill independently | Medium | Fixed (WP-FL20) |
+| L017 | 2026-11-13 | CLIs (`health -q`) | `health -q` exits `-1` (status 255) while the non-quiet path exits 1, in four CLIs | Low | Fixed (WP-FL16) |
+| L018 | 2026-11-13 | trader-gui (admin order detail) | A 404 from the order-audit endpoint shows "No audited events for this order." without the index's reach (`indexed_through`), so an order newer than the last index build looks unknown | Low | Fixed (WP-FL18) |
+| L019 | 2026-11-14 | pm-clearing (close snapshots) | `position_close_snapshot` is never pruned and keeps every flat position: one full position table per day in `clearing.db` and in every nightly backup | Low | Fixed (WP-FL14) |
+| L020 | 2026-11-14 | engine / market sim / bots (corporate actions) | A split or dividend is applied to the index only; nothing adjusts the market's price, so the next trade moves the index by the split factor | Medium | Open (interim contract documented, WP-FL20; WP-FL21 for 1.x) |
 | L021 | 2026-11-14 | pm-engine (halts) | Halts are not persisted: an engine restart silently clears every circuit-breaker and operator halt, so a symbol an operator halted trades again after a restart, with no resume published | Medium | Fixed (WP-FL03) |
 | L022 | 2026-11-14 | pm-engine / subscribers (end of a run) | Trades lost just before an engine stop are undetectable downstream: the next run starts a new id sequence, and `system.eod` does not say which id the run ended at | Medium | Fixed (WP-FL04) |
 | L023 | 2026-11-14 | pm-clearing (repair) | No way to repair `clearing.db` once a feed gap is known: nothing rebuilds the ledger from the audit trail | Medium | Fixed (WP-FL05) |
-| L024 | 2026-11-14 | engine / log-server loaders | Loaders accept values they mean to refuse: `tick_decimals: true`, `outstanding_shares: true`, `max_order_qty: 1.5` (truncated to 1), `schedule: 'x'`, `log_server.enabled: 'x'`, `.nan` where `> 0` is required | Low | Open |
-| L025 | 2026-11-14 | docs (training guide ch. 17) | Says the static collar "only takes effect from the first trades on"; the engine registers a collar only at start-up when a reference price is known | Low | Open |
-| L026 | 2026-11-14 | pm-engine (order validation) | A TRAILING_STOP with a negative `trail_offset` and no prior trade is refused as "Trailing stop requires STOP= or a prior trade price", not as an invalid offset | Low | Open |
+| L024 | 2026-11-14 | engine / log-server loaders | Loaders accept values they mean to refuse: `tick_decimals: true`, `outstanding_shares: true`, `max_order_qty: 1.5` (truncated to 1), `schedule: 'x'`, `log_server.enabled: 'x'`, `.nan` where `> 0` is required | Low | Fixed (WP-FL09) |
+| L025 | 2026-11-14 | docs (training guide ch. 17) | Says the static collar "only takes effect from the first trades on"; the engine registers a collar only at start-up when a reference price is known | Low | Fixed (WP-FL20) |
+| L026 | 2026-11-14 | pm-engine (order validation) | A TRAILING_STOP with a negative `trail_offset` and no prior trade is refused as "Trailing stop requires STOP= or a prior trade price", not as an invalid offset | Low | Fixed (WP-FL10) |
 | L027 | 2026-11-14 | pm-balf-gwy (restart) | After a pm-balf-gwy restart a participant's resting orders are unreachable over BALF: no order ids, no fills, no cancel, and BALF has no order query | Medium | Fixed (WP-FL07) |
 | L028 | 2026-11-14 | pm-engine (book requests) | `book.snapshot_request` for a symbol the engine holds no book for gets no answer, so a subscriber that cached the book before an engine restart cannot learn it is now empty | Low | Not a defect (WP-FL06: every configured symbol has a book from start-up) |
 | L029 | 2026-11-15 | pm-engine (heartbeats) | A session that never sent a heartbeat is never expired, so a client that connects and dies (or is answered after it gave up) holds its gateway id until an admin disconnect or an engine restart | Medium | Fixed (WP-FL02) |
 | L030 | 2026-11-15 | pm-engine (admin queries) | Position and order queries about a disconnected gateway answer empty lists, so `GET /admin/gateways/{id}/positions` and `/orders` show a logged-off trader with resting orders as flat with none | Medium | Fixed (WP-FL06) |
 | L031 | 2026-11-15 | pm-engine (gateway connect) | A refused `gateway_connect` for an unknown id still creates a session, a metrics label and a published topic that are never freed: 337 B per refused id, reachable by any client through ALF `HELLO` | Low | Partly fixed (WP-FL02): publisher counter remains |
 | L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Fixed (WP-FL01) |
-| L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Open |
-| L034 | 2026-11-15 | CLIs (`-q`) | `-q`/`--quiet` is documented as "Reduce output to warnings/errors" but sets WARNING, the default, so it changes nothing (5 entry points and pm-help's common log options) | Low | Open |
+| L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Fixed (WP-FL12) |
+| L034 | 2026-11-15 | CLIs (`-q`) | `-q`/`--quiet` is documented as "Reduce output to warnings/errors" but sets WARNING, the default, so it changes nothing (5 entry points and pm-help's common log options) | Low | Fixed (WP-FL16) |
 | L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and subscribes to every participant, so a burst for unwatched IDs drops watched fills with no log or metric | Medium | Moved to DC review WP-DCG01 (done 2026-11-15) |
-| L036 | 2026-11-15 | pm-md-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Open |
-| L037 | 2026-11-15 | pm-engine (drop copy) | For an uncross print (`aggressor_side` AUCTION) both drop-copy events carry `liquidity_flag` MAKER, while `drop_copy.yaml` says exactly one of the two is TAKER | Low | Open |
-| L038 | 2026-11-16 | log-gui (bridge LALF-PS uplink) | After a pm-log-srv crash and restart inside the 15 s heartbeat budget the uplink stays ACTIVE and only re-subscribes on the next renew's `UNKNOWN_SUB` (up to 15 s), and it ignores `dropped`: rows of that window are missing from the live view with no gap marker | Low | Open |
+| L036 | 2026-11-15 | pm-md-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Fixed (WP-FL11) |
+| L037 | 2026-11-15 | pm-engine (drop copy) | For an uncross print (`aggressor_side` AUCTION) both drop-copy events carry `liquidity_flag` MAKER, while `drop_copy.yaml` says exactly one of the two is TAKER | Low | Fixed (WP-FL10) |
+| L038 | 2026-11-16 | log-gui (bridge LALF-PS uplink) | After a pm-log-srv crash and restart inside the 15 s heartbeat budget the uplink stays ACTIVE and only re-subscribes on the next renew's `UNKNOWN_SUB` (up to 15 s), and it ignores `dropped`: rows of that window are missing from the live view with no gap marker | Low | Fixed (WP-FL13) |
 | L039 | 2026-11-16 | pm-engine (position/orders queries) | `system.position_request` and `order.orders_request` carry no requester: any client that can reach the engine's PUSH socket reads any participant's orders and positions | Low | Open |
 | L040 | 2026-11-16 | tests (`test_monitor_e2e.py`) | Two e2e tests expect a process event's detail to end in the bare state (`-> DEAD`, `HEALTHY -> SILENT`); since `4bc205db` the detail carries a reason, so both fail | Low | Fixed |
+| L041 | 2026-11-17 | pm-engine (collars) | A symbol that starts without a reference price gets no static collar until the next engine start, however long it trades (decided in WP-FL20 / Q11 for 1.x) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -838,6 +839,22 @@ tests, and keep asserting that a reason is present.
 event, `, process gone` on the DEAD one, none on `SILENT -> HEALTHY`.
 `tests/test_monitor_e2e.py`: 14 passed.
 
+## L041 — Arm a collar when the first reference price is known
+
+**Found:** 2026-11-17, WP-FL20 (Q11, from L025).
+
+**Finding.** The engine registers a symbol's static collar only at start-up,
+and only when the book then has a last price (from the configuration or the
+previous run's `book_stats.json`, `engine/main.py`, the only writer of
+`self._collars`). A symbol configured without a reference price trades
+without a collar for the whole run, and gets one at the next engine start.
+For 1.0 the training guide (ch. 17) now says so (Q11 (a)).
+
+**Recommendation (1.x).** Register the collar when the symbol's first
+reference price becomes known (its first trade, or an opening auction
+print), with the static band around that price; a test on a wired engine
+that the second order after the first trade is collared.
+
 ---
 
 ## Work plan
@@ -1380,6 +1397,28 @@ passed, 1 skipped; `make _check` clean.
 **Exit criteria.** Tests 1–4 pass; config, gateway and log-server suites
 green.
 
+**Outcome (2026-11-17).** `config_coerce` gains `as_bool` (a YAML boolean
+only) and `as_str` (a string only) beside `as_int`/`as_float`. The engine
+loader reads every integer and float through them (`_int`/`_float`, so the
+existing field-naming error texts stay): a bool, a fraction where a count
+belongs and NaN/inf are refused. A market-maker quote's error now names the
+field (`… market_maker_quotes[0] is invalid: … bid_qty must be an integer`),
+`seed_once` must be a boolean, and a `schedule` that is not a mapping is
+refused instead of ignored. pm-balf-gwy, pm-alf-gwy, pm-log-srv and pm-api-gwy
+read `enabled`/`swagger_enabled` with `as_bool` and `name`, `bind_address`/
+`host`, `db_path`, the database paths, the ZeroMQ addresses and `log_level`
+with `as_str`.
+
+Tests: `tests/test_config_loader.py::TestValuesTheFieldCannotHold` (22
+cases), new `tests/test_config_strict_flags.py` (gateway and log-server
+flags and names; every shipped configuration — the 37 example setups,
+`src/data/ref_data`, the config-gui fixtures — still loads through all ten
+loaders) and 15 new rows in `tests/test_cverifier_deploy_agreement.py`
+(pm-cverifier already refused every one; the loaders now do too). All failed
+first, except log_server `enabled`/`pubsub_enabled` (WP-LOG07 had fixed them;
+kept as regression tests). Full suite: 15001 passed, 1 skipped (the 12
+failures of that run were WP-FL10's tests, written ahead).
+
 ### WP-FL10 — Rejection texts name the real problem; an uncross print has a defined liquidity flag (L012, L026, L037; after Q7)
 
 **Tests first:**
@@ -1401,6 +1440,33 @@ regenerate, `engine/main.py:3521`.
 
 **Exit criteria.** Tests 1–4 pass; engine, combo, BALF and drop-copy suites
 green.
+
+**Outcome (2026-11-17).** Q7 (a) taken.
+- L012: a leg type the leg cannot carry is refused as "`<TYPE>` is not
+  supported on a combo leg" (or OCO leg), without "it needs …". A transport
+  that names its fields also names the leg's type field, so ALF says
+  `… (LEG0.TYPE)` / `(LEG1_TYPE)`: before, the leg was identified only by the
+  field the message asked for.
+- L026: `_validate_new_order` refuses a `trail_offset` of 0 or less with
+  `INVALID_VALUE` "TRAILING_STOP order requires a positive trail_offset",
+  before the reference-price rule; with a prior trade the order no longer
+  reaches the book's assertion. pm-balf-gwy maps it to `RC_INVALID_FIELD`.
+- L037: `liquidity_flag` gains `AUCTION` (`drop_copy.event`,
+  `drop_copy.replay`, `order.fill`); both sides of an uncross print carry it.
+  One engine helper, `_liquidity_flag`, now feeds both the drop copy and the
+  private fill. pm-audit-replay's `LIQUIDITY_FLAG_DISAGREE` expects AUCTION
+  on an uncross (MAKER there is now a disagreement); the lexicon glosses it.
+  pm-dc-gwy and pm-alf-gwy pass the value through unchanged. Texts: ALF spec,
+  operator ALF and DC gateway chapters, participant guide (order book,
+  trader console), training ch. 26, regenerated message reference.
+
+Tests: `tests/test_order_fields.py` (11 new cases), new
+`tests/test_engine_trailing_offset.py` (6), `tests/test_liquidity_flag.py::TestUncrossPrint`
+(3), the generated-enum tests, the DC and ALF relay tests with AUCTION, the
+audit anomaly tests. All failed first, except the continuous-trade guard.
+`tests/test_cross_transport_rejects.py` failed on the first version of the
+L012 text (no leg named), which is why the type field is named. Full suite:
+15015 passed, 1 skipped; `make test-e2e`: 39 passed (covers WP-FL09 too).
 
 ### WP-FL11 — Line gateways serve past 1024 descriptors, stop with EXIT, and answer a half-closed client (L036, L011; after Q8)
 
@@ -1425,6 +1491,32 @@ The training guide's `sleep 1` advice can go (WP-FL20).
 
 **Exit criteria.** Tests 1–4 pass; md-gwy and alf-gwy suites green.
 
+**Outcome (2026-11-17).** Q8 (a) taken.
+- pm-md-gwy reads clients with `select.poll` and, on a requested stop, runs
+  `_flush_for_shutdown` (one more engine pass, `EXIT|REASON=shutdown|TS=…`,
+  a flush bounded by `SHUTDOWN_FLUSH_SEC` = 1 s), copied from pm-ralf-gwy.
+  `close()` now counts each session's disconnect (`shutdown`, or the reason
+  it was already closing for). Ledger entry renamed to `read poll failed`.
+- pm-alf-gwy treats EOF on read as a half-close: it stops watching the
+  socket for reading, keeps sending, and closes the session after
+  `_HALF_CLOSE_GRACE_SEC` (2 s). On a half-closed session `EXIT` does not
+  close it early, because the gateway does not track which replies are still
+  owed: a `printf … | nc` script gets its replies and ends after the bound.
+  An interactive `EXIT` is unchanged.
+
+Deviation from test 3: ALF has no exit line (`EXIT` sends nothing back), so
+the test checks the logon reply, the symbol list ending in `END`, and then a
+clean close.
+
+Tests: new `tests/test_md_gateway_poll_and_stop.py` (4: descriptor above
+1023 served with no read WARNING, `EXIT|REASON=shutdown` on a stop, queued
+lines before it, a non-reading client holds the stop under 1.5 s) and two
+tests in `tests/test_alf_gwy_integration.py` (a half-closed
+`HELLO`/`SYMBOLS`/`EXIT` script gets `WELCOME`, the symbol list and `END`; a
+half-closed client whose logon is never answered is closed after about 2 s).
+All failed first. Full suite: 15021 passed, 1 skipped; `make test-e2e`: 39
+passed.
+
 ### WP-FL12 — pm-api-gwy's index and sim listeners fail loudly (L033)
 
 **Tests first** (`tests/test_api_gateway_index_events.py`,
@@ -1439,6 +1531,22 @@ The training guide's `sleep 1` advice can go (WP-FL20).
 **Change.** The engine listener's handling in both loops.
 
 **Exit criteria.** Tests 1–3 pass; api-gwy suites green.
+
+**Outcome (2026-11-17).** `IndexClient` and `SimClient` get the engine
+listener's handling: an exception in the receive thread is logged at ERROR
+("index listener died; stopping pm-api-gwy", "sim listener died; …") and
+reported through `on_listener_failure`, which the lifespan sets to the same
+callback as the engine's, so the process exits with status 1. EINTR now
+continues the loop (it ended it before, silently). `SimClient` gains
+`is_running()`. The final CRITICAL is worded for any listener ("a listener
+died; exiting with status 1"); ledger entries and the operator guide's API
+gateway chapter updated.
+
+Tests (in `tests/test_api_gateway_listener.py`, beside the engine listener's,
+rather than the two files the plan named): a dying index or sim listener is
+logged and reported; EINTR keeps both running; the lifespan wires all three
+listeners to the failure path. All failed first. Full suite: 15026 passed,
+1 skipped; `make test-e2e`: 39 passed.
 
 ### WP-FL13 — The log-GUI live view notices a server restart and lost rows (L038; after Q9)
 
@@ -1459,6 +1567,28 @@ compares it and handles `dropped`/the counter; the view renders the marker.
 **Exit criteria.** Tests 1–3 pass; log-server suites and the log-GUI's test
 and type-check scripts green.
 
+**Outcome (2026-11-17).** Q9 (a) taken. `log.server_state` gains
+`instance_id` (16 hex characters from `secrets.token_hex(8)`, new at every
+pm-log-srv start). The log-GUI bridge's uplink remembers it; an UP with a new
+one re-subscribes at once (state `RECONNECTING`) and emits a `gap`
+(`restart`). It also emits a `gap` when a `log.event`'s lifetime `dropped`
+grows (`lost` = the increase) or its `msg_no` skips (`msg_no`); both counters
+start afresh on each `subscribe_ack`. The bridge forwards a `{t: "gap"}`
+frame; the live store keeps a marker entry in the tail (also while paused),
+and the Explorer shows it as a row ("3 rows not received …", "log server
+restarted …", with the advice to switch to history). Operator guide: log
+server (liveness, `instance_id`) and log console (states, marker) chapters.
+
+Limit: rows shed before a subscription's first event are not marked, because
+`subscribe_ack` carries no counters to start from.
+
+Tests: `tests/test_log_srv_pubsub.py` (2: the generated model has the field;
+two starts on one `log.db` publish different ids), new
+`apps/bridge/test/lalf-ps-uplink.test.ts` (5) and
+`apps/web/test/live-gap.test.ts` (4). All failed first, except the two
+"nothing happens" guards. Log-GUI: 107 vitest tests, type-check and build
+clean. Full suite: 15028 passed, 1 skipped; `make test-e2e`: 39 passed.
+
 ### WP-FL14 — Close snapshots are pruned (L019)
 
 **Tests first** (`tests/test_clearing_*`):
@@ -1475,6 +1605,28 @@ documented beside the other retention rules (WP-FL20).
 
 **Exit criteria.** Tests 1–3 pass; clearing and EOD suites green.
 
+**Outcome (2026-11-17).** New `prune_close_snapshots` deletes
+`position_close_snapshot` dates older than the retention, never the newest
+snapshot date; the boundary is the `trade_events` one (a date exactly N days
+old stays). pm-clearing runs it wherever it prunes `trade_events` (start-up,
+every close, every `system.eod`) with the same `--retention-days`, and logs
+the count; `pm-clearing-cli prune` (and `--dry-run`) does both. Help texts
+and the zsh completion updated; the books are WP-FL20's.
+
+pm-clearing cannot know which date pm-eod settled last, so "the latest
+settled date" became "the newest snapshot date", and pm-eod was made safe
+for the rest: a previous settled date whose snapshot is gone, with a
+recorded baseline from the *same* `clearing.db` (`clearing_instance`), is
+settled from that recorded equity. Before, a missing snapshot was read as a
+reset and the day booked the whole cumulative equity (shown by the test with
+the pm-eod change removed).
+
+Tests: new `tests/test_clearing_snapshot_retention.py` (7): the retention
+rule, the newest date kept past it, an empty table, the prune at the close
+(and not in CONTINUOUS), the CLI prune, pm-eod after a prune. All failed
+first except the two guards. Full suite: 15035 passed, 1 skipped;
+`make test-e2e`: 39 passed.
+
 ### WP-FL15 — Every topic pm-sim-forensics matches on is a declared topic (L001)
 
 **Tests first** (`tests/test_msgen_literals.py`):
@@ -1489,6 +1641,22 @@ literals and compare each with the spec's topics and their prefixes
 (L001 option 2). The exemption stays.
 
 **Exit criteria.** Tests 1–2 pass; msgen and sim-forensics suites green.
+
+**Outcome (2026-11-17).** L001 option 2. New
+`msgen.literals.undeclared_topics(roots, families)` walks the AST: every
+string literal, and each f-string's leading text, whose first dotted part is
+a topic root is checked against the spec. It passes when it is a declared
+topic, a prefix of one ending at a part boundary (`"order.ack."`,
+`"circuit_breaker."`) or an instance of a parameterised one
+(`"order.ack.GW01"`). Under `engine.` and `health.`, which are also
+beacon-metric namespaces (`engine.busy_pct`) with no registry to tell them
+apart, only a subscription prefix (ending in `.`) is checked. The
+exemption stays. It examines 182 literals in `src/edumatcher/sim_forensics/`
+and finds none undeclared.
+
+Tests: `TestForensicsTopicsAreDeclared` (9) and one shared-root case in
+`tests/test_msgen_literals.py`. All failed first (no checker). Full suite:
+15045 passed, 1 skipped; `make test-e2e`: 39 passed.
 
 ### WP-FL16 — CLIs behave in pipes and scripts (L013, L017, L034; after Q10)
 
@@ -1510,6 +1678,29 @@ and the container healthchecks for a 255 comparison.
 
 **Exit criteria.** Tests 1–3 pass; CLI suites green.
 
+**Outcome (2026-11-17).** Q10 (a) taken.
+- L013: new `edumatcher/cli_pipe.py` with `pipe_safe`, applied to the 21 CLI
+  entry points that print to stdout (the `-cli` tools, pm-audit-replay,
+  pm-sim-forensics, pm-eod, pm-config-gen/-deploy/-show, pm-cverifier,
+  pm-msgen, pm-valuation, pm-news, pm-help). A closed stdout ends the process
+  with status 1 and no traceback, also at the final flush. SIGPIPE is not
+  reset: the daemons write to sockets, where that would kill them.
+- L017: `health -q` exits 1 when unhealthy in pm-audit-cli, pm-clearing-cli,
+  pm-index-cli, pm-stats-cli and pm-monitor-cli (the fifth CLI with the same
+  pattern), as without `-q`; help texts say so. No container healthcheck
+  compared the status.
+- L034: every daemon's `-q` selects WARNING, the default; L034 named six
+  entry points, but 25 had a "warnings/errors" text. All now start with "Explicit WARNING log level
+  (the default)" (four keep an extra clause: the workers, or the precedence
+  of `-v`/`--log-level`); pm-help's common options and pm-log-srv entry
+  likewise; zsh completion regenerated. The books are WP-FL20's.
+
+Tests: new `tests/test_cli_pipes_and_quiet.py` (21 entry points' `--help`
+and `pm-stats-cli daily` into a pipe whose reader has gone; the `-q` texts
+of every entry point found in the source and in pm-help) and the five CLIs'
+`health -q` tests changed to expect 1. All failed first. Full suite: 15069
+passed, 1 skipped; `make test-e2e`: 39 passed.
+
 ### WP-FL17 — pm-admin, ALF QBOOT and pm-orders print prices and states readably (L006, L008, L015)
 
 **Tests first:**
@@ -1529,6 +1720,22 @@ pm-alf-gwy, the rejected-row case in pm-orders.
 **Exit criteria.** Tests 1–4 pass; commands, alf-gwy and orders suites
 green.
 
+**Outcome (2026-11-17).**
+- L006/L008: pm-admin's `BOOK` (`_print_book`, shared by `pm-admin-cli`
+  through the same command code) prints prices at the book's
+  `tick_decimals` and the last trade as `Last trade: 150.00` when the
+  quantity is unknown (restored after a restart), `… × 10` otherwise.
+- L015: pm-alf-gwy's `QBOOT` read `status`, but the engine's `ActiveQuote`
+  names it `state`; now `STATUS=ACTIVE`. pm-orders shows a rejected order
+  with blank columns where the reject carries nothing (it has only the ids,
+  the reason and the code) and `REJECTED (<reason>)` as its status.
+
+Tests: three in `tests/test_commands_console.py` (2- and 3-decimal symbols,
+a restored last price), one in `tests/test_alf_gwy_gateway_unit.py` (a
+bootstrap built with the generated builder), one in
+`tests/test_orders_main_runtime.py`. All failed first. Full suite: 15074
+passed, 1 skipped; `make test-e2e`: 39 passed.
+
 ### WP-FL18 — trader-gui: no "-0.00%", and the audit modal shows the index's reach (L002, L018)
 
 **Tests first** (vitest, `web-apps/trader-gui/apps/web/test/`):
@@ -1544,6 +1751,19 @@ green.
 **Exit criteria.** Tests 1–2 pass; trader-gui test and type-check scripts
 green.
 
+**Outcome (2026-11-17).** `formatChangePct` signs the rounded text, as
+`formatSignedPrice` does: a change that shows as 0.00 prints `0.00%` (also
+an exact zero, which printed `+0.00%`). `AdminOrderDetailModal` shows the
+server's 404 message, which names the index's reach, and on a 200 a line
+"Audit index: indexed through …"; `AdminOrderLifecycleResponse` gains
+`indexed_through`.
+
+Tests: three cases in `apps/web/test/formatters.test.ts` and new
+`apps/web/test/adminOrderDetailModal.test.tsx` (2). The rounding and both
+modal cases failed first; the "+0.01%" case is a guard. trader-gui: 569
+vitest tests and the type-check pass. Full suite: 15074 passed, 1 skipped;
+`make test-e2e`: 39 passed.
+
 ### WP-FL19 — pm-mm-bot starts from the market model with --anchor-sim (L014)
 
 **Tests first** (`tests/test_mm_bot*.py`):
@@ -1557,6 +1777,18 @@ green.
 **Change.** Fall back to the sim value in the start-up reference lookup.
 
 **Exit criteria.** Tests 1–3 pass; mm-bot suites green.
+
+**Outcome (2026-11-17).** The start-up waits passed `sim.value` nowhere, so
+the reference lookup never saw it. `_buffer_event` now keeps each symbol's
+value (no anchoring yet) when `--anchor-sim` is on, and
+`_resolve_bootstrap_reference` uses it right after the book/trade mid,
+before an inactive QBOOT quote and the random range. The participant
+guide's bootstrap order lists it.
+
+Tests: `TestAnchorSimStartupReference` in `tests/test_mm_bot_multi.py` (3):
+an empty book starts from the value (failed first), a two-sided book wins,
+and without `--anchor-sim` the value is ignored (both guards). Full suite:
+15077 passed, 1 skipped; `make test-e2e`: 39 passed.
 
 ### WP-FL20 — The books describe what the code does (L003, L007, L016, L025, L020 interim; after Q11 and the WPs above)
 
@@ -1578,6 +1810,50 @@ earlier WPs left for here: the restart section (WP-FL03), end-of-run checks
 `health -q` and `-q` (WP-FL16), the `sleep 1` advice (WP-FL11).
 
 **Exit criteria.** Test 1 passes; grep checks clean; `mkdocs build` clean.
+
+**Outcome (2026-11-17).** Q11 (a) taken; (b) recorded as L041.
+- L003: seven web applications on 8090–8096 (verified against the compose
+  files, `edumatcher.sh` and `publish-images.yml`): installation, running the
+  exchange (`make up-all` starts six, `clearing-gui` included, `config-gui`
+  opt-in), container walkthrough (counts, nine published images), the
+  architecture book's container and workflow chapters, quick start, two
+  participant-guide port notes, and the same counts in `deployment/curl`
+  (`install.sh`, `edumatcher.sh`, `README.md`, `.env.guis.example`,
+  `compose.guis.yaml`) and `deployment/docker` (`README.md`, `Makefile`
+  help).
+- L007: the persistence chapter said in five places, not only the two
+  diagrams, that DAY combo parents are not saved. `save_gtc_combos` keeps
+  every working combo, GTC and DAY; a DAY one is discarded at a start after
+  its business day (both diagrams, the file table, the shutdown and start-up
+  steps, the day-rule list and the file's format note now say so).
+- L016: the combo guide's opening, examples and reference say what AON is:
+  a check at entry; resting legs fill independently afterwards
+  (`PARTIALLY_MATCHED`), with a warning box on what a combo does not
+  guarantee.
+- L025: training ch. 17 says the collar takes effect from the next engine
+  start after the first trades (`engine/main.py`, the one writer of
+  `_collars`).
+- L020 interim: already in the operator guide (market index chapter,
+  "Apply corporate actions before the market opens"); unchanged.
+- Earlier WPs' texts: halts across a restart (persistence chapter, start-up
+  step 6a and the `book_stats.json` format; the CALF chapter's claims that a
+  restart ends every halt silently and that symbols without a book go
+  unanswered, both no longer true); the `clearing.db` repair procedure
+  (persistence chapter, and `rebuild` in the participant guide's CLI table);
+  snapshot retention (participant guide, closing-the-day chapter, whose "never
+  pruned" and "settle a very old date" sentences changed meaning, and the
+  stale `--retention-days 0` warning: all three triggers now skip pruning at
+  0); `health -q` exits in five chapters and the reference manual; the Q10
+  `-q` text in ten chapters; the ALF spec's half-close rule; training
+  ch. 26's `nc` probe (`nc -N` needs no `sleep 1`; the container's `tcp`
+  helper still does, as it closes completely).
+
+Tests: `tests/test_engine_combo_acceptance.py::test_after_entry_an_aon_combos_legs_fill_independently`
+passes, as expected: the guide was what had to change. Grep checks: no hit
+for `six web` or `8090–8095` in `docs/books`, for `not persisted` in the
+persistence chapter, or for `first trades on` in the training guide.
+`mkdocs build` clean. Full suite: 15078 passed, 1 skipped; `make test-e2e`:
+39 passed.
 
 ### WP-FL21 — Exchange-side corporate actions (L020; 1.x)
 

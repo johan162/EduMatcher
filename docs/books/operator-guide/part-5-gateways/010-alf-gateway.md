@@ -191,7 +191,7 @@ CLI override options:
 | `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555`, `tcp://HOST:5556`, and `tcp://HOST:5557` for drop copy) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | Explicit WARNING log level (the default) |
 
 **Config file location**
 
@@ -359,9 +359,9 @@ IDs that composed the fill. It normally contains one ID; a swept order can
 contain several in execution order. An empty value means no public trade ID was
 available for that fill.
 
-`FILL` also includes `LIQUIDITY=<MAKER|TAKER>`: `MAKER` if this order was
-resting on the book and got matched into, `TAKER` if it crossed the spread
-and matched immediately. It is the same maker/taker attribution the drop-copy
+`FILL` also includes `LIQUIDITY=<MAKER|TAKER|AUCTION>`: `MAKER` if this order
+was resting on the book and got matched into, `TAKER` if it crossed the spread
+and matched immediately, `AUCTION` on both sides of an auction uncross. It is the same maker/taker attribution the drop-copy
 `DC_FILL` line has always carried, now on the ordinary session fill too — no
 need to enable `DC` or cross-reference the drop-copy feed just to know which
 side of a trade you were on.

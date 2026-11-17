@@ -1,8 +1,9 @@
-"""Strict numeric coercion for YAML configuration sections.
+"""Strict coercion for YAML configuration sections.
 
-``int(5565.9)`` is ``5565`` and ``float("nan") <= 0`` is ``False``, so the
-lenient ``int()``/``float()`` calls each config module used to carry let a
-typo through as a silently different port, or as a timeout that never fires.
+``int(5565.9)`` is ``5565``, ``float("nan") <= 0`` is ``False`` and
+``bool("false")`` is ``True``, so the lenient ``int()``/``float()``/``bool()``
+calls each config module used to carry let a typo through as a silently
+different port, as a timeout that never fires, or as a switch turned on.
 These helpers reject any value that would lose information instead.
 
 *label* is the dotted path the operator wrote in ``engine_config.yaml``, so
@@ -56,3 +57,17 @@ def as_float(raw: object, label: str, *, positive: bool = False) -> float:
     if positive and value <= 0:
         raise ValueError(f"{label} must be > 0")
     return value
+
+
+def as_bool(raw: object, label: str) -> bool:
+    """Require a YAML boolean: ``bool("false")`` is ``True``."""
+    if not isinstance(raw, bool):
+        raise ValueError(f"{label} must be true or false, got {raw!r}")
+    return raw
+
+
+def as_str(raw: object, label: str) -> str:
+    """Require a string: ``str(5)`` would turn a misplaced number into a name."""
+    if not isinstance(raw, str):
+        raise ValueError(f"{label} must be a string, got {raw!r}")
+    return raw

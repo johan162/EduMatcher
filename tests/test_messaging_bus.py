@@ -16,6 +16,7 @@ import pytest
 from edumatcher.messaging.bus import CausalPublisher, CausalPusher, SequencedPublisher
 from edumatcher.models import envelope
 from edumatcher.models.envelope import Envelope, new_ulid, ulid_millis
+from tests.conftest import opened
 from edumatcher.models.message import (
     decode_envelope,
     decode_publisher_sequence,
@@ -292,3 +293,94 @@ class TestOneTrailerFrame:
         assert _meta_section(sock.sent[0]) == (
             f"seq=1 eseq=1 msg={msg_id} cause={ULID_A} chain={ULID_A}"
         )
+
+
+class _FlagOr:
+    """Counts pyzmq ``Flag`` arithmetic (``SNDMORE | flags``)."""
+
+    calls = 0
+
+
+@pytest.fixture
+def flag_or(monkeypatch: pytest.MonkeyPatch) -> _FlagOr:
+    # ``enum`` copies ``__or__`` into every Flag subclass, so it is patched on
+    # pyzmq's own class, not on ``enum.Flag``.
+    import zmq
+
+    flag = type(zmq.SNDMORE)
+    original = flag.__or__
+    counter = _FlagOr()
+
+    def counting_or(self: Any, other: Any) -> Any:
+        counter.calls += 1
+        return original(self, other)
+
+    monkeypatch.setattr(flag, "__or__", counting_or)
+    return counter
+
+
+class TestSendDoesNoFlagArithmetic:
+    """Engine latency review 2026-11, P1: pyzmq's ``send_multipart`` ORs an
+    ``IntFlag`` per frame, which costs more than the send itself on 3.14."""
+
+    def test_publisher(self, flag_or: _FlagOr) -> None:
+        import uuid
+
+        import zmq
+
+        from edumatcher.messaging.bus import make_publisher
+
+        addr = f"inproc://lat01-pub-{uuid.uuid4().hex}"
+        pub = opened(make_publisher(addr))
+        sub: zmq.Socket[bytes] = opened(zmq.Context.instance().socket(zmq.SUB))
+        sub.connect(addr)
+        sub.setsockopt(zmq.SUBSCRIBE, b"")
+        received: list[bytes] = []
+        for _ in range(200):  # until the subscription has reached the PUB
+            pub.send_multipart([b"order.ack.GW1", b"{}"])
+            if sub.poll(10):
+                received = sub.recv_multipart()
+                break
+        assert flag_or.calls == 0
+        assert received[:2] == [b"order.ack.GW1", b"{}"]
+        assert decode_envelope(received) is not None
+
+    def test_pusher_keeps_frames_and_flags(self, flag_or: _FlagOr) -> None:
+        import uuid
+
+        import zmq
+
+        from edumatcher.messaging.bus import make_puller, make_pusher
+
+        addr = f"inproc://lat01-push-{uuid.uuid4().hex}"
+        pull = opened(make_puller(addr))
+        push = opened(make_pusher(addr))
+        push.send_multipart([b"order.new", b"{}"], zmq.NOBLOCK)
+        assert pull.poll(1000)
+        received = pull.recv_multipart()
+        assert flag_or.calls == 0
+        assert received[:2] == [b"order.new", b"{}"]
+        assert decode_push_envelope(received) is not None
+
+    def test_drop_copy(self, flag_or: _FlagOr) -> None:
+        import uuid
+
+        import zmq
+
+        from edumatcher.engine.drop_copy import DropCopyPublisher
+
+        dc = opened(
+            DropCopyPublisher(
+                zmq.Context.instance(), f"inproc://lat01-dc-{uuid.uuid4().hex}"
+            )
+        )
+        dc.publish_fill(
+            "GW1",
+            order_id="o1",
+            trade_ids=["t1"],
+            symbol="AAPL",
+            fill_qty=1,
+            fill_price=1.0,
+            liquidity_flag="MAKER",
+        )
+        assert flag_or.calls == 0

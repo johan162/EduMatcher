@@ -111,7 +111,7 @@ class TestHealth:
         code, out, _ = _run(capsys, *argv, "health")
         assert code == 1 and "health: FAIL" in out
         code, out, _ = _run(capsys, *argv, "health", "-q")
-        assert (code, out) == (-1, "")
+        assert (code, out) == (1, "")  # L017: as without -q, not -1 (255)
 
     def test_disabled(
         self,
@@ -409,7 +409,7 @@ class TestHealthExtended:
         code, _, _ = _run(
             capsys, *_args(mon, tmp_path / "none.db", "health", "--extended", "-q")
         )
-        assert code == -1
+        assert code == 1
 
     def test_not_a_metrics_database(self, tmp_path: Path) -> None:
         import sqlite3

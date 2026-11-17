@@ -1933,8 +1933,8 @@ PREFIX_ORDER_FILL = "order.fill."
 _ORDER_FILL_RE = re.compile("order\\.fill\\.(?P<gateway_id>[^.]+)")
 _ORDER_FILL_STATUS_VALUES = ("PARTIAL", "FILLED")
 OrderFillStatus = Literal["PARTIAL", "FILLED"]
-_ORDER_FILL_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER")
-OrderFillLiquidityFlag = Literal["MAKER", "TAKER"]
+_ORDER_FILL_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER", "AUCTION")
+OrderFillLiquidityFlag = Literal["MAKER", "TAKER", "AUCTION"]
 
 
 _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
@@ -2095,7 +2095,7 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "enum",
         "unit": None,
         "required": False,
-        "doc": "Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.",
+        "doc": "Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER; both sides of an uncross print are AUCTION (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.",
         "values": _ORDER_FILL_LIQUIDITY_FLAG_VALUES,
     },
     {

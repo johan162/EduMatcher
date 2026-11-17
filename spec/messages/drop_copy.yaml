@@ -114,11 +114,13 @@ messages:
         doc: "Display money, not ticks -- converted once in `_publish_trade`."
       - name: liquidity_flag
         type: enum
-        values: [MAKER, TAKER]
+        values: [MAKER, TAKER, AUCTION]
         doc: >
           Derived from the trade's aggressor side: the aggressor is the TAKER
           and the resting side the MAKER. Exactly one of the two events a
-          trade produces is TAKER.
+          continuous trade produces is TAKER. An uncross print
+          (`aggressor_side` AUCTION) has no aggressor: neither side took
+          liquidity, and both events are AUCTION.
     encoding:
       # `gateway_id` is named in the topic AND carried in the body, so it is
       # listed explicitly: `include: all` means "every field except the topic
@@ -173,7 +175,7 @@ messages:
       - { name: fill_qty, type: int, unit: shares, validate: { gt: 0 } }
       - { name: fill_price, type: float, unit: display_price,
           validate: { gt: 0 } }
-      - { name: liquidity_flag, type: enum, values: [MAKER, TAKER] }
+      - { name: liquidity_flag, type: enum, values: [MAKER, TAKER, AUCTION] }
     encoding:
       # `recipient_id` is the topic parameter and is deliberately NOT in the
       # body — it identifies who asked, not what happened. The default

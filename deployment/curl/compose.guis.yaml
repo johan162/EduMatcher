@@ -1,4 +1,4 @@
-# EduMatcher — the six web GUIs only, from prebuilt images, for an exchange
+# EduMatcher — the seven web GUIs only, from prebuilt images, for an exchange
 # that is NOT in a container: one installed with pipx (or Poetry) and started
 # with pm-opctl-cli on this machine, as a plain exchange or as the AI-trader
 # simulation. The exchange itself is compose.yaml's other half and is absent

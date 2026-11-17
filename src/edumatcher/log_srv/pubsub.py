@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import secrets
 import sqlite3
 import threading
 import time
@@ -471,6 +472,9 @@ class LogPubSubHub:
         self._pull_addr = pull_addr
         self._db_path = db_path
         self._server_name = server_name
+        # New at every server start: subscribers re-subscribe when it changes
+        # (L038); last_seq continues across restarts and cannot tell them.
+        self._instance_id = secrets.token_hex(8)
         self._lease_sec = lease_sec
         self._max_lease_sec = max_lease_sec
         self._max_subscribers = max_subscribers
@@ -547,6 +551,7 @@ class LogPubSubHub:
         self._publish(
             make_log_server_state(
                 server=self._server_name,
+                instance_id=self._instance_id,
                 state="DOWN",
                 proto=PROTO_VERSION,
                 pub_addr=self._pub_addr,
@@ -1215,6 +1220,7 @@ class LogPubSubHub:
         self._publish(
             make_log_server_state(
                 server=self._server_name,
+                instance_id=self._instance_id,
                 state="UP",
                 proto=PROTO_VERSION,
                 pub_addr=self._pub_addr,

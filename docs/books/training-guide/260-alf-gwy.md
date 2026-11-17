@@ -241,19 +241,28 @@ type `quit` to close.
 **Non-interactive probe — useful in scripts or CI pipelines:**
 
 ```bash
-{ printf 'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n'; sleep 1; printf 'EXIT\n'; } \
-  | nc 127.0.0.1 5565
+printf 'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\nEXIT\n' | nc -N 127.0.0.1 5565
 ```
 
-(In the container: the same with `| tcp 127.0.0.1 5565`.) Expected: the full
-session including `WELCOME`, `SYMBOLS` block, and `END|TYPE=SYMBOLS` is
-printed to stdout and the command exits cleanly.
+In the container, with the `tcp` helper:
+
+```bash
+{ printf 'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n'; sleep 1; printf 'EXIT\n'; } \
+  | tcp 127.0.0.1 5565
+```
+
+Expected: the full session including `WELCOME`, `SYMBOLS` block, and
+`END|TYPE=SYMBOLS` is printed to stdout and the command exits cleanly.
 
 Two details make this work. Lines sent straight after `HELLO` are fine: the
 gateway holds them until the engine has accepted the logon, then handles
-them in order. But a script must not end before the replies have arrived —
-`EXIT`, or the end of the input, closes the session, and a reply still on its
-way from the engine is lost. Hence the `sleep 1` before `EXIT`.
+them in order. And the replies must have time to arrive. `nc -N` (`ncat`
+does this by default) *half-closes* the connection at the end of its input:
+it stops sending but keeps reading. The gateway then keeps sending the
+replies to what the script sent for up to 2 seconds, `EXIT` included, and
+closes. The `tcp` helper closes the connection completely at the end of its
+input, so it needs the `sleep 1` before `EXIT`; so does an `nc` that neither
+half-closes nor has `-N`.
 
 :material-checkbox-blank-outline: Checkpoint: the one-liner prints `WELCOME` and `END|TYPE=SYMBOLS` without interaction.
 
@@ -285,9 +294,9 @@ those durable public trade IDs with the order record: a swept order can contain
 several, in match order, and they join the private fill to the public trade
 tape, CALF, and drop copy without matching on price or time.
 
-`FILL` also carries `LIQUIDITY=<MAKER|TAKER>` — whether this order supplied
-liquidity by resting on the book (`MAKER`) or removed it by crossing the
-spread (`TAKER`). If `MM01` filled your order immediately, expect `TAKER`;
+`FILL` also carries `LIQUIDITY=<MAKER|TAKER|AUCTION>` — whether this order
+supplied liquidity by resting on the book (`MAKER`) or removed it by crossing
+the spread (`TAKER`); both sides of an auction uncross say `AUCTION`. If `MM01` filled your order immediately, expect `TAKER`;
 if you place a resting `LIMIT` and a later order crosses it, that later
 `FILL` (for the counterparty) says `TAKER` while yours says `MAKER`. It is
 the same attribution the drop-copy `DC_FILL` line has always reported (see

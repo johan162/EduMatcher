@@ -978,3 +978,85 @@ def test_peer_close_triggers_gateway_disconnect_to_engine(
 
     _, payload = _drain_pull_until(pull, "system.gateway_disconnect", timeout=3.0)
     assert str(payload.get("gateway_id", "")).upper() == "TRADER01"
+
+
+# ---------------------------------------------------------------------------
+# A client that half-closes (For-Later L011, WP-FL11, Q8)
+# ---------------------------------------------------------------------------
+
+
+def _read_to_eof(cli: socket.socket, timeout: float) -> tuple[list[str], float]:
+    """Every line until the gateway closes, and how long that took."""
+    started = time.monotonic()
+    cli.settimeout(timeout)
+    data = bytearray()
+    while chunk := cli.recv(65536):
+        data.extend(chunk)
+    return [ln for ln in data.decode().split("\n") if ln], time.monotonic() - started
+
+
+def _engine_ready(
+    pull: zmq.Socket[bytes], pub: zmq.Socket[bytes], port: int
+) -> socket.socket:
+    """Log one session on first, so the gateway's PUSH to the engine is up
+    and the script's HELLO cannot meet ENGINE_UNAVAILABLE (no retry is
+    possible once the client has half-closed)."""
+    other = socket.create_connection(("127.0.0.1", port), timeout=3)
+    _authenticate(other, _LineBuffer(other), pull, pub, gateway_id="MM01")
+    return other
+
+
+def test_a_half_closed_script_gets_its_replies(
+    running_gateway: tuple[AlfGateway, zmq.Socket[bytes], zmq.Socket[bytes], int],
+) -> None:
+    """``printf 'HELLO…\\nSYMBOLS\\nEXIT\\n' | nc``: nc half-closes at the end of
+    its input; the replies on their way from the engine still arrive."""
+    _, pull, pub, port = running_gateway
+    other = _engine_ready(pull, pub, port)
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            cli.sendall(b"HELLO|CLIENT=nc|PROTO=ALF1|ID=TRADER01\nSYMBOLS\nEXIT\n")
+            cli.shutdown(socket.SHUT_WR)
+            _drain_pull_until(pull, "system.gateway_connect", timeout=3.0)
+            time.sleep(0.1)
+            pub.send_multipart(
+                encode(
+                    "system.gateway_auth.TRADER01",
+                    {"gateway_id": "TRADER01", "accepted": True, "reason": ""},
+                )
+            )
+            _drain_pull_until(pull, "system.symbols_request", timeout=3.0)
+            time.sleep(0.1)
+            pub.send_multipart(
+                encode(
+                    "system.symbols.TRADER01",
+                    {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
+                )
+            )
+            lines, _took = _read_to_eof(cli, timeout=5.0)
+    finally:
+        other.close()
+
+    commands = [parse_alf_line(ln).command for ln in lines]
+    assert commands[0] == "WELCOME"
+    assert "SYMBOLS" in commands
+    assert "SYMBOL" in commands
+    assert commands[-1] == "END"
+
+
+def test_a_half_closed_client_whose_replies_never_come_is_closed_after_the_bound(
+    running_gateway: tuple[AlfGateway, zmq.Socket[bytes], zmq.Socket[bytes], int],
+) -> None:
+    """The engine never answers the HELLO: the session is closed after the
+    half-close bound (2 s), well before the 10 s handshake timeout."""
+    _, pull, pub, port = running_gateway
+    other = _engine_ready(pull, pub, port)
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            cli.sendall(b"HELLO|CLIENT=nc|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n")
+            cli.shutdown(socket.SHUT_WR)
+            _lines, took = _read_to_eof(cli, timeout=8.0)
+    finally:
+        other.close()
+
+    assert 1.5 <= took < 4.0

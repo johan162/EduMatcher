@@ -14,7 +14,7 @@
 #   curl -fsSL .../install.sh | bash -s -- --sim
 #   curl -fsSL .../install.sh | bash -s -- --sim --speed 10 --start 2026-11-02T08:58
 #
-# With --guis it installs only the six web GUIs, for an exchange you run
+# With --guis it installs only the seven web GUIs, for an exchange you run
 # yourself with pipx (plain or simulation), into ~/.edumatcher-guis.
 #
 #   curl -fsSL .../install.sh | bash -s -- --guis

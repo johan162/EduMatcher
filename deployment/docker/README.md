@@ -219,7 +219,7 @@ its image first — otherwise compose reuses the one it already has and your
 change is invisible:
 
 ```bash
-make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all six)
+make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all seven)
 make up-all                        # recreate the containers whose image changed
 make up-all BUILD=1 GUI=log-gui    # both steps in one
 ```
@@ -556,7 +556,7 @@ reason" on the trading row shows it.
 ## Publishing images by hand
 
 Releases publish images from `.github/workflows/publish-images.yml`, which
-builds all eight images (the exchange, `edumatcher-ai-sim` and the six web
+builds all nine images (the exchange, `edumatcher-ai-sim` and the seven web
 GUIs) natively on amd64 and arm64 and joins each pair into one manifest list.
 `make ghcr-push` is the escape hatch for when that workflow
 cannot run — a registry outage, a fork without Actions, or an image you want in

@@ -776,6 +776,8 @@ export interface AdminOrderLifecycleEvent {
 
 export interface AdminOrderLifecycleResponse {
   order_id: string;
+  /** Stamp of the newest audit line the (hand-built) index holds; null when empty. */
+  indexed_through: string | null;
   count: number;
   events: AdminOrderLifecycleEvent[];
 }

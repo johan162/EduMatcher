@@ -162,7 +162,7 @@ CLI override options:
 | `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555` and `tcp://HOST:5556`) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors — currently a no-op: the default log level is already `WARNING`, so `-q` changes nothing observable (a codebase-wide quirk, not specific to this gateway) |
+| `-q` / `--quiet` | off | Explicit WARNING log level (the default) |
 | `--version` | — | Print the installed `pm-balf-gwy` version and exit |
 | `--log-target` | auto | Where operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file PATH` | — | Operational log file path — required when `--log-target file` |

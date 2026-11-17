@@ -406,13 +406,23 @@ _NO_LIQUIDITY: tuple[RejectCode, str] = (
 )
 
 
+def _liquidity_flag(side: str, aggressor_side: str) -> OrderFillLiquidityFlag:
+    """TAKER for the aggressor, MAKER for the side that rested. An uncross
+    print has no aggressor (``aggressor_side`` AUCTION): neither side took
+    liquidity, so both are AUCTION (L037), not two MAKERs a fee rule would pay
+    a rebate to."""
+    if aggressor_side == "AUCTION":
+        return "AUCTION"
+    return "TAKER" if side == aggressor_side else "MAKER"
+
+
 class _Execution:
     """What one order executed in one dispatch: the sum of its trades.
 
     One ``order.fill`` reports all of them (H5), at the order's own VWAP (H6),
     with the ids of the trades behind it and the order's MAKER/TAKER side
-    (G9). An order is the aggressor of all its trades in a dispatch or of
-    none, so the first trade settles the flag.
+    (G9), AUCTION in an uncross (L037). An order is the aggressor of all its
+    trades in a dispatch or of none, so the first trade settles the flag.
     """
 
     __slots__ = ("qty", "notional", "trade_ids", "flag", "ts_ns")
@@ -1964,6 +1974,14 @@ class Engine:
         )
         if violation is not None:
             return violation.reject_code, violation.message
+        # L026: the offset is checked here, before the trailing stop's
+        # reference-price rule, so a wrong offset is not reported as a
+        # missing price (and never reaches the book's assertion).
+        if order.trail_offset_ticks is not None and order.trail_offset_ticks <= 0:
+            return (
+                "INVALID_VALUE",
+                f"{order.order_type.value} order requires a positive trail_offset",
+            )
         # M7: a price that is present must be positive.
         if order.price_ticks is not None and order.price_ticks <= 0:
             return (
@@ -3598,6 +3616,7 @@ class Engine:
         # hard-coding MAKER — the taker side is the aggressor.
         if self._drop_copy is not None:
             _agg = trade.aggressor_side
+            _flag = _liquidity_flag
             for _gw, _oid, _sd in (
                 (trade.buy_gateway_id, trade.buy_order_id, "BUY"),
                 (trade.sell_gateway_id, trade.sell_order_id, "SELL"),
@@ -3609,7 +3628,7 @@ class Engine:
                     symbol=trade.symbol,
                     fill_qty=trade.quantity,
                     fill_price=_trade_px,
-                    liquidity_flag="TAKER" if _sd == _agg else "MAKER",
+                    liquidity_flag=_flag(_sd, _agg),
                 )
 
         # Circuit breaker monitor — check if this fill triggered a halt.
@@ -3638,7 +3657,7 @@ class Engine:
         display floats, 23 @ 108.67 came back as 108.66999999999999. The trade
         ids, in match order, let a consumer join a private fill to the public
         tape. The flag is the drop copy's derivation (M13): the aggressor side
-        of a trade is TAKER.
+        of a trade is TAKER, and both sides of an uncross are AUCTION.
         """
         out: dict[str, _Execution] = {}
         for t in trades:
@@ -3646,7 +3665,7 @@ class Engine:
             for oid, side in ((t.buy_order_id, "BUY"), (t.sell_order_id, "SELL")):
                 ex = out.get(oid)
                 if ex is None:
-                    ex = out[oid] = _Execution("TAKER" if side == agg else "MAKER")
+                    ex = out[oid] = _Execution(_liquidity_flag(side, agg))
                 ex.qty += t.quantity
                 ex.notional += t.price * t.quantity
                 ex.trade_ids.append(t.id)
@@ -8442,7 +8461,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",

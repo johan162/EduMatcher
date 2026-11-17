@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.audit.archive import session_timezone, today_in
 from edumatcher.config import DATA_DIR
 from edumatcher.eod.ledger import (
@@ -377,6 +378,7 @@ def _cmd_show(args: argparse.Namespace, paths: Paths) -> int:
     return 0
 
 
+@pipe_safe
 def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if getattr(args, "date", None) is not None:

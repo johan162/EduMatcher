@@ -56,13 +56,20 @@ export function AdminOrderDetailModal({ orderId, onClose }: AdminOrderDetailModa
           Audit trail unavailable — pm-audit is not running or its index has not been built.
         </p>
       )}
-      {is404 && <p className="text-xs text-fg-dim">No audited events for this order.</p>}
+      {/* The server's message names how far the index reaches: an order newer
+          than the last index build is "not indexed yet", not unknown (L018). */}
+      {is404 && <p className="text-xs text-fg-dim">{err.message}</p>}
       {err && !is503 && !is404 && (
         <p className="text-xs text-ask">
           {err instanceof ApiError ? `${err.code}: ${err.message}` : "Failed to load lifecycle"}
         </p>
       )}
 
+      {query.data && (
+        <p className="mb-1 text-[11px] text-fg-faint">
+          Audit index: indexed through {query.data.indexed_through ?? "(nothing)"}
+        </p>
+      )}
       {query.data && (
         <ol className="flex max-h-[60vh] flex-col gap-1 overflow-auto">
           {query.data.events.map((e, i) => (

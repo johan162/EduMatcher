@@ -10,7 +10,8 @@ import { LOG_LEVELS } from "@edumatcher/log-types";
 import { api } from "../lib/api.js";
 import { formatRowTs } from "../lib/formatTs.js";
 import { useUiConfig } from "../lib/useUiConfig.js";
-import { useLiveStore } from "../store/useLiveStore.js";
+import { isGap, useLiveStore, type TailEntry } from "../store/useLiveStore.js";
+import { GapMarkerRow } from "../components/GapMarkerRow.js";
 import { LedgerPanels } from "../components/LedgerPanels.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
 
@@ -58,6 +59,7 @@ export function ExplorerView() {
   const filteredTail = useMemo(
     () =>
       tail.filter((row) => {
+        if (isGap(row)) return true; // a hole is a hole whatever the filter
         if (filter.minLevel && LOG_LEVELS.indexOf(row.level) < LOG_LEVELS.indexOf(filter.minLevel)) {
           return false;
         }
@@ -77,7 +79,7 @@ export function ExplorerView() {
     [tail, filter],
   );
 
-  const rows = live ? filteredTail : historyData?.rows ?? [];
+  const rows: TailEntry[] = live ? filteredTail : historyData?.rows ?? [];
 
   // Tracks which seqs have already been rendered once, so a row only gets
   // the fade-in flash the first time it appears in live mode (design §14.3).
@@ -85,7 +87,7 @@ export function ExplorerView() {
   const [flashSeqs, setFlashSeqs] = useState<Set<number>>(new Set());
   useEffect(() => {
     if (!live) return;
-    const freshlySeen = rows.filter((r) => !seenSeqs.current.has(r.seq));
+    const freshlySeen = rows.filter((r): r is LogRow => !isGap(r) && !seenSeqs.current.has(r.seq));
     if (freshlySeen.length === 0) return;
     for (const r of freshlySeen) seenSeqs.current.add(r.seq);
     setFlashSeqs(new Set(freshlySeen.map((r) => r.seq)));
@@ -177,6 +179,17 @@ export function ExplorerView() {
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index];
               if (!row) return null;
+              if (isGap(row)) {
+                return (
+                  <div
+                    key={`gap-${row.id}`}
+                    className="absolute left-0 right-0"
+                    style={{ transform: `translateY(${item.start}px)`, height: item.size }}
+                  >
+                    <GapMarkerRow gap={row} />
+                  </div>
+                );
+              }
               return (
                 <div
                   key={row.seq}

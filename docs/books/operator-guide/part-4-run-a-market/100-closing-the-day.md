@@ -736,10 +736,15 @@ its own**, so with several symbols the lines can add up to 0.01 more or less
 than "Today's result"; the total is the amount that counts (it is rounded so
 that all traders together sum to exactly zero). **Trade times are in UTC**, not
 the exchange's timezone. And the **trade list comes from `trade_events`**, which `pm-clearing`
-prunes after 90 days by default. Settling a very old date later still gives the
-correct amounts (those come from the close snapshots, which are never pruned)
-but the trade list may be empty, and the gate says `not reconciled: the day's
-raw trades were pruned` instead of comparing them with the daily totals.
+prunes after 90 days by default. The close snapshots the amounts come from
+follow the same retention (`pm-clearing --retention-days`), except the newest
+close: a date older than that can no longer be settled on its own (`no close
+snapshot`), but the next settlement still covers it, measured from the last
+settled date's equity that `eod.db` keeps. pm-eod's nightly run settles each
+day well inside the window. The newest close, kept past the window, still
+settles; its trade list is then empty, and the gate says `not reconciled: the
+day's raw trades were pruned` instead of comparing them with the daily
+totals.
 
 When a closed day in between was never settled (a skipped `--force` day, a
 day `pm-clearing` missed), the amount covers every day since the last settled

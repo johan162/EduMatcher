@@ -198,6 +198,10 @@ _LOOP_WAIT_MS = 100
 #: has stopped reading never drains them, and would otherwise hold its slot
 #: and its gateway ID until it exits.
 _CLOSE_GRACE_SEC = 5.0
+#: How long a client that half-closed (``printf … | nc``) keeps receiving the
+#: replies to the commands it sent before its session is closed (L011, Q8).
+#: Its EXIT does not shorten this: replies are still on their way.
+_HALF_CLOSE_GRACE_SEC = 2.0
 #: File descriptors needed beyond one per client (listener, ZMQ, logging).
 _FD_HEADROOM = 64
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
@@ -254,6 +258,9 @@ class ClientSession:
     closing: bool = False
     #: monotonic time ``closing`` was set; see _CLOSE_GRACE_SEC
     closing_since: float = 0.0
+    #: monotonic time the client half-closed (EOF on read), 0.0 while it can
+    #: still send; see _HALF_CLOSE_GRACE_SEC
+    read_closed_since: float = 0.0
     connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
@@ -287,6 +294,7 @@ _ALF_FIELD_NAMES = {
     "stop_price": "STOP",
     "visible_qty": "VISIBLE",
     "trail_offset": "TRAIL",
+    "order_type": "TYPE",
 }
 
 
@@ -618,7 +626,10 @@ class AlfGateway:
                 continue
 
             if not chunk:
-                self._disconnect(session, reason="peer_closed")
+                # A half-close, not a disconnect: TCP lets us send after the
+                # peer's FIN, and the replies to what it sent are owed (L011).
+                session.read_closed_since = time.monotonic()
+                self._set_events(session, session.sock.fileno() in self._write_blocked)
                 continue
 
             session.in_buffer.extend(chunk)
@@ -692,15 +703,30 @@ class AlfGateway:
         fileno = session.sock.fileno()
         if want == (fileno in self._write_blocked):
             return
-        events = selectors.EVENT_READ | (selectors.EVENT_WRITE if want else 0)
-        try:
-            self._selector.modify(session.sock, events, session)
-        except KeyError, ValueError:
+        if not self._set_events(session, want):
             return
         if want:
             self._write_blocked.add(fileno)
         else:
             self._write_blocked.discard(fileno)
+
+    def _set_events(self, session: ClientSession, want_write: bool) -> bool:
+        """Watch *session* for reading (until it half-closed) and, if
+        *want_write*, for writing; False if the selector refused."""
+        events = (0 if session.read_closed_since else selectors.EVENT_READ) | (
+            selectors.EVENT_WRITE if want_write else 0
+        )
+        try:
+            if not events:
+                self._selector.unregister(session.sock)
+            else:
+                try:
+                    self._selector.modify(session.sock, events, session)
+                except KeyError:
+                    self._selector.register(session.sock, events, session)
+        except KeyError, ValueError:
+            return False
+        return True
 
     def _flush_client_writes(self, writable: set[int] | None = None) -> None:
         for fileno in list(self._dirty):
@@ -851,6 +877,10 @@ class AlfGateway:
             return
 
         if cmd in {"EXIT", "QUIT"}:
+            if session.read_closed_since:
+                # A script piped through nc: its replies are still on their
+                # way from the engine; the half-close bound closes it (L011).
+                return
             self._close_after_flush(session)
             return
 
@@ -1854,7 +1884,8 @@ class AlfGateway:
                     "ASK": str(quote.get("ask_price", "")),
                     "BID_QTY": str(quote.get("bid_qty", "")),
                     "ASK_QTY": str(quote.get("ask_qty", "")),
-                    "STATUS": str(quote.get("status", "")),
+                    # ActiveQuote names it ``state`` (L015).
+                    "STATUS": str(quote.get("state", "")),
                 },
             )
         self._queue_line(session, "END", {"TYPE": "QBOOT"})
@@ -2293,6 +2324,14 @@ class AlfGateway:
                 # Already told why; only the flush is outstanding.
                 if now - session.closing_since > _CLOSE_GRACE_SEC:
                     self._disconnect(session, reason="close_timeout")
+                continue
+            if (
+                session.read_closed_since
+                and now - session.read_closed_since >= _HALF_CLOSE_GRACE_SEC
+            ):
+                # The client can send nothing more; what it was owed has had
+                # its chance to arrive.
+                self._close_after_flush(session)
                 continue
             if (
                 not session.authenticated

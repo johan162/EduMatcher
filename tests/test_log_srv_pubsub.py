@@ -11,6 +11,7 @@ import socket
 import sqlite3
 import threading
 import time
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -1113,3 +1114,32 @@ def test_backfill_start_uses_the_client_ts_index(tmp_path: Path) -> None:
     finally:
         cap.close()
     assert "idx_le_client_ts" in plan, plan
+
+
+def _server_states(tmp_path: Path) -> list[dict[str, Any]]:
+    h = _PubSubHarness(tmp_path, heartbeat_interval_sec=1)
+    h.start()
+    try:
+        return [p for t, p in h.drain(1.5) if t == "log.server_state"]
+    finally:
+        h.stop()
+
+
+def test_server_state_names_the_server_instance(tmp_path: Path) -> None:
+    """For-Later L038, WP-FL13 (Q9): a subscriber recognises a restarted
+    server by a random id that is new at every start (``last_seq`` continues
+    across restarts, so it cannot tell)."""
+    first = _server_states(tmp_path)
+    second = _server_states(tmp_path)  # same log.db
+    assert first and second
+    ids_first = {p["instance_id"] for p in first}
+    ids_second = {p["instance_id"] for p in second}
+    assert len(ids_first) == 1 and len(ids_second) == 1
+    assert ids_first != ids_second
+    assert all(len(i) >= 16 for i in ids_first | ids_second)
+
+
+def test_the_generated_server_state_requires_the_instance_id() -> None:
+    from edumatcher.models.generated import log as gen_log
+
+    assert "instance_id" in {f.name for f in fields(gen_log.LogServerState)}

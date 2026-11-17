@@ -843,7 +843,7 @@ pm-stats
 | `--sql-trace`            | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
 | `--log-level`            | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
 | `-v`, `--verbose`        | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
-| `-q`, `--quiet`          | off             | Reduce output to warnings/errors                                                       |
+| `-q`, `--quiet`          | off             | Explicit WARNING log level (the default)                                                       |
 | `--log-target`           | `server`        | Where this process's own operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`             | —               | Operational log file path — required when `--log-target file`                          |
 | `--log-failover-timeout` | `30`            | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -1385,8 +1385,7 @@ Database stats:
 ```
 
 The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
-printed and the exit code is `0` when healthy or `-1` (255 in a shell)
-otherwise. `--format json` prints the same report as JSON.
+printed and the exit code is the same. `--format json` prints the same report as JSON.
 
 The health socket binds to `127.0.0.1:5561` by default; set
 `EDUMATCHER_STATS_BIND_HOST` / `EDUMATCHER_STATS_HEALTH_PORT` to change where

@@ -36,6 +36,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.audit.archive import session_timezone
 from edumatcher.audit.query import (
     discover_day_files,
@@ -1232,6 +1233,7 @@ def _run_queue(args: argparse.Namespace) -> int:
     return 1 if isinstance(view, OrderQueue) and view.rid is None else 0
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     try:

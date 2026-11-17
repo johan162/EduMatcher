@@ -40,9 +40,9 @@ from edumatcher.audit.replay.facts import Fact
 #: ``trade.executed.aggressor_side`` when both sides rested. Not a side.
 AGGRESSOR_AUCTION = "AUCTION"
 
-#: ``order.fill.liquidity_flag``. MAKER and TAKER are the only two values the
-#: spec declares; an uncross has no aggressor, so the engine flags *both*
-#: sides MAKER -- see :attr:`Derived.role`.
+#: ``order.fill.liquidity_flag``: MAKER or TAKER; an uncross has no
+#: aggressor, so the engine flags *both* sides AUCTION -- see
+#: :attr:`Derived.role`.
 ROLE_MAKER = "MAKER"
 ROLE_TAKER = "TAKER"
 
@@ -74,11 +74,8 @@ class Derived:
     limit_price: float | None = None
     price_improvement: float | None = None
 
-    #: MAKER or TAKER, off ``liquidity_flag``. MAKER covers two different
-    #: things -- an order that rested and was hit, and one that crossed in an
-    #: uncross -- because an auction print has no aggressor and the engine
-    #: flags both of its sides MAKER. The trade episode's
-    #: :attr:`crossed_in_uncross` is what separates them.
+    #: MAKER, TAKER or AUCTION, off ``liquidity_flag``: AUCTION is an order
+    #: that crossed in an uncross, which has no aggressor.
     role: str | None = None
 
     #: On a ``trade`` episode only.

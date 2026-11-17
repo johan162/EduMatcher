@@ -28,6 +28,7 @@ import sys
 import time
 from typing import Any
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.config import LOG_DB_FILE, resolve_data_path
 from edumatcher.log_cli.diagnose import Finding, run_diagnostics
 from edumatcher.log_cli import explain, queries
@@ -492,6 +493,7 @@ def _handle_diagnose(args: argparse.Namespace, conn: Any) -> list[Finding]:
 # ---------------------------------------------------------------------------
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     argv = _rewrite_before_shorthand(sys.argv[1:])

@@ -1036,7 +1036,7 @@ Engine to a participant's clearing broker, prime broker or in-house risk system:
 | `symbol` | `string` | required | max_len 16 |  |
 | `fill_qty` | `int` | required | gt 0, unit `shares` |  |
 | `fill_price` | `float` | required | gt 0, unit `display_price` | Display money, not ticks -- converted once in `_publish_trade`. |
-| `liquidity_flag` | enum: `MAKER`, `TAKER` | required | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER. Exactly one of the two events a trade produces is TAKER. |
+| `liquidity_flag` | enum: `MAKER`, `TAKER`, `AUCTION` | required | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER. Exactly one of the two events a continuous trade produces is TAKER. An uncross print (`aggressor_side` AUCTION) has no aggressor: neither side took liquidity, and both events are AUCTION. |
 
 !!! note
 
@@ -1074,7 +1074,7 @@ Engine to one named recipient: buffered events re-published on request, so a par
 | `symbol` | `string` | required | max_len 16 |  |
 | `fill_qty` | `int` | required | gt 0, unit `shares` |  |
 | `fill_price` | `float` | required | gt 0, unit `display_price` |  |
-| `liquidity_flag` | enum: `MAKER`, `TAKER` | required | — |  |
+| `liquidity_flag` | enum: `MAKER`, `TAKER`, `AUCTION` | required | — |  |
 
 !!! note
 
@@ -2120,6 +2120,7 @@ Periodic server heartbeat and configuration, broadcast to everyone rather than a
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `server` | `string` | required | max_len 64 |  |
+| `instance_id` | `string` | required | max_len 32 | Random, new at every server start. `last_seq` continues across restarts, so this is how a subscriber recognises a restarted server and re-subscribes (its subscription did not survive). |
 | `state` | enum: `UP`, `DOWN` | required | — |  |
 | `proto` | `string` | required | max_len 16 |  |
 | `pub_addr` | `string` | required | max_len 128 |  |
@@ -2391,7 +2392,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed. |
 | `ts_ns` | `int` | omitted when unset | ge 0, unit `epoch_nanos` | The match time of the trade behind this fill, in Unix epoch nanoseconds: identical to trade.executed.ts_ns (the last trade, when a sweep was coalesced into one fill). A fill and the print it reports carry one clock read. Absent on a record written before the field existed. |
 | `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
-| `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
+| `liquidity_flag` | enum: `MAKER`, `TAKER`, `AUCTION` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER; both sides of an uncross print are AUCTION (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
 | `fill_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display). |
 | `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order has filled in all, this fill included. |
 | `cum_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of every fill of the order so far; with `cum_qty`, the exact average price. |

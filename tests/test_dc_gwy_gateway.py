@@ -146,9 +146,11 @@ def test_hello_missing_id_rejected() -> None:
         pub.close()
 
 
+@pytest.mark.parametrize("flag", ["MAKER", "AUCTION"])
 def test_fill_event_relayed_to_matching_gateway_id(
-    running_gateway: tuple[DcGateway, DropCopyPublisher, int],
+    running_gateway: tuple[DcGateway, DropCopyPublisher, int], flag: Any
 ) -> None:
+    """AUCTION: an uncross fill, which has no aggressor (L037)."""
     gw, pub, gateway_port = running_gateway
 
     with socket.create_connection(
@@ -168,7 +170,7 @@ def test_fill_event_relayed_to_matching_gateway_id(
                 symbol="AAPL",
                 fill_qty=100,
                 fill_price=150.25,
-                liquidity_flag="MAKER",
+                liquidity_flag=flag,
             )
             try:
                 cli.settimeout(0.3)
@@ -179,7 +181,7 @@ def test_fill_event_relayed_to_matching_gateway_id(
                 assert frame.fields["SYMBOL"] == "AAPL"
                 assert frame.fields["FILL_QTY"] == "100"
                 assert frame.fields["FILL_PRICE"] == "150.25"
-                assert frame.fields["LIQUIDITY"] == "MAKER"
+                assert frame.fields["LIQUIDITY"] == flag
                 got_fill = True
         assert got_fill
 

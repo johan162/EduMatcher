@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 import yaml
 import zmq
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
@@ -400,6 +401,7 @@ def _session_timezone() -> str:
     )
 
 
+@pipe_safe
 @exit_on_config_error
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()

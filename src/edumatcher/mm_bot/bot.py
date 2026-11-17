@@ -1037,6 +1037,13 @@ class MMBot:
             return
         if topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
+        elif topic == TOPIC_SIM_VALUE:
+            # Kept, not yet anchored to: the start-up reference prefers the
+            # book, and falls back to the model's value (L014).
+            for entry in payload.get("values", []):
+                st = self._symbols_state.get(str(entry.get("symbol", "")).upper())
+                if st is not None and st.anchor_sim > 0:
+                    st.sim_value = float(entry["value"])
         elif topic == topic_order_fill(self.gateway_id):
             # A fill on an adopted quote; one before the position snapshot is
             # replaced by the snapshot, which already holds it.
@@ -1144,7 +1151,17 @@ class MMBot:
             )
             return True
 
-        # 2. QBOOT inactive quote prices as reference
+        # 2. With --anchor-sim, the market model's value (L014): the value the
+        #    bot anchors to anyway, and current where a QBOOT quote may not be.
+        if st.anchor_sim > 0 and st.sim_value is not None:
+            st.pricer.set_mid(st.sim_value)
+            self._debug(
+                f"[{symbol}] reference from the market model: "
+                f"{_price_text(symbol, st.sim_value, 1)}"
+            )
+            return True
+
+        # 3. QBOOT inactive quote prices as reference
         if boot_payload:
             quotes = boot_payload.get("quotes", [])
             for q in quotes:
@@ -1160,7 +1177,7 @@ class MMBot:
                         )
                         return True
 
-        # 3. Random bootstrap range
+        # 4. Random bootstrap range
         if st.initial_min is not None and st.initial_max is not None:
             price = random.uniform(st.initial_min, st.initial_max)
             # Round to nearest tick

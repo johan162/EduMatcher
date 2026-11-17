@@ -675,3 +675,33 @@ def test_run_closes_subscriber_on_shutdown(monkeypatch: pytest.MonkeyPatch) -> N
         monitor.run()
 
     assert fake_sub.closed is True
+
+
+def test_a_rejected_order_shows_rejected_with_its_reason() -> None:
+    """For-Later L015 (WP-FL17): a reject carries only the order and gateway
+    ids, the reason and its code; every other column was "?"."""
+    from edumatcher.orders.main import _build_rows_table
+
+    fake_sub = _FakeSub()
+    with patch("edumatcher.orders.main.make_subscriber", return_value=fake_sub):
+        monitor = OrderMonitor(gw_filter=None)
+
+    monitor._handle(
+        "order.ack.GW01",
+        {
+            "gateway_id": "GW01",
+            "order_id": "rejected-1",
+            "accepted": False,
+            "reason": "Symbol not configured: ZZZZ",
+            "reject_code": "UNKNOWN_SYMBOL",
+        },
+    )
+
+    with monitor._lock:
+        table = _build_rows_table(list(monitor._history))
+
+    cells = [str(column._cells[0]) for column in table.columns]
+    assert cells[1] == "rejected"  # the 8-character id
+    assert cells[2] == "GW01"
+    assert "?" not in cells
+    assert cells[-1] == "REJECTED (Symbol not configured: ZZZZ)"

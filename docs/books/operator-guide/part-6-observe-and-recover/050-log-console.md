@@ -162,8 +162,13 @@ The bridge tracks four uplink states, surfaced in the top bar:
 |---|---|---|
 | `CONNECTING` | reconnecting… | Subscribe sent, no ack yet |
 | `ACTIVE` | log-srv up | Lease held, rows flowing |
-| `RECONNECTING` | reconnecting… | Lease expired or unknown; re-subscribing |
+| `RECONNECTING` | reconnecting… | Lease expired or unknown, or the log server restarted (a new `instance_id`); re-subscribing |
 | `SERVER_DOWN` | log server down | `log.server_state` said `DOWN`, or heartbeats stopped |
+
+When the live tail misses rows, the Explorer shows a marker row where they
+belong: rows the server shed for the bridge (with their number), a lost
+message, or a log-server restart. Switch to history to read them from
+`log.db`.
 
 ## Running the application
 

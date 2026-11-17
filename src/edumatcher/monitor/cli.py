@@ -37,6 +37,7 @@ from urllib.parse import quote
 
 import zmq
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import METRICS_DB_FILE, resolve_data_path
 from edumatcher.healthcheck import find_process_pids, format_bytes, run_with_timeout
@@ -59,8 +60,9 @@ PROG = "pm-monitor-cli"
 #: sibling CLIs, so IMPAIRED is 3.
 EXIT_STATUS = {"OPERATIONAL": 0, "DEGRADED": 1, "IMPAIRED": 3, "DOWN": 4}
 EXIT_UNREACHABLE = 5
-#: ``health -q``: 0 when healthy, -1 (255) otherwise -- as pm-stats-cli.
-EXIT_UNHEALTHY = -1
+#: ``health`` (with or without ``-q``): 0 when healthy, 1 otherwise -- as
+#: pm-stats-cli. It was -1 (status 255) with ``-q`` (L017).
+EXIT_UNHEALTHY = 1
 
 #: Seconds to wait for a snapshot: the bridge's "pm-monitor is down" rule.
 DEFAULT_TIMEOUT_SEC = 3.0
@@ -149,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when healthy or -1 otherwise",
+        help="Print nothing; exit 0 when healthy, 1 otherwise",
     )
     health.add_argument(
         "--extended",
@@ -735,6 +737,7 @@ def _follow(
 # ---------------------------------------------------------------------------
 
 
+@pipe_safe
 @exit_on_config_error
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)

@@ -14,8 +14,19 @@ import type { LogRow } from "@edumatcher/log-types";
 
 export type UplinkState = "CONNECTING" | "ACTIVE" | "RECONNECTING" | "SERVER_DOWN";
 
+/**
+ * Rows the live view did not receive (L038): the server shed them
+ * (`dropped`, with the count), a `log.event` message was lost (`msg_no`), or
+ * the server restarted and the window until the re-subscribe is unknown.
+ */
+export interface UplinkGap {
+  reason: "restart" | "dropped" | "msg_no";
+  lost: number | null;
+}
+
 interface UplinkEvents {
   event: [LogRow[]];
+  gap: [UplinkGap];
   server_state: [Record<string, unknown>];
   state_change: [UplinkState];
   lease_expired: [];
@@ -75,6 +86,11 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
   private lastSubscribeSentAtMs = 0;
   private renewTimer: NodeJS.Timeout | null = null;
   private stopped = false;
+  /** `log.server_state.instance_id` last seen; a new one is a restarted server. */
+  private serverInstanceId: string | null = null;
+  /** This subscription's `dropped` and `msg_no` so far; null until its first event. */
+  private lastDropped: number | null = null;
+  private lastMsgNo: number | null = null;
 
   constructor(private readonly opts: LalfPsUplinkOptions) {
     super();
@@ -210,12 +226,33 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
     }
   }
 
+  /** Report rows the server shed (`dropped` is a lifetime count) or a lost
+   * message (a hole in `msg_no`) since this subscription's previous event. */
+  private checkForLoss(payload: Record<string, unknown>): void {
+    const dropped = Number(payload.dropped);
+    if (Number.isFinite(dropped)) {
+      if (this.lastDropped !== null && dropped > this.lastDropped) {
+        this.emit("gap", { reason: "dropped", lost: dropped - this.lastDropped });
+      }
+      this.lastDropped = dropped;
+    }
+    const msgNo = Number(payload.msg_no);
+    if (Number.isFinite(msgNo)) {
+      if (this.lastMsgNo !== null && msgNo > this.lastMsgNo + 1) {
+        this.emit("gap", { reason: "msg_no", lost: null });
+      }
+      this.lastMsgNo = msgNo;
+    }
+  }
+
   private handleMessage(topic: string, payload: Record<string, unknown>): void {
     if (topic === `log.subscribe_ack.${this.subId}`) {
       const renewBefore = Number(payload.renew_before_sec);
       if (Number.isFinite(renewBefore) && renewBefore > 0) this.renewBeforeSec = renewBefore;
       const lastSeq = Number(payload.last_seq);
       if (Number.isFinite(lastSeq)) this.lastSeqDelivered = Math.max(this.lastSeqDelivered, lastSeq);
+      this.lastDropped = null;
+      this.lastMsgNo = null;
       this.setState("ACTIVE");
       return;
     }
@@ -226,6 +263,7 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
     if (topic === `log.event.${this.subId}`) {
       const rawRows = Array.isArray(payload.rows) ? (payload.rows as Record<string, unknown>[]) : [];
       const rows = rawRows.map(rowFromWire);
+      this.checkForLoss(payload);
       for (const row of rows) this.lastSeqDelivered = Math.max(this.lastSeqDelivered, row.seq);
       if (rows.length > 0) this.emit("event", rows);
       return;
@@ -247,7 +285,17 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
     if (topic === "log.server_state") {
       this.lastServerStateAtMs = Date.now();
       const state = String(payload.state ?? "");
-      if (state === "UP" && this.state !== "ACTIVE") {
+      const instanceId = payload.instance_id == null ? null : String(payload.instance_id);
+      const restarted =
+        instanceId !== null && this.serverInstanceId !== null && instanceId !== this.serverInstanceId;
+      if (instanceId !== null) this.serverInstanceId = instanceId;
+      if (state === "UP" && restarted) {
+        // A crash and restart inside the heartbeat budget: still ACTIVE, but
+        // the new server has no subscription for us (L038).
+        this.setState("RECONNECTING");
+        this.emit("gap", { reason: "restart", lost: null });
+        this.sendSubscribe();
+      } else if (state === "UP" && this.state !== "ACTIVE") {
         // Server came back; re-subscribe rather than assume the old lease survived.
         this.sendSubscribe();
       } else if (state === "DOWN") {

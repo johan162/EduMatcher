@@ -72,8 +72,11 @@ export function formatQty(qty: number | null | undefined): string {
 export function formatChangePct(last: number | null, open: number | null): string {
   if (last === null || open === null || open === 0) return "—";
   const pct = ((last - open) / open) * 100;
-  const sign = pct >= 0 ? "+" : "";
-  return `${sign}${pct.toFixed(2)}%`;
+  // Signed on the rounded text, as formatSignedPrice: a change that shows as
+  // 0.00 is neither "+0.00%" nor "-0.00%" (L002).
+  const text = Number(pct.toFixed(2)) === 0 ? "0.00" : pct.toFixed(2);
+  const sign = pct > 0 && text !== "0.00" ? "+" : "";
+  return `${sign}${text}%`;
 }
 
 /** Format an epoch-seconds timestamp as HH:MM:SS. */

@@ -291,6 +291,11 @@ def _print_book(book: dict[str, Any]) -> None:
     asks = book.get("asks", [])
     last_price = book.get("last_price")
     last_qty = book.get("last_qty")
+    # At the symbol's scale (L006): 149.8 is 149.80, a 3-decimal 12.5 is 12.500.
+    decimals = int(book.get("tick_decimals", 2))
+
+    def px(price: float) -> str:
+        return f"{price:.{decimals}f}"
 
     t = Table(
         title=f"Order Book — {sym}",
@@ -307,8 +312,8 @@ def _print_book(book: dict[str, Any]) -> None:
         ask = asks[i] if i < len(asks) else None
         t.add_row(
             str(bid["qty"]) if bid else "",
-            str(bid["price"]) if bid else "",
-            str(ask["price"]) if ask else "",
+            px(bid["price"]) if bid else "",
+            px(ask["price"]) if ask else "",
             str(ask["qty"]) if ask else "",
         )
 
@@ -316,7 +321,10 @@ def _print_book(book: dict[str, Any]) -> None:
     if not bids and not asks:
         console.print("[dim]  (empty book)[/dim]")
     elif last_price is not None:
-        console.print(f"  Last trade: {last_price} × {last_qty}")
+        # After an engine restart the price is restored, its quantity is not
+        # (L008): print the price alone rather than "× None".
+        qty = f" × {last_qty}" if last_qty is not None else ""
+        console.print(f"  Last trade: {px(last_price)}{qty}")
 
 
 def _print_orders(orders: list[dict[str, Any]], gw: str) -> None:
@@ -1343,7 +1351,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",

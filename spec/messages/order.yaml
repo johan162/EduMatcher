@@ -762,13 +762,14 @@ messages:
           to the public trade tape without re-deriving the join.
       - name: liquidity_flag
         type: enum
-        values: [MAKER, TAKER]
+        values: [MAKER, TAKER, AUCTION]
         required: false
         nullable: true
         omit_when_none: true
         doc: >
           Derived from the trade's aggressor side: the aggressor is the TAKER
-          and the resting side the MAKER (same derivation as
+          and the resting side the MAKER; both sides of an uncross print are
+          AUCTION (same derivation as
           drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the
           same reason trade_ids is typed as an empty-able list: every current
           call site only publishes order_fill from a real trade, so this is

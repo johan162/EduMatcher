@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.config_include import LoadedConfig
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.cverifier import (
@@ -161,6 +162,7 @@ def run(config_path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
     return results, raw
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     config_path = Path(args.config_file)
