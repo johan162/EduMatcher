@@ -1,4 +1,4 @@
-## [v0.81.0] - 2026-11-17
+## [v0.81.1] - 2026-11-17
 
 Release Type: minor
 
@@ -25,6 +25,7 @@ This release makes halts survive an engine restart, lets subscribers detect trad
 - Fixed refused connections from unknown gateway ids leaving engine session state behind
 - Fixed `pm-admin` reporting `TIMEOUT` for an illegal session transition instead of the engine's reason
 - Fixed REST admin queries for an unknown gateway; they now answer `404 UNKNOWN_GATEWAY`
+- Fixed cleanup on log-srv ven if it has been running for less than 1 h (fést failure on a fresh VM)
 
 ### 📚 Documentation
 - Updated the ALF, BALF, REST, message-reference, clearing, statistics and session documentation for the new fields, commands and behaviour
