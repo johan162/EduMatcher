@@ -1200,14 +1200,14 @@ def test_a_stopped_process_goes_silent_and_comes_back(
     )
     feed.wait_event("PROCESS_STATUS", key, after, "SILENT -> HEALTHY")
     # Nothing in between: standing still is SILENT, not a hung or slow loop (I108).
-    assert [
-        (e["kind"], e["detail"])
-        for e in feed.events
-        if e["seq"] > after and e["subject"] == key
-    ] == [
+    # The detail is "<transition>: <reason>"; HEALTHY needs no reason.
+    events = [e for e in feed.events if e["seq"] > after and e["subject"] == key]
+    assert [(e["kind"], e["detail"].split(":")[0]) for e in events] == [
         ("PROCESS_STATUS", "HEALTHY -> SILENT"),
         ("PROCESS_STATUS", "SILENT -> HEALTHY"),
     ]
+    assert events[0]["detail"].endswith(", process runs")
+    assert events[1]["detail"] == "SILENT -> HEALTHY"
     tab.wait(
         lambda f: f["type"] == "event"
         and f["data"]["subject"] == key
@@ -1290,7 +1290,8 @@ def test_a_killed_engine_is_dead_the_exchange_down_and_a_restart_shows(
         lambda f: f["type"] == "event"
         and f["data"]["subject"] == key
         and f["data"]["seq"] > after
-        and f["data"]["detail"].endswith("-> DEAD")
+        and f["data"]["detail"].split(":")[0].endswith("-> DEAD")
+        and f["data"]["detail"].endswith(", process gone")
         and f["data"]["severity"] == "CRIT",
         "the engine's DEAD event on the tab",
     )

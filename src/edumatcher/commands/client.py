@@ -65,7 +65,10 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
     make_volume_request_msg,
 )
-from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.session import (
+    PREFIX_SESSION_TRANSITION_ACK,
+    topic_session_transition_ack,
+)
 from edumatcher.models.generated.order import (
     PREFIX_ORDERS,
     PREFIX_PRICE_LEVEL_ORDERS,
@@ -149,7 +152,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_QUOTE_CANCEL_ACK,
     PREFIX_REFERENCE_RELOAD_ACK,
     PREFIX_BOOK_SNAPSHOT,
-    TOPIC_SESSION_STATE,
+    PREFIX_SESSION_TRANSITION_ACK,
     PREFIX_SYMBOLS,
     PREFIX_ORDERS,
     PREFIX_PRICE_LEVEL_ORDERS,
@@ -815,11 +818,16 @@ class ExchangeCommandClient:
         Valid states: ``PRE_OPEN``, ``OPENING_AUCTION``, ``CONTINUOUS``,
         ``CLOSING_AUCTION``, ``CLOSED``.
 
-        Returns the ``session.state`` broadcast confirming the transition.
-        Check ``result["state"]`` to verify the transition was accepted.
+        Returns the engine's ``session.transition_ack``: ``accepted``,
+        ``to_state`` and, for a refused transition, the engine's ``reason``
+        (an illegal one is answered at once, not left to time out, L009).
         """
-        self._send(make_session_transition_msg(to_state.upper()))
-        return self._recv(TOPIC_SESSION_STATE)
+        self._send(
+            make_session_transition_msg(
+                to_state.upper(), command_id=new_command_id(), gateway_id=self._gw_id
+            )
+        )
+        return self._recv(topic_session_transition_ack(self._gw_id))
 
     def session_status(self) -> dict[str, Any]:
         """

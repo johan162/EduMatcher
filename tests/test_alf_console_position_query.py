@@ -12,6 +12,7 @@ at construction; a query never calls setsockopt (review WP-ACN03, C3).
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
+import pytest
 
 
 def _make_gateway(gw_id: str = "GW01"):
@@ -119,7 +120,7 @@ def test_matching_reply_prints_and_clears_the_query() -> None:
         )
 
     mock_print.assert_called_once_with(
-        "MM_AAPL_01", [{"symbol": "AAPL", "net_qty": 300, "avg_cost": 150.25}]
+        "MM_AAPL_01", [{"symbol": "AAPL", "net_qty": 300, "avg_cost": 150.25}], "OK"
     )
     sub.setsockopt.assert_not_called()
     assert gw._pos_query_gateway_id is None
@@ -168,4 +169,34 @@ def test_flat_reply_renders_empty_positions_list() -> None:
             "system.position_snapshot.MM_AAPL_01", {"positions": []}
         )
 
-    mock_print.assert_called_once_with("MM_AAPL_01", [])
+    mock_print.assert_called_once_with("MM_AAPL_01", [], "OK")
+
+
+@pytest.mark.parametrize("status", ["OK", "NOT_CONNECTED", "UNKNOWN_GATEWAY"])
+def test_reply_passes_the_status_on(status: str) -> None:
+    """WP-FL06 (L030): a mistyped id or a logged-off participant no longer
+    prints as "flat"."""
+    gw, _push, _sub, _index_sub, _dc_sub = _make_gateway("GW01")
+    gw._parse_and_send("POS|GW=MM_AAPL_01")
+    with patch("edumatcher.alf_console.main.print_remote_position") as mock_print:
+        gw._handle_position_snapshot_reply(
+            "system.position_snapshot.MM_AAPL_01", {"positions": [], "status": status}
+        )
+    mock_print.assert_called_once_with("MM_AAPL_01", [], status)
+
+
+@pytest.mark.parametrize(
+    ("status", "text"),
+    [
+        ("UNKNOWN_GATEWAY", "no participant has this id"),
+        ("NOT_CONNECTED", "not connected"),
+        ("OK", "flat"),
+    ],
+)
+def test_remote_position_wording(status: str, text: str) -> None:
+    from edumatcher.alf_console.display import print_remote_position
+
+    with patch("edumatcher.alf_console.main.console.print") as mock_print:
+        print_remote_position("MM_AAPL_01", [], status)
+    printed = " ".join(str(c.args) for c in mock_print.call_args_list)
+    assert text in printed

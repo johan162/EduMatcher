@@ -117,6 +117,10 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "PARTIALLY_MATCHED": "partially matched",
         "MATCHED": "matched",
         "FAILED": "failed",
+        # system.position_snapshot / order.orders: whose answer it is
+        "OK": "connected",
+        "NOT_CONNECTED": "logged off",
+        "UNKNOWN_GATEWAY": "not a participant",
         # news.event
         "RUMOUR": "a rumour",
         "CONFIRMED": "confirmed",

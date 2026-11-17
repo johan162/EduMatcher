@@ -120,7 +120,10 @@ class CircuitBreakerHalt:
     operator's decision rather than on a price, and both may be null on a price-
     triggered halt that had no reference to latch. `resume_at_ns` is null for an
     indefinite halt -- `halt_all` and a per-symbol halt named without a level both
-    produce one, and it lasts until an explicit resume.
+    produce one, and it lasts until an explicit resume. Such an operator halt also
+    outlasts an engine restart: the engine checkpoints it and publishes it again at
+    start-up, with its `level` (`ADMIN_ALL`, or `ADMIN_SYMBOL` when the symbol has no
+    breaker).
     """
 
     symbol: str
@@ -647,15 +650,16 @@ class CircuitBreakerResume:
     is currently doing rather than returning to continuous trading -- a halt that
     expires near the close resumes into CLOSING_AUCTION or CLOSED.
 
-    Four producers, two shapes. Three of them -- ACE expiry, ADMIN resume-all and ADMIN
-    per-symbol resume -- send `symbol` and `halt_source` alone. The closing backstop
-    sends three fields more, because it is the one resume where the reopening price was
-    imposed rather than discovered: it prints *at* the corridor boundary for a symbol
-    that could not reopen inside it, which can leave the book crossed by design. The
-    three extra fields are regime 3 and 4 rather than always-present nulls, so the three
-    ordinary producers keep the two-key payload they have always sent.
-    `normalise_cb_resume` reads each through a falsy guard, so an absent key and an
-    empty one are the same event to it.
+    Five producers, two shapes. Four of them -- ACE expiry, ADMIN resume-all, ADMIN per-
+    symbol resume, and an engine start that ended a breaker-level halt its checkpoint
+    held (its timer does not survive the restart) -- send `symbol` and `halt_source`
+    alone. The closing backstop sends three fields more, because it is the one resume
+    where the reopening price was imposed rather than discovered: it prints *at* the
+    corridor boundary for a symbol that could not reopen inside it, which can leave the
+    book crossed by design. The three extra fields are regime 3 and 4 rather than
+    always-present nulls, so the four ordinary producers keep the two-key payload they
+    have always sent. `normalise_cb_resume` reads each through a falsy guard, so an
+    absent key and an empty one are the same event to it.
     """
 
     symbol: str

@@ -128,9 +128,8 @@ gateway to freeze on a phase and advance only when you are ready:
    ```
 
    An illegal jump (for example `CLOSED` straight to `CONTINUOUS`) is
-   silently ignored by the engine, and the console just prints `TIMEOUT`
-   with no reason. If you see that, run `SESSION_STATUS` and check which
-   phase you are really in.
+   refused by the engine, and the console prints `SESSION  REJECTED` with the
+   reason, which names the phases allowed from where you are.
 
 3. Confirm the change took effect with:
 

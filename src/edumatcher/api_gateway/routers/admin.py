@@ -1038,13 +1038,34 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
     }
 
 
+def _require_known_gateway(reply: dict[str, Any], target: str) -> None:
+    """404 when the engine says no participant has *target* (L030): its
+    empty list would otherwise read as "flat" or "no orders"."""
+    if reply.get("status") == "UNKNOWN_GATEWAY":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "UNKNOWN_GATEWAY",
+                    "message": f"No participant has gateway id {target}",
+                }
+            },
+        )
+
+
 @router.get(
     "/gateways/{gateway_id}/positions",
     response_model=GatewayPositions,
     summary="Positions of any gateway",
     responses=docs.merge(
         docs.ok(docs.ADMIN_POSITIONS, "Net positions held by the gateway.", 200),
-        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED", "VALIDATION"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "ROLE_DENIED",
+            "UNKNOWN_GATEWAY",
+            "VALIDATION",
+        ),
     ),
 )
 async def admin_positions(  # pyright: ignore[reportUnusedFunction]
@@ -1060,11 +1081,14 @@ async def admin_positions(  # pyright: ignore[reportUnusedFunction]
     trip on ``system.position_request`` / ``system.position_snapshot.<id>``,
     enriched with prices and P&L; ``pm-alf-console``'s and ``pm-alf-gwy``'s
     ``POS|GW=<gateway_id>`` use the same pair, so all surfaces agree.
+    A logged-off participant is answered with what it holds; an id no
+    participant has is a 404.
     """
     await require_admin(request, session)
     target = gateway_id.upper()
     request.app.state.engine.request_position(target)
     reply = await _await_reply(request, topic_position_snapshot(target))
+    _require_known_gateway(reply, target)
     positions = reply.get("positions", [])
     if not isinstance(positions, list):
         positions = []
@@ -1083,7 +1107,13 @@ async def admin_positions(  # pyright: ignore[reportUnusedFunction]
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_GATEWAY_ORDERS_REPLY, "The gateway's orders.", 200),
-        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED", "VALIDATION"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "ROLE_DENIED",
+            "UNKNOWN_GATEWAY",
+            "VALIDATION",
+        ),
     ),
 )
 async def admin_gateway_orders(  # pyright: ignore[reportUnusedFunction]
@@ -1095,12 +1125,14 @@ async def admin_gateway_orders(  # pyright: ignore[reportUnusedFunction]
     target = gateway_id.upper()
     request.app.state.engine.request_orders(target)
     reply = await _await_reply(request, topic_orders(target))
+    _require_known_gateway(reply, target)
     orders = [
         {"client_tag": None, **order}
         for order in reply.get("orders", [])
         if isinstance(order, dict)
     ]
-    return {"orders": orders, "count": len(orders)}
+    # OK or NOT_CONNECTED: a logged-off participant's orders are still its own.
+    return {"orders": orders, "count": len(orders), "status": reply["status"]}
 
 
 @router.get(

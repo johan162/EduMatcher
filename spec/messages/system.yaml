@@ -832,8 +832,10 @@ messages:
         connected for ever, and the engine refuses a second connect for an ID
         that is already connected. The engine counts the beats it expects --
         one per `interval_sec` -- and disconnects the session, applying its
-        `disconnect_behaviour`, after three consecutive misses. Liveness is
-        opt-in: a session that has never sent one is never timed out.
+        `disconnect_behaviour`, after three consecutive misses. The clock
+        starts at connect, at the default 60-second interval until the first
+        beat carries the sender's own, so a session that never sends one is
+        timed out too.
       published_by: [api_gateway, gateway]
       since: "1.0"
       see_also: ["system.gateway_connect", "system.gateway_disconnect"]
@@ -894,6 +896,16 @@ messages:
     fields:
       - { name: books, type: list, ref: EodBook,
           doc: "One per instrument the engine had a book for, unordered." }
+      - name: last_trade_id
+        type: string
+        required: false
+        nullable: true
+        validate: { max_len: 32 }
+        doc: >
+          The id of the last trade this engine run made, null for a run
+          without trades. Trade ids restart with every run, so without it a
+          subscriber cannot tell trades lost just before the stop from a
+          clean end: one that holds an older id of this run lost the rest.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
@@ -1459,6 +1471,14 @@ messages:
           The countdown target the engine holds, as `session.state.next`
           last carried it or `session.next` announced it. Lets a caller
           that missed the last transition still count down to the next one.
+      - name: last_trade_id
+        type: string
+        required: false
+        nullable: true
+        validate: { max_len: 32 }
+        doc: >
+          The id of the last trade this engine run has made so far, null
+          before its first: what `system.eod` will name if the run ends now.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
@@ -1556,9 +1576,10 @@ messages:
         type: string
         validate: { max_len: 32 }
         doc: >
-          Both the correlation key and the account being asked about. A
-          gateway can only ask about itself: the handler answers from
-          `_gateway_positions[gateway_id]` and nothing else.
+          Both the correlation key and the account being asked about. Any
+          caller may ask about any gateway (`POS|GW=`, the admin REST
+          endpoint): the handler answers from `_gateway_positions[gateway_id]`
+          and nothing else.
     encoding:
       engine_push: { frames: [topic, json_payload] }
 
@@ -1573,10 +1594,11 @@ messages:
       since: "1.0"
       see_also: ["system.position_request", "trade.executed"]
       example_note: >
-        An unauthenticated or unknown gateway gets an empty list rather than a
-        rejection -- flat and not-a-gateway are the same answer here, which is
-        deliberate: the alternative tells an unauthenticated caller whether an
-        id exists.
+        Any configured participant is answered, connected or not, and
+        `status` tells "logged off" and "no such id" apart from "flat". A
+        logged-off trader keeps its position, so an empty list for it would
+        be wrong rather than discreet; and whether an id exists is no secret
+        (a refused logon names it).
 
         pm-mm-bot asks for its own gateway's snapshot at start-up and seeds
         each symbol's tracked position from it, so `inventory_skew` does not
@@ -1585,6 +1607,16 @@ messages:
       - { name: gateway_id, type: string, validate: { max_len: 32 },
           doc: "Topic-only; dropped by the default projection." }
       - { name: positions, type: list, ref: Position }
+      - name: status
+        type: enum
+        values: [OK, NOT_CONNECTED, UNKNOWN_GATEWAY]
+        required: false
+        default: OK
+        doc: >
+          `OK`: the gateway is connected. `NOT_CONNECTED`: a configured
+          participant that is logged off; the list is still its own, as the
+          engine holds it. `UNKNOWN_GATEWAY`: no participant has this id, so
+          the list is empty.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 

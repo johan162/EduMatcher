@@ -293,11 +293,13 @@ class LogServer:
         if self._pubsub is not None:
             self._pubsub.stop()
 
-        self._writer.stop()
-        if hasattr(self, "_conn"):
-            self._conn.close()
-        if hasattr(self, "_prune_conn"):
-            self._prune_conn.close()
+        try:
+            self._writer.stop()
+        finally:
+            if hasattr(self, "_conn"):
+                self._conn.close()
+            if hasattr(self, "_prune_conn"):
+                self._prune_conn.close()
 
     # ------------------------------------------------------------------
     # Network IO

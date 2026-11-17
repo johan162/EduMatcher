@@ -70,6 +70,9 @@ from edumatcher.balf_gwy.codec import (
     MSG_LOGON,
     MSG_LOGOUT,
     MSG_NEW_ORDER,
+    ORDER_TYPE_CODE,
+    SIDE_CODE,
+    TIF_CODE,
     build_amend_ack,
     build_cancel_ack,
     build_heartbeat,
@@ -77,6 +80,8 @@ from edumatcher.balf_gwy.codec import (
     build_logon_ack,
     build_logout,
     build_order_ack,
+    build_order_status,
+    encode_price,
     parse_amend_order,
     parse_cancel_order,
     parse_heartbeat,
@@ -113,6 +118,7 @@ from edumatcher.models.message import (
     make_order_amend_msg,
     make_order_cancel_msg,
     make_order_new_msg,
+    make_orders_request_msg,
     make_symbols_request_msg,
 )
 from edumatcher.models.price import register_tick_decimals
@@ -123,6 +129,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
     PREFIX_ORDER_TRIGGERED,
+    PREFIX_ORDERS,
     serialise_execution_report_balf,
     serialise_stop_triggered_balf,
 )
@@ -253,7 +260,8 @@ class _GatewayOrders:
     across an engine restart: the engine restores GTC orders under their
     original engine ids, and an entry for an order the engine forgot is
     harmless (a cancel of it is refused by the engine, as it should be).
-    What a pm-balf-gwy restart loses is For-Later L027.
+    A pm-balf-gwy restart starts with no map: the first logon of each ID
+    adopts its resting orders (``adopt_pending``, ``_adopt_orders``).
 
     In-flight cancels and amends live here too, so their result reaches the
     client even when it arrives on the next session of the same ID.
@@ -274,6 +282,10 @@ class _GatewayOrders:
     amend_tags: dict[str, list[str]] = field(default_factory=dict)
     # engine UUID -> symbol (for amend ack price conversion)
     order_symbol: dict[str, str] = field(default_factory=dict)
+    # A map this process has just created holds none of the orders the ID
+    # left on the book under an earlier pm-balf-gwy: they are asked for at
+    # the first logon and adopted from the reply (ORDER_STATUS, L027).
+    adopt_pending: bool = False
 
     def next_balf_id(self) -> int:
         """Allocate the next BALF order ID for this gateway ID (never 0)."""
@@ -432,6 +444,7 @@ class BalfGateway:
             config.engine_pub_addr,
             PREFIX_GATEWAY_AUTH,
             PREFIX_SYMBOLS,
+            PREFIX_ORDERS,
             *_PRIVATE_EVENT_PREFIXES,
             TOPIC_STARTUP_RECOVERY,
             rcvhwm=_SUB_RCVHWM,
@@ -1437,7 +1450,10 @@ class BalfGateway:
         if session is None:
             return
 
-        if topic.startswith(PREFIX_ORDER_ACK):
+        if topic.startswith(PREFIX_ORDERS):
+            if session.orders.adopt_pending:
+                self._adopt_orders(session, payload)
+        elif topic.startswith(PREFIX_ORDER_ACK):
             self._handle_order_ack_event(session, payload)
         elif topic.startswith(PREFIX_ORDER_FILL):
             self._handle_fill_event(session, payload)
@@ -1449,6 +1465,56 @@ class BalfGateway:
             self._handle_expired_event(session, payload)
         elif topic.startswith(PREFIX_ORDER_TRIGGERED):
             self._handle_triggered_event(session, payload)
+
+    def _adopt_orders(self, session: ClientSession, payload: dict[str, Any]) -> None:
+        """Give each resting order of the ID a BALF id and tell the client
+        (ORDER_STATUS): left on the book under an earlier pm-balf-gwy, they
+        were out of reach over BALF (L027). The client's own reference comes
+        back from the engine's ``client_tag``; an order not entered over BALF
+        has none, and is reported with ``client_order_id`` 0."""
+        orders = session.orders
+        orders.adopt_pending = False
+        adopted = 0
+        for order in payload.get("orders", []):
+            if not isinstance(order, dict):
+                continue
+            engine_uuid = str(order.get("id", ""))
+            if not engine_uuid or engine_uuid in orders.engine_to_balf:
+                continue
+            tag = order.get("client_tag")
+            client_order_id = (
+                int(tag)
+                if isinstance(tag, str) and tag.isdigit() and int(tag) < 2**64
+                else 0
+            )
+            balf_id = orders.next_balf_id()
+            symbol = str(order.get("symbol", ""))
+            orders.engine_to_balf[engine_uuid] = (balf_id, client_order_id)
+            orders.balf_to_engine[balf_id] = engine_uuid
+            orders.order_symbol[engine_uuid] = symbol
+            price = order.get("price")
+            stop_price = order.get("stop_price")
+            self._queue_frame(
+                session,
+                build_order_status(
+                    client_order_id=client_order_id,
+                    balf_order_id=balf_id,
+                    price=encode_price(price) if price else 0,
+                    stop_price=encode_price(stop_price) if stop_price else 0,
+                    quantity=int(order.get("quantity", 0)),
+                    remaining_qty=int(order.get("remaining_qty", 0)),
+                    symbol=symbol,
+                    side=SIDE_CODE.get(str(order.get("side")), 0),
+                    order_type=ORDER_TYPE_CODE.get(str(order.get("order_type")), 0),
+                    tif=TIF_CODE.get(str(order.get("tif")), 0),
+                    seq_no=session.next_seq(),
+                ),
+            )
+            adopted += 1
+        if adopted:
+            log.info(
+                "BALF adopted %d resting order(s) of %s", adopted, session.gateway_id
+            )
 
     def _handle_gateway_auth(self, gw_id: str, payload: dict[str, Any]) -> None:
         session = self._find_pending_auth_session(gw_id)
@@ -1530,6 +1596,7 @@ class BalfGateway:
         """Symbol metadata is in: the session may now trade."""
         session.symbols_pending = False
         session.authenticated = True
+        fresh = gw_id not in self._gateway_orders
         session.orders = self._gateway_orders.setdefault(gw_id, _GatewayOrders())
         self._active_gateway_sessions[gw_id] = session.sock.fileno()
         self._queue_frame(
@@ -1537,6 +1604,19 @@ class BalfGateway:
             build_logon_ack(gw_id, accepted=True, msg=session.logon_ack_msg),
         )
         log.info("BALF gateway authenticated: %s from %s", gw_id, session.addr)
+        if fresh:
+            session.orders.adopt_pending = True
+            try:
+                self._send_to_engine(
+                    make_orders_request_msg(gw_id), count_as_command=False
+                )
+            except BalfValidationError:
+                session.orders.adopt_pending = False
+                log.warning(
+                    "BALF could not ask the engine for %s's resting orders; "
+                    "orders it left on the book are out of reach this run",
+                    gw_id,
+                )
 
     def _handle_symbols_response(self, gw_id: str, payload: dict[str, Any]) -> None:
         entries = payload.get("symbols", [])

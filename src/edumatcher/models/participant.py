@@ -26,8 +26,8 @@ class ParticipantSession:
     connected: bool = False
     # When the engine accepted the current connection (epoch ns); None while offline.
     connected_since_ns: int | None = None
-    # Liveness, opt-in: 0 until the participant's first system.gateway_heartbeat,
-    # which carries its own beat interval. Only sessions that have beaten are
-    # ever timed out.
+    # Liveness: the engine sets the default interval at connect and each
+    # system.gateway_heartbeat replaces it with the sender's own; 0 while the
+    # session is offline, which is never timed out.
     heartbeat_interval_sec: int = 0
     last_heartbeat: float = 0.0

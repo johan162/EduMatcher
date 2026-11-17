@@ -359,6 +359,7 @@ def test_b5_no_subscription_is_made_to_a_topic_dispatch_ignores(
         [
             "system.gateway_auth.",
             "system.symbols.",
+            "order.orders.",  # the adoption answer at a first logon (WP-FL07)
             "order.ack.",
             "order.fill.",
             "order.cancelled.",

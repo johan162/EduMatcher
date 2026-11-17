@@ -36,7 +36,8 @@ class QuoteNew(BaseModel):
     """Decimal scale for both `_ticks` prices; 1 tick = 10^-tick_decimals. Carried so
     a reader can turn a tick price into money from this message alone, rather than
     recovering the scale from a `book` for the same symbol that may be outside the
-    window being read.
+    window being read. The engine refuses a quote whose scale is not the symbol's
+    configured one, naming both values.
     """
     bid_price_ticks: int = Field(gt=0)
     """Unit: ticks."""

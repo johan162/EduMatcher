@@ -1,7 +1,7 @@
 # BALF Protocol Reference
 
 > **Status: Normative.** This appendix is the single source of truth for the BALF
-> `1.0.0` wire contract as implemented by `pm-balf-gwy` (`balf_gwy/`). For an
+> `1.1.0` wire contract as implemented by `pm-balf-gwy` (`balf_gwy/`). For an
 > operational, tutorial-style guide see [BALF TCP Gateway](../../operator-guide/part-5-gateways/020-balf-gateway.md); for
 > the gateway's configuration block see
 > [Engine Config Specification §6.2](../../reference-manual/part-3-configuration/030-formal-specification.md#62-balf_gateway-pm-balf-gwy).
@@ -33,8 +33,16 @@ CANCEL_ORDER is always 24 bytes on the wire
 EXECUTION_REPORT is always 64 bytes on the wire
 ```
 
-This appendix is the **normative reference** for BALF `1.0.0`. If another tool,
+This appendix is the **normative reference** for BALF `1.1.0`. If another tool,
 bot, or GUI wants to speak BALF, this document is the correct source to follow.
+
+BALF `1.1.0` adds one server-to-client message, `ORDER_STATUS` (0x22), with
+which a freshly started gateway hands a client back the orders its ID left on
+the book. Every rule this appendix states for `1.0.0` holds in `1.1.0`; the
+header's `version` byte is still `1`. A client MUST skip a frame whose
+`msg_type` it does not know (its size is in the summary table of the version
+it was written for, or it closes the session), so later additions of this
+kind do not break it.
 
 
 
@@ -221,9 +229,15 @@ When the same gateway ID logs on again to the same `pm-balf-gwy` process,
 the new session receives those orders' `EXECUTION_REPORT`, `STOP_TRIGGERED`
 and `CANCEL_ACK` frames under their original `order_id`s and can cancel or
 amend them; IDs keep counting up, so an old ID never names a new order.
-A **restart of `pm-balf-gwy`** loses the map: orders left on the book are
-then out of reach over BALF (use drop-copy, REST or the clearing reports to
-see their fills).
+A **restart of `pm-balf-gwy`** starts with no map. At the first logon of each
+gateway ID it asks the engine for the ID's resting orders, gives each a new
+`order_id`, and sends one `ORDER_STATUS` per order right after `LOGON_ACK`;
+from then on their fills, cancels and amends work under the new ids. The
+`client_order_id` comes back too: `pm-balf-gwy` sends it to the engine with
+every `NEW_ORDER` (as the order's `client_tag`). An order the ID entered
+another way (REST, ALF) is reported with `client_order_id` `0`. Events that
+reach the gateway between `LOGON_ACK` and the engine's answer, for an order
+not yet adopted, are not delivered.
 
 
 
@@ -243,6 +257,7 @@ see their fills).
 | `0x15` | `AMEND_ACK` | Server -> Client | 40 | 48 |
 | `0x20` | `EXECUTION_REPORT` | Server -> Client | 56 | 64 |
 | `0x21` | `STOP_TRIGGERED` | Server -> Client | 48 | 56 |
+| `0x22` | `ORDER_STATUS` | Server -> Client | 56 | 64 |
 | `0x30` | `HEARTBEAT` | Bidirectional | 8 | 16 |
 | `0x31` | `HEARTBEAT_ACK` | Bidirectional | 8 | 16 |
 | `0x40` | `LOGOUT` | Bidirectional | 0 | 8 |
@@ -494,6 +509,28 @@ Offset 32  |  symbol           |  u8[8]   |  Symbol
 Offset 40  |  order_type       |  u8      |  5 = STOP, 6 = STOP_LIMIT, 8 = TRAILING_STOP (NEW_ORDER's codes)
 Offset 41  |  becomes          |  u8      |  1 = MARKET, 2 = LIMIT
 Offset 42  |  _reserved        |  u8[6]   |  Must be zero
+```
+
+### `ORDER_STATUS` (0x22) - Server -> Client
+
+BALF `1.1.0`. One resting order of this gateway ID that a freshly started
+`pm-balf-gwy` adopted (see [Order ID encoding](#order-id-encoding)); sent after
+`LOGON_ACK`, once per order. Codes are `NEW_ORDER`'s.
+
+**Body (56 bytes):**
+
+```text
+Offset  0  |  client_order_id  |  u64 LE  |  The order's NEW_ORDER client_order_id; 0 if it was not entered over BALF
+Offset  8  |  order_id         |  u64 LE  |  The order's new BALF order ID
+Offset 16  |  price            |  i64 LE  |  Limit price x 10^8; 0 if none
+Offset 24  |  stop_price       |  i64 LE  |  Stop trigger x 10^8; 0 if none
+Offset 32  |  quantity         |  u32 LE  |  Original quantity
+Offset 36  |  remaining_qty    |  u32 LE  |  Unfilled quantity
+Offset 40  |  symbol           |  u8[8]   |  Symbol
+Offset 48  |  side             |  u8      |  1 = BUY, 2 = SELL
+Offset 49  |  order_type       |  u8      |  NEW_ORDER's order type code
+Offset 50  |  tif              |  u8      |  NEW_ORDER's TIF code
+Offset 51  |  _reserved        |  u8[5]   |  Must be zero
 ```
 
 ### `HEARTBEAT` (0x30) - Bidirectional

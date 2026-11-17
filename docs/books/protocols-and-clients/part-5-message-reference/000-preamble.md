@@ -253,7 +253,7 @@ tear down the live session.
 ### `system.gateway_heartbeat`
 
 **Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
-**Published by:** Every process that holds an ID (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
+**Published by:** Every process that holds an ID (`pm-admin`, `pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
 
 Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
 immediately after the connect is accepted. It is one-way: the engine does not
@@ -263,9 +263,10 @@ disconnects the session exactly as if `system.gateway_disconnect` had arrived,
 applying the participant's `disconnect_behaviour` and publishing
 `system.gateway_bye.{GW_ID}` with `reason: "heartbeat_timeout"`.
 
-Liveness is opt-in: a session that has never sent a heartbeat is never timed
-out, and a heartbeat for an ID that is not connected is ignored. Heartbeats are
-not re-published on the audit feed.
+The clock starts when the connect is accepted, at the default 60-second
+interval until the first beat carries the sender's own, so a session that never
+sends a heartbeat is timed out after three minutes. A heartbeat for an ID that
+is not connected is ignored. Heartbeats are not re-published on the audit feed.
 
 | Field | Type | Description |
 |---|---|---|

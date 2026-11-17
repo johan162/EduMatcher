@@ -36,6 +36,7 @@ import asyncio
 import json
 import logging
 import sys
+import threading
 from typing import Any, Callable
 
 import zmq
@@ -50,6 +51,7 @@ from rich.console import Console
 from rich.table import Table
 from zmq.utils.monitor import recv_monitor_message
 
+from edumatcher.config import ENGINE_PULL_ADDR
 from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 from edumatcher.log_srv.config import (
@@ -58,6 +60,11 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
+from edumatcher.messaging.bus import make_pusher
+from edumatcher.models.message import (
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    make_gateway_heartbeat_msg,
+)
 
 log = logging.getLogger(__name__)
 
@@ -901,14 +908,16 @@ def _cmd_session(
         console.print("[yellow]Usage:[/yellow]  SESSION|STATE=<state>")
         return False, {}
     result = client.session_advance(state)
+    accepted = bool(result.get("accepted"))
     if json_output:
         _print_json(result)
+    elif accepted:
+        console.print(f"[bold]SESSION[/bold]  now {result.get('to_state', state)}")
     else:
         console.print(
-            f"[bold]SESSION[/bold]  "
-            f"{result.get('prev_state', '?')} → {result.get('state', '?')}"
+            f"[bold]SESSION[/bold]  [red]REJECTED[/red]  {result.get('reason', '')}"
         )
-    return True, result
+    return accepted, result
 
 
 def _cmd_session_status(
@@ -1150,6 +1159,24 @@ class AdminConsole:
         self._client = ExchangeCommandClient(self._gw_id)
         self._known_symbols: list[str] = []
         self._connection_lost = False
+        self._heartbeat_stop = threading.Event()
+
+    def _heartbeat_loop(self) -> None:
+        """Tell the engine this console is alive, so an idle console keeps its
+        ID and a killed one frees it (the engine times out a session that
+        stops beating, or never beats). Own socket: a ZMQ socket must not be
+        shared across threads, and the client's belongs to the prompt."""
+        push_sock = make_pusher(ENGINE_PULL_ADDR)
+        try:
+            while True:
+                try:
+                    push_sock.send_multipart(make_gateway_heartbeat_msg(self._gw_id))
+                except zmq.Again:
+                    log.debug("gateway_id=%s heartbeat dropped: engine unreachable", self._gw_id)  # fmt: skip
+                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                    return
+        finally:
+            push_sock.close(linger=0)
 
     # ------------------------------------------------------------------
     # Command dispatch
@@ -1209,6 +1236,10 @@ class AdminConsole:
             return
 
         monitor = self._client.engine_disconnect_monitor()
+        heartbeat = threading.Thread(
+            target=self._heartbeat_loop, name="admin-heartbeat", daemon=True
+        )
+        heartbeat.start()
         try:
             desc = result.get("description", "")
             console.print(
@@ -1253,6 +1284,8 @@ class AdminConsole:
                         break
                     self._dispatch(cmd, fields)
         finally:
+            self._heartbeat_stop.set()
+            heartbeat.join()
             try:
                 monitor.close(linger=0)
             finally:

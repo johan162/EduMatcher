@@ -264,7 +264,7 @@ def test_an_aon_combo_reports_each_legs_fillable_and_its_outcome(
         new(e, Side.SELL, OrderType.LIMIT, qty, gw, price=100.00, symbol=sym)
     e._handle_combo_order(
         {"combo_id": "C1", "gateway_id": "GW01", "combo_type": "AON", "tif": "DAY",
-         "legs": [{"symbol": s, "side": "BUY", "order_type": "LIMIT", "quantity": 10,
+         "legs": [{"symbol": s, "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT", "quantity": 10,
                    "price_ticks": 10_000, "smp_action": "CANCEL_RESTING"} for s in ("AAPL", "MSFT")]}  # fmt: skip
     )
     got = [

@@ -43,7 +43,7 @@ MM = "GW03"
 
 def _oco_payload(**over: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "oco_id": "B1", "gateway_id": "GW01", "symbol": SYMBOL, "quantity": 5,
+        "oco_id": "B1", "gateway_id": "GW01", "symbol": SYMBOL, "tick_decimals": 2, "quantity": 5,
         "tif": "DAY",
         "leg1": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10100},
         "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9900},
@@ -56,9 +56,9 @@ def _combo_payload(**over: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "combo_id": "C1", "gateway_id": "GW01", "combo_type": "AON", "tif": "DAY",
         "legs": [
-            {"symbol": SYMBOL, "side": "BUY", "order_type": "LIMIT",
+            {"symbol": SYMBOL, "tick_decimals": 2, "side": "BUY", "order_type": "LIMIT",
              "quantity": 5, "price_ticks": to_ticks(50.0, SYMBOL)},
-            {"symbol": OTHER, "side": "SELL", "order_type": "LIMIT",
+            {"symbol": OTHER, "tick_decimals": 2, "side": "SELL", "order_type": "LIMIT",
              "quantity": 5, "price_ticks": to_ticks(150.0, OTHER)},
         ],
     }  # fmt: skip
@@ -147,7 +147,7 @@ def test_a_quote_handler_error_before_the_ack_answers_with_quote_ack(
     n = len(engine.pub_sock.sent)
     engine._dispatch_pull_message(
         "quote.new",
-        {"gateway_id": MM, "symbol": SYMBOL, "quote_id": "Q9", "bid_price_ticks": 9900,
+        {"gateway_id": MM, "symbol": SYMBOL, "quote_id": "Q9", "tick_decimals": 2, "bid_price_ticks": 9900,
          "ask_price_ticks": 10100, "bid_qty": 10, "ask_qty": 10, "tif": "DAY"},
     )  # fmt: skip
     acks = [p for t, p in _since(engine, n) if t == f"quote.ack.{MM}"]
@@ -248,7 +248,7 @@ def test_a_quote_error_after_the_ack_ends_the_quote(
     n = len(engine.pub_sock.sent)
     engine._dispatch_pull_message(
         "quote.new",
-        {"gateway_id": MM, "symbol": SYMBOL, "quote_id": "Q1", "bid_price_ticks": 9900,
+        {"gateway_id": MM, "symbol": SYMBOL, "quote_id": "Q1", "tick_decimals": 2, "bid_price_ticks": 9900,
          "ask_price_ticks": 10100, "bid_qty": 10, "ask_qty": 10, "tif": "DAY"},
     )  # fmt: skip
     published = _since(engine, n)

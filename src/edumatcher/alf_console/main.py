@@ -553,7 +553,9 @@ class Gateway:
         self._pos_query_gateway_id = None
         self._pos_query_topic = None
         assert gateway_id is not None
-        print_remote_position(gateway_id, payload.get("positions", []))
+        print_remote_position(
+            gateway_id, payload.get("positions", []), payload.get("status", "OK")
+        )
 
     @staticmethod
     def _topic_family(topic: str) -> str:
@@ -2064,6 +2066,8 @@ class Gateway:
             "oco_id": oco_id,
             "gateway_id": self.gateway_id,
             "symbol": symbol,
+            # The scale of the legs' ticks; the engine refuses any other (L032).
+            "tick_decimals": get_tick_decimals(symbol),
             "quantity": quantity,
             "tif": tif_val.value,
             "leg1": leg1,

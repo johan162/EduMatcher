@@ -153,3 +153,63 @@ def test_the_gaps_verb_shows_the_reason(
     (row,) = json.loads(capsys.readouterr().out)
     assert row["reason"] == "restart"
     assert row["missing_trades"] == 6
+
+
+# --- WP-FL04 (L022): the end of an engine run ---------------------------------
+
+
+def _eod(proc: ClearingProcess, last_trade_id: str | None) -> None:
+    from edumatcher.models.message import make_eod_msg
+
+    proc._handle_message(make_eod_msg([], last_trade_id=last_trade_id))
+
+
+def test_trades_lost_before_the_engine_stopped_are_a_gap(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    proc = _process(tmp_path / "clearing.db")
+    _feed(proc, 1, 2, 3, 4, 5)
+
+    with caplog.at_level(logging.ERROR, logger="edumatcher.clearing.main"):
+        _eod(proc, "000003-000000007")
+
+    (gap,) = _gaps(proc)
+    assert gap["run_seq"] == 3
+    assert (gap["last_seq"], gap["next_seq"], gap["missing_trades"]) == (5, 8, 2)
+    assert gap["reason"] == "end_of_run"
+    assert "missing" in caplog.text
+
+
+def test_a_complete_run_is_no_gap(tmp_path: Path) -> None:
+    proc = _process(tmp_path / "clearing.db")
+    _feed(proc, 1, 2, 3)
+    _eod(proc, "000003-000000003")
+    _eod(proc, None)  # a run without trades says so
+    assert _gaps(proc) == []
+
+
+def test_the_end_of_run_check_survives_a_clearing_restart(tmp_path: Path) -> None:
+    db = tmp_path / "clearing.db"
+    first = _process(db)
+    _feed(first, 1, 2, 3)
+    second = _restart(first, db)
+
+    _eod(second, "000003-000000004")
+
+    (gap,) = _gaps(second)
+    assert (gap["last_seq"], gap["next_seq"], gap["missing_trades"]) == (3, 5, 1)
+
+
+def test_a_run_none_of_whose_trades_arrived_is_a_gap_of_all_of_them(
+    tmp_path: Path,
+) -> None:
+    proc = _process(tmp_path / "clearing.db")
+    _feed(proc, 1, 2, run=2)
+    _eod(proc, "000003-000000004")
+
+    (gap,) = _gaps(proc)
+    assert gap["run_seq"] == 3
+    assert (gap["last_seq"], gap["next_seq"], gap["missing_trades"]) == (0, 5, 4)
+    # The next run starts clean.
+    _feed(proc, 1, run=4)
+    assert len(_gaps(proc)) == 1

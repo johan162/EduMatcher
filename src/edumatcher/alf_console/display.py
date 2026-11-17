@@ -362,20 +362,27 @@ def print_positions(
     console.print(t)
 
 
-def print_remote_position(gateway_id: str, positions: list[dict[str, Any]]) -> None:
+def print_remote_position(
+    gateway_id: str, positions: list[dict[str, Any]], status: str = "OK"
+) -> None:
     """Render a POS|GW=<gateway_id> reply -- system.position_snapshot's
     per-symbol net_qty/avg_cost for some *other* gateway (typically a
     running pm-mm-bot). Unlike ``print_positions`` this has no local
     fill history to compute unrealized/realized P&L from, so it only shows
     what the engine's ledger reports: symbol, net position, and average
-    cost.
+    cost. *status* is the reply's: a logged-off participant is shown as
+    such, and an id no participant has is not shown as flat.
     """
+    if status == "UNKNOWN_GATEWAY":
+        console.print(f"[yellow]{gateway_id}: no participant has this id.[/yellow]")
+        return
+    offline = " (not connected)" if status == "NOT_CONNECTED" else ""
     if not positions:
-        console.print(f"[dim]{gateway_id}: flat (no open positions).[/dim]")
+        console.print(f"[dim]{gateway_id}{offline}: flat (no open positions).[/dim]")
         return
 
     t = Table(
-        title=f"Position — {gateway_id}",
+        title=f"Position — {gateway_id}{offline}",
         show_header=True,
         header_style="bold magenta",
     )

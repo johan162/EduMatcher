@@ -884,6 +884,7 @@ SESSION_STATUS: dict[str, Any] = {
     "state": "CONTINUOUS",
     "sessions_enabled": True,
     "next": {"state": "CLOSING_AUCTION", "at": "2026-08-29T17:25:00+02:00"},
+    "last_trade_id": "000003-000004217",
 }
 
 

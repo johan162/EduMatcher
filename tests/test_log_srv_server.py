@@ -16,7 +16,7 @@ from edumatcher.log_srv.server import LogServer
 from edumatcher.log_srv.session import LogSession
 from edumatcher.log_srv.writer import LogEventRow, WriterThread
 from edumatcher.logclient.protocol import iso_utc
-from tests.conftest import free_ports, opened
+from tests.conftest import free_ports
 
 _HOST = "127.0.0.1"
 
@@ -899,9 +899,6 @@ def test_a_dead_writer_thread_stops_the_server(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     rs = _RunningServer(tmp_path)
-    # close() dies in writer.stop() too, before it reaches the connections.
-    opened(rs.server._conn)
-    opened(rs.server._prune_conn)
 
     def _die(*, force: bool) -> int:
         raise RuntimeError("writer bug")
@@ -922,6 +919,10 @@ def test_a_dead_writer_thread_stops_the_server(
     assert not rs.thread.is_alive()
     assert len(errors) == 1 and "writer" in str(errors[0])
     assert any(r.levelname == "CRITICAL" for r in caplog.records)
+    # close() fails in writer.stop() too, but still closes the database.
+    for conn in (rs.server._conn, rs.server._prune_conn):
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            conn.execute("SELECT 1")
 
 
 # ---------------------------------------------------------------------------

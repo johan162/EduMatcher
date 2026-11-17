@@ -1519,3 +1519,119 @@ def test_order_round_trip_is_not_paced_by_a_fixed_sleep(
         rtts.sort()
         median_ms = rtts[len(rtts) // 2] * 1000
         assert median_ms < 2.0, f"median round trip {median_ms:.2f} ms"
+
+
+# ---------------------------------------------------------------------------
+# WP-FL07 (L027): a fresh pm-balf-gwy adopts the gateway's resting orders
+# ---------------------------------------------------------------------------
+
+
+def _resting(order_id: str, client_tag: str | None, remaining: int = 100) -> dict:
+    return {
+        "id": order_id,
+        "symbol": "AAPL",
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "tif": "GTC",
+        "quantity": 100,
+        "remaining_qty": remaining,
+        "trail_offset": 0.0,
+        "ts_ns": 1,
+        "status": "NEW" if remaining == 100 else "PARTIAL",
+        "price": 150.0,
+        "client_tag": client_tag,
+    }
+
+
+def _logon_and_adopt(
+    bc: _BalfClient,
+    pull: "zmq.Socket[bytes]",
+    pub: "zmq.Socket[bytes]",
+    orders: list[dict],
+) -> None:
+    _balf_authenticate(bc, pull, pub)
+    _, request = _drain_pull_until(pull, "order.orders_request")
+    assert request["gateway_id"] == "TRADER01"
+    pub.send_multipart(
+        encode("order.orders.TRADER01", {"orders": orders, "status": "OK"})
+    )
+
+
+def test_new_order_carries_the_client_order_id_as_client_tag(
+    running_gateway: GatewayFixture,
+) -> None:
+    _, pull, pub, port = running_gateway
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        bc = _BalfClient(cli)
+        _balf_authenticate(bc, pull, pub)
+        bc.send(_build_new_order(client_order_id=4242))
+        _, order = _drain_pull_until(pull, "order.new")
+    assert order["client_tag"] == "4242"
+
+
+def test_logon_to_a_fresh_gateway_adopts_the_resting_orders(
+    running_gateway: GatewayFixture,
+) -> None:
+    from edumatcher.balf_gwy.codec import MSG_ORDER_STATUS, parse_order_status
+
+    _, pull, pub, port = running_gateway
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        bc = _BalfClient(cli)
+        _logon_and_adopt(bc, pull, pub, [_resting("E1", "4242", remaining=60)])
+
+        status = parse_order_status(bc.recv_until(MSG_ORDER_STATUS))
+        assert status["client_order_id"] == 4242
+        assert status["order_id"] >= 1
+        assert (status["symbol"], status["side"], status["order_type"], status["tif"]) == ("AAPL", 1, 2, 2)  # fmt: skip
+        assert (status["quantity"], status["remaining_qty"]) == (100, 60)
+        assert status["price"] == encode_price(150.0)
+
+        # A later fill reaches the client under the adopted id ...
+        pub.send_multipart(
+            encode(
+                "order.fill.TRADER01",
+                {"order_id": "E1", "symbol": "AAPL", "side": "BUY", "fill_qty": 10,
+                 "fill_price": 150.0, "remaining_qty": 50, "status": "PARTIAL",
+                 "trade_ids": ["000001-000000001"], "ts_ns": 1, "tick_decimals": 2},
+            )
+        )  # fmt: skip
+        report = bc.recv_until(MSG_EXECUTION_REPORT)
+        assert struct.unpack_from("<QQ", report) == (4242, status["order_id"])
+
+        # ... and a cancel by it names the engine's order.
+        bc.send(_build_cancel_order(77, status["order_id"], seq_no=1))
+        _, cancel = _drain_pull_until(pull, "order.cancel")
+        assert cancel["order_id"] == "E1"
+
+
+def test_an_order_without_a_numeric_tag_is_adopted_with_client_order_id_0(
+    running_gateway: GatewayFixture,
+) -> None:
+    from edumatcher.balf_gwy.codec import MSG_ORDER_STATUS, parse_order_status
+
+    _, pull, pub, port = running_gateway
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        bc = _BalfClient(cli)
+        _logon_and_adopt(
+            bc, pull, pub, [_resting("E2", None), _resting("E3", "rest-api")]
+        )
+        ids = {parse_order_status(bc.recv_until(MSG_ORDER_STATUS))["client_order_id"] for _ in range(2)}  # fmt: skip
+    assert ids == {0}
+
+
+def test_a_second_session_of_the_same_process_adopts_nothing(
+    running_gateway: GatewayFixture,
+) -> None:
+    """The process already holds the map (WP-BALF01): no orders request."""
+    _, pull, pub, port = running_gateway
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        bc = _BalfClient(cli)
+        _logon_and_adopt(bc, pull, pub, [])
+        bc.send(build_header(MSG_LOGOUT, 0))
+        _drain_pull_until(pull, "system.gateway_disconnect")
+        assert bc.is_closed(timeout=2.0)
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        bc = _BalfClient(cli)
+        _balf_authenticate(bc, pull, pub)
+        with pytest.raises(TimeoutError):
+            _drain_pull_until(pull, "order.orders_request", timeout=0.5)

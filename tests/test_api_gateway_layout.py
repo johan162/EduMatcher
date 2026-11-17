@@ -167,7 +167,12 @@ class _Engine:
 
     async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
         if topic.startswith("system.session_status."):
-            return {"state": "CONTINUOUS", "sessions_enabled": True, "next": None}
+            return {
+                "state": "CONTINUOUS",
+                "sessions_enabled": True,
+                "next": None,
+                "last_trade_id": None,
+            }
         return {"halted": [{"symbol": "AAPL"}]}
 
 

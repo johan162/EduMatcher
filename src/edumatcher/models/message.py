@@ -611,8 +611,12 @@ def make_orders_request_msg(gateway_id: str) -> list[bytes]:
     return _gen_order.make_orders_request(gateway_id=gateway_id)
 
 
-def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes]:
-    return _gen_order.make_orders(gateway_id=gateway_id, orders=orders)
+def make_orders_msg(
+    gateway_id: str, orders: list[dict[str, Any]], status: str = "OK"
+) -> list[bytes]:
+    """Engine → caller: *gateway_id*'s resting orders; *status* is ``OK``,
+    ``NOT_CONNECTED`` or ``UNKNOWN_GATEWAY``."""
+    return _gen_order.make_orders(gateway_id=gateway_id, orders=orders, status=status)
 
 
 def make_price_level_orders_request_msg(
@@ -656,7 +660,9 @@ def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:
     return _gen_book.make_book_snapshot_request(symbol=symbol)
 
 
-def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
+def make_eod_msg(
+    books: list[dict[str, Any]], last_trade_id: str | None = None
+) -> list[bytes]:
     """
     End-of-day broadcast — engine sends this before shutting down.
     ``books`` is a list of book snapshots (one per symbol), each containing
@@ -665,8 +671,10 @@ def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
     A full ``OrderBook.snapshot()`` may be passed: ``EodBook`` declares the
     five keys end of day carries and ``from_dict`` drops the rest, which is
     the trim ``SystemEodPayload`` used to perform without saying so.
+
+    ``last_trade_id`` is the run's last trade, None for a run without one.
     """
-    return _gen_system.make_eod(books=books)
+    return _gen_system.make_eod(books=books, last_trade_id=last_trade_id)
 
 
 def make_symbols_request_msg(gateway_id: str) -> list[bytes]:
@@ -759,6 +767,7 @@ def make_session_status_msg(
     sessions_enabled: bool,
     next_state: str = "",
     next_at: str = "",
+    last_trade_id: str | None = None,
 ) -> list[bytes]:
     """Engine → operator: reply with the current session state.
 
@@ -771,6 +780,7 @@ def make_session_status_msg(
         state=state,
         sessions_enabled=sessions_enabled,
         next=({"state": next_state, "at": next_at} if next_state and next_at else None),
+        last_trade_id=last_trade_id,
     )
 
 
@@ -1912,6 +1922,7 @@ def make_position_request_msg(gateway_id: str) -> list[bytes]:
 def make_position_snapshot_msg(
     gateway_id: str,
     positions: list[dict[str, Any]],
+    status: str = "OK",
 ) -> list[bytes]:
     """Engine → requester: per-symbol position snapshot for *gateway_id*.
 
@@ -1919,10 +1930,11 @@ def make_position_snapshot_msg(
       ``symbol`` (str), ``net_qty`` (int, positive = long / negative = short),
       ``avg_cost`` (float display price, 0.0 if flat).
     Only symbols with a non-zero net position are included.
-    An empty list means the gateway is flat across all symbols.
+    An empty list means the gateway is flat across all symbols, unless
+    *status* says it is ``UNKNOWN_GATEWAY`` (``NOT_CONNECTED``: logged off).
     """
     return _gen_system.make_position_snapshot(
-        gateway_id=gateway_id, positions=positions
+        gateway_id=gateway_id, positions=positions, status=status
     )
 
 

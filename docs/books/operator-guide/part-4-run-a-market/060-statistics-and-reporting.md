@@ -588,7 +588,7 @@ Messages (including trades) the recorder can prove it never received.
 | `seq`           | INTEGER | Monotonic local sequence                                        |
 | `ts`            | TEXT    | UTC instant the gap was detected: the trade's timestamp for a trade-id gap, the receipt time for a publisher-sequence gap |
 | `stream`        | TEXT    | Which topic the gap was detected on — `trade.executed` or any other subscribed topic (e.g. `book.AAPL`) |
-| `source`        | TEXT    | Which check found it, and so which counter the ids are in: `publisher_seq` (the per-topic publisher sequence) or `trade_id` (the engine trade-id suffix, `trade.executed` only) |
+| `source`        | TEXT    | Which check found it, and so which counter the ids are in: `publisher_seq` (the per-topic publisher sequence), `trade_id` (the engine trade-id suffix, `trade.executed` only) or `run_end` (the run's last trade id on `system.eod` against the last one received; `received_id` is one past the run's last trade) |
 | `expected_id`   | INTEGER | The counter value expected next                                 |
 | `received_id`   | INTEGER | The counter value that actually arrived                         |
 | `missing_count` | INTEGER | How many are unaccounted for between them: messages for `publisher_seq`, trades for `trade_id` |

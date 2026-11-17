@@ -210,7 +210,7 @@ async def test_admin_quote_cancel_uses_the_admin_kill_switch() -> None:
 @pytest.mark.anyio
 async def test_engine_authoritative_orders_of_any_gateway() -> None:
     status, body, engine = await _call("GET", "/api/v1/admin/gateways/mm01/orders")
-    assert status == 200 and body == {"orders": [], "count": 0}
+    assert status == 200 and body == {"orders": [], "count": 0, "status": "OK"}
     assert engine.sent[0][:2] == ("request_orders", ("MM01",))
     assert engine.awaited[0][0] == "order.orders.MM01"
 

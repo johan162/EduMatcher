@@ -108,6 +108,7 @@ def test_quote_oco_and_combo_are_sent_at_the_symbols_tick_size(
 
     quote = _sent(gw, push, f"QUOTE|SYM={sym}|BID=10.125|ASK=10.13|BID_QTY=1|ASK_QTY=1")
     assert (quote["bid_price_ticks"], quote["ask_price_ticks"]) == (10125, 10130)
+    assert quote["tick_decimals"] == 3
 
     oco = _sent(
         gw,
@@ -117,6 +118,8 @@ def test_quote_oco_and_combo_are_sent_at_the_symbols_tick_size(
     )
     assert oco["leg1"]["price_ticks"] == 10125
     assert oco["leg2"]["stop_price_ticks"] == 9875
+    # The engine refuses a pair whose scale is not the symbol's (L032).
+    assert oco["tick_decimals"] == 3
 
     combo = _sent(
         gw,

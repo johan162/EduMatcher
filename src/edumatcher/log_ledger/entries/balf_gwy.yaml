@@ -41,6 +41,20 @@
 # --- connections and framing -----------------------------------------------
 
 - logger: edumatcher.balf_gwy.gateway
+  template: "BALF could not ask the engine for %s's resting orders; orders it left on the book are out of reach this run"
+  level: WARNING
+  explanation: >
+    At the first logon of a gateway ID after pm-balf-gwy started, it asks the
+    engine for the orders that ID still has on the book, to hand them back to
+    the client (ORDER_STATUS). The request could not be sent because the
+    engine's queue was full or unreachable, so those orders get no BALF id in
+    this pm-balf-gwy run: their fills are not delivered over BALF and the
+    client cannot cancel or amend them.
+  actions:
+    - "Check that pm-engine is running and keeping up."
+    - "Restart pm-balf-gwy once it is, so the next logon adopts the orders; meanwhile follow them through drop-copy, REST or the clearing reports."
+
+- logger: edumatcher.balf_gwy.gateway
   template: "BALF max_connections reached, rejecting %s"
   level: WARNING
   explanation: >

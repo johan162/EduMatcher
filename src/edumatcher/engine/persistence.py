@@ -234,11 +234,17 @@ def save_book_stats(
     books: dict[str, Any],  # dict[symbol, OrderBook]
     breakers: dict[str, CircuitBreakerState],
     path: Path,
+    halts: dict[str, dict[str, str]] | None = None,
 ) -> None:
     """Persist per-symbol last_buy_price / last_sell_price / prev_close, and
     each circuit breaker's reference window (``cb_window``: when it was
     saved, its trades in ticks, its reference), so a restart the same day
-    goes on with the reference the market had."""
+    goes on with the reference the market had.
+
+    *halts* maps each halted symbol to its ``level`` and ``source``
+    (``halt``), so a restart can tell an operator's halt, which it keeps,
+    from a breaker's, which it ends (L021). A halted symbol without a book
+    gets an entry of its own."""
     saved_ns = now_ns()
     stats: dict[str, dict[str, Any]] = {}
     for symbol, book in books.items():
@@ -271,6 +277,9 @@ def save_book_stats(
                 "trades": [[ts, price] for ts, price in cb.trade_history],
                 "reference_price": cb.reference_price,
             }
+    for symbol, halt in (halts or {}).items():
+        entry = stats.setdefault(symbol, {k: None for k in _PRICE_KEYS})
+        entry["halt"] = dict(halt)
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(stats, indent=2))
 
@@ -308,6 +317,17 @@ def _is_cb_window(window: Any) -> bool:
     )
 
 
+def _is_halt(halt: Any) -> bool:
+    """``halt`` as ``save_book_stats`` writes it: a ``level`` name and the
+    ``source`` that put the symbol into the halt."""
+    return (
+        isinstance(halt, dict)
+        and isinstance(halt.get("level"), str)
+        and 0 < len(halt["level"]) <= 32
+        and halt.get("source") in ("CB", "ADMIN")
+    )
+
+
 def load_book_stats(path: Path) -> tuple[dict[str, dict[str, Any]], int]:
     """
     Load persisted book statistics: ``(stats, failed)``.
@@ -319,6 +339,8 @@ def load_book_stats(path: Path) -> tuple[dict[str, dict[str, Any]], int]:
     - ``cb_window`` (only for a symbol with a breaker): ``saved_ns`` (int),
       ``trades`` (list of ``[ts_ns, price_ticks]`` int pairs),
       ``reference_price`` (ticks or null).
+    - ``halt`` (only for a halted symbol): ``level`` (string) and ``source``
+      (``CB`` or ``ADMIN``).
 
     Per-entry policy, so that file *content* can never stop the engine:
 
@@ -328,6 +350,7 @@ def load_book_stats(path: Path) -> tuple[dict[str, dict[str, Any]], int]:
       skipped (its book starts from the config seed).
     - A bad ``cb_window``: only the window is dropped; the breaker is then
       seeded from the last price, as on a new day.
+    - A bad ``halt``: only the halt is dropped; the symbol starts tradable.
 
     Each failure is logged at CRITICAL and counted in ``failed`` (one per
     symbol), which ``system.startup_recovery`` reports as
@@ -364,6 +387,17 @@ def load_book_stats(path: Path) -> tuple[dict[str, dict[str, Any]], int]:
         prices_ok = isinstance(entry, dict) and all(
             entry.get(k) is None or _is_price(entry.get(k)) for k in _PRICE_KEYS
         )
+        if prices_ok and "halt" in entry and not _is_halt(entry["halt"]):
+            failed += 1
+            if kept is None:
+                kept = keep_corrupt_copy(path)
+            entry = {k: v for k, v in entry.items() if k != "halt"}
+            log.critical(
+                "Dropping corrupt halt state for %s — the symbol starts "
+                "tradable; the original file is kept as %s",
+                symbol,
+                kept,
+            )
         window_ok = prices_ok and (
             "cb_window" not in entry or _is_cb_window(entry["cb_window"])
         )

@@ -132,7 +132,7 @@ Move the exchange to pre-open. From `CLOSED` this is the only legal step:
 
 ```text
 [OPS01|ADMIN]> SESSION|STATE=PRE_OPEN
-SESSION  CLOSED → PRE_OPEN
+SESSION  now PRE_OPEN
 ```
 
 Now send a buy at 150.00 from `TRADER01` and a sell at 149.00 from
@@ -156,9 +156,9 @@ Step through the auction into continuous trading:
 
 ```text
 [OPS01|ADMIN]> SESSION|STATE=OPENING_AUCTION
-SESSION  PRE_OPEN → OPENING_AUCTION
+SESSION  now OPENING_AUCTION
 [OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
-SESSION  OPENING_AUCTION → CONTINUOUS
+SESSION  now CONTINUOUS
 ```
 
 At the moment continuous trading starts, the auction **uncrosses**. Both

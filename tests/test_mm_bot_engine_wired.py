@@ -755,6 +755,19 @@ class TestStartUpFacts:
         assert wire.sent("quote.new") == []
         assert any("symbol list" in r.getMessage() for r in caplog.records)
 
+    def test_the_first_heartbeat_follows_the_logon_at_once(
+        self, wire_factory: Any
+    ) -> None:
+        """The engine times out a session that does not beat within three
+        default intervals of its connect (WP-FL02), so the bot's first beat
+        must not wait for the rest of its start-up."""
+        wire = wire_factory(["AAPL"])
+        wire.start()
+        topics = [t for t, _ in wire.push.sent]
+        first_beat = topics.index("system.gateway_heartbeat")
+        assert topics.index("system.gateway_connect") < first_beat
+        assert first_beat < topics.index("system.symbols_request")
+
     def test_the_position_is_taken_from_the_engine(self, wire_factory: Any) -> None:
         wire = wire_factory(["AAPL"])
         wire.engine._handle_gateway_connect({"gateway_id": GW})

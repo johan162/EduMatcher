@@ -224,6 +224,51 @@ def test_a_well_formed_breaker_window_is_kept(tmp_path: Path) -> None:
     assert _copies(path) == []
 
 
+@pytest.mark.parametrize(
+    "halt",
+    [
+        "ADMIN",
+        {"level": "ADMIN_SYMBOL"},
+        {"level": "ADMIN_SYMBOL", "source": "SOMEONE"},
+        {"level": "", "source": "ADMIN"},
+        {"level": 7, "source": "CB"},
+    ],
+)
+def test_a_corrupt_halt_is_dropped_and_the_prices_kept(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, halt: Any
+) -> None:
+    """WP-FL03: the symbol starts tradable rather than the engine guessing."""
+    path = tmp_path / "book_stats.json"
+    window = {"saved_ns": 5, "trades": "x", "reference_price": None}
+    path.write_text(json.dumps({"AAPL": {**_GOOD_STATS, "halt": halt}, "MSFT": {**_GOOD_STATS, "halt": halt, "cb_window": window}}))  # fmt: skip
+
+    with caplog.at_level(logging.CRITICAL, logger="edumatcher.engine.persistence"):
+        stats, failed = load_book_stats(path)
+
+    assert stats == {"AAPL": _GOOD_STATS, "MSFT": _GOOD_STATS}
+    assert failed == 3  # two halts, one window
+    assert len(_copies(path)) == 1
+
+
+def test_a_well_formed_halt_is_kept(tmp_path: Path) -> None:
+    path = tmp_path / "book_stats.json"
+    entry = {**_GOOD_STATS, "halt": {"level": "ADMIN_ALL", "source": "ADMIN"}}
+    path.write_text(json.dumps({"AAPL": entry}))
+    assert load_book_stats(path) == ({"AAPL": entry}, 0)
+
+
+def test_a_halted_symbol_without_a_book_is_saved(tmp_path: Path) -> None:
+    from edumatcher.engine.persistence import save_book_stats
+
+    path = tmp_path / "book_stats.json"
+    halt = {"level": "ADMIN_ALL", "source": "ADMIN"}
+    save_book_stats({}, {}, path, {"MSFT": halt})
+    stats, failed = load_book_stats(path)
+    assert failed == 0
+    assert stats["MSFT"]["halt"] == halt
+    assert stats["MSFT"]["prev_close"] is None
+
+
 @pytest.mark.parametrize("text", ["{ not json", "[]", '"AAPL"'])
 def test_an_unreadable_book_stats_file_restores_nothing_and_is_kept(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, text: str

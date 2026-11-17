@@ -1228,3 +1228,41 @@ class TestMain:
         with patch("sys.argv", ["pm-balf-gwy"]):
             with pytest.raises(SystemExit):
                 main()
+
+
+def test_order_status_round_trips() -> None:
+    """WP-FL07: BALF 1.1's ORDER_STATUS, 64 bytes on the wire."""
+    from edumatcher.balf_gwy.codec import (
+        FRAME_SIZE,
+        MSG_ORDER_STATUS,
+        build_order_status,
+        parse_order_status,
+    )
+
+    frame = build_order_status(
+        client_order_id=7,
+        balf_order_id=3,
+        price=encode_price(150.25),
+        stop_price=0,
+        quantity=100,
+        remaining_qty=40,
+        symbol="AAPL",
+        side=2,
+        order_type=2,
+        tif=1,
+        seq_no=5,
+    )
+    assert len(frame) == FRAME_SIZE[MSG_ORDER_STATUS] == 64
+    assert frame[2] == MSG_ORDER_STATUS == 0x22
+    assert parse_order_status(frame[8:]) == {
+        "client_order_id": 7,
+        "order_id": 3,
+        "price": encode_price(150.25),
+        "stop_price": 0,
+        "quantity": 100,
+        "remaining_qty": 40,
+        "symbol": "AAPL",
+        "side": 2,
+        "order_type": 2,
+        "tif": 1,
+    }

@@ -122,3 +122,56 @@ def test_each_gap_row_names_the_check_that_found_it(sp: StatsProcess) -> None:
         ("trade.executed", "publisher_seq", 2),
         ("trade.executed", "trade_id", 2),
     ]
+
+
+# --- WP-FL04 (L022): the end of an engine run ---------------------------------
+
+
+def _gap_rows(sp: StatsProcess) -> list[tuple[str, int, int, int]]:
+    conn = _reader(sp)
+    gaps, _ = query_feed_gaps(
+        conn, date_value=None, from_ts=None, to_ts=None, limit=10, tz=timezone.utc
+    )
+    conn.close()
+    return [
+        (g["source"], g["expected_id"], g["received_id"], g["missing_count"])
+        for g in gaps
+    ]
+
+
+def test_trades_lost_before_the_engine_stopped_are_a_gap(sp: StatsProcess) -> None:
+    for n in (1, 2, 3):
+        _trade(sp, n, "2026-11-10T10:00:00+00:00")
+    sp._on_eod({"books": [], "last_trade_id": "000001-000000005"})
+    assert _gap_rows(sp) == [("run_end", 4, 6, 2)]
+
+
+def test_a_complete_run_is_no_gap(sp: StatsProcess) -> None:
+    for n in (1, 2, 3):
+        _trade(sp, n, "2026-11-10T10:00:00+00:00")
+    sp._on_eod({"books": [], "last_trade_id": "000001-000000003"})
+    sp._on_eod({"books": [], "last_trade_id": None})
+    assert _gap_rows(sp) == []
+
+
+def test_the_last_trade_id_survives_a_stats_restart(tmp_path: Path) -> None:
+    """Seeded from trade_log, as pm-clearing's from trade_events: the run's
+    end, and its next trade, are compared with what was recorded before."""
+    with (
+        patch("edumatcher.stats.main.make_subscriber", return_value=MagicMock()),
+        patch("edumatcher.stats.main.make_pusher", return_value=MagicMock()),
+        patch("edumatcher.stats.main.make_replier", return_value=MagicMock()),
+    ):
+        first = StatsProcess(tmp_path / "stats.db")
+        for n in (1, 2):
+            _trade(first, n, "2026-11-10T10:00:00+00:00")
+        first._running = False
+        first.close()
+        second = StatsProcess(tmp_path / "stats.db")
+    try:
+        assert second._last_trade_id == (1, 2)
+        second._on_eod({"books": [], "last_trade_id": "000001-000000004"})
+        assert _gap_rows(second) == [("run_end", 3, 5, 2)]
+    finally:
+        second._running = False
+        second.close()

@@ -1436,7 +1436,15 @@ class AlfGateway:
                 continue
             session.pending_position_queries.discard(gateway_id)
             self._queue_line(
-                session, "POSITION", {"GW": gateway_id, "COUNT": str(len(positions))}
+                session,
+                "POSITION",
+                {
+                    "GW": gateway_id,
+                    "COUNT": str(len(positions)),
+                    # OK, NOT_CONNECTED or UNKNOWN_GATEWAY: an empty list
+                    # is not "flat" for the last two (L030).
+                    "STATUS": str(payload.get("status", "OK")),
+                },
             )
             for pos in positions:
                 if not isinstance(pos, dict):

@@ -1651,6 +1651,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 purpose="Trade-feed gaps: trades pm-clearing never received (limit 500)",
             ),
             Subcommand(
+                "rebuild",
+                args="--from-audit DATA_DIR --output PATH",
+                purpose="Replay the audit trail into a new DB and list positions that differ (exit 3)",
+            ),
+            Subcommand(
                 "prune",
                 args="[--days N] [--dry-run]",
                 purpose="Delete old trade_events rows by retention window",

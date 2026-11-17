@@ -439,6 +439,9 @@ TRADE_STREAM = TOPIC_TRADE_EXECUTED
 #: ``feed_gaps.source`` values: which check found a gap.
 GAP_SOURCE_PUBLISHER_SEQ = "publisher_seq"
 GAP_SOURCE_TRADE_ID = "trade_id"
+#: The run's last trade id on ``system.eod`` against the last one received:
+#: trades lost just before the engine stopped (L022).
+GAP_SOURCE_RUN_END = "run_end"
 
 
 def _payload_tick_decimals(payload: dict[str, Any]) -> int:
@@ -588,8 +591,10 @@ CREATE TABLE IF NOT EXISTS feed_gaps (
     stream          TEXT    NOT NULL,
     -- Which check found the gap, and so which counter the ids below are in:
     -- 'publisher_seq' (the per-topic publisher sequence; any stream, counts
-    -- messages) or 'trade_id' (the engine trade-id suffix; trade.executed
-    -- only, counts trades). One lost trade is usually found by both.
+    -- messages), 'trade_id' (the engine trade-id suffix; trade.executed
+    -- only, counts trades) or 'run_end' (the run's last trade id on
+    -- system.eod; received_id is one past it). One lost trade is usually
+    -- found by both of the first two.
     source          TEXT    NOT NULL,
     -- The id we expected next, the one that actually arrived, and how many
     -- are unaccounted for between them.
@@ -1050,6 +1055,16 @@ class StatsProcess:
         # logged once rather than per trade.
         self._last_trade_id: tuple[int, int] | None = None
         self._trade_seq_disabled = False
+        # Seeded from trade_log, so a restart compares the run's end and its
+        # next trade with what was recorded before it (as pm-clearing does).
+        row = self._conn.execute(
+            "SELECT trade_id FROM trade_log"
+            " WHERE trade_id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]*'"
+            " ORDER BY trade_id DESC LIMIT 1"
+        ).fetchone()
+        if row is not None:
+            run_text, suffix_text = str(row[0]).split("-", 1)
+            self._last_trade_id = (int(run_text), int(suffix_text))
 
         # topic -> last publisher sequence seen, for detecting drops on every
         # subscribed stream. _unsequenced_topics latches topics with no
@@ -1273,6 +1288,43 @@ class StatsProcess:
             (ts, TRADE_STREAM, GAP_SOURCE_TRADE_ID, last_suffix + 1, suffix, missing),
         )
         self._dbg_count("trades_missing", missing)
+
+    def _check_run_end(self, last_trade_id: object) -> None:
+        """Record the trades of the ending run that never arrived: the run's
+        last id (``system.eod``) beyond the last one received. Lock held."""
+        if not isinstance(last_trade_id, str):
+            return
+        try:
+            run_text, suffix_text = last_trade_id.split("-", 1)
+            run_seq, final = int(run_text), int(suffix_text)
+        except ValueError:
+            return
+        last = self._last_trade_id
+        last_suffix = last[1] if last is not None and last[0] == run_seq else 0
+        if final <= last_suffix:
+            return
+        missing = final - last_suffix
+        log.error(
+            "detected %d trade(s) lost before the engine run ended: expected id %d, the run ended at %d",
+            missing,
+            last_suffix + 1,
+            final,
+        )
+        self._feed_gaps += 1
+        ts = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
+        with self._conn:
+            self._conn.execute(
+                INSERT_FEED_GAP,
+                (
+                    ts,
+                    TRADE_STREAM,
+                    GAP_SOURCE_RUN_END,
+                    last_suffix + 1,
+                    final + 1,
+                    missing,
+                ),
+            )
+        self._last_trade_id = (run_seq, final)
 
     def _record_instrument(self, symbol: str, tick_decimals: int, source: str) -> None:
         """Upsert reference data for *symbol*.
@@ -1847,6 +1899,7 @@ class StatsProcess:
                 acc.on_eod_book(best_bid, best_ask)
                 # close_price already set by last trade; if no trades today keep None
                 self._flush_daily(acc)
+            self._check_run_end(payload.get("last_trade_id"))
             log.info(
                 "EOD received; flushed %d symbol(s)",
                 len(payload.get("books", [])),

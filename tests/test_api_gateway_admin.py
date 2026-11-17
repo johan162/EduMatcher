@@ -160,6 +160,9 @@ class AdminFakeEngine:
     def request_position(self, gateway_id: str) -> None:
         self.calls.append(("request_position", gateway_id))
 
+    def request_orders(self, gateway_id: str) -> None:
+        self.calls.append(("request_orders", gateway_id))
+
     def add_admin_sink(self, queue: Any) -> None:
         self.admin_sinks.append(queue)
 
@@ -493,3 +496,44 @@ def test_ws_auction_indicative_rides_auction_channel() -> None:
     assert ws._event_channel("auction.indicative") == "auction"
     event = {"type": "auction.indicative", "data": {"symbol": "AAPL"}}
     assert ws._topic_from_event(event) == "auction.indicative.AAPL"
+
+
+# --- WP-FL06 (L030): a logged-off or unknown gateway --------------------------
+
+
+class _StatusAdminEngine(AdminFakeEngine):
+    """Replies to position and orders queries with a given status."""
+
+    def __init__(self, status: str, **kw: Any) -> None:
+        super().__init__(**kw)
+        self.status = status
+
+    async def await_event(
+        self, topic: str, match: dict[str, str] | None, timeout: float
+    ) -> dict[str, Any]:
+        empty = self.status == "UNKNOWN_GATEWAY"
+        if topic.startswith("system.position_snapshot."):
+            positions = [] if empty else [{"symbol": "AAPL", "net_qty": 5, "avg_cost": 100.0}]  # fmt: skip
+            return {"positions": positions, "status": self.status}
+        if topic.startswith("order.orders."):
+            return {"orders": [], "status": self.status}
+        return await super().await_event(topic, match, timeout)
+
+
+@pytest.mark.anyio
+async def test_admin_positions_of_a_logged_off_gateway_are_its_own() -> None:
+    engine = _StatusAdminEngine("NOT_CONNECTED")
+    result = await admin.admin_positions("GW02", admin_request(engine), admin_session())
+    assert result["count"] == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("route", ["admin_positions", "admin_gateway_orders"])
+async def test_an_unknown_gateway_is_404(route: str) -> None:
+    engine = _StatusAdminEngine("UNKNOWN_GATEWAY")
+    with pytest.raises(HTTPException) as exc:
+        await getattr(admin, route)("NOPE", admin_request(engine), admin_session())
+    assert exc.value.status_code == 404
+    error = cast(dict[str, Any], exc.value.detail)["error"]
+    assert error["code"] == "UNKNOWN_GATEWAY"
+    assert "NOPE" in error["message"]

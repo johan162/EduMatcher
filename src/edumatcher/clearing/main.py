@@ -468,6 +468,20 @@ class ClearingProcess:
         log.info("stop requested")
         self._running = False
 
+    def replay(self, frames: list[bytes]) -> None:
+        """Handle one message as if it came off the feed, without a receive
+        loop: ``pm-clearing-cli rebuild`` replays the audit trail through it."""
+        self._handle_message(frames)
+
+    @property
+    def gap_count(self) -> int:
+        """Feed gaps recorded since this process started."""
+        return self._gap_count
+
+    def close_db(self) -> None:
+        """Close the database connection of a process that never ran."""
+        self._conn.close()
+
     def flush_now(self) -> int:
         """
         Flush the current buffer immediately.  Returns the number of trades flushed.
@@ -705,33 +719,58 @@ class ClearingProcess:
         if run_seq != last_run or seq <= last_seq:
             return
         if seq > last_seq + 1:
-            missing = seq - last_seq - 1
-            self._gap_count += 1
-            try:
-                record_session_event(
-                    self._conn,
-                    event_type="GAP",
-                    ts_ns=trade.ts_ns,
-                    trade_date=trade_date(trade.ts_ns, self._tz),
-                    payload_json=json.dumps(
-                        {
-                            "run_seq": run_seq,
-                            "last_seq": last_seq,
-                            "next_seq": seq,
-                            "missing_trades": missing,
-                            "reason": reason,
-                        }
-                    ),
-                )
-                log.error(
-                    "trade feed gap — %d trade(s) missing between id %s and %s (%s)",
-                    missing,
-                    last_seq,
-                    seq,
-                    reason,
-                )
-            except Exception as exc:
-                log.warning("failed to record feed gap: %s", exc)
+            self._record_gap(run_seq, last_seq, seq, reason, trade.ts_ns)
+
+    def _check_run_end(self, last_trade_id: str | None, ts_ns: int) -> None:
+        """Compare the run's last trade, as ``system.eod`` names it, with the
+        last one received: trades lost just before the engine stopped have no
+        later trade of their run to reveal them (L022). Lock held."""
+        if last_trade_id is None:
+            return
+        try:
+            run_text, seq_text = last_trade_id.split("-", 1)
+            run_seq, final = int(run_text), int(seq_text)
+        except ValueError:
+            return
+        last = self._last_seq
+        # None of this run's trades arrived: every one is missing.
+        last_seq = last[1] if last is not None and last[0] == run_seq else 0
+        if final > last_seq:
+            self._record_gap(run_seq, last_seq, final + 1, "end_of_run", ts_ns)
+            self._last_seq = (run_seq, final)
+
+    def _record_gap(
+        self, run_seq: int, last_seq: int, next_seq: int, reason: str, ts_ns: int
+    ) -> None:
+        """Record trades ``last_seq + 1 .. next_seq - 1`` of *run_seq* as a
+        durable ``GAP`` in ``session_events``."""
+        missing = next_seq - last_seq - 1
+        self._gap_count += 1
+        try:
+            record_session_event(
+                self._conn,
+                event_type="GAP",
+                ts_ns=ts_ns,
+                trade_date=trade_date(ts_ns, self._tz),
+                payload_json=json.dumps(
+                    {
+                        "run_seq": run_seq,
+                        "last_seq": last_seq,
+                        "next_seq": next_seq,
+                        "missing_trades": missing,
+                        "reason": reason,
+                    }
+                ),
+            )
+            log.error(
+                "trade feed gap — %d trade(s) missing between id %s and %s (%s)",
+                missing,
+                last_seq,
+                next_seq,
+                reason,
+            )
+        except Exception as exc:
+            log.warning("failed to record feed gap: %s", exc)
 
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""
@@ -825,7 +864,9 @@ class ClearingProcess:
         Handle system.eod — engine end-of-day shutdown event.
 
         Actions:
-        1. Flush any buffered trades.
+        1. Flush any buffered trades, then compare the run's last trade id
+           with the last one received: the difference is a ``GAP``
+           (``end_of_run``).
         2. Mark every position to its book's last trade price (or bid/ask mid
            if it never traded), at the book's precision, and write the
            re-marked positions.
@@ -878,6 +919,7 @@ class ClearingProcess:
             with self._lock:
                 # 1. Flush all buffered trades first.
                 self._flush()
+                self._check_run_end(eod_payload.last_trade_id, ts_ns)
 
                 # 2. EOD mark-to-market: update mark_price from EOD snapshot.
                 if eod_marks:
