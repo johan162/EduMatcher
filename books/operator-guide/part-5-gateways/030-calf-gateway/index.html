@@ -8140,9 +8140,10 @@ socket and line-split logic.</p>
   restarted, asks the engine for every known symbol's book and for the list of
   halted symbols. The engine publishes a book only when it changes, so without
   this a gateway started while the market is quiet would send <code>SNAP</code>s with no
-  bid or ask; and an engine restart ends every halt without publishing a
-  resume. The engine does not answer for a symbol it holds no book for: such
-  a symbol's <code>TOP</code> and <code>DEPTH</code> stay as they were until its first order.</li>
+  bid or ask; and the list of halts confirms what the restarted engine still
+  holds (it restores operator halts, and ends breaker halts with a resume).
+  Every configured symbol has a book from the engine's start, so each request
+  is answered, if need be with an empty book.</li>
 </ul>
 <h2 id="the-feed-at-a-glance">The feed at a glance<a class="headerlink" href="#the-feed-at-a-glance" title="Permanent link">&para;</a></h2>
 <p>Everything a client needs to know in one place. Read this section first; the rest
@@ -8584,7 +8585,7 @@ instead ("failed to resolve configuration").</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>

@@ -7646,8 +7646,8 @@
 </tr>
 <tr>
 <td>The market closed in the middle of the day and stays closed</td>
-<td>The engine restarted (it starts <code>CLOSED</code>) and the running scheduler did not notice</td>
-<td><code>docker exec edumatcher-sim pkill -f pm-scheduler</code>: the container restarts it within a minute and it catches up to the current phase</td>
+<td>The engine restarted (it starts <code>CLOSED</code>). The scheduler normally reopens it within seconds; without an <code>engine restarted</code> line in its log it missed the engine's start, and it catches up at the next scheduled phase</td>
+<td>To catch up now: <code>docker exec edumatcher-sim pkill -f pm-scheduler</code>; the container restarts it within a minute and it catches up to the current phase</td>
 </tr>
 <tr>
 <td>Trading starts at the wrong hour</td>

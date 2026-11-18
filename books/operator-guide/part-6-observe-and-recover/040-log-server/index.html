@@ -8302,7 +8302,7 @@ are entirely separate from the trading bus on <code>:5555</code>/<code>:5556</co
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce log output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target stdout\|file</code></td>
@@ -8628,6 +8628,12 @@ what to ask for.</p>
 <p>Absence of <code>log.server_state</code> for more than a couple of intervals is how
 a subscriber distinguishes "the <em>server</em> went away" from "<em>my
 subscription</em> went away" — two situations that need different responses.</p>
+<p>Each server start picks a new random <code>instance_id</code>, carried on every
+<code>log.server_state</code>. A server that crashes and restarts between two
+heartbeats publishes no <code>DOWN</code>, and <code>last_seq</code> continues across the
+restart, so a changed <code>instance_id</code> is the only sign: subscribe again at
+once, because the new server holds no subscriptions. Rows logged before the
+new subscription are in <code>log.db</code>, not in the live stream.</p>
 <h3 id="ordering-durability-and-the-slow-joiner-race">Ordering, durability and the slow-joiner race<a class="headerlink" href="#ordering-durability-and-the-slow-joiner-race" title="Permanent link">&para;</a></h3>
 <p>Three guarantees worth stating plainly:</p>
 <p><strong>Rows are published after commit, never before.</strong> The server publishes

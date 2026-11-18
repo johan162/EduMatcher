@@ -9842,8 +9842,7 @@ log file figures. Day parts and archives are found under <code>&lt;dir&gt;/audit
 <a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>  last entry: 2026-07-08T16:29:59.874+00:00
 </code></pre></div>
 <p>The exit code is <code>0</code> when healthy and <code>1</code> otherwise. With <code>--quiet</code> nothing is
-printed and the exit code is <code>0</code> when healthy or <code>-1</code> (255 in a shell)
-otherwise.</p>
+printed and the exit code is the same.</p>
 <p>The health socket binds to <code>127.0.0.1:5562</code> by default; set
 <code>EDUMATCHER_AUDIT_BIND_HOST</code> / <code>EDUMATCHER_AUDIT_HEALTH_PORT</code> to change where
 <code>pm-audit</code> binds it, and <code>EDUMATCHER_ENGINE_HOST</code> /

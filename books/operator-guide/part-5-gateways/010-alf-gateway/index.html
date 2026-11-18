@@ -8367,7 +8367,7 @@ a reverse proxy (nginx, stunnel, or similar).</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 </tbody>
 </table>
@@ -8568,9 +8568,9 @@ followed asynchronously by <code>FILL|...</code>, <code>CANCELLED|...</code>, or
 IDs that composed the fill. It normally contains one ID; a swept order can
 contain several in execution order. An empty value means no public trade ID was
 available for that fill.</p>
-<p><code>FILL</code> also includes <code>LIQUIDITY=&lt;MAKER|TAKER&gt;</code>: <code>MAKER</code> if this order was
-resting on the book and got matched into, <code>TAKER</code> if it crossed the spread
-and matched immediately. It is the same maker/taker attribution the drop-copy
+<p><code>FILL</code> also includes <code>LIQUIDITY=&lt;MAKER|TAKER|AUCTION&gt;</code>: <code>MAKER</code> if this order
+was resting on the book and got matched into, <code>TAKER</code> if it crossed the spread
+and matched immediately, <code>AUCTION</code> on both sides of an auction uncross. It is the same maker/taker attribution the drop-copy
 <code>DC_FILL</code> line has always carried, now on the ordinary session fill too — no
 need to enable <code>DC</code> or cross-reference the drop-copy feed just to know which
 side of a trade you were on.</p>

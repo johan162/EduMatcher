@@ -8020,25 +8020,31 @@ echoes characters locally so the line looks doubled in the terminal — the
 <code>WELCOME</code> response confirms the gateway accepted it. Press <code>Ctrl-]</code>, then
 type <code>quit</code> to close.</p>
 <p><strong>Non-interactive probe — useful in scripts or CI pipelines:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="o">{</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n'</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'EXIT\n'</span><span class="p">;</span><span class="w"> </span><span class="o">}</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\nEXIT\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>nc<span class="w"> </span>-N<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
-<p>(In the container: the same with <code>| tcp 127.0.0.1 5565</code>.) Expected: the full
-session including <code>WELCOME</code>, <code>SYMBOLS</code> block, and <code>END|TYPE=SYMBOLS</code> is
-printed to stdout and the command exits cleanly.</p>
+<p>In the container, with the <code>tcp</code> helper:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="o">{</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n'</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'EXIT\n'</span><span class="p">;</span><span class="w"> </span><span class="o">}</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>tcp<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+</code></pre></div>
+<p>Expected: the full session including <code>WELCOME</code>, <code>SYMBOLS</code> block, and
+<code>END|TYPE=SYMBOLS</code> is printed to stdout and the command exits cleanly.</p>
 <p>Two details make this work. Lines sent straight after <code>HELLO</code> are fine: the
 gateway holds them until the engine has accepted the logon, then handles
-them in order. But a script must not end before the replies have arrived —
-<code>EXIT</code>, or the end of the input, closes the session, and a reply still on its
-way from the engine is lost. Hence the <code>sleep 1</code> before <code>EXIT</code>.</p>
+them in order. And the replies must have time to arrive. <code>nc -N</code> (<code>ncat</code>
+does this by default) <em>half-closes</em> the connection at the end of its input:
+it stops sending but keeps reading. The gateway then keeps sending the
+replies to what the script sent for up to 2 seconds, <code>EXIT</code> included, and
+closes. The <code>tcp</code> helper closes the connection completely at the end of its
+input, so it needs the <code>sleep 1</code> before <code>EXIT</code>; so does an <code>nc</code> that neither
+half-closes nor has <code>-N</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the one-liner prints <code>WELCOME</code> and <code>END|TYPE=SYMBOLS</code> without interaction.</p>
 <h2 id="exercise-4-submit-and-cancel-an-order-over-nc">Exercise 4: Submit and Cancel an Order over nc<a class="headerlink" href="#exercise-4-submit-and-cancel-an-order-over-nc" title="Permanent link">&para;</a></h2>
 <p>Open a new <code>nc</code> session and type all commands (press Enter after each line):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>HELLO|CLIENT=manual|PROTO=ALF1|ID=TRADER01
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-001
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>HELLO|CLIENT=manual|PROTO=ALF1|ID=TRADER01
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-001
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>ORDERS
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -8051,9 +8057,9 @@ way from the engine is lost. Hence the <code>sleep 1</code> before <code>EXIT</c
 those durable public trade IDs with the order record: a swept order can contain
 several, in match order, and they join the private fill to the public trade
 tape, CALF, and drop copy without matching on price or time.</p>
-<p><code>FILL</code> also carries <code>LIQUIDITY=&lt;MAKER|TAKER&gt;</code> — whether this order supplied
-liquidity by resting on the book (<code>MAKER</code>) or removed it by crossing the
-spread (<code>TAKER</code>). If <code>MM01</code> filled your order immediately, expect <code>TAKER</code>;
+<p><code>FILL</code> also carries <code>LIQUIDITY=&lt;MAKER|TAKER|AUCTION&gt;</code> — whether this order
+supplied liquidity by resting on the book (<code>MAKER</code>) or removed it by crossing
+the spread (<code>TAKER</code>); both sides of an auction uncross say <code>AUCTION</code>. If <code>MM01</code> filled your order immediately, expect <code>TAKER</code>;
 if you place a resting <code>LIMIT</code> and a later order crosses it, that later
 <code>FILL</code> (for the counterparty) says <code>TAKER</code> while yours says <code>MAKER</code>. It is
 the same attribution the drop-copy <code>DC_FILL</code> line has always reported (see
@@ -8061,12 +8067,12 @@ the same attribution the drop-copy <code>DC_FILL</code> line has always reported
 or <a href="../130-market-data-drop-copy/">Market Data &amp; Drop Copy</a>) — you no longer
 need drop copy just to find out which side of a trade you were on.</p>
 <p>Cancel the resting order using the UUID from the <code>ACK</code> and a request tag:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>CANCEL|ID=&lt;uuid&gt;|RTAG=NC-CXL-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>CANCEL|ID=&lt;uuid&gt;|RTAG=NC-CXL-001
 </code></pre></div>
 <p>Expected: <code>CANCELLED|ORDER_ID=&lt;uuid&gt;|TAG=NC-ORDER-001|RTAG=NC-CXL-001</code>.</p>
 <p>Try amending before cancelling to see priority rules in action:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TAG=NC-ORDER-002
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>AMEND|ID=&lt;uuid&gt;|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TAG=NC-ORDER-002
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>AMEND|ID=&lt;uuid&gt;|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
 </code></pre></div>
 <p>Expected: <code>AMENDED|ORDER_ID=...|PRICE=149.5|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001</code></p>
 <p><code>RTAG</code> is optional, but it is the easiest way to prove which amend or cancel a
@@ -8075,17 +8081,17 @@ later TCP response belongs to.</p>
 <h2 id="exercise-5-use-the-python-interactive-client">Exercise 5: Use the Python Interactive Client<a class="headerlink" href="#exercise-5-use-the-python-interactive-client" title="Permanent link">&para;</a></h2>
 <p><code>alf_client.py</code> provides a <code>pm-alf-console</code>-style interactive session over
 TCP, with tab-completion, background event display, and local P&amp;L tracking.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>At the prompt:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; SYMBOLS
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=PY-ORDER-001
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>[TRADER01]&gt; POS
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>[TRADER01]&gt; STATUS
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>[TRADER01]&gt; HELP
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>[TRADER01]&gt; EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[TRADER01]&gt; SYMBOLS
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=PY-ORDER-001
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>[TRADER01]&gt; POS
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>[TRADER01]&gt; STATUS
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>[TRADER01]&gt; HELP
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -8099,42 +8105,42 @@ TCP, with tab-completion, background event display, and local P&amp;L tracking.<
   is displayed separately without counting its execution a second time</li>
 </ul>
 <p>Connect to a remote gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: interactive Python client connects, shows <code>WELCOME</code>, and <code>ORDERS</code> and <code>POS</code> respond correctly.</p>
 <h2 id="exercise-6-use-the-python-library-directly">Exercise 6: Use the Python Library Directly<a class="headerlink" href="#exercise-6-use-the-python-library-directly" title="Permanent link">&para;</a></h2>
 <p><code>alf_parser.py</code> exposes <code>parse_alf_line</code>, <code>build_alf_line</code>, and the
 <code>AlfSession</code> high-level class for use in scripts.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="s">from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="s"># Parse a line received from the gateway</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="s">msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")</span>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="s">print(msg.msg_type)   # ACK</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="s">print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}</span>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="s"># Build a line to send</span>
-<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="s">line = build_alf_line("NEW", {</span>
-<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="s">    "SYM": "AAPL", "SIDE": "BUY",</span>
-<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="s">    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "NC-ORDER-003",</span>
-<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="s">})</span>
-<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="s">print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-003\n'</span>
-<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
-<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="s"># High-level session: connect, HELLO/WELCOME, consume a complete query</span>
-<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="s">session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")</span>
-<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="s">try:</span>
-<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a><span class="s">    print(session.welcome.gw_name)   # alf-gwy01</span>
-<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="s">    session.sock.settimeout(2.0)    # fail visibly if this short exercise stalls</span>
-<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="s">    session.send("ORDERS")</span>
-<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="s">    while True:</span>
-<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a><span class="s">        msg = session.recv_msg()</span>
-<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a><span class="s">        print(msg.msg_type, msg.fields)</span>
-<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a><span class="s">        if msg.msg_type == "END" and msg.fields.get("TYPE") == "ORDERS":</span>
-<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a><span class="s">            break</span>
-<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a><span class="s">finally:</span>
-<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a><span class="s">    session.close()</span>
-<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a><span class="s">EOF</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="s">from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="s"># Parse a line received from the gateway</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="s">msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="s">print(msg.msg_type)   # ACK</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="s">print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="s"># Build a line to send</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="s">line = build_alf_line("NEW", {</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="s">    "SYM": "AAPL", "SIDE": "BUY",</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="s">    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "NC-ORDER-003",</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="s">})</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="s">print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-003\n'</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="s"># High-level session: connect, HELLO/WELCOME, consume a complete query</span>
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a><span class="s">session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")</span>
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="s">try:</span>
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a><span class="s">    print(session.welcome.gw_name)   # alf-gwy01</span>
+<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a><span class="s">    session.sock.settimeout(2.0)    # fail visibly if this short exercise stalls</span>
+<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a><span class="s">    session.send("ORDERS")</span>
+<a id="__codelineno-19-23" name="__codelineno-19-23" href="#__codelineno-19-23"></a><span class="s">    while True:</span>
+<a id="__codelineno-19-24" name="__codelineno-19-24" href="#__codelineno-19-24"></a><span class="s">        msg = session.recv_msg()</span>
+<a id="__codelineno-19-25" name="__codelineno-19-25" href="#__codelineno-19-25"></a><span class="s">        print(msg.msg_type, msg.fields)</span>
+<a id="__codelineno-19-26" name="__codelineno-19-26" href="#__codelineno-19-26"></a><span class="s">        if msg.msg_type == "END" and msg.fields.get("TYPE") == "ORDERS":</span>
+<a id="__codelineno-19-27" name="__codelineno-19-27" href="#__codelineno-19-27"></a><span class="s">            break</span>
+<a id="__codelineno-19-28" name="__codelineno-19-28" href="#__codelineno-19-28"></a><span class="s">finally:</span>
+<a id="__codelineno-19-29" name="__codelineno-19-29" href="#__codelineno-19-29"></a><span class="s">    session.close()</span>
+<a id="__codelineno-19-30" name="__codelineno-19-30" href="#__codelineno-19-30"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>Expected output: <code>ACK</code>, the parsed <code>fields</code> dict, the built line string, the
 gateway name from <code>WELCOME</code>, and the complete <code>ORDERS</code> response, possibly
@@ -8151,23 +8157,23 @@ reconciliation responsibilities.</p>
 development headers. Skip this exercise there; Exercise 5's Python interactive
 client provides the same gateway workflow.</p>
 <p><strong>macOS</strong> — install Homebrew readline for full callback support if not already present:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>brew<span class="w"> </span>install<span class="w"> </span>readline
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>brew<span class="w"> </span>install<span class="w"> </span>readline
 </code></pre></div>
 <p><strong>Linux:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libreadline-dev<span class="w">   </span><span class="c1"># Debian/Ubuntu</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>libreadline-dev<span class="w">   </span><span class="c1"># Debian/Ubuntu</span>
 </code></pre></div>
 <p>Build:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/c
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>make
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/c
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>make
 </code></pre></div>
 <p>Run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>./alf_client<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>./alf_client<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>At the prompt:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[TRADER01]&gt; SYMBOLS
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=C-ORDER-001
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>[TRADER01]&gt; EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[TRADER01]&gt; SYMBOLS
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=C-ORDER-001
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -8177,40 +8183,40 @@ client provides the same gateway workflow.</p>
 <li><code>--no-color</code> disables ANSI colour output for plain terminals</li>
 </ul>
 <p>Try connecting to a remote host:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>./alf_client<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>./alf_client<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Optional checkpoint: the C client connects,
 shows <code>WELCOME</code>, and a <code>NEW</code> order returns an <code>ACK</code>.</p>
 <h2 id="exercise-8-control-commands-and-the-kill-switch">Exercise 8: Control Commands and the Kill-Switch<a class="headerlink" href="#exercise-8-control-commands-and-the-kill-switch" title="Permanent link">&para;</a></h2>
 <h3 id="ping-pong">PING / PONG<a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>HELLO|CLIENT=ctrl|PROTO=ALF1|ID=TRADER01
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>PING
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>HELLO|CLIENT=ctrl|PROTO=ALF1|ID=TRADER01
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>PING
 </code></pre></div>
 <p>Expected: <code>PONG|TS=&lt;ISO-8601-timestamp&gt;</code>.</p>
 <h3 id="qboot-quote-bootstrap-state-market_maker-role">QBOOT — quote bootstrap state (MARKET_MAKER role)<a class="headerlink" href="#qboot-quote-bootstrap-state-market_maker-role" title="Permanent link">&para;</a></h3>
 <p>Open a second terminal and connect with the MM01 identity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>HELLO|CLIENT=mm|PROTO=ALF1|ID=MM01
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>QBOOT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>HELLO|CLIENT=mm|PROTO=ALF1|ID=MM01
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>QBOOT
 </code></pre></div>
 <p>Expected: <code>QBOOT|COUNT=0</code> and <code>END|TYPE=QBOOT</code> initially.</p>
 <p>Submit a quote then re-check:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>QBOOT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>QBOOT
 </code></pre></div>
 <p>Expected: <code>QBOOT|COUNT=1</code> with one active <code>QUOTE|...</code> line, then <code>END|TYPE=QBOOT</code>.
 (If <code>MM01</code> still had a quote on AAPL from an earlier chapter you also see a
 <code>CANCELLED|…|CANCEL_REASON=QUOTE_REPLACED</code> line for the old one.)</p>
 <h3 id="kill-cancel-all-resting-orders-and-active-quotes">KILL — cancel all resting orders and active quotes<a class="headerlink" href="#kill-cancel-all-resting-orders-and-active-quotes" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>KILL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>KILL
 </code></pre></div>
 <p>Expected: <code>KILL_ACK|ACCEPTED=TRUE|ORDERS=N|QUOTES=N</code>.</p>
 <p>Confirm everything was cleared:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>ORDERS
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>QBOOT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>ORDERS
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>QBOOT
 </code></pre></div>
 <p><code>KILL_ACK</code> reports non-quote orders in <code>ORDERS</code> and quote-origin orders in
 <code>QUOTES</code>. A partially filled quote can be inactive while its unfilled
@@ -8223,24 +8229,24 @@ reports <code>ORDERS=0</code> and <code>QUOTES=1</code> for that remainder. <cod
 the quote was already inactive. If other orders or quotes are resting, their
 cancellations are included in the corresponding acknowledgement count.</p>
 <p>Scope the kill to one symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.00
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>KILL|SYM=AAPL
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.00
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>KILL|SYM=AAPL
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>ORDERS
 </code></pre></div>
 <p>Expected: only the MSFT order remains.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can use <code>PING</code>, <code>QBOOT</code>, and <code>KILL</code> (with and without <code>SYM=</code>) and interpret the responses.</p>
 <h2 id="exercise-9-error-conditions-and-operational-interpretation">Exercise 9: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-9-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
 <p>Test typical protocol errors. Start a fresh <code>nc</code> session and send each line before
 completing the <code>HELLO</code> handshake, or with invalid content:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-AUTH-001    (before HELLO)
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>HELLO|CLIENT=test|PROTO=WRONG|ID=TRADER01
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>HELLO|CLIENT=test|PROTO=ALF1|ID=NONEXISTENT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-AUTH-001    (before HELLO)
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>HELLO|CLIENT=test|PROTO=WRONG|ID=TRADER01
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>HELLO|CLIENT=test|PROTO=ALF1|ID=NONEXISTENT
 </code></pre></div>
 <p>After a successful <code>HELLO</code>, try:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|TAG=BAD-MISSING-001          (missing PRICE for LIMIT)
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>NEW|SYM=UNKNOWN|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-SYM-001
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500   (TRADER role)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|TAG=BAD-MISSING-001          (missing PRICE for LIMIT)
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>NEW|SYM=UNKNOWN|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-SYM-001
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500   (TRADER role)
 </code></pre></div>
 <p>Map each observed <code>ERR|CODE=...|REJECT_CODE=...</code> to its operator remediation:</p>
 <table>

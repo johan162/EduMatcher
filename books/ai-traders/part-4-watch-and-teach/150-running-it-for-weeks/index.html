@@ -7750,7 +7750,7 @@
 </tr>
 <tr>
 <td>The engine restarts during trading</td>
-<td>The AI traders and the market maker log on again; the engine restarts flat (positions from zero, GTC orders restored) and <code>CLOSED</code>. The scheduler does not notice: during the trading day the market stays closed until you restart it with <code>docker exec edumatcher-sim pkill -f pm-scheduler</code> (the watchdog starts it again within a minute, and it catches up to the current phase)</td>
+<td>The AI traders and the market maker log on again; the engine restarts flat (positions from zero, GTC orders restored) and <code>CLOSED</code>. The scheduler sees the engine start and brings the market back to the current phase within seconds (<code>engine restarted; bringing it from CLOSED to the schedule</code> in its log)</td>
 </tr>
 <tr>
 <td>The market model restarts</td>
@@ -7758,7 +7758,7 @@
 </tr>
 <tr>
 <td>Daylight saving time changes</td>
-<td>The scheduler re-reads the wall clock every few minutes; the next phase happens at the right local time</td>
+<td>The scheduler re-reads the wall clock every half second; the next phase happens at the right local time</td>
 </tr>
 <tr>
 <td>A holiday</td>

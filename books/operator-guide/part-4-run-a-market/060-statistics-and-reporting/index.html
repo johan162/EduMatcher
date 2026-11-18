@@ -10043,7 +10043,7 @@ for the full phase model.</p>
 <tr>
 <td><code>-q</code>, <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -10807,8 +10807,7 @@ database figures:</p>
 <a id="__codelineno-48-13" name="__codelineno-48-13" href="#__codelineno-48-13"></a>  feed_gaps rows: 0
 </code></pre></div>
 <p>The exit code is <code>0</code> when healthy and <code>1</code> otherwise. With <code>--quiet</code> nothing is
-printed and the exit code is <code>0</code> when healthy or <code>-1</code> (255 in a shell)
-otherwise. <code>--format json</code> prints the same report as JSON.</p>
+printed and the exit code is the same. <code>--format json</code> prints the same report as JSON.</p>
 <p>The health socket binds to <code>127.0.0.1:5561</code> by default; set
 <code>EDUMATCHER_STATS_BIND_HOST</code> / <code>EDUMATCHER_STATS_HEALTH_PORT</code> to change where
 <code>pm-stats</code> binds it, and <code>EDUMATCHER_ENGINE_HOST</code> /

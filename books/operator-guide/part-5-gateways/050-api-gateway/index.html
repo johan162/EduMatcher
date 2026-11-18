@@ -8227,7 +8227,7 @@ credentials can appear in more than one entry.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td style="text-align: right;">off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -8275,8 +8275,9 @@ that used it. Stopping it ends those sessions:</p>
   positions are complete; only the finished orders this process had cached
   are gone (see <a href="#order-cache-retention">Order cache retention</a>).</li>
 </ul>
-<p>If <code>pm-api-gwy</code> exits with status 1 after logging
-"engine listener died", its connection to the engine failed; start it again.</p>
+<p>If <code>pm-api-gwy</code> exits with status 1 after logging "engine listener died",
+"index listener died" or "sim listener died", its connection to the engine,
+to pm-index or to pm-market-sim failed; start it again.</p>
 <h2 id="swagger-interface">Swagger interface<a class="headerlink" href="#swagger-interface" title="Permanent link">&para;</a></h2>
 <p>When <code>swagger_enabled: true</code>, open:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>http://127.0.0.1:8080/docs
@@ -9117,7 +9118,7 @@ thread has crashed.</p>
 </tr>
 <tr>
 <td><code>503 {"ok": false}</code> from <code>/healthz</code></td>
-<td>Gateway <code>enabled: false</code> in config, or the engine listener is stopping. A listener that dies stops the whole process with exit status 1 ("engine listener died" in its log)</td>
+<td>Gateway <code>enabled: false</code> in config, or the engine listener is stopping. A listener that dies stops the whole process with exit status 1 ("engine listener died", "index listener died" or "sim listener died" in its log)</td>
 <td>Check <code>enabled</code> in the config block and the gateway's own logs; start <code>pm-api-gwy</code> again. <code>/healthz</code> does not probe the engine itself</td>
 </tr>
 <tr>

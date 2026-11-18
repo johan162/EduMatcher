@@ -8165,7 +8165,7 @@ containers that reach it over the Compose network.</p>
 </tr>
 <tr>
 <td><code>deployment/docker/compose.ai-sim.yaml</code></td>
-<td>The AI-trader simulation and five GUIs, images from GHCR (the backend can be built locally with <code>LOCAL=1</code>)</td>
+<td>The AI-trader simulation and six GUIs, images from GHCR (the backend can be built locally with <code>LOCAL=1</code>)</td>
 <td>Yes, ignores <code>.env</code></td>
 <td><code>make up-sim</code></td>
 </tr>
@@ -8177,7 +8177,7 @@ containers that reach it over the Compose network.</p>
 </tr>
 <tr>
 <td><code>deployment/curl/compose.guis.yaml</code></td>
-<td><strong>Only</strong> the six GUIs, for an exchange running on the host (pipx install). Despite the name this is <em>not</em> a twin of the docker overlay</td>
+<td><strong>Only</strong> the seven GUIs, for an exchange running on the host (pipx install). Despite the name this is <em>not</em> a twin of the docker overlay</td>
 <td>Yes</td>
 <td><code>edumatcher.sh</code> with <code>EM_STACK=guis</code></td>
 </tr>
@@ -8724,7 +8724,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and eight multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.81.1</code>
+the same version. That coupling is what lets <code>install.sh --version 0.81.2</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]

@@ -13095,10 +13095,10 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>liquidity_flag</code></td>
-<td>enum: <code>MAKER</code>, <code>TAKER</code></td>
+<td>enum: <code>MAKER</code>, <code>TAKER</code>, <code>AUCTION</code></td>
 <td>required</td>
 <td>—</td>
-<td>Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER. Exactly one of the two events a trade produces is TAKER.</td>
+<td>Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER. Exactly one of the two events a continuous trade produces is TAKER. An uncross print (<code>aggressor_side</code> AUCTION) has no aggressor: neither side took liquidity, and both events are AUCTION.</td>
 </tr>
 </tbody>
 </table>
@@ -13199,7 +13199,7 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>liquidity_flag</code></td>
-<td>enum: <code>MAKER</code>, <code>TAKER</code></td>
+<td>enum: <code>MAKER</code>, <code>TAKER</code>, <code>AUCTION</code></td>
 <td>required</td>
 <td>—</td>
 <td></td>
@@ -16700,6 +16700,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>instance_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td>Random, new at every server start. <code>last_seq</code> continues across restarts, so this is how a subscriber recognises a restarted server and re-subscribes (its subscription did not survive).</td>
+</tr>
+<tr>
 <td><code>state</code></td>
 <td>enum: <code>UP</code>, <code>DOWN</code></td>
 <td>required</td>
@@ -17882,10 +17889,10 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>liquidity_flag</code></td>
-<td>enum: <code>MAKER</code>, <code>TAKER</code></td>
+<td>enum: <code>MAKER</code>, <code>TAKER</code>, <code>AUCTION</code></td>
 <td>omitted when unset</td>
 <td>—</td>
-<td>Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.</td>
+<td>Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER; both sides of an uncross print are AUCTION (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.</td>
 </tr>
 <tr>
 <td><code>fill_notional_ticks</code></td>

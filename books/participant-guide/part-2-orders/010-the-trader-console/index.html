@@ -8460,7 +8460,7 @@ The ID must be preconfigured in <code>engine_config.yaml</code> under <code>part
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -8921,7 +8921,7 @@ own fill notification and always arrives regardless of <code>DC</code> state.
 <code>DC_FILL</code> is a second, independent notification sourced from the
 engine's dedicated drop-copy feed (<code>:5557</code>) — the same feed a real
 exchange would deliver to a separate risk/back-office recipient. Both
-carry <code>LIQUIDITY</code>/<code>liquidity_flag</code> (<code>MAKER</code>/<code>TAKER</code>) — they must always
+carry <code>LIQUIDITY</code>/<code>liquidity_flag</code> (<code>MAKER</code>/<code>TAKER</code>/<code>AUCTION</code>) — they must always
 agree, since both derive it from the same trade. Seeing both for the
 same fill (with different envelopes: <code>DC_FILL</code> carries the drop-copy
 <code>seq</code>, not the order-lifecycle <code>remaining</code>/<code>status</code> fields <code>FILL</code>
@@ -9687,7 +9687,7 @@ misses the lost fills. Check them with <code>pm-stats-cli trades</code> if it ma
 <td>Confirms the display was switched locally (printed immediately, no round trip to the engine)</td>
 </tr>
 <tr>
-<td><code>DC_FILL  &lt;id&gt;  &lt;symbol&gt;  qty=&lt;n&gt; @&lt;price&gt;  [&lt;MAKER\|TAKER&gt;]  #&lt;seq&gt;  (drop_copy.event.&lt;GW_ID&gt;)</code></td>
+<td><code>DC_FILL  &lt;id&gt;  &lt;symbol&gt;  qty=&lt;n&gt; @&lt;price&gt;  [&lt;MAKER\|TAKER\|AUCTION&gt;]  #&lt;seq&gt;  (drop_copy.event.&lt;GW_ID&gt;)</code></td>
 <td>One event per fill, sourced from the engine's drop-copy feed (<code>:5557</code>) rather than the main event bus — arrives in addition to the ordinary <code>FILL</code> line</td>
 </tr>
 </tbody>

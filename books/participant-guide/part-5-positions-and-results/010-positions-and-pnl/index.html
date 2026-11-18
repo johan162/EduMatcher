@@ -8533,24 +8533,23 @@ positions or P&amp;L.</p>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  --flush-interval SEC   Max seconds between flushes (&gt;=0.1, default: 5)
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  --print-every N        Print a P&amp;L table of every position every N trades
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                         (0 = never, the default)
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  --retention-days N     Prune trade_events rows older than N days on startup,
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>                         at every close and on each system.eod (default: 90) —
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>                         see the note under Retention below for what `0` does
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>                         (not quite "disable pruning", despite the real
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>                         `--help` text's wording)
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>  --log-level LEVEL      Explicit log level: CRITICAL, ERROR, WARNING,
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>                         INFO, DEBUG (default: WARNING)
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>  --log-target TARGET    Where operational logs go: server (default,
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>                         auto-detected pm-log-srv), stdout, or file
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>  --log-file PATH        Log file path (required with --log-target file)
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>  --log-failover-timeout SEC
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>                         Grace window before falling back to a local log file
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>                         when pm-log-srv is unreachable (default: 30)
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>  -v, --verbose          Increase verbosity (-v: INFO, -vv: DEBUG)
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>  -q, --quiet            Reduce log output to warnings/errors
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>  --sql-trace            Log executed SQLite SQL statements (off by default)
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>  --version              Show version and exit
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>  --help                 Show help and exit
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  --retention-days N     Delete trade_events rows and close snapshots older
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>                         than N days on startup and at every close; the
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>                         newest close snapshot is kept (default: 90; 0 =
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>                         disable pruning)
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  --log-level LEVEL      Explicit log level: CRITICAL, ERROR, WARNING,
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>                         INFO, DEBUG (default: WARNING)
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>  --log-target TARGET    Where operational logs go: server (default,
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>                         auto-detected pm-log-srv), stdout, or file
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>  --log-file PATH        Log file path (required with --log-target file)
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>  --log-failover-timeout SEC
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>                         Grace window before falling back to a local log file
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>                         when pm-log-srv is unreachable (default: 30)
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>  -v, --verbose          Increase verbosity (-v: INFO, -vv: DEBUG)
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>  -q, --quiet            Explicit WARNING log level (the default)
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>  --sql-trace            Log executed SQLite SQL statements (off by default)
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>  --version              Show version and exit
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>  --help                 Show help and exit
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Trade-date bucketing and the session timezone</p>
@@ -8799,22 +8798,13 @@ and must be recreated; the system does not migrate historical short IDs.</p>
 </tbody>
 </table>
 <p>Retention: rows older than <code>--retention-days</code> (default 90, compared against
-the UTC date) are deleted on startup, at every close of the market
-(<code>session.state</code> <code>CLOSED</code>), on each <code>system.eod</code>, and on demand via
-<code>pm-clearing-cli prune</code>.</p>
-<div class="admonition warning">
-<p class="admonition-title"><code>--retention-days 0</code> behaves differently depending on which trigger fires</p>
-<p>The three automatic triggers are not consistent about <code>0</code>. On <strong>startup</strong>
-and on <strong>every <code>system.eod</code></strong>, pruning runs unconditionally — <code>0</code> does
-<strong>not</strong> disable it there, it deletes every row dated before today (UTC).
-On <strong>market close</strong> (<code>session.state</code> → <code>CLOSED</code>) specifically, pruning is
-skipped entirely when <code>--retention-days</code> is <code>0</code> — the one trigger where
-<code>0</code> genuinely means "keep everything". <code>pm-clearing-cli prune</code> is
-unaffected either way: its own <code>--days</code> rejects <code>0</code> outright (<code>--days</code>
-must be <code>&gt;= 1</code>). If you want to reliably keep every row forever
-regardless of which trigger fires, use a large value (e.g. <code>36500</code>)
-rather than relying on <code>0</code>.</p>
-</div>
+the UTC date; a row exactly N days old stays) are deleted on startup, at
+every close of the market (<code>session.state</code> <code>CLOSED</code>), on each <code>system.eod</code>,
+and on demand via <code>pm-clearing-cli prune</code> (<code>--days N</code>, <code>--dry-run</code>). The same
+rule, at the same moments, prunes <code>position_close_snapshot</code>, except the
+newest close, which the next settlement starts from. <code>--retention-days 0</code>
+disables all three automatic prunes; <code>pm-clearing-cli prune</code> refuses
+<code>--days 0</code>.</p>
 <h3 id="gateway_symbol_positions"><code>gateway_symbol_positions</code><a class="headerlink" href="#gateway_symbol_positions" title="Permanent link">&para;</a></h3>
 <p>Live running state for every <code>(gateway_id, symbol)</code> key seen so far.
 Upserted on every flush (<code>INSERT … ON CONFLICT(gateway_id, symbol) DO UPDATE</code>).
@@ -9083,8 +9073,12 @@ that date's rows — <strong>unless the date's snapshot is final</strong>: the d
 session phase is <code>CLOSED</code>, the market was open earlier that day, and a snapshot
 exists. A final snapshot is the real
 close and may already be settled, so neither a shutdown nor the <code>CLOSED</code> an
-engine restart announces after the close replaces it. Rows are small and <strong>are
-not pruned</strong> with <code>trade_events</code>.</p>
+engine restart announces after the close replaces it. Every position is
+copied, flat ones included, so a date is a full position table: dates older
+than <code>--retention-days</code> are pruned with <code>trade_events</code>, except the newest
+close, which pm-eod settles the next day from. pm-eod keeps each settled
+date's equity in <code>eod.db</code>, so a pruned snapshot does not change a
+settlement.</p>
 <table>
 <thead>
 <tr>
@@ -9664,8 +9658,9 @@ your own rows instead. A read-only key reads no clearing data.</p>
   string beside them.</li>
 <li><strong>Lag.</strong> <code>pm-clearing</code> writes fills in batches, so a fill can take up to
   5 seconds (one flush) to appear.</li>
-<li><strong>Retention.</strong> Raw trades are kept for 90 days by default
-  (<code>retained_from</code> on <code>/trades</code>); daily rows and close snapshots stay.</li>
+<li><strong>Retention.</strong> Raw trades and close snapshots are kept for 90 days by
+  default (<code>retained_from</code> on <code>/trades</code>; the newest close always stays);
+  daily rows stay.</li>
 <li><strong>Settlement is not margin.</strong> A settlement moves the day's close-to-close
   P&L; the balance is your opening balance plus those amounts. Neither is
   cash, equity or collateral, and neither exists until <code>pm-eod</code> has run.</li>
@@ -9789,9 +9784,15 @@ themselves do not accept them.</p>
 </tr>
 <tr>
 <td><code>prune</code></td>
-<td><code>trade_events</code></td>
-<td>Deletes rows older than N days (default 90); write-access verb (does not VACUUM)</td>
+<td><code>trade_events</code>, <code>position_close_snapshot</code></td>
+<td>Deletes rows older than N days (default 90; the newest close snapshot is kept); write-access verb (does not VACUUM)</td>
 <td><code>--days</code>, <code>--dry-run</code></td>
+</tr>
+<tr>
+<td><code>rebuild</code></td>
+<td>pm-audit's trail → a new database</td>
+<td>Replays every <code>trade.executed</code> from the audit trail into a <strong>new</strong> <code>clearing.db</code> and lists the positions that differ from the live one (exit 0 none, 3 some, 1 refused); the live file is only read. See <a href="../../../operator-guide/part-6-observe-and-recover/010-persistence/#repairing-clearingdb-after-a-feed-gap">Repairing <code>clearing.db</code></a></td>
+<td><code>--from-audit DATA_DIR</code>, <code>--output PATH</code></td>
 </tr>
 </tbody>
 </table>
@@ -10307,8 +10308,7 @@ database metadata — the row counts and freshness figures earlier versions of
 <a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>  journal mode: wal
 </code></pre></div>
 <p>The exit code is <code>0</code> when healthy and <code>1</code> otherwise. With <code>--quiet</code> nothing is
-printed and the exit code is <code>0</code> when healthy or <code>-1</code> (255 in a shell)
-otherwise. <code>--format json</code> prints the same report as a JSON object (<code>csv</code>
+printed and the exit code is the same. <code>--format json</code> prints the same report as a JSON object (<code>csv</code>
 prints the same text as <code>table</code>); <code>--raw-output</code> does not apply.</p>
 <p>Unlike the query verbs, <code>health</code> runs even when <code>clearing.db</code> does not exist; a
 missing database is only reported as a failure under <code>--extended</code>.</p>

@@ -9335,10 +9335,10 @@ process's own <code>config.py</code>.</p>
 </tr>
 <tr>
 <td><code>pm-scheduler</code></td>
-<td>connects out to <code>5555</code></td>
+<td>connects out to <code>5555</code>, <code>5556</code></td>
 <td>–</td>
-<td>ZeroMQ (PUSH)</td>
-<td>Drives session-phase transitions by pushing commands to the engine. Binds no port of its own.</td>
+<td>ZeroMQ (PUSH/SUB)</td>
+<td>Drives session-phase transitions by pushing commands to the engine, and reads the engine's session broadcasts on <code>5556</code> to confirm them. Binds no port of its own.</td>
 </tr>
 <tr>
 <td><code>pm-md-gwy</code></td>
@@ -9675,7 +9675,7 @@ immediately or silently lose its first messages.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Explicit <code>WARNING</code> (same as the default)</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -9891,7 +9891,7 @@ See <a href="../../../protocols-and-clients/part-2-specifications/010-alf/">ALF 
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>No</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -10180,7 +10180,7 @@ connection per gateway ID; all configured <code>participants</code> IDs may conn
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -10436,7 +10436,7 @@ bordered box on the alternate terminal buffer that repaints cleanly on resize.</
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -10592,7 +10592,7 @@ or redirected the viewer behaves exactly as it always did.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -10706,7 +10706,7 @@ or redirected the viewer behaves exactly as it always did.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -10905,7 +10905,7 @@ changing the raw event log format.</p>
 <td><code>health</code></td>
 <td style="text-align: right;">—</td>
 <td>Check the <code>pm-audit</code> process and ping its health socket; <code>--extended</code> adds the audit log read/write and last-entry check</td>
-<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>1</code> otherwise)</td>
 </tr>
 </tbody>
 </table>
@@ -11160,7 +11160,7 @@ recovered, what each anomaly means and worked examples.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -11340,7 +11340,7 @@ which also pings the running <code>pm-clearing</code> on port <code>5563</code>.
 <td><code>health</code></td>
 <td style="text-align: right;">n/a</td>
 <td>Check the <code>pm-clearing</code> process and ping its health socket; <code>--extended</code> adds the clearing DB integrity and read/write check, and <code>--extended -v</code> the row counts, flush metadata and journal mode</td>
-<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>1</code> otherwise)</td>
 </tr>
 <tr>
 <td><code>reconcile</code></td>
@@ -11499,7 +11499,7 @@ retains structural/corporate-action audit records, not level ticks.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -12011,7 +12011,7 @@ prints output, and exits.</p>
 <tr>
 <td><code>health</code></td>
 <td>Check the <code>pm-stats</code> process and ping its health socket; <code>--extended</code> adds the stats DB integrity and read/write check</td>
-<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>1</code> otherwise)</td>
 </tr>
 </tbody>
 </table>
@@ -12073,7 +12073,7 @@ engine at configured wall-clock times.</p>
 <tr>
 <td><code>--now</code></td>
 <td>off</td>
-<td>Skip wall-clock waiting; send all transitions immediately with a delay between each</td>
+<td>Skip wall-clock waiting: close the engine first if it is not <code>CLOSED</code>, then send all five transitions with a delay between each. Cannot be combined with <code>--daily</code></td>
 </tr>
 <tr>
 <td><code>--delay</code></td>
@@ -12098,17 +12098,17 @@ engine at configured wall-clock times.</p>
 <tr>
 <td><code>--no-confirm</code></td>
 <td>off</td>
-<td>Do not query/confirm session state via the engine before sending a transition</td>
+<td>Do not ask the engine its state, confirm transitions or follow an engine restart; with no answer the engine is assumed <code>CLOSED</code></td>
 </tr>
 <tr>
 <td><code>--on-close COMMAND</code></td>
 <td>off</td>
-<td>Start this command after each day's <code>CLOSED</code> transition and once at start-up (for example <code>pm-eod run --pending</code>). It runs detached, one at a time, with its output in the scheduler's log; ignored in <code>--now</code> mode. See <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Closing the Day</a></td>
+<td>Start this command after each day's <code>CLOSED</code> transition and once at start-up (for example <code>pm-eod run --pending</code>). It runs detached, one at a time (a trigger while it runs starts it once more afterwards), with its output in the scheduler's log; ignored in <code>--now</code> mode. See <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Closing the Day</a></td>
 </tr>
 <tr>
 <td><code>--on-close-delay SEC</code></td>
 <td><code>30</code></td>
-<td>Seconds to wait after <code>CLOSED</code> before starting <code>--on-close</code>, so <code>pm-clearing</code> can save its close snapshot first</td>
+<td>Seconds (≥ 0) to wait after <code>CLOSED</code> before starting <code>--on-close</code>, so <code>pm-clearing</code> can save its close snapshot first</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -12123,7 +12123,7 @@ engine at configured wall-clock times.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -12162,9 +12162,39 @@ engine at configured wall-clock times.</p>
 <td><code>session.transition</code></td>
 <td>Requests the engine to move to the next session phase</td>
 </tr>
+<tr>
+<td><code>session.next</code></td>
+<td>Tells the engine the next transition and when it is due, for the countdown, while no transition carries it</td>
+</tr>
+<tr>
+<td><code>system.session_state_request</code></td>
+<td>Asks the engine for its current session state (at start-up, and when a transition is not confirmed)</td>
+</tr>
 </tbody>
 </table>
-<p>The scheduler does not subscribe to any PUB messages — it is fire-and-forget.</p>
+<p><strong>Messages received</strong> (SUB ← :5556, unless <code>--no-confirm</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>session.state</code></td>
+<td>Confirms each transition; a state the scheduler did not ask for and no one announced means the engine restarted</td>
+</tr>
+<tr>
+<td><code>system.session_status.SCHEDULER</code></td>
+<td>The engine's answer to the state request</td>
+</tr>
+<tr>
+<td><code>system.startup</code></td>
+<td>The engine started: the scheduler brings it back to the scheduled phase</td>
+</tr>
+</tbody>
+</table>
 <p>See <a href="../../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling/">Auctions &amp; Scheduling</a> for the full schedule configuration
 and session-phase documentation.</p>
 <h2 id="pm-eod-end-of-day-settlement">pm-eod — End-of-Day Settlement<a class="headerlink" href="#pm-eod-end-of-day-settlement" title="Permanent link">&para;</a></h2>
@@ -12483,7 +12513,7 @@ struck through when retracted; <code>no news yet</code> until the first.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -12620,7 +12650,7 @@ Shows all active symbols in a single paged table with exchange-style colouring.<
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -12837,7 +12867,7 @@ from the engine's PUB socket (and the true values and news from
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -12965,7 +12995,7 @@ dies. Each trader is its own ALF session. Settings come from a <code>swarm.yaml<
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors; applies to the workers too</td>
+<td>Explicit WARNING log level (the default); applies to the workers too</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -14518,7 +14548,7 @@ dropping it as an idle client.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -14749,7 +14779,7 @@ of instances can run at once (e.g. one per terminal, each with a different
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -14809,7 +14839,7 @@ over the CALF <code>INDEX</code> channel.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -15007,7 +15037,7 @@ section of <code>engine_config.yaml</code>.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -15265,7 +15295,7 @@ needing a full gateway session.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>No</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -16566,7 +16596,7 @@ pm-stats-cli section above).</p>
 <tr>
 <td><code>health</code></td>
 <td>—</td>
-<td>Check the <code>pm-index</code> process and ping its health socket; <code>--extended</code> adds every index's state/history file check. Options: <code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+<td>Check the <code>pm-index</code> process and ping its health socket; <code>--extended</code> adds every index's state/history file check. Options: <code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>1</code> otherwise)</td>
 </tr>
 </tbody>
 </table>
@@ -17016,7 +17046,7 @@ translates them into the same engine order flow as the ALF gateways.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -17095,7 +17125,7 @@ given gateway build supports via <code>WELCOME|CH_SUPPORTED=</code>; only <code>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -17215,7 +17245,7 @@ dropping it as an idle client.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>
@@ -17327,7 +17357,7 @@ control each process's own stdout logging as before.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Explicit WARNING log level (the default)</td>
 </tr>
 <tr>
 <td><code>--log-target</code></td>

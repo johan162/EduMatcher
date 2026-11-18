@@ -8834,6 +8834,8 @@ initial reference price. It resolves one using this priority:</p>
 <li><strong>QBOOT</strong> — active quote from a previous session (restart recovery)</li>
 <li><strong>Book mid / last trade</strong> — the current book mid if another participant has
    posted orders, otherwise the most recent <code>trade.executed</code> price</li>
+<li><strong>Market model</strong> — with <code>--anchor-sim</code>, pm-market-sim's value for the
+   symbol, when one arrived during start-up</li>
 <li><strong>Bootstrap quote</strong> — inactive quote prices from QBOOT</li>
 <li><strong>Random range</strong> — <code>--initial_min</code> to <code>--initial_max</code> (configurable)</li>
 </ol>

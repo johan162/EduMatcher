@@ -8204,7 +8204,7 @@ correlate the console against <code>pm-log-srv</code>'s own subscriber list.</p>
 <tr>
 <td><code>RECONNECTING</code></td>
 <td>reconnecting…</td>
-<td>Lease expired or unknown; re-subscribing</td>
+<td>Lease expired or unknown, or the log server restarted (a new <code>instance_id</code>); re-subscribing</td>
 </tr>
 <tr>
 <td><code>SERVER_DOWN</code></td>
@@ -8213,6 +8213,10 @@ correlate the console against <code>pm-log-srv</code>'s own subscriber list.</p>
 </tr>
 </tbody>
 </table>
+<p>When the live tail misses rows, the Explorer shows a marker row where they
+belong: rows the server shed for the bridge (with their number), a lost
+message, or a log-server restart. Switch to history to read them from
+<code>log.db</code>.</p>
 <h2 id="running-the-application">Running the application<a class="headerlink" href="#running-the-application" title="Permanent link">&para;</a></h2>
 <p>Four supported ways, in increasing order of setup effort. If you are not sure,
 use the first.</p>

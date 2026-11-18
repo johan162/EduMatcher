@@ -7812,13 +7812,15 @@ exercise.</p>
 </div>
 <h2 id="exercise-1-observe-session-phases">Exercise 1: Observe Session Phases<a class="headerlink" href="#exercise-1-observe-session-phases" title="Permanent link">&para;</a></h2>
 <p><code>pm-scheduler --now</code> replays the whole day, and the engine only accepts the
-transitions in order, so it can show you every phase only when it starts from
-<code>CLOSED</code>. If <code>SESSION_STATUS</code> in the operator console says anything else
-(after chapter 05 it says <code>CONTINUOUS</code>), close the day by hand first:</p>
+transitions in order, so the day has to start from <code>CLOSED</code>. If
+<code>SESSION_STATUS</code> in the operator console says anything else (after chapter 05
+it says <code>CONTINUOUS</code>), <code>--now</code> closes the day first, by the shortest legal
+route, and logs <code>engine is in CONTINUOUS; closing it first via CLOSED</code>. You
+can also close it by hand beforehand:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
-<p>Entering <code>CLOSED</code> expires every resting <code>DAY</code> order, which includes the
+<p>Either way, entering <code>CLOSED</code> expires every resting <code>DAY</code> order, which includes the
 market makers' quotes from chapter 02, so the books are empty afterwards. That
 is fine for the rest of this chapter and for chapter 07, which build their own
 orders. Now start the scheduler in rapid-fire mode to see all transitions

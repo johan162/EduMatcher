@@ -8047,8 +8047,8 @@
 <ul>
 <li>Why single-leg orders are not enough for many real trading strategies, and
   what <strong>leg risk</strong> means in practice</li>
-<li>How combo orders solve that problem by linking multiple child orders as a single
-  atomic unit</li>
+<li>How combo orders reduce that risk by linking multiple child orders into one
+  unit, and the leg risk that remains</li>
 <li>The real-world strategies that require combos — from simple pairs trades to
   three-leg statistical arbitrage — explained without jargon</li>
 <li>The extra complexity combos introduce: distributed state, cascade cancellation,
@@ -8066,11 +8066,21 @@ are stuck owning something you didn't want to own alone.</p>
 <p>A combo order bundles two or more orders into one instruction that the exchange
 treats as a unit:</p>
 <ul>
-<li>All legs are submitted together.</li>
-<li>If the market cannot fill all of them, none fill.</li>
+<li>All legs are submitted together, in one message.</li>
+<li>On entry, an all-or-none (<code>AON</code>) combo trades only if every leg can fill in
+  full at once; otherwise no leg trades on entry.</li>
 <li>If any leg is cancelled, rejected or expires, the exchange automatically cancels
   all the remaining legs for you.</li>
 </ul>
+<div class="admonition warning">
+<p class="admonition-title">What a combo does not guarantee</p>
+<p>All-or-none is a check <strong>at entry</strong> only. Legs that could not all fill at
+once rest on their books as ordinary orders, and from then on each one
+fills on its own: a later order can fill one leg while the others keep
+waiting, and the combo is then <code>PARTIALLY_MATCHED</code>. A combo removes the
+leg risk of <em>entering</em> in two steps, and the bookkeeping of cancelling the
+rest when one leg ends; it does not make later fills simultaneous.</p>
+</div>
 <h3 id="three-real-world-situations-where-combos-matter">Three real-world situations where combos matter<a class="headerlink" href="#three-real-world-situations-where-combos-matter" title="Permanent link">&para;</a></h3>
 <p><strong>Situation 1 — You want to trade a relationship, not a direction.</strong>
 You do not care whether the stock market goes up or down today.  You care that
@@ -8079,13 +8089,14 @@ view in one trade: buy MSFT, sell AAPL.  You profit when the gap narrows,
 regardless of which way the whole market moves.</p>
 <p><strong>Situation 2 — You want to enter a position and hedge it at the same time.</strong>
 You are bullish on AAPL but worried about a broad market crash.  A combo lets
-you buy AAPL and simultaneously sell an index (like SPY) in one atomic step.
+you buy AAPL and sell an index (like SPY) in one instruction.
 If the whole market falls, your SPY short offsets the AAPL loss.</p>
 <p><strong>Situation 3 — You are a professional quant with a model.</strong>
 Your algorithm says a particular three-stock basket is mispriced by 0.3%.
-You need all three legs to fill at the same time, otherwise the arbitrage
-disappears before you can complete the position.  A three-leg combo is the
-only practical way to do this.</p>
+You want all three legs to fill together, otherwise the arbitrage
+disappears before you can complete the position.  A three-leg combo trades all
+three at entry when the liquidity is there, and none of them when it is not;
+legs that rest fill one by one afterwards.</p>
 <p>Until now every order in EduMatcher has been a <strong>single-leg</strong> order — one symbol,
 one side, one quantity. That is enough to teach matching, price-time priority, and
 basic order types. Real markets, however, are full of strategies that require
@@ -8131,7 +8142,7 @@ This is called <strong>leg risk</strong> (or execution risk).</p>
 <tbody>
 <tr>
 <td>Leg risk — one side fills, the other doesn't</td>
-<td>Both legs submitted atomically in one message</td>
+<td>Both legs submitted in one message; an <code>AON</code> combo trades on entry only if every leg fills in full (resting legs later fill independently)</td>
 </tr>
 <tr>
 <td>Manual cancellation — if one leg fails you must remember to cancel the other</td>
@@ -8174,7 +8185,8 @@ Requires more legs than pairs trading.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>COMBO: BUY 200 AAPL @210.00, SELL 100 MSFT @415.00, SELL 50 GOOG @170.00
 </code></pre></div>
 <p><strong>Thesis:</strong> A quantitative model says this basket is mispriced. The combo lets you
-enter the entire position atomically.</p>
+enter the entire position in one instruction: all of it at entry, or none of it
+then.</p>
 <h3 id="hedged-entry">Hedged Entry<a class="headerlink" href="#hedged-entry" title="Permanent link">&para;</a></h3>
 <p>Buy a stock and simultaneously place a protective stop on a correlated instrument to
 limit downside.</p>
@@ -8286,7 +8298,7 @@ book underrepresents true liquidity. EduMatcher shows child orders on the book
 </tr>
 <tr>
 <td><code>COMBO_TYPE=AON</code></td>
-<td>All-or-none semantics: combo completes only when <strong>all</strong> legs are fully filled</td>
+<td>All-or-none at entry: no leg trades on entry unless every leg fills in full; the combo is <code>MATCHED</code> when <strong>all</strong> legs are fully filled</td>
 </tr>
 <tr>
 <td><code>TIF=GTC</code></td>
@@ -8343,7 +8355,8 @@ silently accept an inconsistent leg.</p>
    them to the respective order books. Every leg event and <code>combo.status</code>
    therefore follows the <code>combo.ack</code>.</li>
 <li>Child orders match and rest like normal orders. Each fill is reported to you as a
-   standard <code>order.fill</code> event.</li>
+   standard <code>order.fill</code> event. A resting leg fills on its own: the combo is
+   <code>PARTIALLY_MATCHED</code> while some legs are filled and others still rest.</li>
 <li>When <strong>all legs are fully filled</strong>, the engine publishes a <code>combo.status(MATCHED)</code>
    event.</li>
 <li>If any leg is <strong>cancelled, rejected or expires</strong> before all legs fill, the
@@ -8366,7 +8379,7 @@ way the combo fails (step 6).</p>
 <h3 id="cancelling-a-combo">Cancelling a Combo<a class="headerlink" href="#cancelling-a-combo" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CANCEL|COMBO_ID=PAIR-001
 </code></pre></div>
-<p>This cancels all child legs atomically. Fills that already occurred are not reversed.</p>
+<p>This cancels every child leg still resting, in one step. Fills that already occurred are not reversed.</p>
 <h3 id="monitoring-combo-status">Monitoring Combo Status<a class="headerlink" href="#monitoring-combo-status" title="Permanent link">&para;</a></h3>
 <p>Child orders appear in the <code>ORDERS</code> command's output like any other resting
 order (the <code>ORDERS</code> response does not currently include a parent-combo-ID
@@ -8496,8 +8509,9 @@ and pocket 10 × 50 = 500 points profit.</p>
 <p><strong>Combo:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>NEW|TYPE=COMBO|COMBO_ID=STAT-ARB|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=3|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=200|LEG0.PRICE=210.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=415.00|LEG2.SYM=GOOG|LEG2.SIDE=SELL|LEG2.QTY=50|LEG2.PRICE=170.00
 </code></pre></div>
-<p>The combo ensures all three legs enter simultaneously. Without a combo, the
-arbitrageur risks partial execution and model-breaking slippage.</p>
+<p>The combo submits all three legs together and, at entry, trades all of them or
+none. Without a combo, the arbitrageur risks partial execution and
+model-breaking slippage at entry; legs that rest can still fill one at a time.</p>
 <h3 id="example-5-market-maker-spread-seeding">Example 5 — Market-Maker Spread Seeding<a class="headerlink" href="#example-5-market-maker-spread-seeding" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> A market maker wants to provide liquidity for MSFT/AAPL pairs traders.</p>
 <p><strong>Combo (bid side of spread):</strong></p>

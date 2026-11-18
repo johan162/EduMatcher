@@ -8454,8 +8454,8 @@ so it never disturbs <code>pm-monitor</code>.</p>
 <code>pm-monitor</code>'s main loop, so this proves the loop runs — the same guarantee
 the recorders' health pings give, without a port of its own.</p>
 <ul>
-<li><code>-q</code> prints nothing; exit 0 when healthy, 255 otherwise (what
-  <code>pm-opctl-cli</code> uses).</li>
+<li><code>-q</code> prints nothing; exit 0 when healthy, 1 otherwise, as without it
+  (what <code>pm-opctl-cli</code> uses).</li>
 <li><code>--extended</code> also checks <code>metrics.db</code>: integrity (<code>PRAGMA quick_check</code>),
   that it is a <code>pm-monitor</code> database, that its pinned session timezone
   matches the deployed one (<code>pm-monitor</code> would refuse to start otherwise), and

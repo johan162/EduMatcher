@@ -8226,7 +8226,7 @@ each one means in an EduMatcher deployment.</p>
 <tr>
 <td><strong>Container</strong></td>
 <td>A running instance of an image, with its own processes, network interface and writable layer</td>
-<td>Up to seven run at once: the exchange container and six GUI containers</td>
+<td>Up to eight run at once: the exchange container and seven GUI containers</td>
 </tr>
 <tr>
 <td><strong>Compose file</strong></td>
@@ -8313,7 +8313,7 @@ one builds it from source, the other runs the released images.</p>
 <p>Because they describe one system, the compose files in <code>deployment/curl/</code> are
 <strong>twins</strong> of those in <code>deployment/docker/</code>. They differ in only two ways:
 they name images on GHCR instead of having <code>build:</code> sections, and they put all
-six GUIs in one file.</p>
+seven GUIs in one file.</p>
 <h3 id="what-is-in-each-directory">What is in each directory<a class="headerlink" href="#what-is-in-each-directory" title="Permanent link">&para;</a></h3>
 <p><code>deployment/docker/</code>:</p>
 <table>
@@ -8346,7 +8346,7 @@ six GUIs in one file.</p>
 </tr>
 <tr>
 <td><code>compose.guis.yaml</code></td>
-<td>Overlay: the five web GUIs that talk to the exchange</td>
+<td>Overlay: every GUI that talks to the exchange (all but <code>config-gui</code>)</td>
 </tr>
 <tr>
 <td><code>compose.config-gui.yaml</code></td>
@@ -8354,7 +8354,7 @@ six GUIs in one file.</p>
 </tr>
 <tr>
 <td><code>compose.ai-sim.yaml</code></td>
-<td>A separate, self-contained stack: the AI-trader simulation and five GUIs</td>
+<td>A separate, self-contained stack: the AI-trader simulation and six GUIs</td>
 </tr>
 <tr>
 <td><code>Makefile</code></td>
@@ -8397,7 +8397,7 @@ six GUIs in one file.</p>
 </tr>
 <tr>
 <td><code>compose.yaml</code></td>
-<td>The exchange and all six GUIs, from GHCR images</td>
+<td>The exchange and all seven GUIs, from GHCR images</td>
 </tr>
 <tr>
 <td><code>compose.zmq.yaml</code></td>
@@ -8645,7 +8645,7 @@ affect what goes into the image, not how it runs.</p>
 <p><code>compose.yaml</code> passes the last three from the variables of the same name in
 your <code>.env</code> or shell.</p>
 <h3 id="the-web-gui-images">The web GUI images<a class="headerlink" href="#the-web-gui-images" title="Permanent link">&para;</a></h3>
-<p>All six GUI Dockerfiles follow one pattern, also in two stages:</p>
+<p>All seven GUI Dockerfiles follow one pattern, also in two stages:</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph b["build stage: node:22-slim"]
         N1["npm ci\n(all dependencies)"] --&gt; N2["npm run build\n(React bundle)"] --&gt; N3["npm prune --omit=dev"]
@@ -8677,7 +8677,7 @@ to the build as <code>EDUMATCHER_VERSION</code>).</p>
 <h3 id="how-released-images-are-built">How released images are built<a class="headerlink" href="#how-released-images-are-built" title="Permanent link">&para;</a></h3>
 <p>You never need to do this yourself, but it explains what you pull. Publishing a
 GitHub release runs <code>.github/workflows/publish-images.yml</code>. It builds all
-eight images (<code>edumatcher</code>, <code>edumatcher-ai-sim</code> and the six GUIs) natively on
+nine images (<code>edumatcher</code>, <code>edumatcher-ai-sim</code> and the seven GUIs) natively on
 an <code>amd64</code> and an <code>arm64</code> runner, and joins each pair into one multi-arch
 manifest. Both backend images and the log console get the release's own wheel
 in their <code>.wheel/</code> drop box, so their Python code is exactly the release. The
@@ -9861,7 +9861,7 @@ right files.</p>
 <tr>
 <td></td>
 <td><code>make build-guis [GUI=&lt;name&gt;]</code></td>
-<td>Rebuild all six GUI images, or one. <code>log-gui</code> gets a wheel from your checkout (or PyPI with <code>PYPI=1</code> / <code>VERSION=</code>)</td>
+<td>Rebuild all seven GUI images, or one. <code>log-gui</code> gets a wheel from your checkout (or PyPI with <code>PYPI=1</code> / <code>VERSION=</code>)</td>
 </tr>
 <tr>
 <td></td>

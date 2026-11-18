@@ -9108,12 +9108,14 @@ and tests; log <code>REASON</code> for operators.</p>
 trade IDs that composed the private fill. A one-level fill has one ID; a
 coalesced sweep has one ID per execution in match order. The field is present
 as <code>TRADE_IDS=</code> when no ID is available.</p>
-<p><code>FILL</code> also carries <code>LIQUIDITY=&lt;MAKER|TAKER&gt;</code>: whether <em>this</em> order supplied
+<p><code>FILL</code> also carries <code>LIQUIDITY=&lt;MAKER|TAKER|AUCTION&gt;</code>: whether <em>this</em> order supplied
 liquidity (rested on the book and was matched into) or removed it (crossed
 the spread and matched immediately). It is derived from the trade's aggressor
 side, the same rule the drop-copy <code>DC_FILL</code> line's <code>LIQUIDITY</code> field already
 used — the two now always agree for the same fill. A resting order that gets
 matched reports <code>MAKER</code>; the order that crossed to match it reports <code>TAKER</code>.
+Both sides of an auction uncross report <code>AUCTION</code>: an uncross has no
+aggressor, so neither side supplied or removed liquidity.
 One coalesced <code>FILL</code> covering several trades still reports a single,
 consistent value, because one order cannot be its own counterparty's maker on
 one trade and taker on another.</p>
@@ -10003,6 +10005,12 @@ answer it differently</strong>:</p>
 only ends the current TCP session, it does not stop the gateway process
 itself. (For the single-session <code>pm-alf-console</code>, ending the one session is
 equivalent to exiting the program.)</p>
+<p>A client that <strong>half-closes</strong> its connection (stops sending, as
+<code>printf … | nc -N</code> does at the end of its input) keeps receiving: the gateway
+stops reading, sends the replies to the commands already received as they
+arrive from the engine, and closes the session 2 seconds after the
+half-close. An <code>EXIT</code> from such a client does not close it earlier, since
+replies may still be on their way.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>ALF gateway authorization and behavior are configured in the main engine
 configuration file (<code>engine_config.yaml</code>), under the <code>participants</code> list.</p>
