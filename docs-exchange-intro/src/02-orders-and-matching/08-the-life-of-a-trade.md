@@ -73,7 +73,7 @@ stateDiagram-v2
     FILLED --> [*]
     CANCELLED --> [*]
     EXPIRED --> [*]
-    NEW --> REJECTED : Pre-trade check fails (never entered book)
+    [*] --> REJECTED : Pre-trade check fails (never entered book)
     REJECTED --> [*]
 ```
 

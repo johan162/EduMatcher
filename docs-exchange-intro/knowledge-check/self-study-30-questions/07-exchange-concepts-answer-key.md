@@ -4,31 +4,32 @@ Correct statements are listed per question. Scoring: +1 per correct selection, -
 
 | # | Correct | | # | Correct |
 |---|---|---|---|---|
-| 1 | A, B, D, E | | 16 | A, B, C, D |
-| 2 | A, B, C, E | | 17 | A, B, D |
-| 3 | A, B, C, D | | 18 | A, B, C, E |
-| 4 | A, B, D, E | | 19 | A, B, C, D |
-| 5 | A, C, D | | 20 | A, C, D |
-| 6 | A, C, D, E | | 21 | A, B, D, E |
-| 7 | B, C, D, E | | 22 | A, B, C, D |
-| 8 | A, B, C, E | | 23 | A, B, C, E |
-| 9 | A, B, C, E | | 24 | A, B, C, D |
-| 10 | A, B, C, E | | 25 | A, C, D, E |
-| 11 | A, B, C, D | | 26 | A, B, C, E |
-| 12 | A, B, C, D | | 27 | A, B, D, E |
-| 13 | A, B, C, E | | 28 | A, B, C |
-| 14 | A, B, C | | 29 | A, B, D |
-| 15 | B, C, D | | 30 | A, B, C, D |
+| 1 | A, B, C, E | | 16 | A, C, D, E |
+| 2 | C, D, E | | 17 | A, C, D |
+| 3 | A, C, D, E | | 18 | A, B, C, E |
+| 4 | B, C, D, E | | 19 | B, C, D, E |
+| 5 | A, C, E | | 20 | B, C, D |
+| 6 | A, B, D, E | | 21 | A, B, D, E |
+| 7 | A, B, D, E | | 22 | A, B, C, E |
+| 8 | A, B, D, E | | 23 | B, C, D, E |
+| 9 | A, C, D, E | | 24 | A, B, C, D |
+| 10 | A, C, D, E | | 25 | A, B, C, D |
+| 11 | B, C, D, E | | 26 | A, B, C, D |
+| 12 | A, B, D, E | | 27 | A, B, C, D |
+| 13 | A, B, C, E | | 28 | B, C, E |
+| 14 | A, D, E | | 29 | A, B, D |
+| 15 | A, D, E | | 30 | A, B, C, E |
 
 ## Notes on selected answers
 
-- **Q5(B, E):** An iceberg's hidden reserve is specifically *not* disclosed — only the small visible peak is shown. Implied orders are explicitly described as consuming real liquidity from real underlying books, not creating free liquidity.
-- **Q7(A):** Increasing a resting order's quantity *loses* priority (it claims more than originally committed); only a *decrease* is treated as a concession that retains priority.
-- **Q9(D):** An order typically receives multiple fill notifications over its life — a NEW order can go to PARTIAL (one notification) and then FILLED (another), or receive several partial-fill notifications in sequence.
-- **Q4(C):** The Market Access Rule was proposed in January 2010 but adopted in November 2010, after the May 2010 Flash Crash.
-- **Q14(D, E):** US equities T+2 was the *prior* settlement cycle; the current standard is T+1 (since 2024). The guarantee-fund is one of several loss layers, but it sits *after* the defaulting participant's own margin and clearing-broker guarantee, not before them.
-- **Q15(A, E):** Knight's individual fills were priced at genuine prevailing market prices and were therefore *not* clearly erroneous in the regulatory sense. Both the Facebook and BATS 2012 incidents stemmed from engine-level software defects in the auction/matching logic itself, not a single erroneous order price — E reverses this.
-- **Q22(E):** Depth-of-book data carries more price levels than top-of-book and therefore needs *more* bandwidth, not less.
-- **Q26(D):** A multiplier loaded at 500 instead of the correct 50 makes every P&L and margin calculation *ten times too large*, not understated — the direction in D is reversed.
-- **Q28(D, E):** A reverse split raises the per-share price proportionally as it consolidates shares — it does change the price, contrary to D. Reference data errors are described as a *disproportionate*, not rare, cause of real exchange outages relative to matching-engine bugs.
-- **Q29(C, E):** Exercise is the *holder's* decision; assignment is the *writer's* obligation — C and E both state Q29's exercise/assignment pairing exactly backwards, and a position that closes just out-of-the-money can still end up exercised if the official settlement print lands a cent on the wrong side of the strike.
+- **Q2(A, B):** Short selling is centuries old; Isaac Le Maire's 1609 campaign against VOC shares is the earliest recorded large-scale case (A false). Circuit breakers were a *response* to Black Monday 1987, recommended by the Brady Commission in 1988 (B false).
+- **Q5(B, D):** An iceberg's hidden reserve is specifically *not* disclosed — only the small visible peak is shown. Implied orders are explicitly described as consuming real liquidity from real underlying books, not creating free liquidity.
+- **Q7(C):** Increasing a resting order's quantity *loses* priority (it claims more than originally committed); only a *decrease* is treated as a concession that retains priority.
+- **Q9(B):** An order typically receives multiple fill notifications over its life — a NEW order can go to PARTIAL (one notification) and then FILLED (another), or receive several partial-fill notifications in sequence.
+- **Q4(A):** The Market Access Rule was proposed in January 2010 but adopted in November 2010, after the May 2010 Flash Crash.
+- **Q14(B, C):** US equities T+2 was the *prior* settlement cycle; the current standard is T+1 (since 2024). The guarantee-fund is one of several loss layers, but it sits *after* the defaulting participant's own margin and clearing-broker guarantee, not before them.
+- **Q15(B, C):** Knight's individual fills were priced at genuine prevailing market prices and were therefore *not* clearly erroneous in the regulatory sense. Both the Facebook and BATS 2012 incidents stemmed from engine-level software defects in the auction/matching logic itself, not a single erroneous order price — B reverses this.
+- **Q22(D):** Depth-of-book data carries more price levels than top-of-book and therefore needs *more* bandwidth, not less.
+- **Q26(E):** A multiplier loaded at 500 instead of the correct 50 makes every P&L and margin calculation *ten times too large*, not understated — the direction in E is reversed.
+- **Q28(A, D):** A reverse split raises the per-share price proportionally as it consolidates shares — it does change the price, contrary to D. Reference data errors are described as a *disproportionate*, not rare, cause of real exchange outages relative to matching-engine bugs.
+- **Q29(C, E):** A position that closes just out-of-the-money can still end up exercised if the official settlement print lands a cent on the wrong side of the strike, and holders can still submit exercise instructions after the close (C false). Exercise is the *holder's* decision and assignment is the *writer's* obligation; E states the pairing backwards.

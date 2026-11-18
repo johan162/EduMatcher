@@ -30,150 +30,150 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ## Questions
 
 ### 1. Order fundamentals
-- [ ] A. A market order carries no price field, only symbol, side, and quantity
+- [ ] A. Recent SEC rules are gradually incorporating odd-lot information into consolidated market-data feeds
 - [ ] B. Odd-lot orders were historically excluded from the consolidated tape and NBBO calculation
-- [ ] C. A round lot is always exactly 1,000 shares, regardless of the stock
-- [ ] D. Arrival timestamp on an order is irrelevant to price-time priority
-- [ ] E. Recent SEC rules are gradually incorporating odd-lot information into consolidated market-data feeds
+- [ ] C. Arrival timestamp on an order is irrelevant to price-time priority
+- [ ] D. A market order carries no price field, only symbol, side, and quantity
+- [ ] E. A round lot is always exactly 1,000 shares, regardless of the stock
 
 ### 2. Limit orders and price improvement
-- [ ] A. A limit order's stated price is always the exact price at which it executes, never better
-- [ ] B. A resting limit buy order can be filled at a price better than its own limit price if the market allows
+- [ ] A. SEC Rule 605 requires market centres (and, since 2024, larger broker-dealers) to publish statistics on how often price improvement occurs
+- [ ] B. A limit price acts as a target price the engine tries to match exactly
 - [ ] C. On most equity venues, the unfilled part of a market order rests in the book until a counterparty arrives
-- [ ] D. SEC Rule 605 requires market centres (and, since 2024, larger broker-dealers) to publish statistics on how often price improvement occurs
-- [ ] E. A limit price acts as a target price the engine tries to match exactly
+- [ ] D. A resting limit buy order can be filled at a price better than its own limit price if the market allows
+- [ ] E. A limit order's stated price is always the exact price at which it executes, never better
 
 ### 3. Stop, stop-limit, and trailing stop orders
-- [ ] A. A stop-limit order converts into a limit order once triggered, which can protect price but risks non-execution
-- [ ] B. A trailing stop's trigger price automatically ratchets favorably as the market moves in the position's favor
+- [ ] A. When a trailing stop fires, it converts into a market order rather than a new resting limit order
+- [ ] B. A basic stop order guarantees both the execution and the exact price once triggered
 - [ ] C. A stop order remains dormant and invisible in the market until its trigger condition is met
-- [ ] D. When a trailing stop fires, it converts into a market order rather than a new resting limit order
-- [ ] E. A basic stop order guarantees both the execution and the exact price once triggered
+- [ ] D. A stop-limit order converts into a limit order once triggered, which can protect price but risks non-execution
+- [ ] E. A trailing stop's trigger price automatically ratchets favorably as the market moves in the position's favor
 
 ### 4. Fill-or-kill mechanics
-- [ ] A. FOK orders require the matching engine to perform a hypothetical "dry-run" check before committing any fills
-- [ ] B. FOK orders always fill at least partially before being cancelled
-- [ ] C. FOK is a time-in-force exclusively used for GTC orders
-- [ ] D. FOK orders can rest in the book if the full quantity isn't available
+- [ ] A. FOK orders can rest in the book if the full quantity isn't available
+- [ ] B. If the full quantity cannot be filled, a FOK order leaves the book exactly as it was
+- [ ] C. FOK orders require the matching engine to perform a hypothetical "dry-run" check before committing any fills
+- [ ] D. FOK orders always fill at least partially before being cancelled
 - [ ] E. FOK and ATC are functionally identical
 
 ### 5. Reading the order book
-- [ ] A. The bid side of the book is sorted from highest to lowest price
-- [ ] B. The ask side of the book is sorted from lowest to highest price
-- [ ] C. Level 1 data shows only the best bid and ask, while Level 2 shows the aggregated quantity at multiple price levels
+- [ ] A. Level 1 data shows only the best bid and ask, while Level 2 shows the aggregated quantity at multiple price levels
+- [ ] B. A bid-ask imbalance near 1.0 indicates heavy sell-side pressure relative to buy-side depth
+- [ ] C. The ask side of the book is sorted from lowest to highest price
 - [ ] D. Visible book depth can understate true available liquidity when iceberg orders are present
-- [ ] E. Bid-ask imbalance near 1.0 indicates heavy buy-side pressure relative to sell-side depth
+- [ ] E. The bid side of the book is sorted from highest to lowest price
 
 ### 6. Matching-engine design
-- [ ] A. Modern matching engines are typically single-threaded per book by deliberate design, not due to a hardware limitation
-- [ ] B. Single-threading a book's matching logic supports deterministic, auditable, and legally defensible outcomes
-- [ ] C. Each symbol's order book is entirely independent of every other symbol, with no exceptions
+- [ ] A. Matching engines commonly use a single global lock across all symbols to guarantee fairness
+- [ ] B. Each symbol's order book is entirely independent of every other symbol, with no exceptions
+- [ ] C. Modern matching engines are typically single-threaded per book by deliberate design, not due to a hardware limitation
 - [ ] D. A "sweep" describes an aggressive order working through multiple price levels until filled or its limit is reached
-- [ ] E. Matching engines commonly use a single global lock across all symbols to guarantee fairness
+- [ ] E. Single-threading a book's matching logic supports deterministic, auditable, and legally defensible outcomes
 
 ### 7. Order status lifecycle
-- [ ] A. A REJECTED order was briefly present in the order book before being removed
-- [ ] B. A CANCELLED order, unlike a REJECTED one, did exist in the book before being withdrawn
-- [ ] C. PARTIAL status means the order has received at least one fill but has remaining unfilled quantity
-- [ ] D. EXPIRED and CANCELLED describe exactly the same underlying event, just different labels
-- [ ] E. FILLED orders can still receive additional fills afterward
+- [ ] A. A CANCELLED order, unlike a REJECTED one, did exist in the book before being withdrawn
+- [ ] B. A REJECTED order was briefly present in the order book before being removed
+- [ ] C. EXPIRED and CANCELLED describe exactly the same underlying event, just different labels
+- [ ] D. FILLED orders can still receive additional fills afterward
+- [ ] E. PARTIAL status means the order has received at least one fill but has remaining unfilled quantity
 
 ### 8. Market maker obligations
-- [ ] A. Two-sided quoting means a market maker must maintain a live bid and ask simultaneously
-- [ ] B. Market Maker Protection automatically cancels all of a market maker's quotes if their fill rate exceeds a defined threshold in a rolling window
-- [ ] C. Adverse selection describes a market maker systematically trading against better-informed counterparties simply by always being available
-- [ ] D. Presence obligations commonly require a market maker to be actively quoting for the entire session with zero exceptions
-- [ ] E. Re-quoting obligations require posting a fresh quote within a bounded delay after a fill
+- [ ] A. Adverse selection describes a market maker systematically trading against better-informed counterparties simply by always being available
+- [ ] B. Two-sided quoting means a market maker must maintain a live bid and ask simultaneously
+- [ ] C. Re-quoting obligations require posting a fresh quote within a bounded delay after a fill
+- [ ] D. Market Maker Protection automatically cancels all of a market maker's quotes if their fill rate exceeds a defined threshold in a rolling window
+- [ ] E. Presence obligations commonly require a market maker to be actively quoting for the entire session with zero exceptions
 
 ### 9. Pro-rata vs FIFO
-- [ ] A. Pro-rata allocation distributes fills proportionally to each resting order's size rather than by arrival time
-- [ ] B. FIFO allocation distributes fills proportionally to order size
-- [ ] C. Pro-rata is the default matching rule on virtually every major exchange
-- [ ] D. CME uses FIFO for its interest-rate futures and pro-rata for its equity index futures
-- [ ] E. Pro-rata and price-time priority are two names for the same allocation method
+- [ ] A. Pro-rata is the default matching rule on virtually every major exchange
+- [ ] B. Under pro-rata, a larger resting order at the same price receives a larger share of an incoming fill
+- [ ] C. Pro-rata allocation distributes fills proportionally to each resting order's size rather than by arrival time
+- [ ] D. FIFO allocation distributes fills proportionally to order size
+- [ ] E. CME uses FIFO for its interest-rate futures and pro-rata for its equity index futures
 
 <div style="page-break-after: always;"></div>
 
 ### 10. Tick sizes
-- [ ] A. Prices are typically stored as integer tick counts internally to avoid floating-point representation errors
-- [ ] B. Rule 612 of Regulation NMS bans quoting most NMS stocks priced at or above $1.00 in increments finer than a penny
-- [ ] C. The SEC's Tick Size Pilot Program found that wider ticks clearly improved liquidity for small-cap stocks, leading to permanent adoption
-- [ ] D. Tick size can legitimately vary by price band, by product, and even by listing venue for the same underlying stock
-- [ ] E. Decimalization of US markets caused quoted spreads on liquid stocks to roughly double overnight
+- [ ] A. Rule 612 of Regulation NMS bans quoting most NMS stocks priced at or above $1.00 in increments finer than a penny
+- [ ] B. Decimalization of US markets caused quoted spreads on liquid stocks to roughly double overnight
+- [ ] C. Prices are typically stored as integer tick counts internally to avoid floating-point representation errors
+- [ ] D. The SEC's Tick Size Pilot Program found that wider ticks clearly improved liquidity for small-cap stocks, leading to permanent adoption
+- [ ] E. Tick size can legitimately vary by price band, by product, and even by listing venue for the same underlying stock
 
 ### 11. Auction mechanics, worked
-- [ ] A. During the pre-open accumulation period, incoming orders are accepted but not yet matched
-- [ ] B. The equilibrium price is the price that maximizes the minimum of cumulative buy and sell interest that can actually be matched
-- [ ] C. A tie-breaking rule can favor minimizing the leftover unmatched imbalance when multiple prices tie for maximum volume
-- [ ] D. Indicative uncross prices can be recalculated continuously as new orders arrive during the pre-open period
-- [ ] E. NYSE publishes closing-auction imbalance information ahead of the actual close, to give participants time to react
+- [ ] A. During the pre-open accumulation period, incoming orders are matched immediately whenever their prices cross
+- [ ] B. Indicative uncross prices can be recalculated continuously as new orders arrive during the pre-open period
+- [ ] C. NYSE publishes closing-auction imbalance information ahead of the actual close, to give participants time to react
+- [ ] D. The equilibrium price is the price that maximizes the minimum of cumulative buy and sell interest that can actually be matched
+- [ ] E. A tie-breaking rule can favor minimizing the leftover unmatched imbalance when multiple prices tie for maximum volume
 
 ### 12. ATO, ATC, and GTD nuances
-- [ ] A. An ATO order that isn't filled during the opening auction automatically converts into a DAY order for the rest of the session
-- [ ] B. ATC orders cannot be used to build a position gradually throughout the continuous session the way a DAY order can
-- [ ] C. GTD orders are automatically cancelled once their specified expiry date/time is reached, regardless of fill status
-- [ ] D. GTC orders are discarded at the end of each session and must be resubmitted the next day
-- [ ] E. ATO and ATC orders can be freely submitted at any point during continuous trading
+- [ ] A. ATC orders cannot be used to build a position gradually throughout the continuous session the way a DAY order can
+- [ ] B. A GTD order still resting when its expiry date/time arrives is cancelled by the exchange, even if no other event touches the order
+- [ ] C. An ATO order that isn't filled during the opening auction automatically converts into a DAY order for the rest of the session
+- [ ] D. ATO and ATC orders can be freely submitted at any point during continuous trading
+- [ ] E. GTC orders are discarded at the end of each session and must be resubmitted the next day
 
 ### 13. Trading sessions
-- [ ] A. NYSE's continuous trading session runs from 9:30am to 4:00pm Eastern time
-- [ ] B. Intraday auctions can serve as a softer alternative to a full trading halt on some exchanges
-- [ ] C. Post-close/after-hours trading typically has the same liquidity and spreads as continuous trading
-- [ ] D. GTC orders must be persisted to durable storage so they can be reloaded at the next session's pre-open
-- [ ] E. End-of-day batch processes commonly include closing-price publication and generation of clearing/surveillance reports
+- [ ] A. GTC orders must be persisted to durable storage so they can be reloaded at the next session's pre-open
+- [ ] B. End-of-day batch processes commonly include closing-price publication and generation of clearing/surveillance reports
+- [ ] C. NYSE's continuous trading session runs from 9:30am to 4:00pm Eastern time
+- [ ] D. Post-close/after-hours trading typically has the same liquidity and spreads as continuous trading
+- [ ] E. Intraday auctions can serve as a softer alternative to a full trading halt on some exchanges
 
 <div style="page-break-after: always;"></div>
 
 ### 14. Implied orders
-- [ ] A. Removing one of the underlying orders that generates an implied order removes the implied quantity built on it in the same processing step
-- [ ] B. Implied orders create genuinely new liquidity that did not exist anywhere in the market before
-- [ ] C. Implied-out combines an outright order with a spread order to derive a synthetic outright in another delivery month
-- [ ] D. Implied orders only exist for equities, never for futures markets
-- [ ] E. Implied-order chains can nest indefinitely, with no practical depth limit
+- [ ] A. Implied orders create genuinely new liquidity that did not exist anywhere in the market before
+- [ ] B. Implied orders only exist for equities, never for futures markets
+- [ ] C. Implied-order chains can nest indefinitely, with no practical depth limit
+- [ ] D. Implied-out combines an outright order with a spread order to derive a synthetic outright in another delivery month
+- [ ] E. Removing one of the underlying orders that generates an implied order removes the implied quantity built on it in the same processing step
 
 ### 15. Session state machine transitions
-- [ ] A. The state machine permits PRE_OPEN to transition to OPENING_AUCTION
+- [ ] A. PRE_OPEN can transition directly to HALTED
 - [ ] B. A HALTED state can transition to a RESUMPTION_AUCTION before returning to CONTINUOUS trading
 - [ ] C. A HALTED state can also transition directly to CLOSING_AUCTION, given an end-of-day signal
-- [ ] D. CLOSED can transition back to PRE_OPEN later the same calendar day if volume was low
-- [ ] E. PRE_OPEN can transition directly to HALTED
+- [ ] D. The state machine permits PRE_OPEN to transition to OPENING_AUCTION
+- [ ] E. CLOSED can transition back to PRE_OPEN later the same calendar day if volume was low
 
 ### 16. Trade busting and clearly erroneous trades
-- [ ] A. The clearly erroneous execution test is applied trade-by-trade (execution by execution), not to an entire order
+- [ ] A. The filing window for a clearly-erroneous claim is commonly around 30 minutes after execution under US rules
 - [ ] B. After the 2010 Flash Crash, trades executed more than a specific percentage away from the pre-crash reference price were busted
 - [ ] C. Nearly all of Knight Capital's millions of erroneous orders were also ruled "clearly erroneous" trades and busted
 - [ ] D. Cancellation/busting voids a trade entirely, while price adjustment preserves the trade but reprices it
-- [ ] E. The filing window for a clearly-erroneous claim is commonly around 30 minutes after execution under US rules
+- [ ] E. The clearly erroneous execution test is applied trade-by-trade (execution by execution), not to an entire order
 
 ### 17. Spoofing and the Sarao case
-- [ ] A. Spoofing involves placing large orders with genuine intent to execute them
-- [ ] B. Navinder Singh Sarao's layered orders were alleged to have contributed to conditions present during the May 2010 Flash Crash
-- [ ] C. Quote stuffing involves flooding an exchange with orders/cancellations to slow down competitors
-- [ ] D. Front running means trading only after a public news announcement, never before
-- [ ] E. Layering is unrelated to spoofing and involves an entirely different regulatory concept
+- [ ] A. Layering is unrelated to spoofing and involves an entirely different regulatory concept
+- [ ] B. Front running means trading only after a public news announcement, never before
+- [ ] C. Spoofing involves placing large orders with genuine intent to execute them
+- [ ] D. Navinder Singh Sarao's layered orders were alleged to have contributed to conditions present during the May 2010 Flash Crash
+- [ ] E. Quote stuffing involves flooding an exchange with orders/cancellations to slow down competitors
 
 <div style="page-break-after: always;"></div>
 
 ### 18. The Consolidated Audit Trail
-- [ ] A. The Consolidated Audit Trail (CAT) has been operational in the US since 2020
-- [ ] B. Before CAT, regulators could pull cross-exchange order data instantly from one unified source
-- [ ] C. Audit-trail and trading records must be retained for several years, commonly five to seven depending on jurisdiction and record type
-- [ ] D. A properly maintained audit trail should allow deterministic replay that reproduces the exact same fills and book state
-- [ ] E. Rejected orders are typically excluded from the audit trail, since they never affected the book
+- [ ] A. Before CAT, regulators could pull cross-exchange order data instantly from one unified source
+- [ ] B. The Consolidated Audit Trail (CAT) has been operational in the US since 2020
+- [ ] C. A properly maintained audit trail should allow deterministic replay that reproduces the exact same fills and book state
+- [ ] D. Rejected orders are typically excluded from the audit trail, since they never affected the book
+- [ ] E. Audit-trail and trading records must be retained for several years, commonly five to seven depending on jurisdiction and record type
 
-### 19. Barings Bank, 1995
-- [ ] A. Nick Leeson accumulated a large notional position in Nikkei 225 futures while based in Singapore
-- [ ] B. Leeson hid losing positions in an error account nicknamed "88888"
-- [ ] C. The 1995 Kobe earthquake contributed to the market move that caused the positions to collapse
-- [ ] D. Barings Bank was subsequently sold for a nominal sum after being placed into administration
-- [ ] E. A root cause identified was the absence of firm-level position-limit checks and scrutiny of anomalous single-trader activity
+### 19. Barings Bank, 1995, and the controls it exposed
+- [ ] A. The 1995 Kobe earthquake contributed to the market fall that turned Leeson's positions into catastrophic losses
+- [ ] B. A root cause identified was the absence of firm-level position-limit checks and scrutiny of anomalous single-trader activity
+- [ ] C. Barings' losses were caused by a defect in the Singapore exchange's matching engine
+- [ ] D. Nick Leeson accumulated a large notional position in Nikkei 225 futures while based in Singapore
+- [ ] E. Leeson hid his losses in an error account, an account meant only for correcting small booking mistakes
 
 ### 20. GameStop, January 2021
-- [ ] A. The NSCC's increased margin call on brokers during the GameStop squeeze had nothing to do with why Robinhood restricted buying
-- [ ] B. Robinhood and other brokers temporarily restricted customers to sell-only trading in the affected stocks for a period during the squeeze
-- [ ] C. The GameStop short squeeze was primarily organized by large hedge funds against retail investors
+- [ ] A. GameStop's stock price declined steadily throughout the squeeze period
+- [ ] B. The GameStop short squeeze was primarily organized by large hedge funds against retail investors
+- [ ] C. Robinhood and other brokers temporarily restricted customers to sell-only trading in the affected stocks for a period during the squeeze
 - [ ] D. DTCC's NSCC subsidiary has no role in determining broker margin/collateral requirements
-- [ ] E. GameStop's stock price declined steadily throughout the squeeze period
+- [ ] E. The NSCC's increased margin call on brokers during the GameStop squeeze had nothing to do with why Robinhood restricted buying
 
 
 &nbsp;
