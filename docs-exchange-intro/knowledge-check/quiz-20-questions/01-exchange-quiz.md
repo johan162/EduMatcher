@@ -67,8 +67,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The Market Access Rule (15c3-5) applies only to exchanges, not to the broker-dealers that give clients access to them
 - [ ] E. Reg NMS helped shape a US market with more than a dozen registered equity exchanges competing for order flow
 
-<div style="page-break-after: always;"></div>
-
 ### 6. Real-world exchanges
 - [ ] A. CME Group uses only price-time priority for every product it lists
 - [ ] B. Price-time priority is the default allocation rule on NYSE, NASDAQ, CME, Eurex and LSE
@@ -104,8 +102,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Increasing an order's quantity causes it to lose its queue priority
 - [ ] E. Decreasing an order's quantity typically preserves its existing queue priority
 
-<div style="page-break-after: always;"></div>
-
 ### 11. Opening and closing auctions
 - [ ] A. The equilibrium price is chosen to maximise the total buy quantity entered, regardless of sell interest
 - [ ] B. All matched auction orders execute at one single price rather than sweeping through multiple price levels
@@ -134,8 +130,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. LULD bands become narrower during the first and last minutes of the trading session
 - [ ] E. LULD and market-wide circuit breakers are actually the same regulatory mechanism under a different name
 
-<div style="page-break-after: always;"></div>
-
 ### 15. Circuit-breaker design lessons
 - [ ] A. The US uses wider gaps between circuit-breaker thresholds, partly to avoid the panic-selling dynamic seen in China
 - [ ] B. The narrow gap between China's 5% and 7% thresholds encouraged investors to sell immediately after resumption to beat the second halt
@@ -163,8 +157,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Novation means the CCP becomes the buyer to every seller and the seller to every buyer
 - [ ] D. Variation margin is typically settled in cash on a daily basis to reflect mark-to-market gains and losses
 - [ ] E. Matching alone finalizes the transfer of cash and securities between the two original parties
-
-<div style="page-break-after: always;"></div>
 
 ### 19. Why reference data matters
 - [ ] A. Reference-data changes should propagate to all dependent systems atomically rather than gradually

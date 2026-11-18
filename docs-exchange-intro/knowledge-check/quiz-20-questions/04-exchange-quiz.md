@@ -57,8 +57,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Market data revenue is negligible compared with trading fees at major exchanges
 - [ ] E. Maker-taker pricing charges the resting order a fee and pays the aggressor a rebate
 
-<div style="page-break-after: always;"></div>
-
 ### 5. Real-world exchanges, how they differ
 - [ ] A. Eurex runs a formal Market Making Programme with contractual quoting obligations and MMP-style protection
 - [ ] B. IEX's speed bump applies a fixed 350-microsecond delay to incoming orders
@@ -80,8 +78,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. An iceberg order's hidden reserve automatically replenishes the visible peak once it's consumed
 - [ ] E. Every exchange in the world applies exactly the same priority rule for hidden versus displayed orders
 
-<div style="page-break-after: always;"></div>
-
 ### 8. Midpoint pegs and market-maker inventory risk
 - [ ] A. When a market maker's bid or ask is filled, the resulting one-sided quote creates an inventory-risk asymmetry that must be managed
 - [ ] B. Midpoint peg orders are typically favored by HFT market makers who need absolute execution certainty
@@ -102,8 +98,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Variation margin is typically settled through a single lump-sum payment only when a position is finally closed, not daily
 - [ ] D. Maintenance-margin breaches never result in a forced liquidation of the position by the CCP
 - [ ] E. Initial margin is deposited when a position is opened, as an estimate of the maximum likely loss over a short period
-
-<div style="page-break-after: always;"></div>
 
 ### 11. Lehman Brothers and central clearing
 - [ ] A. CME futures participants suffered large uncollateralised losses from Lehman's default, because CME marked positions to market only monthly
@@ -132,8 +126,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. MiFID II allows unlimited reporting delay for all instrument types, regardless of liquidity
 - [ ] D. Regulation SCI requires covered market infrastructure to maintain capacity/resilience and report significant systems issues to regulators
 - [ ] E. Off-exchange US trades must be reported to a FINRA facility within 10 minutes of execution
-
-<div style="page-break-after: always;"></div>
 
 ### 15. Incident command
 - [ ] A. A dead-man's-switch/heartbeat alert is designed to fire when expected signals stop arriving, catching silently-failed telemetry

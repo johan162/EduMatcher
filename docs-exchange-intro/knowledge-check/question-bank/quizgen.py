@@ -3,7 +3,7 @@
 
 The bank is two files next to this script: ``questions.json`` (no answers) and
 ``answers.json`` (kept encrypted in git; run ``make decrypt-answers`` in
-``../quiz-20-questions`` first). Each run writes a quiz Markdown file and a
+``..`` first). Each run writes a quiz Markdown file and a
 matching ``-answer-key.md`` file in the layout of the original quizzes.
 
 Example::
@@ -32,7 +32,6 @@ SOURCES = {
     "both": ("quiz", "knowledge_check"),
 }
 PASS_FRACTION = 0.7
-QUESTIONS_PER_PAGE = 4
 PAGE_BREAK = '<div style="page-break-after: always;"></div>'
 DEFAULT_TITLE = "Exchange Concepts Knowledge Check"
 
@@ -226,8 +225,6 @@ def render_quiz(items: list[QuizItem], title: str) -> str:
         for letter, k in zip(LETTERS, item.order):
             out.append(f"- [ ] {letter}. {q['statements'][k]['text']}")
         out.append("")
-        if n % QUESTIONS_PER_PAGE == 0 and n < len(items):
-            out += [PAGE_BREAK, ""]
     out += ["&nbsp;", "", "---", ""]
     return "\n".join(out)
 
@@ -385,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.answers.exists():
         print(
             f"error: {args.answers} not found; decrypt it first "
-            "(make decrypt-answers in ../quiz-20-questions)",
+            "(make decrypt-answers in ..)",
             file=sys.stderr,
         )
         return 2

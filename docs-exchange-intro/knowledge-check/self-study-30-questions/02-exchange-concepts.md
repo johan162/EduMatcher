@@ -102,8 +102,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. A bracket order combines a take-profit and a stop-loss as an OCO pair
 - [ ] E. Combo orders eliminate leg risk entirely by design
 
-<div style="page-break-after: always;"></div>
-
 ### 11. Implied orders
 - [ ] A. A spread price of −$2.00 means January is trading $2.00 above February
 - [ ] B. Most exchanges allow unlimited depth of implied-of-implied chains
@@ -140,8 +138,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Better price always takes priority over an earlier-arriving order at a worse price
 - [ ] D. CME uses a largely pro-rata "allocation" algorithm for its SOFR futures
 - [ ] E. A quantity decrease amendment retains the resting order's original timestamp
-
-<div style="page-break-after: always;"></div>
 
 ### 16. Tick size history and regulation
 - [ ] A. Rule 612 was adopted partly to prevent re-fragmentation into sub-penny quoting after decimalisation
@@ -180,8 +176,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. A market maker enters a protection period after MMP fires, before re-quoting
 - [ ] E. MMP parameters are typically configured per market maker per symbol
 
-<div style="page-break-after: always;"></div>
-
 ### 21. Auction imbalance and tie-breaking
 - [ ] A. If imbalance is tied between two candidate prices, the algorithm prefers the price in the direction of remaining pressure
 - [ ] B. NYSE begins publishing closing auction imbalances at 3:50pm for a 4:00pm uncross
@@ -217,8 +211,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Fat-finger price checks compare the submitted price against a cached reference price
 - [ ] E. A self-match prevention pre-check can occur before the order reaches the matching engine
 
-<div style="page-break-after: always;"></div>
-
 ### 26. Circuit breakers, design principles
 - [ ] A. A minimum-halt-with-conditional-extension approach bounds uncertainty while allowing more time if needed
 - [ ] B. Every major exchange uses an identical halt duration regardless of instrument or move size
@@ -246,8 +238,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. A clearing broker can use drop copy to begin clearing and settlement before end-of-day reports arrive
 - [ ] D. Drop copy is a public feed available to any market participant who subscribes
 - [ ] E. Deterministic replay means the same input sequence must always reproduce the same fills and book state
-
-<div style="page-break-after: always;"></div>
 
 ### 30. Knight Capital, root causes
 - [ ] A. The deployment process lacked automated verification that all eight servers ran the correct code

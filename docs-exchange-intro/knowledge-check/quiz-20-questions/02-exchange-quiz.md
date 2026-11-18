@@ -92,8 +92,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. FIFO allocation distributes fills proportionally to order size
 - [ ] E. CME uses FIFO for its interest-rate futures and pro-rata for its equity index futures
 
-<div style="page-break-after: always;"></div>
-
 ### 10. Tick sizes
 - [ ] A. Rule 612 of Regulation NMS bans quoting most NMS stocks priced at or above $1.00 in increments finer than a penny
 - [ ] B. Decimalization of US markets caused quoted spreads on liquid stocks to roughly double overnight
@@ -122,8 +120,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Post-close/after-hours trading typically has the same liquidity and spreads as continuous trading
 - [ ] E. Intraday auctions can serve as a softer alternative to a full trading halt on some exchanges
 
-<div style="page-break-after: always;"></div>
-
 ### 14. Implied orders
 - [ ] A. Implied orders create genuinely new liquidity that did not exist anywhere in the market before
 - [ ] B. Implied orders only exist for equities, never for futures markets
@@ -151,8 +147,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Spoofing involves placing large orders with genuine intent to execute them
 - [ ] D. Navinder Singh Sarao's layered orders were alleged to have contributed to conditions present during the May 2010 Flash Crash
 - [ ] E. Quote stuffing involves flooding an exchange with orders/cancellations to slow down competitors
-
-<div style="page-break-after: always;"></div>
 
 ### 18. The Consolidated Audit Trail
 - [ ] A. Before CAT, regulators could pull cross-exchange order data instantly from one unified source

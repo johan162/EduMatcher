@@ -66,8 +66,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The 1929 crash led directly to the creation of the SEC via 1930s legislation
 - [ ] E. The 1987 crash's feedback loop involved automated portfolio insurance selling
 
-<div style="page-break-after: always;"></div>
-
 ### 6. Round lots and reference data
 - [ ] A. The matching engine cannot fill an odd-lot order under any circumstances
 - [ ] B. Round lot size is treated as reference data that varies by symbol
@@ -105,8 +103,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. GTD behaves like GTC plus a scheduled cancellation task
 - [ ] E. ATC orders target the price that emerges from the closing auction uncross
 
-<div style="page-break-after: always;"></div>
-
 ### 11. Depth measures
 - [ ] A. Cumulative depth within N ticks estimates how much can trade before the price moves by roughly that many ticks
 - [ ] B. Level 1 data and Level 2 data show identical information
@@ -142,8 +138,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. High-performance engines are described as favouring dynamic memory allocation on the hot path
 - [ ] E. Direct indexing by price offset is described as O(1) when applicable
 
-<div style="page-break-after: always;"></div>
-
 ### 16. Trade lifecycle detail
 - [ ] A. A partial fill changes an order's status to PARTIAL while it continues resting
 - [ ] B. Fill notifications are also referred to as execution reports
@@ -171,8 +165,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. China's January 2016 mechanism used a 5% threshold for a 15-minute halt and a 7% threshold to close for the day
 - [ ] D. Japan's daily price limit approach keeps the market open while bounding price movement
 - [ ] E. The US uses a fixed 5-minute halt for every market-wide circuit breaker tier
-
-<div style="page-break-after: always;"></div>
 
 ### 20. Trade busting details
 - [ ] A. The clearly erroneous review threshold in the document's table widens for lower-priced reference bands
@@ -237,8 +229,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Order books and price-time priority concepts are described as carrying over to crypto venues
 - [ ] D. Bitcoin's common denomination down to one hundred-millionth of a unit is called a satoshi
 - [ ] E. Crypto markets are generally described as operating with fixed daily trading hours like traditional equities
-
-<div style="page-break-after: always;"></div>
 
 ### 29. Corporate actions and their propagation
 - [ ] A. A stock split requires adjusting all open limit orders' price and quantity

@@ -59,8 +59,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Split-brain occurs when both the primary and secondary simultaneously believe they should be active
 - [ ] E. Manual failover is typically faster than automatic, heartbeat-triggered failover
 
-<div style="page-break-after: always;"></div>
-
 ### 5. Unique order identifiers
 - [ ] A. A hybrid approach combining UUIDs with monotonically increasing timestamps is described as a practical compromise
 - [ ] B. A single central counter is simple but creates a single point of failure and a bottleneck
@@ -97,8 +95,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. The sweep's VWAP is (1000×200.00 + 800×200.05 + 200×200.10)/2000
 - [ ] D. The sweep fully consumes the first two levels and part of the third
 - [ ] E. Market impact is defined as the difference between the sweep's VWAP and the initial best ask
-
-<div style="page-break-after: always;"></div>
 
 ### 10. Price-time priority, a fresh amendment scenario
 - [ ] A. A resting sell order amended in quantity from 800 to 300 shares retains its original timestamp
@@ -172,8 +168,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. IEX's founders argued that speed advantages primarily benefit long-term investors over HFT firms
 - [ ] E. IEX has displaced NYSE and NASDAQ as the largest US equity venue by volume
 
-<div style="page-break-after: always;"></div>
-
 ### 20. Technology transport layer
 - [ ] A. Market data commonly uses UDP multicast while order entry commonly uses TCP
 - [ ] B. FIX is described as a text-based protocol using a control character (SOH) as its field delimiter on the wire
@@ -202,8 +196,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Co-location places a participant's servers inside the same data centre as the matching engine
 - [ ] E. Microwave links can be faster than fibre-optic cable over long distances because radio travels faster through air than light through glass
 
-<div style="page-break-after: always;"></div>
-
 ### 24. Operational observability
 - [ ] A. Acceptable latency baselines are described as identical across every session phase, including auctions and halts
 - [ ] B. Symptom-based alerts are generally preferred over cause-based alerts to reduce alert fatigue
@@ -231,8 +223,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Gap detection relies on sequence numbers arriving out of the expected order
 - [ ] D. Detecting a message with an already-processed sequence number and discarding it approximates exactly-once processing
 - [ ] E. A single order generates only one message and therefore only one sequence number over its lifetime
-
-<div style="page-break-after: always;"></div>
 
 ### 28. Reference data risks
 - [ ] A. A contract multiplier error loaded ten times too large would make margin requirements ten times too large

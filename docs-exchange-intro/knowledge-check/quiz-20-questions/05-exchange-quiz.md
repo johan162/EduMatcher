@@ -57,8 +57,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Decimalization caused quoted spreads on liquid stocks to roughly double
 - [ ] E. NYSE traded in decimals from its founding in 1792
 
-<div style="page-break-after: always;"></div>
-
 ### 5. IPO pricing and share counts
 - [ ] A. Market capitalisation equals the share price multiplied by the number of shares outstanding
 - [ ] B. A company valued at $1.77 trillion at an IPO price of $135 a share has roughly 13.1 billion shares
@@ -115,8 +113,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. GTC order persistence relies solely on the write-ahead log, with no separate persistence layer
 - [ ] E. The write-ahead log is written only after an order has already been processed and matched, never before
 
-<div style="page-break-after: always;"></div>
-
 ### 13. SBE, STPF, and quotes vs orders
 - [ ] A. SBE messages are generally faster to decode than equivalent text-based FIX messages, contributing to microsecond order-submission times
 - [ ] B. Quote IDs and the order IDs generated from a quote are always required to be identical
@@ -138,8 +134,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. In an opening auction, the price that maximizes the executable volume — defined as the minimum of cumulative bids at or above that price and cumulative asks at or below it — is chosen as the equilibrium price
 - [ ] E. Orders unmatched by the auction transition into the continuous trading book once it opens
 
-<div style="page-break-after: always;"></div>
-
 ### 16. Tick rounding, worked example
 - [ ] A. Common rounding conventions mentioned in the book include round-half-up and round-half-to-even ("banker's rounding")
 - [ ] B. Storing prices as integer tick counts rather than floating-point numbers helps avoid binary floating-point representation errors
@@ -160,8 +154,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. The SEC's 2020 market-data-infrastructure rulemaking expanded SIP content to include more round-lot depth-of-book and odd-lot detail
 - [ ] D. The SEC's market-data-infrastructure changes were contested through litigation and still evolving as of the book's writing
 - [ ] E. A single mandated consolidated tape existed across all EU trading venues from MiFID II's very first day in force
-
-<div style="page-break-after: always;"></div>
 
 ### 19. Reg NMS, crossed markets, and fee models
 - [ ] A. Inverted (taker-maker) fee models charge the aggressor a fee and pay the resting order a rebate

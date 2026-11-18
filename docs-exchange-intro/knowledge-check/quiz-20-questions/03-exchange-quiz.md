@@ -58,8 +58,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The Mizuho incident was caused by a matching-engine bug rather than a human order-entry error
 - [ ] E. Price collars are a pre-trade control designed to catch fat-finger orders like Mizuho's before they reach the book
 
-<div style="page-break-after: always;"></div>
-
 ### 5. Technology architecture
 - [ ] A. Market data is commonly sent over TCP to each subscriber, while order entry commonly uses UDP multicast
 - [ ] B. FIX is a text-based protocol whose wire delimiter is a non-printable SOH character, not a literal pipe symbol
@@ -80,8 +78,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. For a matching engine, RPO is effectively zero — no committed trade or acknowledgement can be lost
 - [ ] D. RTO tolerances are identical for a matching engine and for a batch reporting system
 - [ ] E. The 2015 NYSE trading halt, lasting roughly 3.5 hours, is generally viewed as an example of an acceptable, well-managed RTO
-
-<div style="page-break-after: always;"></div>
 
 ### 8. Failover and split-brain
 - [ ] A. Manual, operator-controlled failover is generally slower than automatic failover but reduces the risk of a false failover
@@ -132,8 +128,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. VWAP algorithms ignore expected intraday volume patterns entirely
 - [ ] E. Implementation Shortfall algorithms use a fixed, unchanging schedule regardless of how price moves
 
-<div style="page-break-after: always;"></div>
-
 ### 15. Crypto venues
 - [ ] A. Centralized crypto exchanges typically decouple trade matching from blockchain settlement, recording trades as internal ledger entries
 - [ ] B. Decentralized exchanges commonly replace the order book with an automated market maker governed by a pricing formula like a constant-product rule
@@ -161,8 +155,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Saturation is typically described as a leading indicator that tends to rise before latency and errors visibly degrade
 - [ ] D. The four golden signals used in SRE-style monitoring are Latency, Traffic, Errors, and Saturation
 - [ ] E. An error budget represents the gap between a service's SLO target and 100% availability/performance
-
-<div style="page-break-after: always;"></div>
 
 ### 19. Corporate actions and reference data
 - [ ] A. Open limit orders generally need adjustment across a stock split, so that price and quantity reflect the new terms

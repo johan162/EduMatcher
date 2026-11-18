@@ -103,8 +103,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. A price submitted off the valid tick grid is rejected and never enters the book
 - [ ] E. Storing prices as integer tick counts avoids the binary floating-point representation problem
 
-<div style="page-break-after: always;"></div>
-
 ### 11. The matching engine, a comprehensive pass
 - [ ] A. Single-threaded processing is chosen to guarantee deterministic, auditable outcomes
 - [ ] B. A market order that cannot fill immediately rests quietly in the book
@@ -177,8 +175,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The clearly erroneous threshold table widens as the reference price falls into lower bands
 - [ ] E. Price adjustment can preserve that a trade occurred while correcting an erroneous print
 
-<div style="page-break-after: always;"></div>
-
 ### 21. Regulatory surveillance, one more pass
 - [ ] A. Spoofing involves cancelling orders before they can fill, once their market-moving effect is achieved
 - [ ] B. Layering uses multiple orders at various price levels to create a false impression of depth
@@ -214,8 +210,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Exchanges are described as having no financial interest in how competitive the public SIP is relative to their own proprietary feeds
 - [ ] E. A proprietary direct feed generally offers lower latency than the consolidated SIP feed
 
-<div style="page-break-after: always;"></div>
-
 ### 26. Latency, co-location, and observability
 - [ ] A. Deterministic worst-case latency is described as unimportant compared to average latency
 - [ ] B. Co-located servers can reduce round-trip latency to low single-digit microseconds on optimised networks
@@ -243,8 +237,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Core order book and price-time priority concepts are described as carrying over to crypto exchanges
 - [ ] D. FTX is presented as an example of institutional separation working correctly to protect customers
 - [ ] E. Precision requirements for assets like Bitcoin and Ethereum tokens are described as more demanding than traditional equities
-
-<div style="page-break-after: always;"></div>
 
 ### 30. Final cross-cutting numeric review
 - [ ] A. A market maker's loss is $200 if a 400-share position bought at $150.30 is later marked at $149.80

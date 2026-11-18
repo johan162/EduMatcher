@@ -79,8 +79,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. RPO measures how much data loss is acceptable, while RTO measures how much downtime is acceptable
 - [ ] E. The 2015 NYSE halt, lasting roughly 3.5 hours, is used in the book as a benchmark example of an unacceptably long RTO
 
-<div style="page-break-after: always;"></div>
-
 ### 8. Crypto precision and settlement
 - [ ] A. Bitcoin amounts are commonly denominated down to a hundred-millionth of a unit, called a satoshi
 - [ ] B. A constant-product AMM formula prices trades based on the relationship between the reserves of two pooled assets
@@ -108,8 +106,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. A 20% decline triggers a Level 3 halt that stops trading for the remainder of the session, regardless of time of day
 - [ ] D. A 13% decline before 3:25pm triggers a Level 2 halt that ends trading for the rest of the day
 - [ ] E. US market-wide circuit-breaker thresholds are measured as a decline from the prior session's S&P 500 close
-
-<div style="page-break-after: always;"></div>
 
 ### 12. Options contracts, numeric details
 - [ ] A. Cash settlement, not physical delivery, is standard for individual single-stock equity options
@@ -139,8 +135,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Symptom-based alerting, which pages when participants are actually affected, is generally preferred over paging on every minor cause-level fluctuation like elevated CPU
 - [ ] E. An SLI is a precisely defined metric, while an SLO is the target value set for that metric
 
-<div style="page-break-after: always;"></div>
-
 ### 16. Execution algorithms, comparative
 - [ ] A. A TWAP algorithm divides an order into equal slices across equal time intervals, regardless of actual traded volume
 - [ ] B. A VWAP algorithm estimates the expected volume profile across the day and participates more heavily during historically higher-volume periods like the open and close
@@ -161,8 +155,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. The book notes that, in recent years, close to half of all US equity volume has executed off-exchange
 - [ ] D. A Smart Order Router's decision criteria are described as limited strictly to price, ignoring fees, depth, or queue-position probability
 - [ ] E. Fragmentation across many venues is presented in the book as adding complexity to routing decisions and best-price discovery
-
-<div style="page-break-after: always;"></div>
 
 ### 19. Capstone synthesis
 - [ ] A. The book treats regulation as a legal formality that developers can bolt on after the engine is built

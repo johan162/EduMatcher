@@ -66,8 +66,6 @@ Purpose: verify that the student has worked through the chapters *Implied Orders
 - [ ] D. A Jan/Feb spread bid has the position vector (Jan +1, Feb −1)
 - [ ] E. A sell of February at $77.00 has a cash amount ("cash paid") of +77.00
 
-<div style="page-break-after: always;"></div>
-
 ### 5. The six first-generation formulas
 - [ ] A. Implied spread ask = January bid − February bid
 - [ ] B. Implied February bid = January bid − spread ask
@@ -96,8 +94,6 @@ Books: January ask $80.10 × 40 lots; Jan/Feb spread bid −$1.25 × 25 lots; Fe
 - [ ] C. The implied February ask quantity is 40 lots
 - [ ] D. After that 10-lot trade, the implied February ask shows 15 lots
 - [ ] E. The implied February ask is $81.35
-
-<div style="page-break-after: always;"></div>
 
 ### 9. Implied IN, a worked scenario
 Books: January bid $63.40 × 15 lots; February ask $64.05 × 30 lots; spread book empty.
@@ -131,8 +127,6 @@ The only two orders in the market: February bid $76.40 × 12 lots; Jan/Feb sprea
 - [ ] D. Publishing a quote computed from these two orders would advertise liquidity the engine cannot deliver
 - [ ] E. The spread ask needs to buy February, and the only February order present is another buyer
 
-<div style="page-break-after: always;"></div>
-
 ### 13. No liquidity from nothing
 - [ ] A. Every implied lot that trades consumes exactly one lot from each of its real ingredients
 - [ ] B. If a 50-lot January ask also feeds a 30-lot implied February ask, 80 lots are for sale in total
@@ -156,8 +150,6 @@ Books: January asks $60.00 × 6 and $60.02 × 10; Jan/Feb spread bids −$1.00 �
 - [ ] D. Venues usually publish the full implied depth ladder because it is cheap to compute
 - [ ] E. A correct implied ladder contains a level at $61.03
 
-<div style="page-break-after: always;"></div>
-
 ### 16. Recompute, never decrement
 Books: January ask $75.00 × 20 lots; spread bid −$2.00 × 20 lots, giving an implied February ask $77.00 × 20. An ordinary January buyer then takes 15 of the January lots.
 - [ ] A. Implied quotes should be recomputed after any event on any order in the related group, including cancels and amendments
@@ -180,8 +172,6 @@ February book: real ask $77.00 × 6 (Trader G); implied ask $77.00 × 20 (from J
 - [ ] C. On CME, implied bids do not trade against implied offers
 - [ ] D. In a first-generation engine, an implied bid and an implied ask in the same book can be crossed without any bug
 - [ ] E. Implied quotes act as the aggressor when the books around them change
-
-<div style="page-break-after: always;"></div>
 
 ### 19. Price improvement
 Books: January ask $74.95 × 40; Jan/Feb spread bid −$2.00 × 25; real February ask $77.00 × 60. An order to buy 20 February at $77.00 arrives.
@@ -207,8 +197,6 @@ A product has an outright tick of 0.25 and a spread tick of 0.05. Resting: Janua
 - [ ] D. The published implied February ask is 100.25
 - [ ] E. Rounding outwards guarantees that no real order trades worse than its limit
 
-<div style="page-break-after: always;"></div>
-
 ### 22. Tick rounding, an implied bid
 Same product (outright tick 0.25, spread tick 0.05). Resting: January bid 50.00 × 10 (Trader J); spread ask +0.15 × 10 (Trader L).
 - [ ] A. For an implied OUT quote, the rounding gain goes to the incoming outright order
@@ -231,8 +219,6 @@ Same product (outright tick 0.25, spread tick 0.05). Resting: January bid 50.00 
 - [ ] D. An implied quote can disappear because of an event in a different book
 - [ ] E. CME disseminates every implied quote it calculates
 
-<div style="page-break-after: always;"></div>
-
 ### 25. Engineering an implied match
 - [ ] A. All fills of an implied match commit together or not at all
 - [ ] B. An implied match prints only one trade, in the incoming order's book
@@ -254,8 +240,6 @@ Books: September bid 75.90 × 10; October ask 76.83 × 8; Oct/Nov spread bid −
 - [ ] C. The implied November ask is 77.35
 - [ ] D. The implied Sep/Oct spread bid is −0.93
 - [ ] E. A generation-1 engine also shows the Sep/Nov spread bid
-
-<div style="page-break-after: always;"></div>
 
 ### 28. Best route, numerically
 Resting orders that can help a March buyer: January ask 50.00; February ask 50.40; real March ask 50.95; Jan/Feb spread bid −0.35; Feb/Mar spread bid −0.40; Jan/Mar spread bid −0.85.

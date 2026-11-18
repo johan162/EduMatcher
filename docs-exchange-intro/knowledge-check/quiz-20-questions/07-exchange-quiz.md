@@ -72,8 +72,6 @@ Purpose: verify that the student has worked through the chapters *Implied Orders
 - [ ] D. If a buyer takes 10 April lots, the implied April ask then shows $69.30 × 5
 - [ ] E. The implied April ask is $67.50
 
-<div style="page-break-after: always;"></div>
-
 ### 5. Implied IN, numerically
 *Scenario: March bid $71.15 × 20 (Trader C); April ask $71.95 × 12 (Trader D). The March/April spread book is empty.*
 
@@ -107,8 +105,6 @@ Purpose: verify that the student has worked through the chapters *Implied Orders
 - [ ] C. A March bid and a March/April spread bid imply an April ask
 - [ ] D. Publishing a quote from orders whose legs do not cancel breaks the firmness invariant
 - [ ] E. A March ask and a March/April spread ask imply nothing
-
-<div style="page-break-after: always;"></div>
 
 ### 9. Shared legs
 *Scenario: March ask $60.00 × 14 (Trader A); two March/April spread bids at −$0.50, one of 10 lots (Trader B) and one of 9 lots (Trader G).*
@@ -146,8 +142,6 @@ Purpose: verify that the student has worked through the chapters *Implied Orders
 - [ ] D. After the trade, the spread bidder still has 20 spreads resting at −$0.50
 - [ ] E. H's 4 lots fill before any implied lot at $72.50
 
-<div style="page-break-after: always;"></div>
-
 ### 13. Who can be the aggressor
 - [ ] A. CME calculates locked or crossed implied quotes but does not disseminate them
 - [ ] B. Implied quotes have time priority over real orders at the same price, because they are refreshed constantly
@@ -181,8 +175,6 @@ Purpose: verify that the student has worked through the chapters *Implied Orders
 - [ ] C. Implied bids round up and implied asks round down
 - [ ] D. The engine publishes the implied April ask at $100.75
 - [ ] E. Rounding down to $100.50 would trade B's spread order beyond its limit
-
-<div style="page-break-after: always;"></div>
 
 ### 17. Generation 2
 *Scenario: June ask $80.00 × 10 (Trader A); June/July spread bid −$0.30 × 6 (Trader B); July/August spread bid −$0.25 × 8 (Trader C). The July and August books are empty.*

@@ -68,8 +68,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. A reverse stock split raises the nominal share price without changing the company's market value
 - [ ] E. Voluntary delisting can occur when a company is taken private
 
-<div style="page-break-after: always;"></div>
-
 ### 6. Long, short, and the book
 - [ ] A. A long position gains when the price rises; a short position gains when the price falls
 - [ ] B. A short seller is "short of" the asset: committed to deliver something not yet held
@@ -104,8 +102,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. A midpoint peg order displays its price openly in the visible book
 - [ ] D. Midpoint peg orders guarantee execution because they trade at a favourable price
 - [ ] E. Each iceberg replenishment typically receives a fresh timestamp at the back of the queue
-
-<div style="page-break-after: always;"></div>
 
 ### 11. OCO, combo, and implied orders
 - [ ] A. An implied order can be derived by combining a spread order with an outright order
@@ -144,8 +140,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. CME uses FIFO for its equity index futures while using pro-rata for some interest-rate futures
 - [ ] E. Amending a resting order's quantity downward causes it to lose queue priority
 
-<div style="page-break-after: always;"></div>
-
 ### 16. Tick sizes
 - [ ] A. The European MiFID II tick regime uses smaller absolute increments for lower-priced stocks
 - [ ] B. A true midpoint between $150.30 and $150.33 is not always a valid tick-aligned price
@@ -181,8 +175,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Cancelling only the filled side and leaving the other active can leave a stale quote in a moving market
 - [ ] E. Leaving both quote sides active after a fill is the most conservative refresh policy
 
-<div style="page-break-after: always;"></div>
-
 ### 21. The opening auction, equilibrium price
 *Scenario: the opening auction holds buy orders 500 @ $152, 1,000 @ $151, 800 @ $150 and sell orders 600 @ $150, 900 @ $151, 800 @ $152.*
 
@@ -213,8 +205,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Market-capitalisation weighting is the methodology used by most modern serious indexes
 - [ ] E. In a price-weighted index, a $400 stock moves the index more than a $100 stock regardless of company size
 
-<div style="page-break-after: always;"></div>
-
 ### 25. Index inclusion and integrity
 - [ ] A. Index funds are contractually obliged to buy a newly added constituent regardless of price
 - [ ] B. Market-wide circuit breakers in the US are triggered by the S&P 500 index, not a single stock
@@ -242,8 +232,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. If you are long 10,000 shares bought at $150 and the close falls to $145, your variation margin debit is $50,000
 - [ ] D. Variation margin is settled in cash on a daily basis to reflect mark-to-market moves
 - [ ] E. Through novation, the CCP becomes the buyer to every seller and the seller to every buyer
-
-<div style="page-break-after: always;"></div>
 
 ### 29. Trade busting and market abuse
 - [ ] A. Spoofing involves placing orders with genuine intent to trade that are simply cancelled early

@@ -68,8 +68,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Pro-rata is described as rewarding order size over arrival speed
 - [ ] E. Nanosecond timestamps combined with sequencing infrastructure together ensure fair, reproducible ordering
 
-<div style="page-break-after: always;"></div>
-
 ### 6. Tick size and midpoint rounding, a fresh scenario
 *Scenario: the best bid is $99.98 (tick 9998) and the best ask is $100.01 (tick 10001).*
 
@@ -100,8 +98,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The indicative uncross price is recalculated after every new order arrives during accumulation
 - [ ] E. If everything else is tied, proximity to a reference price such as the previous close can be the deciding factor
 
-<div style="page-break-after: always;"></div>
-
 ### 10. Trading sessions and state machine
 - [ ] A. HALTED can transition directly to CLOSING_AUCTION if an end-of-day signal arrives during a halt
 - [ ] B. CLOSED can transition back into CONTINUOUS later the same day if volume returns
@@ -129,8 +125,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. If a stock stays pinned at Japan's daily limit without trading for consecutive days, the limit is described as being widened
 - [ ] D. If Japan's price hits the daily limit, trading halts completely rather than continuing at that price
 - [ ] E. Eurex's volatility interruption approach is auction-based rather than a fixed timed pause
-
-<div style="page-break-after: always;"></div>
 
 ### 14. Price collars and SMP, a fresh policy scenario
 - [ ] A. A static collar is recalculated at the start of each new session using the prior close
@@ -160,8 +154,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Before CAT, regulators could instantly correlate records across exchanges without any manual process
 - [ ] E. The Consolidated Audit Trail correlates order and trade events across every registered exchange and FINRA venue
 
-<div style="page-break-after: always;"></div>
-
 ### 18. Technology architecture, the gateway
 - [ ] A. Instrument-specific validation such as tick alignment is sometimes enforced in the matching engine or a dedicated risk layer rather than the gateway
 - [ ] B. The gateway and matching engine are described as sharing a single codebase and deployment cadence
@@ -189,8 +181,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. PFOF is currently permitted without restriction in the United Kingdom
 - [ ] D. Best execution requires considering price, speed, and likelihood of execution, not price alone
 - [ ] E. Under maker-taker, a resting order that provides liquidity typically earns a rebate
-
-<div style="page-break-after: always;"></div>
 
 ### 22. Execution algorithms
 - [ ] A. Execution algorithms are described as responsible for the vast majority of real order flow
@@ -220,8 +210,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Cash settlement is standard for individual equity options rather than broad index options
 - [ ] E. European-style options, including most cash-settled index options, can only be exercised at expiry
 
-<div style="page-break-after: always;"></div>
-
 ### 26. Reference data and its risks
 - [ ] A. A stale cached reference-data value affects every order processed during the stale period
 - [ ] B. Reference data is cached aggressively at startup for latency reasons
@@ -242,8 +230,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Clock offset and drift rate relative to a reference source are described as first-class signals unique to exchange infrastructure
 - [ ] D. Acceptable latency baselines are described as constant regardless of whether the venue is in an auction or continuous trading
 - [ ] E. Order-to-trade and cancel-to-fill ratios per participant are cited as monitored business signals
-
-<div style="page-break-after: always;"></div>
 
 ### 29. Determinism and persistence, a fresh scenario
 - [ ] A. In failover, a secondary that has been processing inputs in shadow mode already holds an up-to-date book state

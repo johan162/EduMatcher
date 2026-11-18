@@ -13,7 +13,7 @@ place, plus a generator that builds a quiz and its answer key on demand.
 
 ## Generating a quiz
 
-Decrypt the answers first (from `../quiz-20-questions`):
+Decrypt the answers first (from `..`, the `knowledge-check` directory):
 
 ```bash
 make decrypt-answers

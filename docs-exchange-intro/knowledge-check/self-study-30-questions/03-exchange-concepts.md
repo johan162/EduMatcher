@@ -66,8 +66,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. A short seller profits when the price rises
 - [ ] E. The maximum loss on a short position is the price received when shorting
 
-<div style="page-break-after: always;"></div>
-
 ### 6. Short selling operations
 - [ ] A. The locate process is intended to confirm shares can be borrowed before a short sale is accepted
 - [ ] B. Settlement for a short seller requires delivering shares they already own outright
@@ -104,8 +102,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Market orders offer a price guarantee but not an execution guarantee
 - [ ] D. A market order submitted during a trading halt will not fill
 - [ ] E. The 2010 Flash Crash involved a large sell algorithm selling into a thinning book
-
-<div style="page-break-after: always;"></div>
 
 ### 11. OCO, combo, and TIF review
 - [ ] A. In a bracket order, only one of the take-profit or stop-loss legs will ultimately execute
@@ -144,8 +140,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The EU's MiFID II tick size regime defines a single fixed tick for all price bands
 - [ ] E. Stocks priced below $1.00 in the US may be quoted in sub-penny increments
 
-<div style="page-break-after: always;"></div>
-
 ### 16. The matching engine and sweeps
 - [ ] A. Major equity exchanges are described as typically acknowledging an order within tens of microseconds
 - [ ] B. Basket orders trading dozens of stocks as one instruction require cross-symbol scheduling
@@ -173,8 +167,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Eurex's MMP can trigger on percentage, volume, delta, and vega limits rather than only on a count of fills
 - [ ] D. Policy 3 (leave both sides active) is described as the riskiest refresh policy
 - [ ] E. The most conservative refresh policy cancels both legs immediately upon any fill
-
-<div style="page-break-after: always;"></div>
 
 ### 20. Equilibrium price, a second worked scenario
 - [ ] A. The uncross matches all eligible orders simultaneously at one single clearing price
@@ -210,8 +202,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. A static price collar is recalculated using the most recent trade rather than the prior close
 - [ ] D. LULD Tier 1 instruments generally have a narrower regular-hours band than Tier 2 instruments
 - [ ] E. Market-wide circuit breakers did not apply before 9:30am during the March 2020 events
-
-<div style="page-break-after: always;"></div>
 
 ### 25. Clearing hierarchy and DvP
 - [ ] A. The clearing hierarchy has no bearing on who absorbs losses in a default
