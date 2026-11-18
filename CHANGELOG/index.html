@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v0812-2026-11-18" class="md-skip">
+        <a href="#v0813-2026-11-18" class="md-skip">
           Skip to content
         </a>
       
@@ -7526,7 +7526,7 @@
 
   <h1>CHANGELOG</h1>
 
-<h2 id="v0812-2026-11-18">[v0.81.2] - 2026-11-18<a class="headerlink" href="#v0812-2026-11-18" title="Permanent link">&para;</a></h2>
+<h2 id="v0813-2026-11-18">[v0.81.3] - 2026-11-18<a class="headerlink" href="#v0813-2026-11-18" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
 <h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
 <p>This release closes a broad set of smaller findings: configuration loaders now refuse invalid values instead of silently accepting them, auction fills are reported correctly, and several gateways, consoles and command-line tools behave more reliably. It makes the session scheduler follow engine restarts safely, adds a generator for knowledge-check quizzes, and corrects user documentation in several places.</p>
@@ -7558,6 +7558,7 @@
 <li>Fixed <code>pm-scheduler</code> taking operator-issued session broadcasts as confirmation of its own transitions</li>
 <li>Fixed <code>pm-scheduler</code> accepting invalid <code>--speed</code>, <code>--on-close</code> and <code>--on-close-delay</code> values, and <code>--now</code> combined with <code>--daily</code>; these are now refused at start-up</li>
 <li>Fixed <code>pm-scheduler --now</code> not closing the engine first, and <code>--on-close</code> running twice for a trigger that arrived while its command was running</li>
+<li>Fixed a race-condition in pm-monitor-cli events --follow, If an event was committed after the CLI read its follow cursor but before it fetched history, the CLI could print that event as both history and live output. </li>
 </ul>
 <h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
