@@ -449,7 +449,8 @@ for the `pm-stats` retention rules.
 ### Session scheduler
 
 ```bash
-# Normal schedule from deployed config, or built-in defaults if no config exists
+# Normal schedule from the deployed config (the built-in default if it has no
+# schedule block; with nothing deployed the scheduler refuses to start)
 pm-scheduler
 
 # Rehearsal mode: run the whole trading day quickly

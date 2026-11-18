@@ -80,12 +80,13 @@ def _sent_states(sock: MagicMock) -> list[str]:
 
 
 class TestH1PastTransitionsDesync:
-    def test_late_start_catches_engine_up_to_current_state(self) -> None:
-        """Starting after all scheduled times must not leave the engine stuck.
+    def test_late_start_after_the_close_sends_nothing(self) -> None:
+        """Starting after all scheduled times must not replay the day.
 
-        With every schedule time in the past, the engine (which boots CLOSED)
-        should be driven to the most-recent-past state — the final entry,
-        CLOSED — rather than having every transition silently skipped.
+        With every schedule time in the past, the most-recent-past state is
+        the final entry, CLOSED, which is where an engine that booted CLOSED
+        already is. Replaying the five transitions would run the whole day
+        again in milliseconds (Scheduler review 2026-11, C2).
         """
         fake_sock = MagicMock()
         # Pin "now" to 23:59 so all five schedule entries are in the past.
@@ -100,14 +101,7 @@ class TestH1PastTransitionsDesync:
             mock_dt.now.return_value = fixed_now
             _run_scheduled(fake_sock, _FULL_SCHEDULE_CFG)
 
-        # DEFECT (H1): current code prints "already past, skipping" for every
-        # entry and sends nothing, so the engine never leaves CLOSED.
-        assert fake_sock.send_multipart.called, (
-            "scheduler skipped all past transitions and sent nothing — "
-            "engine would be stuck in its startup state"
-        )
-        # The engine must end up in the correct current phase.
-        assert _sent_states(fake_sock)[-1] == "CLOSED"
+        assert _sent_states(fake_sock) == []
 
     def test_partial_late_start_reaches_most_recent_past_state(self) -> None:
         """Mid-morning start must catch up to CONTINUOUS before waiting.

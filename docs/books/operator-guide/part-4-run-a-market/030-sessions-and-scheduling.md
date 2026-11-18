@@ -249,19 +249,20 @@ phases and refuses every transition, so `pm-scheduler` sends none: it logs
 stopped, still reporting to `pm-monitor`. The bundled examples run this way,
 and the process profiles start `pm-scheduler` regardless, so it needs no
 special handling. (`--now` mode does not read the configuration and always
-sends its transitions.)
+sends its transitions; the engine refuses them, and each is logged as not
+confirmed.)
 
 ### Starting the scheduler
 
 ```bash
-# Use times from engine_config.yaml (or built-in defaults); run today's
-# schedule once (catching up on any times already passed) and then exit
+# Use the deployed configuration's schedule (or the built-in default); run
+# today's schedule once (catching up on any times already passed) and exit
 poetry run pm-scheduler
 
-# Repeat the schedule every calendar day instead of exiting after today
+# Repeat the schedule every working day instead of exiting after today
 poetry run pm-scheduler --daily
 
-# Rapid-fire all transitions immediately (for testing / demos)
+# Close the engine if needed, then rapid-fire all transitions (testing / demos)
 poetry run pm-scheduler --now
 
 # Custom delay between transitions in --now mode (default 3 s)
@@ -280,13 +281,13 @@ poetry run pm-scheduler
 
 | Flag                    | Default             | Description                                                                 |
 |--------------------------|---------------------|-------------------------------------------------------------------------------|
-| `--now`                  | off                 | Rapid-fire all five transitions immediately (for testing / demos)             |
+| `--now`                  | off                 | Close the engine first if it is not `CLOSED`, then rapid-fire all five transitions (for testing / demos); cannot be combined with `--daily` |
 | `--delay SECONDS`        | `3.0`                | Seconds between transitions in `--now` mode; ignored (with a warning) otherwise |
-| `--daily`                | off                 | Run continuously, repeating the schedule every calendar day instead of exiting after today |
+| `--daily`                | off                 | Run continuously, repeating the schedule every working day (days with no schedule are skipped) instead of exiting after today |
 | `--speed F`              | off                 | Compressed mode (needs `--daily`): simulated time runs F times faster than the wall clock; see [Compressed mode](#compressed-mode) |
 | `--start YYYY-MM-DDTHH:MM` | now               | Compressed mode: local time the simulated clock starts at                    |
-| `--no-confirm`           | off                 | Skip querying/confirming session state via the engine's `session.state` broadcast |
-| `--on-close COMMAND`     | off                 | Start `COMMAND` after each day's `CLOSED` transition and once at start-up; detached, one at a time, output in the scheduler log. Typically `"pm-eod run --pending"` — see [Closing the Day](100-closing-the-day.md) |
+| `--no-confirm`           | off                 | Do not ask the engine its state, confirm transitions on its `session.state` broadcast, or follow an engine restart (see [If the engine restarts](#if-the-engine-restarts)) |
+| `--on-close COMMAND`     | off                 | Start `COMMAND` after each day's `CLOSED` transition and once at start-up; detached, one at a time (a trigger while it runs starts it once more afterwards), output in the scheduler log. Typically `"pm-eod run --pending"` — see [Closing the Day](100-closing-the-day.md) |
 | `--on-close-delay SECONDS` | `30`              | Wait this long after `CLOSED` before starting `--on-close`, so `pm-clearing` has saved its close snapshot |
 | `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
 | `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
@@ -308,10 +309,38 @@ pm-scheduler --daily --on-close "pm-eod run --pending"
 
 The command runs in a separate process — the scheduler does not wait for it, so
 a slow or failing command can never delay tomorrow's timetable — and only one
-runs at a time. Its output and exit code appear in the scheduler's log. The
+runs at a time. A close that comes while the command is still running (for
+example the start-up run, still busy) starts it once more when it finishes,
+so no closed day is left waiting for a trigger that may never come. A
+single-shot run waits for the command before it exits. Its output and exit code appear in the scheduler's log. The
 30-second default pause (`--on-close-delay`) lets `pm-clearing` save its close
 snapshot first. What `pm-eod` does is explained, from scratch, in
 [Closing the Day](100-closing-the-day.md).
+
+### If the engine restarts
+
+An engine with sessions enabled always starts `CLOSED`. When `pm-engine`
+restarts during the day (a crash, a watchdog, an operator), a running
+`pm-scheduler` notices and brings it back to the phase the schedule says is
+current — after a restart at 10:00 the engine is reopened through
+`PRE_OPEN` and `OPENING_AUCTION` to `CONTINUOUS` within a second or so, and
+the day closes as scheduled:
+
+```text
+WARNING edumatcher.scheduler.main - engine restarted; bringing it from CLOSED to the schedule
+```
+
+It notices in two ways: the engine announces every start (`system.startup`),
+and if that announcement is missed, the next scheduled transition is refused
+and the engine then reports a phase it never announced. An operator's own
+transitions (an early close, a phase frozen for an exercise) are announced,
+so the scheduler leaves them alone; it carries on with the schedule's next
+transition, which the engine may refuse from there.
+
+With `--no-confirm` the scheduler hears nothing from the engine: it neither
+confirms transitions nor follows a restart, and it cannot tell where the
+engine is when it starts. It then assumes `CLOSED` — before the open it
+sends the transitions due so far, after the close it sends nothing.
 
 ### Configuring the schedule
 
@@ -532,10 +561,10 @@ locale:
 
 Long waits — whether counting down to a scheduled transition time or sleeping
 overnight between trading days under `--daily` — are never slept out in a
-single call. Instead, `pm-scheduler` wakes at least every **30 seconds** and
+single call. Instead, `pm-scheduler` wakes every **half second** and
 re-derives the remaining wait from the current local wall-clock time. This
 means a server time adjustment (NTP sync, manual clock change, DST) made
-while the scheduler is waiting is picked up within 30 seconds, rather than
+while the scheduler is waiting is picked up within a second, rather than
 only being noticed after a long sleep computed under now-stale assumptions
 finally elapses.
 
@@ -578,6 +607,12 @@ The `--now` flag skips wall-clock waiting and sends every transition in the
 default sequence with a short configurable delay between each.  This is
 useful for integration testing and demos where you want to exercise the full
 auction lifecycle in seconds rather than hours.
+
+The day can only run from `CLOSED`, so `--now` first asks the engine where it
+is and, if it is open, closes it by the shortest legal route (logged as
+`engine is in CONTINUOUS; closing it first via CLOSED`). Each transition is
+confirmed like a scheduled one; `Done.` means the engine applied every one of
+them, and a transition it did not apply is logged as a warning instead.
 
 ```bash
 poetry run pm-scheduler --now --delay 2 -v

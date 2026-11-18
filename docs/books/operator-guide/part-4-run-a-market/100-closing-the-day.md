@@ -488,8 +488,9 @@ Also:
 - The command runs **once more when the scheduler starts**. That is how a day
   that closed while the scheduler was down gets settled.
 - Only **one** `pm-eod` runs at a time. A trigger that finds one still running
-  is skipped (with a warning); that is safe because `--pending` always picks up
-  every date that is waiting.
+  starts it **once more when it finishes** (several such triggers make one
+  more run), so a close that came while the start-up run was busy is still
+  settled; `--pending` picks up every date that is waiting.
 - In `--now` test mode the hook is ignored.
 - `--on-close` takes any command, so you may add your own mailing script, for
   example `--on-close "sh /srv/exchange/close.sh"` where the script runs
@@ -1161,7 +1162,7 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | Message | Meaning |
 |---|---|
 | `pm-eod: another pm-eod run is active` | The lock file is held. Wait, or check for a stuck process (`ps aux \| grep pm-eod`). |
-| `--on-close command is still running; trigger skipped` (scheduler log) | A previous run has not finished; harmless — the next run catches up. |
+| `--on-close command is still running; it runs once more when it finishes` (scheduler log, INFO) | A previous run has not finished; the command runs again right after it. |
 | `could not start --on-close command` (scheduler log) | The command was not found. Is `pm-eod` on the scheduler's `PATH`? |
 
 ### Warnings (exit code 3)

@@ -215,7 +215,8 @@ class TestRunScheduledSkipsNonWorkingDays:
     def test_transitions_sent_on_a_working_day(
         self, mock_dt: MagicMock, mock_sleep: MagicMock
     ) -> None:
-        mock_dt.now.return_value = datetime(2024, 1, 9, 23, 59, 0)  # Tuesday
+        # Mid-day, so the catch-up has transitions to send.
+        mock_dt.now.return_value = datetime(2024, 1, 9, 10, 0, 0)  # Tuesday
         fake_sock = MagicMock()
         _run_scheduled(fake_sock, _TEST_SCHEDULE_CFG, country="Sweden")
         fake_sock.send_multipart.assert_called()
@@ -227,7 +228,7 @@ class TestRunScheduledSkipsNonWorkingDays:
     ) -> None:
         # July 4th 2024 is a US holiday (Thursday) but an ordinary working
         # day in Sweden.
-        mock_dt.now.return_value = datetime(2024, 7, 4, 23, 59, 0)
+        mock_dt.now.return_value = datetime(2024, 7, 4, 10, 0, 0)
 
         us_sock = MagicMock()
         _run_scheduled(us_sock, _TEST_SCHEDULE_CFG, country="US")

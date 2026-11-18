@@ -354,7 +354,7 @@ process's own `config.py`.
 | `pm-audit` | `5562` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to every engine event and writes the full audit trail to disk. `5562` only answers `pm-audit-cli health` pings (`EDUMATCHER_AUDIT_BIND_HOST`, `EDUMATCHER_AUDIT_HEALTH_PORT`). |
 | `pm-stats` | `5561` REP (bind); connects out to `5555`, `5556`, `5558` | – | ZeroMQ (SUB/PUSH/REP) | Records market and index statistics to `stats.db`. `5561` only answers `pm-stats-cli health` pings (`EDUMATCHER_STATS_BIND_HOST`, `EDUMATCHER_STATS_HEALTH_PORT`). |
 | `pm-clearing` | `5563` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to trade events for P&L and settlement. `5563` only answers `pm-clearing-cli health` pings (`EDUMATCHER_CLEARING_BIND_HOST`, `EDUMATCHER_CLEARING_HEALTH_PORT`). |
-| `pm-scheduler` | connects out to `5555` | – | ZeroMQ (PUSH) | Drives session-phase transitions by pushing commands to the engine. Binds no port of its own. |
+| `pm-scheduler` | connects out to `5555`, `5556` | – | ZeroMQ (PUSH/SUB) | Drives session-phase transitions by pushing commands to the engine, and reads the engine's session broadcasts on `5556` to confirm them. Binds no port of its own. |
 | `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
 | `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
 | `pm-dc-gwy` | connects out to `5557` | `5590` | DC1 over TCP | Relays the engine's `5557` drop-copy feed as DC1 text lines to plain-TCP clients that don't speak ZeroMQ. |
@@ -1550,14 +1550,14 @@ pm-scheduler [--now] [--delay 3] [--daily] [--speed F] [--start YYYY-MM-DDTHH:MM
 
 | Flag               | Default              | Description                                                                         |
 |--------------------|----------------------|-------------------------------------------------------------------------------------|
-| `--now`               | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
+| `--now`               | off                  | Skip wall-clock waiting: close the engine first if it is not `CLOSED`, then send all five transitions with a delay between each. Cannot be combined with `--daily` |
 | `--delay`             | `None` (effective default 3.0, only used with `--now`) | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
 | `--daily`             | off                  | Run continuously, repeating the schedule every working day (weekends and the configured country's bank holidays are skipped) |
 | `--speed F`           | `$EDUMATCHER_SCHEDULER_SPEED`, else off | Compressed mode (with `--daily`): simulated time runs *F* times faster than the wall clock, so a whole trading day fits in minutes |
 | `--start YYYY-MM-DDTHH:MM` | `$EDUMATCHER_SCHEDULER_START`, else now | Compressed mode: the session-local time the simulated clock starts at |
-| `--no-confirm`        | off                  | Do not query/confirm session state via the engine before sending a transition       |
-| `--on-close COMMAND`  | off                  | Start this command after each day's `CLOSED` transition and once at start-up (for example `pm-eod run --pending`). It runs detached, one at a time, with its output in the scheduler's log; ignored in `--now` mode. See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md) |
-| `--on-close-delay SEC` | `30`                | Seconds to wait after `CLOSED` before starting `--on-close`, so `pm-clearing` can save its close snapshot first |
+| `--no-confirm`        | off                  | Do not ask the engine its state, confirm transitions or follow an engine restart; with no answer the engine is assumed `CLOSED` |
+| `--on-close COMMAND`  | off                  | Start this command after each day's `CLOSED` transition and once at start-up (for example `pm-eod run --pending`). It runs detached, one at a time (a trigger while it runs starts it once more afterwards), with its output in the scheduler's log; ignored in `--now` mode. See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md) |
+| `--on-close-delay SEC` | `30`                | Seconds (≥ 0) to wait after `CLOSED` before starting `--on-close`, so `pm-clearing` can save its close snapshot first |
 | `--log-level`         | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
 | `--verbose` / `-v`    | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
 | `-q` / `--quiet`      | off                  | Explicit WARNING log level (the default)                                                     |
@@ -1575,8 +1575,16 @@ None.
 | Topic                | Purpose                                               |
 |----------------------|-------------------------------------------------------|
 | `session.transition` | Requests the engine to move to the next session phase |
+| `session.next`       | Tells the engine the next transition and when it is due, for the countdown, while no transition carries it |
+| `system.session_state_request` | Asks the engine for its current session state (at start-up, and when a transition is not confirmed) |
 
-The scheduler does not subscribe to any PUB messages — it is fire-and-forget.
+**Messages received** (SUB ← :5556, unless `--no-confirm`):
+
+| Topic                | Purpose                                               |
+|----------------------|-------------------------------------------------------|
+| `session.state`      | Confirms each transition; a state the scheduler did not ask for and no one announced means the engine restarted |
+| `system.session_status.SCHEDULER` | The engine's answer to the state request |
+| `system.startup`     | The engine started: the scheduler brings it back to the scheduled phase |
 
 See [Auctions & Scheduling](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md) for the full schedule configuration
 and session-phase documentation.

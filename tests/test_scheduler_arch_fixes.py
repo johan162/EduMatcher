@@ -16,6 +16,7 @@ import zmq
 
 from edumatcher.models.message import (
     decode,
+    make_session_state_msg,
     make_session_status_msg,
 )
 from edumatcher.engine.config_loader import DaySchedule, ScheduleConfig
@@ -27,6 +28,7 @@ from edumatcher.scheduler.main import (
     _run_scheduled,
     _run_transitions,
 )
+from tests.scheduler_harness import replying_sub
 
 _FULL = [
     ("09:00", "PRE_OPEN"),
@@ -104,8 +106,12 @@ class TestA1RunTransitions:
 
 
 class TestA2CatchUpTransitions:
-    def test_unknown_state_replays_all(self) -> None:
+    def test_unknown_state_replays_the_day_so_far(self) -> None:
         assert _catch_up_transitions(_FULL[:3], None) == _FULL[:3]
+
+    def test_unknown_state_after_the_close_replays_nothing(self) -> None:
+        # Taken as CLOSED: the day's own CLOSED is already behind it (C2).
+        assert _catch_up_transitions(_FULL, None) == []
 
     def test_engine_already_at_target_replays_nothing(self) -> None:
         # Past runs through CONTINUOUS and the engine is already CONTINUOUS.
@@ -129,10 +135,8 @@ class TestA2CatchUpTransitions:
 class TestA2QueryEngineState:
     def test_returns_state_from_reply(self) -> None:
         fake_push = MagicMock()
-        fake_sub = MagicMock()
-        fake_sub.poll.return_value = 1
-        fake_sub.recv_multipart.return_value = make_session_status_msg(
-            "SCHEDULER", "CONTINUOUS", True
+        fake_sub = replying_sub(
+            fake_push, make_session_status_msg("SCHEDULER", "CONTINUOUS", True)
         )
         result = _query_engine_state(fake_push, fake_sub, "SCHEDULER", timeout_ms=200)
         assert result is SessionState.CONTINUOUS
@@ -152,8 +156,10 @@ class TestA2QueryEngineState:
         fake_push = MagicMock()
         fake_push.send_multipart.side_effect = zmq.Again
         fake_sub = MagicMock()
+        fake_sub.poll.return_value = 0
         assert _query_engine_state(fake_push, fake_sub, "SCHEDULER") is None
-        fake_sub.poll.assert_not_called()
+        # Only the pre-request drain looked at the socket; no reply is awaited.
+        fake_sub.poll.assert_called_once_with(0)
 
 
 class TestA2ClosedLoopCatchUp:
@@ -168,10 +174,8 @@ class TestA2ClosedLoopCatchUp:
         # country, Sweden) so the working-day gate does not short-circuit.
         mock_dt.now.return_value = datetime(2024, 1, 9, 12, 0, 0)
         fake_push = MagicMock()
-        fake_sub = MagicMock()
-        fake_sub.poll.return_value = 1
-        fake_sub.recv_multipart.return_value = make_session_status_msg(
-            "SCHEDULER", "CONTINUOUS", True
+        fake_sub = replying_sub(
+            fake_push, make_session_status_msg("SCHEDULER", "CONTINUOUS", True)
         )
 
         # No catch-up transitions are expected (the engine already reports
@@ -201,10 +205,11 @@ class TestA2ClosedLoopCatchUp:
         # country, Sweden) so the working-day gate does not short-circuit.
         mock_dt.now.return_value = datetime(2024, 1, 9, 12, 0, 0)
         fake_push = MagicMock()
-        fake_sub = MagicMock()
-        fake_sub.poll.return_value = 1
-        fake_sub.recv_multipart.return_value = make_session_status_msg(
-            "SCHEDULER", "PRE_OPEN", True
+        fake_sub = replying_sub(
+            fake_push,
+            make_session_status_msg("SCHEDULER", "PRE_OPEN", True),
+            make_session_state_msg("OPENING_AUCTION", prev_state="PRE_OPEN"),
+            make_session_state_msg("CONTINUOUS", prev_state="OPENING_AUCTION"),
         )
 
         # Exactly 2 catch-up transitions are expected (OPENING_AUCTION,

@@ -40,7 +40,15 @@ stand-in reads the engine's published `session.state` and
 `system.session_status.*` frames in order. *(measured)* means timed on this
 host. The other findings are by inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q2 are needed before WP-SCH01 and WP-SCH04.
+Status: **Done, uncommitted.** WP-SCH01–06 completed 2026-11-18 in order,
+each test-first and verified with black/flake8/mypy/pyright and the full
+suite (last run: 15 118 passed, 1 skipped). Decisions Q1–Q2 taken as
+recommended. Beyond the plan: WP-SCH03's restart rule only re-plans when
+the engine reports a state it never announced (needed so Q1's "leave an
+operator's move alone" holds), and a sub-millisecond poll spin found while
+testing it was fixed; `_run_transitions` now returns whether every step was
+applied (WP-SCH04), so "Done." / "All transitions sent for today." no
+longer follow an unconfirmed step.
 
 ---
 
@@ -85,12 +93,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-SCH01 | Only the engine's answer to this request confirms it | C3 | — | 0.5 d | ☐ | |
-| 2 | WP-SCH02 | An unknown engine state never replays a closed day | C2 | — | 0.25 d | ☐ | |
-| 3 | WP-SCH03 | An engine restart is followed by the schedule within seconds | C1 | Q1, WP-SCH01 | 1 d | ☐ | |
-| 4 | WP-SCH04 | `--now` starts from CLOSED and reports what the engine applied | C4 | Q2, WP-SCH01 | 0.5 d | ☐ | |
-| 5 | WP-SCH05 | Bad flags are usage errors; the close hook never drops a trigger | C5, C6 | — | 0.5 d | ☐ | |
-| 6 | WP-SCH06 | Comments, help texts, ledger, guides | D1–D9 | WP-SCH01–05 | 0.5 d | ☐ | |
+| 1 | WP-SCH01 | Only the engine's answer to this request confirms it | C3 | — | 0.5 d | ☑ | 2026-11-18 |
+| 2 | WP-SCH02 | An unknown engine state never replays a closed day | C2 | — | 0.25 d | ☑ | 2026-11-18 |
+| 3 | WP-SCH03 | An engine restart is followed by the schedule within seconds | C1 | Q1, WP-SCH01 | 1 d | ☑ | 2026-11-18 |
+| 4 | WP-SCH04 | `--now` starts from CLOSED and reports what the engine applied | C4 | Q2, WP-SCH01 | 0.5 d | ☑ | 2026-11-18 |
+| 5 | WP-SCH05 | Bad flags are usage errors; the close hook never drops a trigger | C5, C6 | — | 0.5 d | ☑ | 2026-11-18 |
+| 6 | WP-SCH06 | Comments, help texts, ledger, guides | D1–D9 | WP-SCH01–05 | 0.5 d | ☑ | 2026-11-18 |
 
 Suggested order: **WP-SCH01 → WP-SCH02 → WP-SCH03 → WP-SCH04 → WP-SCH05 →
 WP-SCH06**. WP-SCH01 first because WP-SCH03 and WP-SCH04 add more queries and
@@ -448,6 +456,8 @@ the health tick); the first `_next_scheduled_day` across Christmas costs
 
 ## 7. Decisions
 
+Q1 and Q2 were taken as recommended (2026-11-18).
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | What makes a running scheduler re-synchronise with the engine (C1)? (a) the engine's `system.startup` broadcast (subscribe to it; on receipt query the state and reconcile to the scheduled phase), plus a re-query after any unconfirmed transition; (b) a periodic state query (every 30 s) that reconciles any mismatch; (c) only a re-query after an unconfirmed transition | **(a)**: it reacts within seconds to exactly the event that breaks the day, and leaves an operator's deliberate move (an early close, a frozen phase in training ch. 06) alone. (b) would undo those moves within 30 s. (c) alone leaves the market closed from the restart until the next scheduled time (10:00 → 16:00), and then reopens it only for the closing auction. The re-query in (a) covers a lost `system.startup`. |
@@ -482,6 +492,24 @@ request in `_query_engine_state`; `_confirm_transition` also requires
 **Exit criteria.** Tests 1–4 pass; scheduler suites green; mypy/pyright
 clean.
 
+**Outcome (2026-11-18).** New `_drain(sock)` in `scheduler/main.py`
+(`while sock.poll(0): recv`) runs right before the transition send in
+`_dispatch_transition` and before the request in `_query_engine_state`;
+`_confirm_transition` ignores a `session.state` that carries a
+`command_id`. New `tests/scheduler_harness.py` (`EngineRef`, `EngineBridge`,
+`EngineSub`, `fast_timeouts`, and `replying_sub` for tests with a mock PUSH)
+and `tests/test_scheduler_closed_loop.py` with tests 1–4. Tests 1–3 failed
+first for the stated reasons (no "no confirmation" warning; the query read
+`CLOSED`; the operator's broadcast confirmed); test 4 passed before and
+after. Five existing mock tests modelled the defect (a SUB whose `poll`
+always returns 1, i.e. a reply queued before the request); with the drain
+they loop forever, so they now use `replying_sub`, which makes each
+scripted reply readable only after the next send
+(`test_scheduler_arch_fixes.py` ×3, `test_scheduler_medium_fixes.py`,
+`test_scheduler_reconcile.py`). `test_returns_none_when_send_blocks` now
+asserts that only the pre-request drain polled. Full suite: 15 085 passed,
+1 skipped.
+
 ---
 
 ### WP-SCH02 — An unknown engine state never replays a closed day (C2)
@@ -505,6 +533,21 @@ clean.
 `TestA2CatchUpTransitions.test_unknown_state_replays_all` is updated to the
 new rule (it encodes the defect) and the change is named in the outcome;
 scheduler suites green.
+
+**Outcome (2026-11-18).** `_catch_up_transitions` takes an unknown state as
+`CLOSED` and realigns on it; the separate replay-everything branch is gone
+and the docstring says why (D9 done here). Tests 1, 2 and 4 (the full-day
+prefix) failed first with the five-transition replay; test 3 passed before
+and after. Four existing tests asserted the old rule and were updated to
+the new one, as the WP said: `test_unknown_state_replays_all` is now
+`test_unknown_state_replays_the_day_so_far` plus
+`test_unknown_state_after_the_close_replays_nothing`;
+`test_scheduler_high_defects.py::test_late_start_catches_engine_up_to_current_state`
+(which required the 23:59 start to send the whole day ending in `CLOSED`)
+is now `test_late_start_after_the_close_sends_nothing`; the two
+working-day tests in `test_scheduler_holidays_and_wallclock.py` used "a
+23:59 start sends something" as their signal and now start at 10:00, where
+the catch-up still has to send. Full suite: 15 095 passed, 1 skipped.
 
 ---
 
@@ -538,6 +581,38 @@ this purpose.
 with the engine in `CLOSED` after a confirmed close and `--on-close`
 triggered once.
 
+**Outcome (2026-11-18).** `_run_transitions` takes an optional
+`_Resync(known, query, plan)`. `_run_scheduled` now plans through one inner
+`plan(engine_state)` (partition, `_plan_catch_up`, then the timed steps), used
+for the first plan and every re-plan. With a confirmation socket, waits go
+through `_sleep_until_wallclock(..., watch=...)`, which spends each 0.5 s
+chunk in `_watch_engine` instead of `time.sleep`: it returns on
+`system.startup` and records every `session.state` it reads as the last
+state the engine announced. `pm-scheduler` subscribes to `system.startup`
+as well (exact topic match, so `system.startup_recovery` is ignored).
+
+Design choice beyond the WP text, needed to honour Q1: after an unconfirmed
+transition the scheduler re-queries and re-plans **only if the engine
+reports a state other than the last one it announced** (a restart boots
+`CLOSED` in silence; an operator's move is broadcast). A plain "re-query
+and reconcile" would have reopened the market at 16:00 after an operator's
+early close. An unreachable engine (no answer) is also left alone, so a
+down engine does not cause a replay loop every 4 s; its start announcement
+triggers the re-plan when it comes back. Two new WARNING rows with ledger
+entries: "engine restarted; bringing it from %s to the schedule" and
+"engine is in %s, not %s as last announced; it restarted, bringing it back
+to the schedule".
+
+Tests 1–2 failed first (`CLOSING_AUCTION` rejected from `CLOSED`, nothing
+applied after the restart); tests 3–4 passed before and after. Running the
+existing suites found one more defect, and fixed it: `_watch_engine` rounded
+its poll timeout down, so the last sub-millisecond of a wait became
+`poll(0)` and spun (in production a sub-millisecond busy loop; under
+`test_scheduler_next_target.py`'s fake clock, which only moves in
+`time.sleep`, a hang). It now rounds up. That test's bare `MagicMock` SUB
+(whose `poll` is always truthy) now models an empty socket that spends its
+timeout in the patched `time.sleep`. Full suite: 15 099 passed, 1 skipped.
+
 ---
 
 ### WP-SCH04 — `--now` starts from CLOSED and reports what the engine applied (C4; after Q2, WP-SCH01)
@@ -559,6 +634,24 @@ triggered once.
 returns whether every step was applied.
 
 **Exit criteria.** Tests 1–3 pass; scheduler suites green.
+
+**Outcome (2026-11-18).** `_run_now` takes `confirm_sock`; with one it
+queries the engine's state, logs "engine is in %s; closing it first via %s"
+(INFO) and prefixes the day with `_route(state, CLOSED)`; an unknown state
+logs the existing "could not determine engine state; assuming a CLOSED
+start" warning. `main()` opens the SUB for `--now` too (unless
+`--no-confirm`), through a new `_open_confirm_socket()` shared with
+scheduled mode. `_run_transitions` now returns `True` only when every step
+was applied (sent, and confirmed where a SUB exists), so "Done." and "All
+transitions sent for today." are no longer logged after an unconfirmed
+step; the per-step "no confirmation" warning says which. Tests 1–2 failed
+first with `TypeError: unexpected keyword argument 'confirm_sock'` (there
+was no confirmation path in `--now` at all, so no behavioural assertion
+could be reached); test 3 passed before and after.
+`test_scheduler_reconcile.py::test_on_close_waits_for_a_confirmed_close`
+asserted that a run whose only step was not applied returns `True`; it now
+asserts `False` under the new contract (its point, that the hook is not
+triggered, is unchanged). Full suite: 15 102 passed, 1 skipped.
 
 ---
 
@@ -585,6 +678,27 @@ when a single-shot shutdown waits for the child.
 **Exit criteria.** Tests 1–6 pass; `make completion` regenerated if the help
 changes; scheduler suites green.
 
+**Outcome (2026-11-18).** argparse `type=` validators: `_speed` (finite,
+> 0; replaces the `speed <= 0` check in `main()`, which `nan` passed),
+`_delay_sec` (finite, ≥ 0) and `_command` (`shlex.split` succeeds and gives
+at least one word). `--now --daily` (and with it `--speed`/`--start`, which
+already need `--daily`) is a usage error. `_CloseHook` coalesces: a trigger
+while the child runs sets `_again` (INFO "--on-close command is still
+running; it runs once more when it finishes", logged once) and the reaper
+starts the command once more when the child exits; reapers are now started
+under the lock, and `wait()` joins until no reaper is alive, so a run the
+reaper starts is waited for too; it logs one INFO line naming the child's
+PID when a single-shot shutdown has to wait. The WARNING "--on-close
+command is still running; trigger skipped" no longer exists, so its ledger
+entry was removed. New `tests/test_scheduler_cli.py` (tests 1–4, 15 cases)
+and two hook tests in `tests/test_scheduler_on_close.py`; all failed first
+for the stated reasons (exit 1 or a `ValueError` traceback instead of 2;
+`--now --daily` ran; `'x' != 'xx'`). The existing
+`test_a_second_call_while_running_is_skipped` encoded C6 and was replaced by
+the two coalescing tests. No help text changed, so the completion files
+needed no regeneration (`test_shell_completion` green). Full suite:
+15 118 passed, 1 skipped.
+
 ---
 
 ### WP-SCH06 — Comments, help texts, ledger, guides (D1–D9)
@@ -602,6 +716,34 @@ pm-eod, a container watchdog restart of pm-engine.
 **Exit criteria.** `make _check` clean (including `pm-log-cli ledger
 check` via the ledger test); `poetry run mkdocs build` without new
 warnings; every row of §5 addressed.
+
+**Outcome (2026-11-18).** D1: the `pm-help` entry describes the closed loop
+(state query, confirmation, restart follow-up), the deployed schedule,
+working days, `--now` closing first, `--no-confirm` and the coalescing hook.
+D2: the reference manual's port row (PUSH + SUB on 5556), flag rows, and
+new "Messages sent"/"Messages received" tables replace "fire-and-forget".
+D3: operator chapter 030 — code-block comments, flag table, the hook
+paragraph, a new "If the engine restarts" section (including what
+`--no-confirm` gives up), the half-second re-check, the `--now` section and
+the sessions-disabled note. D4: module docstring (restart follow-up,
+`locale.country`, 0.5 s re-check), the `WALLCLOCK_RECHECK_SEC` comment and
+the wait docstrings/comments. D5/D8: AI-trader book ch. 150/160 rows. D6:
+ledger explanations for the unknown-state, not-delivered, send-failed and
+no-confirmation rows. D7: training ch. 01 Exercise 7 (after-close case,
+`--now` from an open market, what `Done.` means). D9 was done in WP-SCH02.
+The argparse help of `--now` and `--no-confirm` changed, so `make
+completion` regenerated `completion/pm-completion.zsh`.
+
+Re-walking the flows (B1) found three more passages describing old
+behaviour, now fixed: training ch. 06 Exercise 1 (told the student to close
+by hand because `--now` could not; it now says `--now` closes it, with the
+manual route optional), operator chapter 100 "Closing the Day" (a trigger
+during a run "is skipped (with a warning)", in the list and in the
+troubleshooting table), and operator chapter 010 (`pm-scheduler` "built-in
+defaults if no config exists"; with nothing deployed it refuses to start).
+The log lines quoted in the new doc passages were taken from the code's
+messages, not from a live run. `mkdocs build`: no warnings other than
+mkdocs' own version notice. Full suite: 15 118 passed, 1 skipped.
 
 ---
 

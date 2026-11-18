@@ -27,6 +27,7 @@ from edumatcher.scheduler.main import (
     _validate_schedule,
     _validate_schedule_config,
 )
+from tests.scheduler_harness import replying_sub
 
 # ---------------------------------------------------------------------------
 # M1 — schedule validation
@@ -218,11 +219,8 @@ class TestM3DispatchTransition:
 
     def test_dispatch_with_confirm_socket_sends_and_confirms(self) -> None:
         fake_push = MagicMock()
-        fake_confirm = MagicMock()
-        fake_confirm.poll.return_value = 1
-        fake_confirm.recv_multipart.return_value = make_session_state_msg(
-            "PRE_OPEN", prev_state="CLOSED"
+        fake_confirm = replying_sub(
+            fake_push, make_session_state_msg("PRE_OPEN", prev_state="CLOSED")
         )
-        _dispatch_transition(fake_push, fake_confirm, "PRE_OPEN")
+        assert _dispatch_transition(fake_push, fake_confirm, "PRE_OPEN") is True
         fake_push.send_multipart.assert_called_once()
-        assert fake_confirm.poll.called
