@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edumatcher.local/question-bank/questions.schema.json",
+  "title": "Exchange concepts question bank: questions",
+  "description": "All knowledge-check (self-study) and quiz questions, without answers. Correctness lives in the answers file, matched by question_id and statement_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "book_version", "areas", "questions"],
+  "properties": {
+    "schema_version": {
+      "description": "Version of this schema the file conforms to.",
+      "const": "1.0"
+    },
+    "book_version": {
+      "description": "Version of How a Financial Exchange Works the questions were checked against (docs-exchange-intro/version.toml).",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "areas": {
+      "description": "Display names for the area ids used by the questions.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/area" }
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/question" }
+    }
+  },
+  "$defs": {
+    "areaId": {
+      "enum": [
+        "capital-listings",
+        "history-language",
+        "participants-venues",
+        "order-types",
+        "book-matching",
+        "ticks-pricing",
+        "market-making",
+        "auctions-sessions",
+        "implied-orders",
+        "indexes-benchmarks",
+        "risk-controls",
+        "clearing-settlement",
+        "regulation-surveillance",
+        "technology",
+        "fragmentation-routing"
+      ]
+    },
+    "area": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/areaId" },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "source", "source_file", "variant", "number", "title", "scenario",
+        "area", "tags", "difficulty", "numerical", "conventions", "book_refs", "statements"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique, stable question key: KC (knowledge check) or QZ (quiz), variant, question number.",
+          "type": "string",
+          "pattern": "^(KC|QZ)-\\d{2}-\\d{2}$"
+        },
+        "source": {
+          "description": "knowledge_check = self-study-30-questions; quiz = quiz-20-questions.",
+          "enum": ["knowledge_check", "quiz"]
+        },
+        "source_file": {
+          "description": "Path of the originating Markdown file, relative to docs-exchange-intro/knowledge-check/.",
+          "type": "string",
+          "minLength": 1
+        },
+        "variant": { "type": "integer", "minimum": 1 },
+        "number": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "scenario": {
+          "description": "Shared setup shown above the statements, or null.",
+          "type": ["string", "null"]
+        },
+        "area": { "$ref": "#/$defs/areaId" },
+        "tags": {
+          "description": "Free-form secondary labels, e.g. case-study or calendar-spread.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+        },
+        "difficulty": { "enum": ["Easy", "Medium", "Hard"] },
+        "numerical": {
+          "description": "True if answering requires a numerical calculation.",
+          "type": "boolean"
+        },
+        "conventions": {
+          "description": "Conventions block that must be printed with the question, or null.",
+          "enum": ["implied-spread", null]
+        },
+        "book_refs": {
+          "description": "Book chapter files, relative to docs-exchange-intro/src/.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "\\.md$" }
+        },
+        "statements": {
+          "description": "Exactly five true/false statements; letters are assigned only when a quiz is rendered.",
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/statement" }
+        }
+      }
+    },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text"],
+      "properties": {
+        "id": {
+          "description": "Question id plus statement index 1-5.",
+          "type": "string",
+          "pattern": "^(KC|QZ)-\\d{2}-\\d{2}-[1-5]$"
+        },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

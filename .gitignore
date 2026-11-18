@@ -198,6 +198,9 @@ mermaid-filter.err
 # Instructor correction keys must not be committed in plaintext
 docs/knowledge-check/instructor-correction-keys.md
 docs/knowledge-check/instructor-correction-keys.pdf
+docs-exchange-intro/knowledge-check/quiz-20-questions/exchange-quiz-answer-keys.md
+docs-exchange-intro/knowledge-check/quiz-20-questions/exchange-quiz-answer-keys.pdf
+docs-exchange-intro/knowledge-check/question-bank/answers.json
 
 .kiro/
 

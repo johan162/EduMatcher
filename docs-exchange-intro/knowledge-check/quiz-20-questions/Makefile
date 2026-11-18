@@ -10,6 +10,8 @@ UNAME_S := $(shell uname -s)
 MD_PLAIN := exchange-quiz-answer-keys.md
 PDF_PLAIN := exchange-quiz-answer-keys.pdf
 MD_ENC := $(MD_PLAIN).gpg
+ANSWERS_PLAIN := ../question-bank/answers.json
+ANSWERS_ENC := $(ANSWERS_PLAIN).gpg
 PDF_ENC := $(PDF_PLAIN).gpg
 QUIZ_PDFS := $(wildcard *-exchange-quiz.pdf)
 VERSION_FILE := ../../../docs-exchange-intro/version.toml
@@ -17,7 +19,7 @@ BOOK_VERSION := $(shell awk -F'"' '/^version[[:space:]]*=/{print $$2; exit}' $(V
 DIST_DIR := ../../../docs-exchange-intro/dist
 QUIZ_BUNDLE := $(DIST_DIR)/exchange_intro_quiz_bundle-$(BOOK_VERSION).zip
 
-.PHONY: help check-env encrypt decrypt encrypt-md encrypt-pdf decrypt-md decrypt-pdf bundle-quiz
+.PHONY: help check-env encrypt decrypt encrypt-md encrypt-pdf encrypt-answers decrypt-md decrypt-pdf decrypt-answers bundle-quiz
 
 RED_COLOR := \033[0;31m
 GREEN_COLOR := \033[0;32m
@@ -25,7 +27,7 @@ NC := \033[0m
 
 help: ## Show this help message
 	@echo "Quiz answer-key and bundle targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN_COLOR)%-12s$(NC) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN_COLOR)%-16s$(NC) %s\n", $$1, $$2}'
 
 check-env: ## Check that the OS is supported and gpg is installed
 	@case "$(UNAME_S)" in \
@@ -34,9 +36,9 @@ check-env: ## Check that the OS is supported and gpg is installed
 	esac
 	@command -v "$(GPG)" >/dev/null 2>&1 || { echo -e "$(RED_COLOR)✗ Error: gpg not found in PATH. Please install gnupg.$(NC)"; exit 1; }
 
-encrypt: encrypt-md encrypt-pdf ## Encrypt both answer keys and remove the plaintext files
+encrypt: encrypt-md encrypt-pdf encrypt-answers ## Encrypt both answer keys and the question-bank answers, and remove the plaintext files
 
-decrypt: decrypt-md decrypt-pdf ## Decrypt both answer keys
+decrypt: decrypt-md decrypt-pdf decrypt-answers ## Decrypt both answer keys and the question-bank answers
 
 encrypt-md: check-env ## Encrypt the Markdown answer key and remove the plaintext
 	@test -f "$(MD_PLAIN)" || { echo -e "$(RED_COLOR)✗ Error: Missing $(MD_PLAIN) $(NC)"; exit 1; }
@@ -52,6 +54,13 @@ encrypt-pdf: check-env ## Encrypt the PDF answer key and remove the plaintext
 	@rm -f "$(PDF_PLAIN)"
 	@echo -e "$(GREEN_COLOR)✓ Success: $(PDF_ENC) created$(NC)"
 
+encrypt-answers: check-env ## Encrypt the question-bank answers JSON and remove the plaintext
+	@test -f "$(ANSWERS_PLAIN)" || { echo -e "$(RED_COLOR)✗ Error: Missing $(ANSWERS_PLAIN) $(NC)"; exit 1; }
+	@"$(GPG)" -c "$(ANSWERS_PLAIN)"
+	@test -s "$(ANSWERS_ENC)" || { echo -e "$(RED_COLOR)✗ Error: Encryption failed: $(ANSWERS_ENC) was not created $(NC)"; exit 1; }
+	@rm -f "$(ANSWERS_PLAIN)"
+	@echo -e "$(GREEN_COLOR)✓ Success: $(ANSWERS_ENC) created$(NC)"
+
 decrypt-md: check-env ## Decrypt the Markdown answer key
 	@test -f "$(MD_ENC)" || { echo -e "$(RED_COLOR)✗ Error: Missing $(MD_ENC) $(NC)"; exit 1; }
 	@"$(GPG)" -d "$(MD_ENC)" > "$(MD_PLAIN)"
@@ -63,6 +72,12 @@ decrypt-pdf: check-env ## Decrypt the PDF answer key
 	@$(GPG) -d "$(PDF_ENC)" > "$(PDF_PLAIN)"
 	@test -s "$(PDF_PLAIN)" || { echo -e "$(RED_COLOR)✗ Error: Decryption failed: $(PDF_PLAIN) was not created $(NC)"; exit 1; }
 	@echo -e "$(GREEN_COLOR)✓ Success: $(PDF_PLAIN) created$(NC)"
+
+decrypt-answers: check-env ## Decrypt the question-bank answers JSON
+	@test -f "$(ANSWERS_ENC)" || { echo -e "$(RED_COLOR)✗ Error: Missing $(ANSWERS_ENC) $(NC)"; exit 1; }
+	@"$(GPG)" -d "$(ANSWERS_ENC)" > "$(ANSWERS_PLAIN)"
+	@test -s "$(ANSWERS_PLAIN)" || { echo -e "$(RED_COLOR)✗ Error: Decryption failed: $(ANSWERS_PLAIN) was not created $(NC)"; exit 1; }
+	@echo -e "$(GREEN_COLOR)✓ Success: $(ANSWERS_PLAIN) created$(NC)"
 
 bundle-quiz: check-env ## Zip the quiz PDFs and encrypted PDF key into dist/
 	@command -v zip >/dev/null 2>&1 || { echo -e "$(RED_COLOR)✗ Error: zip not found in PATH.$(NC)"; exit 1; }
