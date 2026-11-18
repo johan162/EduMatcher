@@ -1,9 +1,13 @@
-## [v0.81.2] - 2026-11-17
+## [v0.81.2] - 2026-11-18
 
 Release Type: minor
 
 ### 📋 Summary
-This release closes a broad set of smaller findings: configuration loaders now refuse invalid values instead of silently accepting them, auction fills are reported correctly, and several gateways, consoles and command-line tools behave more reliably. It also corrects user documentation in several places.
+This release closes a broad set of smaller findings: configuration loaders now refuse invalid values instead of silently accepting them, auction fills are reported correctly, and several gateways, consoles and command-line tools behave more reliably. It makes the session scheduler follow engine restarts safely, adds a generator for knowledge-check quizzes, and corrects user documentation in several places.
+
+### ✨ Additions
+- Added a quiz generator for the exchange introduction that builds random quizzes and answer keys from a question bank, filtered by topic area, difficulty and calculation questions
+- Added further knowledge-check quizzes and expanded the question bank
 
 ### 🚀 Improvements
 - Improved `pm-mm-bot --anchor-sim` to start from the market model's value when the book offers no reference price
@@ -22,14 +26,22 @@ This release closes a broad set of smaller findings: configuration loaders now r
 - Fixed pm-clearing keeping every daily close snapshot indefinitely; old snapshots are now pruned, keeping the newest
 - Fixed `BrokenPipeError` tracebacks when piping CLI output, `health -q` exiting with status 255, and `-q` not reducing output
 - Fixed the Trader GUI showing `-0.00%` for changes that round to zero, and the order-audit view hiding how far the audit index reaches
+- Fixed `pm-scheduler` replaying a full trading day after the close when the engine state was unknown, and losing its plan after an engine restart
+- Fixed `pm-scheduler` taking operator-issued session broadcasts as confirmation of its own transitions
+- Fixed `pm-scheduler` accepting invalid `--speed`, `--on-close` and `--on-close-delay` values, and `--now` combined with `--daily`; these are now refused at start-up
+- Fixed `pm-scheduler --now` not closing the engine first, and `--on-close` running twice for a trigger that arrived while its command was running
 
 ### 📚 Documentation
 - Corrected the web-application count and ports, DAY combo persistence, combo all-or-none guarantees, collar timing, and halt behaviour across restarts
 - Documented clearing ledger repair, snapshot retention, `health -q`, `-q`, and ALF half-close behaviour
+- Updated the scheduler documentation in `pm-help`, the reference manual, and the operator, training and AI-trader guides
+- Updated the exchange introduction's quizzes and self-study questions to match the current book, added implied-order self-study questions, and published the quiz PDFs with encrypted answer keys
+- Added the scheduler component review
 
 ### 🛠 Internal
 - Added a check that `pm-sim-forensics` uses only declared message topics
 - Added regression coverage for strict loaders, rejection texts, auction liquidity flags, gateway I/O and CLI behaviour
+- Added a closed-loop scheduler test harness covering engine restarts, request-tied confirmations and the closed-day rule
 
 ## [v0.81.1] - 2026-11-17
 
