@@ -703,6 +703,10 @@ starts a new numbering; format values with a fixed, non-exponent format.
 **Exit criteria.** Tests 1–6 pass; `make completion` up to date;
 `tests/test_monitor_*.py` and `tests/test_shell_completion.py` green.
 
+**Follow-up (2026-11-18).** The history query now uses the same sequence
+cutoff as the live follower. An event committed between reading that cutoff
+and querying history is printed only by the follower, not twice.
+
 **Outcome (2026-11-15).** `cli.iso_instant` is the `--since` argparse type:
 `datetime.fromisoformat` (date only, `T` or space, `Z` or an offset), no
 offset means UTC, and the value is turned into the stored form with
