@@ -165,3 +165,58 @@ class TestNoTradeNoFlag:
 
         # Nothing crossed it, so no order.fill was published at all.
         assert _fills(pub, "GW01") == []
+
+
+class TestUncrossPrint:
+    """L037 (WP-FL10, Q7): an uncross has no aggressor, so neither side took
+    liquidity; both events say AUCTION, not two MAKERs a fee rule would pay a
+    rebate to."""
+
+    def _uncross(self, monkeypatch: Any, tmp_path: Any) -> tuple[Any, FakeDropCopy]:
+        from edumatcher.models.session import SessionState
+
+        engine, pub = make_engine(monkeypatch, tmp_path)
+        drop = FakeDropCopy()
+        engine._drop_copy = drop
+        connect(engine, "GW01", "GW02")
+        engine._session_state = SessionState.OPENING_AUCTION
+        engine._handle_new_order(
+            order_payload(Side.BUY, OrderType.LIMIT, 50, "GW01", price=100.00)
+        )
+        engine._handle_new_order(
+            order_payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=100.00)
+        )
+        engine._run_uncross(reason="SCHEDULED")
+        return pub, drop
+
+    def test_both_drop_copy_events_say_auction(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        _pub, drop = self._uncross(monkeypatch, tmp_path)
+        flags = {gw: p["liquidity_flag"] for gw, _etype, p in drop.events}
+        assert flags == {"GW01": "AUCTION", "GW02": "AUCTION"}
+
+    def test_both_private_fills_say_auction(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        pub, _drop = self._uncross(monkeypatch, tmp_path)
+        assert _fills(pub, "GW01")[0]["liquidity_flag"] == "AUCTION"
+        assert _fills(pub, "GW02")[0]["liquidity_flag"] == "AUCTION"
+
+    def test_a_continuous_trade_still_has_one_taker_and_one_maker(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        engine, _pub = make_engine(monkeypatch, tmp_path)
+        drop = FakeDropCopy()
+        engine._drop_copy = drop
+        connect(engine, "GW01", "GW02")
+        engine._handle_new_order(
+            order_payload(Side.SELL, OrderType.LIMIT, 50, "GW01", price=100.00)
+        )
+        engine._handle_new_order(
+            order_payload(Side.BUY, OrderType.LIMIT, 50, "GW02", price=100.00)
+        )
+        assert sorted(p["liquidity_flag"] for _gw, _e, p in drop.events) == [
+            "MAKER",
+            "TAKER",
+        ]

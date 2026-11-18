@@ -5,19 +5,33 @@
  */
 
 import { create } from "zustand";
-import type { CounterWindow, LogRow, MarketSession, ServerState } from "@edumatcher/log-types";
+import type { CounterWindow, LiveGap, LogRow, MarketSession, ServerState } from "@edumatcher/log-types";
 import type { WsStatus } from "../lib/ws.js";
 
 const TAIL_MAX_ROWS = 2000;
 
 export type SourceState = "LIVE" | "RECONNECTING" | "LOG_SERVER_DOWN" | "HISTORY_UNAVAILABLE";
 
+/** A hole in the live tail (L038), shown between the rows around it. */
+export interface GapMarker extends LiveGap {
+  kind: "gap";
+  id: number;
+}
+
+export type TailEntry = LogRow | GapMarker;
+
+export function isGap(entry: TailEntry): entry is GapMarker {
+  return "kind" in entry && entry.kind === "gap";
+}
+
+let nextGapId = 1;
+
 interface LiveStore {
   wsStatus: WsStatus;
   serverState: ServerState | null;
   logDbHealthy: boolean;
   counters: CounterWindow | null;
-  tail: LogRow[];
+  tail: TailEntry[];
   tailPaused: boolean;
   newRowsWhilePaused: number;
   processLastSeen: Record<string, string>;
@@ -30,6 +44,7 @@ interface LiveStore {
   setCounters: (counters: CounterWindow) => void;
   setMarketSession: (session: MarketSession) => void;
   pushRow: (row: LogRow) => void;
+  pushGap: (gap: LiveGap) => void;
   setTailPaused: (paused: boolean) => void;
   clearNewRowsWhilePaused: () => void;
 
@@ -64,6 +79,12 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
       const tail = [row, ...s.tail].slice(0, TAIL_MAX_ROWS);
       return { tail, processLastSeen };
     }),
+
+  // Kept while paused too: the rows after it are counted, the hole is not.
+  pushGap: (gap) =>
+    set((s) => ({
+      tail: [{ ...gap, kind: "gap" as const, id: nextGapId++ }, ...s.tail].slice(0, TAIL_MAX_ROWS),
+    })),
 
   setTailPaused: (paused) => set({ tailPaused: paused, newRowsWhilePaused: paused ? get().newRowsWhilePaused : 0 }),
   clearNewRowsWhilePaused: () => set({ newRowsWhilePaused: 0 }),

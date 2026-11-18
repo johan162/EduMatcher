@@ -47,6 +47,42 @@ assert DATA_DIR == Path(_DATA_DIR).resolve(), (
 )
 
 
+def _raise_fd_soft_limit(target: int = 8192) -> None:
+    """Give every test process room for the sockets the suite opens.
+
+    macOS starts GUI-launched shells (Terminal, iTerm, IDEs) with a soft
+    ``RLIMIT_NOFILE`` of 256; Linux usually gives 1024 or more. An xdist
+    worker runs hundreds of gateway tests, each binding and connecting
+    several ZeroMQ and TCP sockets, and ZeroMQ closes its sockets
+    asynchronously -- so a worker can sit above 256 descriptors for a while.
+    Once it does, libzmq's I/O thread fails ``socket()``/``accept()`` with
+    EMFILE *silently* and keeps retrying: SUBs never receive ("engine SUB
+    never connected", "console listener did not catch up") and PUSHes with
+    ZMQ_IMMEDIATE refuse to send (ALF ``ENGINE_UNAVAILABLE``). None of those
+    symptoms mentions descriptors, which made this look like a timing bug.
+
+    Runs at conftest import, i.e. once in the controller and once in every
+    xdist worker; child processes the tests spawn inherit it. 8192 stays
+    below macOS's ``OPEN_MAX`` (10240), above which ``setrlimit`` can fail
+    even when the hard limit reads as unlimited.
+    """
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft == resource.RLIM_INFINITY or soft >= target:
+        return
+    new_soft = target if hard == resource.RLIM_INFINITY else min(target, hard)
+    if new_soft <= soft:
+        return
+    try:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard))
+    except ValueError, OSError:
+        pass  # keep the default; the descriptor-heavy tests will say so
+
+
+_raise_fd_soft_limit()
+
+
 def pytest_sessionfinish() -> None:
     shutil.rmtree(_DATA_DIR, ignore_errors=True)
 

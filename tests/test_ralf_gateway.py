@@ -25,6 +25,11 @@ from tests.conftest import free_ports
 # fixed 0.1-0.15s sleeps this file used to rely on.
 _DEFAULT_TIMEOUT = 5.0
 _POLL_INTERVAL = 0.02
+#: For the 20-30k message bursts. They assert that nothing is lost, not how
+#: fast the gateway journals: a 16-worker run on a laptop got through only
+#: ~23k of 30k in _DEFAULT_TIMEOUT. The wait returns as soon as the target is
+#: reached, so this costs nothing when the machine is idle.
+_BURST_TIMEOUT = 60.0
 
 
 def _recv_line(sock: socket.socket, timeout: float = _DEFAULT_TIMEOUT) -> str:
@@ -407,8 +412,13 @@ def _latest(gw: RalfGateway, channel: str = "CLEARING") -> int:
     return gw._next_seq_by_channel[channel] - 1
 
 
-def _wait_latest(gw: RalfGateway, value: int, channel: str = "CLEARING") -> None:
-    end = time.monotonic() + _DEFAULT_TIMEOUT
+def _wait_latest(
+    gw: RalfGateway,
+    value: int,
+    channel: str = "CLEARING",
+    timeout: float = _DEFAULT_TIMEOUT,
+) -> None:
+    end = time.monotonic() + timeout
     while _latest(gw, channel) < value and time.monotonic() < end:
         time.sleep(_POLL_INTERVAL)
     assert _latest(gw, channel) >= value
@@ -494,6 +504,12 @@ def engine() -> Generator[tuple[CausalPublisher, str], None, None]:
     (engine_port,) = free_ports(1)
     addr = f"tcp://127.0.0.1:{engine_port}"
     pub = make_publisher(addr)
+    # The burst tests publish 20-30k messages back to back and assert that
+    # every one arrives. A PUB drops silently at its send HWM (default 1000),
+    # and on a loaded machine libzmq's I/O thread drains the pipe slower than
+    # the publish loop fills it. Unbounded here, before the gateway's SUB
+    # connects: a pipe takes its HWM when it is created.
+    pub.setsockopt(zmq.SNDHWM, 0)
     try:
         yield pub, addr
     finally:
@@ -900,7 +916,7 @@ def test_a_long_replay_to_a_late_reader_is_not_a_slow_client(
         payload = dumps(_trade_payload(1))
         for _ in range(30_000):
             pub.send_multipart([b"trade.executed", payload])
-        _wait_latest(gw, b + 30_000)
+        _wait_latest(gw, b + 30_000, timeout=_BURST_TIMEOUT)
 
         cli = _Client(port, rcvbuf=256 * 1024)
         cli.send(_resume_hello(gw, "CLEARING", b))
@@ -917,7 +933,10 @@ def test_a_long_replay_to_a_late_reader_is_not_a_slow_client(
 
     assert not cli.frames("ERR")
     assert _exec_seqs(cli) == list(range(b + 1, b + 30_001))
-    assert took < 2.0
+    # Well under a second on an idle machine; 2.9 s measured with sixteen
+    # copies of this test competing for the CPU. A replay that stalls blows
+    # far past this.
+    assert took < 5.0
 
 
 # ---------------------------------------------------------------------------
@@ -978,7 +997,7 @@ def test_a_client_that_stopped_reading_holds_the_stop_at_most_a_second(
         payload = dumps(_trade_payload(1))
         for _ in range(20_000):  # several MB: more than the socket buffers hold
             pub.send_multipart([b"trade.executed", payload])
-        _wait_latest(gw, b + 20_000, "AUDIT")
+        _wait_latest(gw, b + 20_000, "AUDIT", timeout=_BURST_TIMEOUT)
         assert any(s.out_queue for s in list(gw._clients.values()))
 
         started = time.monotonic()
@@ -990,7 +1009,8 @@ def test_a_client_that_stopped_reading_holds_the_stop_at_most_a_second(
         cli.close()
 
     assert not t.is_alive()
-    assert took < 1.5
+    # Flush budget plus scheduling slack (see the DC gateway twin of this test).
+    assert took < gateway_mod.SHUTDOWN_FLUSH_SEC + 1.0
     assert gw._disconnects.get("shutdown") == 1
 
 

@@ -85,7 +85,7 @@ COMMON_LOG_OPTIONS: tuple[Option, ...] = (
         "off",
         "Increase verbosity (-v -> INFO, -vv -> DEBUG)",
     ),
-    Option("-q, --quiet", "off", "Reduce output to warnings/errors"),
+    Option("-q, --quiet", "off", "Explicit WARNING log level (the default)"),
     Option(
         "--log-target TARGET",
         "server",
@@ -553,14 +553,17 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         description=(
             "Sends session.transition to the engine to advance "
             "PRE_OPEN -> OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> CLOSED "
-            "at the times configured in engine_config.yaml. Fire-and-forget: does "
-            "not subscribe to anything.",
+            "at the times in the deployed configuration's schedule. Closed-loop: "
+            "it asks the engine for its state at start-up, confirms every "
+            "transition on the engine's session.state broadcast, and brings a "
+            "restarted engine back to the scheduled phase.",
         ),
         options=(
             Option(
                 "--now",
                 "off",
-                "Skip wall-clock waiting; send all transitions immediately with --delay between each",
+                "Skip wall-clock waiting: close the engine first if it is not CLOSED, "
+                "then send all five transitions with --delay between each",
             ),
             Option(
                 "--delay SEC",
@@ -570,7 +573,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             Option(
                 "--daily",
                 "off",
-                "Run continuously, repeating the schedule every calendar day",
+                "Run continuously, repeating the schedule every working day "
+                "(days with no schedule, such as weekends and bank holidays, are skipped)",
             ),
             Option(
                 "--speed F",
@@ -585,13 +589,15 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             Option(
                 "--no-confirm",
                 "off",
-                "Do not query/confirm session state via the engine before transitioning",
+                "Do not ask the engine its state, confirm transitions or follow an "
+                "engine restart; with no answer it assumes a CLOSED engine",
             ),
             Option(
                 "--on-close COMMAND",
                 "off",
                 "Start COMMAND (for example 'pm-eod run --pending') after each CLOSED "
-                "transition and once at start-up; runs detached, one at a time",
+                "transition and once at start-up; runs detached, one at a time (a "
+                "trigger while it runs starts it once more afterwards)",
             ),
             Option(
                 "--on-close-delay SEC",
@@ -2661,7 +2667,7 @@ _LOGGING: tuple[CommandInfo, ...] = (
                 "Explicit level: CRITICAL, ERROR, WARNING, INFO, DEBUG",
             ),
             Option("-v, --verbose", "off", "Increase verbosity"),
-            Option("-q, --quiet", "off", "Reduce output to warnings/errors"),
+            Option("-q, --quiet", "off", "Explicit WARNING log level (the default)"),
             Option(
                 "--log-target stdout|file",
                 "stdout",

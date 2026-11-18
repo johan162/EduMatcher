@@ -982,7 +982,7 @@ class TestHealth:
         assert _run_health(monkeypatch, ["health", "-q"]) == 0
         assert capsys.readouterr() == ("", "")
 
-    def test_quiet_exits_minus_one_without_output(
+    def test_quiet_exits_one_without_output(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
         """Including when --extended cannot even load the config: -q stays silent."""
@@ -992,7 +992,8 @@ class TestHealth:
         )
         _healthy_process(monkeypatch)
 
-        assert _run_health(monkeypatch, ["health", "--extended", "-q"]) == -1
+        # L017: 1, as without -q; it was -1 (status 255 in a shell).
+        assert _run_health(monkeypatch, ["health", "--extended", "-q"]) == 1
         assert capsys.readouterr() == ("", "")
 
     def test_run_extended_check_times_out_without_waiting_for_the_worker(

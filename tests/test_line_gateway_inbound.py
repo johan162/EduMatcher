@@ -4,6 +4,7 @@ complete and an unterminated line, and a reset connection dropped at once."""
 
 from __future__ import annotations
 
+import select
 import socket
 import struct
 from collections.abc import Generator
@@ -105,6 +106,9 @@ def test_a_reset_connection_is_dropped_at_once(gateway: Any) -> None:
     # SO_LINGER 0: close() sends RST, so the gateway's recv gets ECONNRESET.
     client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
     client.close()
+    # The RST crosses loopback asynchronously; on a loaded machine a read
+    # straight after close() can still find nothing and see EAGAIN.
+    assert select.select([conn], [], [], 5.0)[0], "RST never arrived"
 
     gateway._read_client_data()
 

@@ -29,8 +29,8 @@ PREFIX_DROP_COPY_EVENT = "drop_copy.event."
 _DROP_COPY_EVENT_RE = re.compile("drop_copy\\.event\\.(?P<gateway_id>[^.]+)")
 _DROP_COPY_EVENT_EVENT_TYPE_VALUES = ("order.fill",)
 DropCopyEventEventType = Literal["order.fill"]
-_DROP_COPY_EVENT_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER")
-DropCopyEventLiquidityFlag = Literal["MAKER", "TAKER"]
+_DROP_COPY_EVENT_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER", "AUCTION")
+DropCopyEventLiquidityFlag = Literal["MAKER", "TAKER", "AUCTION"]
 
 
 _DROP_COPY_EVENT_FIELDS: tuple[dict[str, Any], ...] = (
@@ -109,7 +109,7 @@ _DROP_COPY_EVENT_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "enum",
         "unit": None,
         "required": True,
-        "doc": "Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER. Exactly one of the two events a trade produces is TAKER.",
+        "doc": "Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER. Exactly one of the two events a continuous trade produces is TAKER. An uncross print (`aggressor_side` AUCTION) has no aggressor: neither side took liquidity, and both events are AUCTION.",
         "values": _DROP_COPY_EVENT_LIQUIDITY_FLAG_VALUES,
     },
 )
@@ -311,8 +311,8 @@ PREFIX_DROP_COPY_REPLAY = "drop_copy.replay."
 _DROP_COPY_REPLAY_RE = re.compile("drop_copy\\.replay\\.(?P<recipient_id>[^.]+)")
 _DROP_COPY_REPLAY_EVENT_TYPE_VALUES = ("order.fill",)
 DropCopyReplayEventType = Literal["order.fill"]
-_DROP_COPY_REPLAY_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER")
-DropCopyReplayLiquidityFlag = Literal["MAKER", "TAKER"]
+_DROP_COPY_REPLAY_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER", "AUCTION")
+DropCopyReplayLiquidityFlag = Literal["MAKER", "TAKER", "AUCTION"]
 
 
 _DROP_COPY_REPLAY_FIELDS: tuple[dict[str, Any], ...] = (

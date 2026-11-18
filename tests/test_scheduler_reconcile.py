@@ -30,6 +30,7 @@ from edumatcher.scheduler.main import (
     _Step,
     _time_today,
 )
+from tests.scheduler_harness import replying_sub
 
 S = SessionState
 _DAY = [
@@ -121,12 +122,11 @@ def test_run_scheduled_closes_a_stale_engine_first(
 ) -> None:
     mock_dt.now.return_value = datetime(2024, 1, 9, 8, 0)  # a Tuesday
     push = MagicMock()
-    sub = MagicMock()
-    sub.poll.return_value = 1
-    sub.recv_multipart.side_effect = [
+    sub = replying_sub(
+        push,
         make_session_status_msg("SCHEDULER", "CONTINUOUS", True),
         make_session_state_msg("CLOSED", prev_state="CONTINUOUS"),
-    ]
+    )
     calls = {"n": 0}
 
     def is_running() -> bool:
@@ -146,7 +146,8 @@ def test_time_today_is_anchored_to_the_given_day() -> None:
 def test_on_close_waits_for_a_confirmed_close(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sched, "_dispatch_transition", lambda *_a, **_k: False)
     calls: list[str] = []
-    assert _run_transitions(
+    # False: the close was not applied (WP-SCH04's return contract).
+    assert not _run_transitions(
         MagicMock(),
         MagicMock(),
         lambda: True,

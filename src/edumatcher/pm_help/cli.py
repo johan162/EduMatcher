@@ -25,6 +25,7 @@ import sys
 from importlib.resources import files
 from pathlib import Path
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.cli_version import add_version_argument, package_version
 from edumatcher.config import COMPILED_CONFIG_FILE, DATA_DIR, ENGINE_CONFIG_FILE
 from edumatcher.pm_help.registry import close_matches, get_command
@@ -99,6 +100,7 @@ def _print_version_and_paths(prog: str) -> None:
     print()
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> int:
     prog = _prog_name()
     parser = build_parser()

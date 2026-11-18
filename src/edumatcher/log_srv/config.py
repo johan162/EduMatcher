@@ -30,7 +30,7 @@ from edumatcher.config import (
     resolve_data_path,
     resolve_gateway_bind_host,
 )
-from edumatcher.config_coerce import as_float, as_int
+from edumatcher.config_coerce import as_bool, as_float, as_int, as_str
 from edumatcher.logclient.protocol import DEFAULT_MAX_MESSAGE_BYTES
 
 DEFAULT_RETENTION_DAYS = 30  # §6.5 — null/0 opts back into unbounded retention
@@ -182,10 +182,11 @@ def _as_int(raw: object, field: str) -> int:
 
 
 def _as_bool(raw: object, field: str) -> bool:
-    if not isinstance(raw, bool):
-        # bool() would read "false" (a quoted string) as true.
-        raise ValueError(f"log_server.{field} must be true or false, got {raw!r}")
-    return raw
+    return as_bool(raw, f"log_server.{field}")
+
+
+def _as_str(raw: object, field: str) -> str:
+    return as_str(raw, f"log_server.{field}")
 
 
 def _as_optional_int(raw: object, field: str) -> int | None:
@@ -202,15 +203,18 @@ def _load_log_server_config_from_raw(raw: dict[str, Any]) -> LogServerConfig:
         raise ValueError("log_server must be a mapping")
 
     enabled = _as_bool(ls_raw.get("enabled", True), "enabled")
-    name = str(ls_raw.get("name", "log-srv01"))
+    name = _as_str(ls_raw.get("name", "log-srv01"), "name")
     if any(ch in name for ch in "|\r\n"):
         # The name goes into WELCOME|SRV=...; a separator there breaks the line.
         raise ValueError(
             f"log_server.name must not contain '|' or a line break, got {name!r}"
         )
-    bind_address = resolve_gateway_bind_host(ls_raw.get("bind_address"))
+    bind_raw = ls_raw.get("bind_address")
+    bind_address = resolve_gateway_bind_host(
+        None if bind_raw is None else _as_str(bind_raw, "bind_address")
+    )
     port = _as_int(ls_raw.get("port", LOG_SRV_PORT), "port")
-    db_path_raw = ls_raw.get("db_path", str(LOG_DB_FILE))
+    db_path_raw = _as_str(ls_raw.get("db_path", str(LOG_DB_FILE)), "db_path")
     retention_days = _as_optional_int(
         ls_raw.get("retention_days", DEFAULT_RETENTION_DAYS), "retention_days"
     )

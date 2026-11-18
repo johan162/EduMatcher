@@ -26,9 +26,9 @@
 |---|---|
 | A process dies | Restarted within a minute; the container log notes it (`docker logs edumatcher-sim`). The market maker can take up to four: the engine keeps its old session until it misses three heartbeats, a minute apart, and refuses the new one until then |
 | The container dies or the machine reboots | Docker restarts it (`restart: unless-stopped`); the exchange redeploys nothing, keeps its data and starts the profile again |
-| The engine restarts during trading | The AI traders and the market maker log on again; the engine restarts flat (positions from zero, GTC orders restored) and `CLOSED`. The scheduler does not notice: during the trading day the market stays closed until you restart it with `docker exec edumatcher-sim pkill -f pm-scheduler` (the watchdog starts it again within a minute, and it catches up to the current phase) |
+| The engine restarts during trading | The AI traders and the market maker log on again; the engine restarts flat (positions from zero, GTC orders restored) and `CLOSED`. The scheduler sees the engine start and brings the market back to the current phase within seconds (`engine restarted; bringing it from CLOSED to the schedule` in its log) |
 | The market model restarts | It continues from the values it saved at most 10 seconds earlier |
-| Daylight saving time changes | The scheduler re-reads the wall clock every few minutes; the next phase happens at the right local time |
+| Daylight saving time changes | The scheduler re-reads the wall clock every half second; the next phase happens at the right local time |
 | A holiday | No trading that day; nothing to do |
 
 ## What grows

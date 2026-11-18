@@ -46,6 +46,7 @@ from typing import Any, Optional
 
 import zmq
 
+from edumatcher.messaging.bus import BusSocket
 from edumatcher.models.clock import now_ns
 from edumatcher.models.generated.drop_copy import (
     DropCopyEventEventType,
@@ -109,7 +110,7 @@ class DropCopyPublisher:
         from edumatcher.config import DROP_COPY_PUB_BIND_ADDR
 
         bind_addr = addr if addr is not None else DROP_COPY_PUB_BIND_ADDR
-        self._pub: zmq.Socket[bytes] = context.socket(zmq.PUB)
+        self._pub: zmq.Socket[bytes] = context.socket(zmq.PUB, socket_class=BusSocket)
         self._pub.bind(bind_addr)
         self._seq_by_gateway: dict[str, int] = {}
         # Bounded deque: when full, oldest messages are silently dropped
@@ -150,7 +151,8 @@ class DropCopyPublisher:
         fill_qty       : Executed quantity.
         fill_price     : Display money, not ticks.
         liquidity_flag : ``TAKER`` for the aggressor, ``MAKER`` for the
-                         resting side.
+                         resting side, ``AUCTION`` for both sides of an
+                         uncross.
         """
         seq = self._seq_by_gateway.get(gateway_id, 0) + 1
         self._seq_by_gateway[gateway_id] = seq

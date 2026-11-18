@@ -27,11 +27,11 @@
     - "Otherwise set `enabled: true` on that entry, run `pm-config-deploy` and start it again."
 
 - logger: edumatcher.api_gateway.main
-  template: "engine listener died; exiting with status 1"
+  template: "a listener died; exiting with status 1"
   level: CRITICAL
   explanation: >
-    pm-api-gwy stopped because its engine receive thread died (see the
-    "engine listener died" ERROR before it). Its REST and WebSocket clients
+    pm-api-gwy stopped because one of its receive threads died: the engine's,
+    pm-index's or pm-market-sim's (see the "… listener died" ERROR before it). Its REST and WebSocket clients
     are disconnected, and the engine applies each participant's disconnect
     behaviour.
   actions:
@@ -60,6 +60,28 @@
     follows). Without it pm-api-gwy can no longer see engine replies or
     events, so it stops and exits with status 1 rather than answer every
     request with a timeout.
+  actions:
+    - "Read the traceback; a ZeroMQ error names the cause."
+    - "Start pm-api-gwy again (`pm-opctl-cli start` restarts it with the profile)."
+
+- logger: edumatcher.api_gateway.index_client
+  template: "index listener died; stopping pm-api-gwy"
+  level: ERROR
+  explanation: >
+    The thread that receives pm-index's messages failed (the traceback
+    follows). Without it index history requests and rebalances only time
+    out, so pm-api-gwy stops and exits with status 1.
+  actions:
+    - "Read the traceback; a ZeroMQ error names the cause."
+    - "Start pm-api-gwy again (`pm-opctl-cli start` restarts it with the profile)."
+
+- logger: edumatcher.api_gateway.sim_client
+  template: "sim listener died; stopping pm-api-gwy"
+  level: ERROR
+  explanation: >
+    The thread that receives pm-market-sim's model values and news failed
+    (the traceback follows). Without it the admin sim and news streams go
+    silent, so pm-api-gwy stops and exits with status 1.
   actions:
     - "Read the traceback; a ZeroMQ error names the cause."
     - "Start pm-api-gwy again (`pm-opctl-cli start` restarts it with the profile)."

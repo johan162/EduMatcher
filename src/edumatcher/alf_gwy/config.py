@@ -14,7 +14,7 @@ from edumatcher.config import (
     ENGINE_PULL_ADDR,
     resolve_gateway_bind_host,
 )
-from edumatcher.config_coerce import as_int
+from edumatcher.config_coerce import as_bool, as_int, as_str
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,10 @@ class AlfGatewayConfig:
     max_errors_before_disconnect: int = 50
     error_window_sec: int = 60
     gateway_roles: tuple[tuple[str, str], ...] = ()
+
+
+def _optional_str(raw: object, label: str) -> str | None:
+    return None if raw is None else as_str(raw, label)
 
 
 def _as_int(raw: object, field: str) -> int:
@@ -79,9 +83,11 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
     if not isinstance(section, dict):
         raise ValueError("alf_gateway must be a mapping")
 
-    enabled = bool(section.get("enabled", True))
-    name = str(section.get("name", "alf-gwy01"))
-    bind_address = resolve_gateway_bind_host(section.get("bind_address"))
+    enabled = as_bool(section.get("enabled", True), "alf_gateway.enabled")
+    name = as_str(section.get("name", "alf-gwy01"), "alf_gateway.name")
+    bind_address = resolve_gateway_bind_host(
+        _optional_str(section.get("bind_address"), "alf_gateway.bind_address")
+    )
     port = _as_int(section.get("port", 5565), "port")
     if port <= 0 or port > 65535:
         raise ValueError("alf_gateway.port must be in 1-65535")

@@ -51,10 +51,10 @@ where they live.
 | Process logs | `data/emo/<name>.log` | `<DATA_DIR>/emo/<name>.log` | each terminal's scrollback |
 | Best for | classrooms, demos, anyone who wants it *running* | scripted or repeated local runs | learning what each process does, and debugging one of them |
 
-¹ The curl installer's `./edumatcher.sh start` brings up all six web
+¹ The curl installer's `./edumatcher.sh start` brings up all seven web
 applications unconditionally. From a source checkout, `make up-all` starts
-the five GUIs that talk to a running exchange (`terminal-gui`, `log-gui`,
-`trader-gui`, `book-gui`, `dash-gui`); `config-gui` — which needs no running exchange —
+the six GUIs that talk to a running exchange (`terminal-gui`, `log-gui`,
+`trader-gui`, `book-gui`, `dash-gui`, `clearing-gui`); `config-gui` — which needs no running exchange —
 is opt-in via `make up-all CONFIG_GUI=1`. See
 [Installation](../part-1-install-and-deploy/010-installation.md).
 
@@ -449,7 +449,8 @@ for the `pm-stats` retention rules.
 ### Session scheduler
 
 ```bash
-# Normal schedule from deployed config, or built-in defaults if no config exists
+# Normal schedule from the deployed config (the built-in default if it has no
+# schedule block; with nothing deployed the scheduler refuses to start)
 pm-scheduler
 
 # Rehearsal mode: run the whole trading day quickly

@@ -5,8 +5,8 @@
 
     - Why single-leg orders are not enough for many real trading strategies, and
       what **leg risk** means in practice
-    - How combo orders solve that problem by linking multiple child orders as a single
-      atomic unit
+    - How combo orders reduce that risk by linking multiple child orders into one
+      unit, and the leg risk that remains
     - The real-world strategies that require combos — from simple pairs trades to
       three-leg statistical arbitrage — explained without jargon
     - The extra complexity combos introduce: distributed state, cascade cancellation,
@@ -28,10 +28,19 @@ That is called **leg risk**, and it is why combo orders exist.
 A combo order bundles two or more orders into one instruction that the exchange
 treats as a unit:
 
-- All legs are submitted together.
-- If the market cannot fill all of them, none fill.
+- All legs are submitted together, in one message.
+- On entry, an all-or-none (`AON`) combo trades only if every leg can fill in
+  full at once; otherwise no leg trades on entry.
 - If any leg is cancelled, rejected or expires, the exchange automatically cancels
   all the remaining legs for you.
+
+!!! warning "What a combo does not guarantee"
+    All-or-none is a check **at entry** only. Legs that could not all fill at
+    once rest on their books as ordinary orders, and from then on each one
+    fills on its own: a later order can fill one leg while the others keep
+    waiting, and the combo is then `PARTIALLY_MATCHED`. A combo removes the
+    leg risk of *entering* in two steps, and the bookkeeping of cancelling the
+    rest when one leg ends; it does not make later fills simultaneous.
 
 ### Three real-world situations where combos matter
 
@@ -43,14 +52,15 @@ regardless of which way the whole market moves.
 
 **Situation 2 — You want to enter a position and hedge it at the same time.**
 You are bullish on AAPL but worried about a broad market crash.  A combo lets
-you buy AAPL and simultaneously sell an index (like SPY) in one atomic step.
+you buy AAPL and sell an index (like SPY) in one instruction.
 If the whole market falls, your SPY short offsets the AAPL loss.
 
 **Situation 3 — You are a professional quant with a model.**
 Your algorithm says a particular three-stock basket is mispriced by 0.3%.
-You need all three legs to fill at the same time, otherwise the arbitrage
-disappears before you can complete the position.  A three-leg combo is the
-only practical way to do this.
+You want all three legs to fill together, otherwise the arbitrage
+disappears before you can complete the position.  A three-leg combo trades all
+three at entry when the liquidity is there, and none of them when it is not;
+legs that rest fill one by one afterwards.
 
 
 
@@ -107,7 +117,7 @@ This is called **leg risk** (or execution risk).
 
 | Single-leg problem | Combo solution |
 |----|-----|
-| Leg risk — one side fills, the other doesn't | Both legs submitted atomically in one message |
+| Leg risk — one side fills, the other doesn't | Both legs submitted in one message; an `AON` combo trades on entry only if every leg fills in full (resting legs later fill independently) |
 | Manual cancellation — if one leg fails you must remember to cancel the other | Cascade-cancel: if any leg is cancelled, rejected or expires, all siblings are cancelled automatically |
 | State tracking — you mentally track which orders belong together | The engine tracks the parent combo and its children as a unit |
 | Strategy intent — the engine doesn't know your two orders are related | The engine understands the relationship and can report combo-level status |
@@ -157,7 +167,8 @@ COMBO: BUY 200 AAPL @210.00, SELL 100 MSFT @415.00, SELL 50 GOOG @170.00
 ```
 
 **Thesis:** A quantitative model says this basket is mispriced. The combo lets you
-enter the entire position atomically.
+enter the entire position in one instruction: all of it at entry, or none of it
+then.
 
 ### Hedged Entry
 
@@ -294,7 +305,7 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 |---------------------|--------------------------------------------------------------------------------|
 | `TYPE=COMBO`        | Tells the parser this is a multi-leg order                                     |
 | `COMBO_ID=PAIR-001` | Your tracking label (human-readable)                                           |
-| `COMBO_TYPE=AON`    | All-or-none semantics: combo completes only when **all** legs are fully filled |
+| `COMBO_TYPE=AON`    | All-or-none at entry: no leg trades on entry unless every leg fills in full; the combo is `MATCHED` when **all** legs are fully filled |
 | `TIF=GTC`           | Time-in-force applied to all legs                                              |
 | `LEG_COUNT=2`       | Number of legs (2–10)                                                          |
 | `LEG<i>.SYM`        | Symbol for leg *i*                                                             |
@@ -321,7 +332,8 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
    them to the respective order books. Every leg event and `combo.status`
    therefore follows the `combo.ack`.
 4. Child orders match and rest like normal orders. Each fill is reported to you as a
-   standard `order.fill` event.
+   standard `order.fill` event. A resting leg fills on its own: the combo is
+   `PARTIALLY_MATCHED` while some legs are filled and others still rest.
 5. When **all legs are fully filled**, the engine publishes a `combo.status(MATCHED)`
    event.
 6. If any leg is **cancelled, rejected or expires** before all legs fill, the
@@ -348,7 +360,7 @@ way the combo fails (step 6).
 CANCEL|COMBO_ID=PAIR-001
 ```
 
-This cancels all child legs atomically. Fills that already occurred are not reversed.
+This cancels every child leg still resting, in one step. Fills that already occurred are not reversed.
 
 ### Monitoring Combo Status
 
@@ -498,8 +510,9 @@ and pocket 10 × 50 = 500 points profit.
 NEW|TYPE=COMBO|COMBO_ID=STAT-ARB|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=3|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=200|LEG0.PRICE=210.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=415.00|LEG2.SYM=GOOG|LEG2.SIDE=SELL|LEG2.QTY=50|LEG2.PRICE=170.00
 ```
 
-The combo ensures all three legs enter simultaneously. Without a combo, the
-arbitrageur risks partial execution and model-breaking slippage.
+The combo submits all three legs together and, at entry, trades all of them or
+none. Without a combo, the arbitrageur risks partial execution and
+model-breaking slippage at entry; legs that rest can still fill one at a time.
 
 ### Example 5 — Market-Maker Spread Seeding
 

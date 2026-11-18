@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 import textwrap
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -980,3 +981,103 @@ class TestConfigLoaderComboErrors:
         """
         with pytest.raises(ValueError, match="unknown symbol"):
             load_engine_config(_write_yaml(tmp_path, yaml))
+
+
+# ---------------------------------------------------------------------------
+# Values the fields cannot hold (For-Later L024, WP-FL09)
+# ---------------------------------------------------------------------------
+
+_STRICT_BASE: dict[str, object] = {
+    "symbols": {
+        "AAPL": {
+            "tick_decimals": 2,
+            "last_buy_price": 150.0,
+            "last_sell_price": 151.0,
+            "outstanding_shares": 1000,
+            "order_limits": {"max_order_qty": 500, "max_order_value": 1000.0},
+            "market_maker_quotes": [
+                {
+                    "gateway_id": "MM01",
+                    "bid_price": 149.0,
+                    "ask_price": 152.0,
+                    "bid_qty": 100,
+                    "ask_qty": 100,
+                }
+            ],
+        }
+    },
+    "participants": [{"id": "TRADER01"}, {"id": "MM01", "role": "MARKET_MAKER"}],
+    "engine_tuning": {"snapshot_interval_sec": 0.5},
+    "indices": [
+        {
+            "id": "IDX",
+            "description": "Test",
+            "history_file": "h.jsonl",
+            "state_file": "s.json",
+            "constituents": ["AAPL"],
+        }
+    ],
+}
+
+_NAN = float("nan")
+
+# (path, value, the field the error must name)
+_STRICT_CASES: list[tuple[tuple[object, ...], object, str]] = [
+    (("symbols", "AAPL", "tick_decimals"), True, "tick_decimals"),
+    (("symbols", "AAPL", "tick_decimals"), 1.5, "tick_decimals"),
+    (("symbols", "AAPL", "outstanding_shares"), True, "outstanding_shares"),
+    (("symbols", "AAPL", "outstanding_shares"), 1.5, "outstanding_shares"),
+    (("symbols", "AAPL", "order_limits", "max_order_qty"), 1.5, "max_order_qty"),
+    (("symbols", "AAPL", "order_limits", "max_order_qty"), True, "max_order_qty"),
+    (("symbols", "AAPL", "order_limits", "max_order_value"), _NAN, "max_order_value"),
+    (("symbols", "AAPL", "market_maker_quotes", 0, "bid_qty"), 1.5, "bid_qty"),
+    (("symbols", "AAPL", "market_maker_quotes", 0, "bid_price"), _NAN, "bid_price"),
+    (("symbols", "AAPL", "market_maker_quotes", 0, "seed_once"), "x", "seed_once"),
+    (("symbols", "AAPL", "market_maker_quotes", 0, "seed_once"), "false", "seed_once"),
+    (("schedule",), "x", "schedule"),
+    (("schedule",), 0, "schedule"),
+    (("schedule",), [], "schedule"),
+    (("engine_tuning", "snapshot_interval_sec"), _NAN, "snapshot_interval_sec"),
+    (("engine_tuning", "snapshot_interval_sec"), float("inf"), "snapshot_interval_sec"),
+    (("engine_tuning", "snapshot_interval_sec"), True, "snapshot_interval_sec"),
+    (("auction_indicative_interval_sec",), _NAN, "auction_indicative_interval_sec"),
+    (("engine_tuning", "quote_history_maxlen"), 1.5, "quote_history_maxlen"),
+    (("engine_tuning", "drop_copy_buffer_size"), True, "drop_copy_buffer_size"),
+    (("indices", 0, "base_value"), _NAN, "base_value"),
+    (("indices", 0, "publish_interval_sec"), _NAN, "publish_interval_sec"),
+]
+
+
+def _strict_doc(path: tuple[object, ...], value: object) -> dict[str, object]:
+    import copy
+
+    doc = copy.deepcopy(_STRICT_BASE)
+    node: Any = doc
+    for key in path[:-1]:
+        node = node[key]
+    node[path[-1]] = value
+    return doc
+
+
+class TestValuesTheFieldCannotHold:
+    def test_the_base_loads(self, tmp_path: Path) -> None:
+        import yaml as pyyaml
+
+        p = tmp_path / "config.yaml"
+        p.write_text(pyyaml.safe_dump(_STRICT_BASE))
+        load_engine_config(p)
+
+    @pytest.mark.parametrize(
+        ("path", "value", "field"),
+        _STRICT_CASES,
+        ids=[".".join(map(str, p)) + f"={v!r}" for p, v, _ in _STRICT_CASES],
+    )
+    def test_refused_naming_the_field(
+        self, tmp_path: Path, path: tuple[object, ...], value: object, field: str
+    ) -> None:
+        import yaml as pyyaml
+
+        p = tmp_path / "config.yaml"
+        p.write_text(pyyaml.safe_dump(_strict_doc(path, value)))
+        with pytest.raises(ValueError, match=re.escape(field)):
+            load_engine_config(p)

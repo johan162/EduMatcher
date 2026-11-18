@@ -949,7 +949,7 @@ Index files:
 
 The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
 printed — not even a configuration error under `--extended` — and the exit
-code is `0` when healthy or `-1` (255 in a shell) otherwise. `--format json`
+code is the same. `--format json`
 prints the same report as a JSON object; `csv` prints the same text as
 `table`.
 

@@ -175,7 +175,9 @@ def settle_date(
     without a recorded baseline uses its snapshot.
 
     Everyone starts from zero when there is no ``previous``, when
-    ``clearing.db`` has no snapshot for it (it was reset), and when it is a
+    ``clearing.db`` has no snapshot for it (it was reset) unless the recorded
+    baseline names this very ``clearing.db`` (then the snapshot was pruned,
+    and the recorded equity is the baseline), and when it is a
     different ``clearing.db`` than ``previous`` was settled from (reset, and
     ``previous``'s date traded again): equity restarted at zero with it
     (``baseline_reset``).  Unknown instances count as the same file.
@@ -185,7 +187,16 @@ def settle_date(
         raise SettlementError(f"no close snapshot for {trade_date}")
     instance = clearing_instance(clearing)
     snapshot = equities(_snapshots(clearing, previous)) if previous else {}
-    if not snapshot or settled is None:
+    if (
+        not snapshot
+        and settled is not None
+        and instance is not None
+        and settled.clearing_instance == instance
+    ):
+        # The same clearing.db pruned that snapshot (L019): the recorded
+        # equity is the baseline, and nothing can say whether it changed.
+        result = compute_settlement(today, settled.equity)
+    elif not snapshot or settled is None:
         result = compute_settlement(today, snapshot)
     elif settled.clearing_instance not in (None, instance) and instance is not None:
         result = replace(compute_settlement(today, {}), baseline_reset=True)

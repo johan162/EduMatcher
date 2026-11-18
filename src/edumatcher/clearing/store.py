@@ -692,11 +692,29 @@ def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
 
     Aggregate tables (gateway_daily_summary, gateway_symbol_positions) are
     NOT pruned — they remain for long-running reporting beyond the raw window.
+    Close snapshots follow the same retention: :func:`prune_close_snapshots`.
 
     Returns the number of rows deleted.
     """
     cur = conn.execute(
         "DELETE FROM trade_events WHERE trade_date < date('now', ?)",
+        (f"-{retention_days} days",),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def prune_close_snapshots(conn: sqlite3.Connection, retention_days: int = 90) -> int:
+    """
+    Delete ``position_close_snapshot`` dates older than ``retention_days`` days
+    (L019), never the newest snapshot date: pm-eod settles the next day from
+    it, however long ago it was.
+
+    Returns the number of rows deleted.
+    """
+    cur = conn.execute(
+        "DELETE FROM position_close_snapshot WHERE trade_date < date('now', ?)"
+        " AND trade_date < (SELECT MAX(trade_date) FROM position_close_snapshot)",
         (f"-{retention_days} days",),
     )
     conn.commit()

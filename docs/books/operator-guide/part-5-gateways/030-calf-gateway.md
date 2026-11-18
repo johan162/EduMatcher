@@ -72,9 +72,10 @@ Responsibilities of `pm-md-gwy`:
   restarted, asks the engine for every known symbol's book and for the list of
   halted symbols. The engine publishes a book only when it changes, so without
   this a gateway started while the market is quiet would send `SNAP`s with no
-  bid or ask; and an engine restart ends every halt without publishing a
-  resume. The engine does not answer for a symbol it holds no book for: such
-  a symbol's `TOP` and `DEPTH` stay as they were until its first order.
+  bid or ask; and the list of halts confirms what the restarted engine still
+  holds (it restores operator halts, and ends breaker halts with a resume).
+  Every configured symbol has a book from the engine's start, so each request
+  is answered, if need be with an empty book.
 
 
 ## The feed at a glance
@@ -244,7 +245,7 @@ CLI override options:
 | `--index-pub ADDR` | `tcp://127.0.0.1:5558` | Override the `pm-index` PUB socket address — likewise not configurable via the YAML block |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | Explicit WARNING log level (the default) |
 | `--log-target` | auto | Where operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |

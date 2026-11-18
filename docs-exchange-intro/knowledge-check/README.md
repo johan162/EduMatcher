@@ -11,8 +11,8 @@ This directory contains learner-facing knowledge check material for the exchange
 Answer keys for quizzes are intentionally not stored here in plain text.
 They are kept only as encrypted `.gpg` files:
 
-- `instructor-correction-keys.md.gpg`
-- `instructor-correction-keys.pdf.gpg`
+- `exchange-quiz-answer-keys.md.gpg`
+- `exchange-quiz-answer-keys.pdf.gpg`
 
 This will make it possible to use these quizzes in a course setting without learners having access to answers beforehand.
 
@@ -51,7 +51,7 @@ make decrypt-pdf
 
 The `make encrypt` workflow verifies that the encrypted `.gpg` files were
 created successfully and then removes the original plaintext correction key
-files from the current directory.
+files from `quiz-20-questions` (and the plaintext `question-bank/answers.json`).
 
 ### Install gpg
 

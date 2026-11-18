@@ -399,6 +399,8 @@ as a positive number  P&L ledger.
 
 **Midpoint Peg Order:** An order whose price continuously tracks the current mid price (the average of the best bid and best ask). Executes only when a counterparty arrives whose order is also willing to trade at the midpoint. The mid is a *better* price for both parties than the quoted bid or ask, the buyer pays less than the ask, the seller receives more than the bid; the spread is shared rather than fully paid. Provides price improvement at the cost of uncertain execution timing: there is no guarantee a counterparty will appear. Common in dark pools; also supported on IEX on the lit market. Never competes in the regular price-time priority queue, maintained as a separate midpoint matching layer.
 
+**Mixed Lot:** An order or execution for more than one round lot that is not a whole multiple of it, for example 150 shares where the round lot is 100: one round lot plus an odd-lot remainder. See *Odd Lot*, *Round Lot*.
+
 **MMP Threshold:** The fill count and time window that together trigger Market Maker Protection. For example, "5 fills within 1 second." If this threshold is exceeded, the exchange automatically cancels all of the market maker's resting quotes. The threshold is negotiated per market maker, per symbol, and finding the right value is a key parameter of market making strategy.
 
 **Monotonic:** Strictly non-decreasing. A monotonic sequence is one where each value is equal to or greater than all previous values. A strictly monotonic sequence is one where each value is strictly greater.
@@ -425,7 +427,7 @@ as a positive number  P&L ledger.
 
 **OCC (Options Clearing Corporation):** The central clearing house for equity options in the US.
 
-**Odd Lot:** An order or execution for a quantity that is not a whole multiple of the standard round lot size for that instrument (commonly 100 shares for US equities). Historically excluded from consolidated NBBO and tape data in US equities, a practice being revised under the SEC's market-data-infrastructure rules. See *Round Lot*.
+**Odd Lot:** An order or execution for fewer shares than the standard round lot size for that instrument (commonly 100 shares for US equities). A larger quantity that is not a whole multiple of the round lot is a *Mixed Lot*. Historically excluded from consolidated NBBO and tape data in US equities, a practice being revised under the SEC's market-data-infrastructure rules. See *Round Lot*.
 
 **OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other.
 

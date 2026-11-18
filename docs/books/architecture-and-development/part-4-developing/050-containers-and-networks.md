@@ -80,9 +80,9 @@ There are three families of compose files. Only the first is for development.
 | `deployment/docker/compose.config-gui.yaml` | Overlay: `config-gui`, which needs no backend | No | `make up-all CONFIG_GUI=1` |
 | `deployment/docker/compose.zmq.yaml` | Overlay: publish the raw ZeroMQ bus (5555-5559, 5601/5602, 5611) | No | `ZMQ=1` |
 | `deployment/docker/compose.ssh.yaml` | Overlay: sshd on `SSH_PORT` (default 2222) | No | `SSH=1` |
-| `deployment/docker/compose.ai-sim.yaml` | The AI-trader simulation and five GUIs, images from GHCR (the backend can be built locally with `LOCAL=1`) | Yes, ignores `.env` | `make up-sim` |
+| `deployment/docker/compose.ai-sim.yaml` | The AI-trader simulation and six GUIs, images from GHCR (the backend can be built locally with `LOCAL=1`) | Yes, ignores `.env` | `make up-sim` |
 | `deployment/curl/compose.yaml`, `compose.zmq.yaml`, `compose.ai-sim.yaml` | Released twins of the files above, build-free, images from GHCR | Same as the twin; `compose.yaml` already includes the GUIs | `edumatcher.sh` |
-| `deployment/curl/compose.guis.yaml` | **Only** the six GUIs, for an exchange running on the host (pipx install). Despite the name this is *not* a twin of the docker overlay | Yes | `edumatcher.sh` with `EM_STACK=guis` |
+| `deployment/curl/compose.guis.yaml` | **Only** the seven GUIs, for an exchange running on the host (pipx install). Despite the name this is *not* a twin of the docker overlay | Yes | `edumatcher.sh` with `EM_STACK=guis` |
 | `web-apps/<app>/docker-compose.yml` (+ `docker-compose.linux.yml`) | One GUI alone, talking to a backend **outside** compose via `host.docker.internal` (the Linux overlay adds the `host-gateway` mapping) | Yes | `make up` in the app, or `make up` in `web-apps/` |
 
 The decisive difference is networking. In the `deployment/` families every
@@ -501,7 +501,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and eight multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.81.1`
+the same version. That coupling is what lets `install.sh --version 0.81.2`
 pin an entire system with one number.
 
 ```mermaid

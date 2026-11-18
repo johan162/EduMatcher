@@ -53,7 +53,7 @@ class _FakeContext:
     def __init__(self) -> None:
         self._socket = _FakeSocket()
 
-    def socket(self, socket_type: int) -> _FakeSocket:
+    def socket(self, socket_type: int, **_kwargs: Any) -> _FakeSocket:
         return self._socket
 
 

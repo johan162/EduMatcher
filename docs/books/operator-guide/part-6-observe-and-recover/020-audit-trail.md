@@ -1200,8 +1200,7 @@ Log file stats:
 ```
 
 The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
-printed and the exit code is `0` when healthy or `-1` (255 in a shell)
-otherwise.
+printed and the exit code is the same.
 
 The health socket binds to `127.0.0.1:5562` by default; set
 `EDUMATCHER_AUDIT_BIND_HOST` / `EDUMATCHER_AUDIT_HEALTH_PORT` to change where

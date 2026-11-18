@@ -312,7 +312,7 @@ full source payload and field semantics:
 | `SYMBOL` | `symbol` | |
 | `FILL_QTY` | `fill_qty` | |
 | `FILL_PRICE` | `fill_price` | Display price |
-| `LIQUIDITY` | `liquidity_flag` | `MAKER` or `TAKER` |
+| `LIQUIDITY` | `liquidity_flag` | `MAKER`, `TAKER`, or `AUCTION` (both sides of an uncross) |
 | `TS` | `timestamp` | When the engine published the fill, ISO-8601 UTC with milliseconds |
 | `TRADE_ID` | `trade_ids` | The public trade id (`trade.executed` `id`, RALF `EXEC_ID`); several are comma-joined. Its prefix is the engine run, so it also shows a restart |
 

@@ -152,7 +152,7 @@ The ID must be preconfigured in `engine_config.yaml` under `participants`.
 | `--drop-copy` | off | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting). Can also be toggled at runtime — see [DC — Toggle Drop-Copy Relay](#dc-toggle-drop-copy-relay) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | Explicit WARNING log level (the default) |
 | `--log-target` | `server` (auto-detected `pm-log-srv`) | Where operational logs go: `server`, `stdout`, or `file` |
 | `--log-file PATH` | — | Operational log file path; required when `--log-target file` |
 | `--log-failover-timeout SECONDS` | 30 | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -561,7 +561,7 @@ pm-alf-console --id GW01 --drop-copy
     `DC_FILL` is a second, independent notification sourced from the
     engine's dedicated drop-copy feed (`:5557`) — the same feed a real
     exchange would deliver to a separate risk/back-office recipient. Both
-    carry `LIQUIDITY`/`liquidity_flag` (`MAKER`/`TAKER`) — they must always
+    carry `LIQUIDITY`/`liquidity_flag` (`MAKER`/`TAKER`/`AUCTION`) — they must always
     agree, since both derive it from the same trade. Seeing both for the
     same fill (with different envelopes: `DC_FILL` carries the drop-copy
     `seq`, not the order-lifecycle `remaining`/`status` fields `FILL`
@@ -1097,7 +1097,7 @@ Only printed while `DC` is enabled (`DC|STATE=ON` or `--drop-copy`) — see
 | Message | Meaning |
 |---|---|
 | `DC ON` / `DC OFF` | Confirms the display was switched locally (printed immediately, no round trip to the engine) |
-| `DC_FILL  <id>  <symbol>  qty=<n> @<price>  [<MAKER\|TAKER>]  #<seq>  (drop_copy.event.<GW_ID>)` | One event per fill, sourced from the engine's drop-copy feed (`:5557`) rather than the main event bus — arrives in addition to the ordinary `FILL` line |
+| `DC_FILL  <id>  <symbol>  qty=<n> @<price>  [<MAKER\|TAKER\|AUCTION>]  #<seq>  (drop_copy.event.<GW_ID>)` | One event per fill, sourced from the engine's drop-copy feed (`:5557`) rather than the main event bus — arrives in addition to the ordinary `FILL` line |
 
 ### System Events
 

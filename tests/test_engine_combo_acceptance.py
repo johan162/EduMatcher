@@ -330,3 +330,20 @@ def test_a_seeded_aon_combo_rests_as_market_maker_interest(monkeypatch, tmp_path
 
     assert seed.status is ComboStatus.PENDING
     assert len(seed.child_order_ids) == 2
+
+
+def test_after_entry_an_aon_combos_legs_fill_independently(monkeypatch, tmp_path) -> None:  # fmt: skip
+    """For-Later L016 (WP-FL20): AON guards entry only. A leg that rests is
+    an ordinary resting order; a later order fills it alone, and the other
+    leg keeps resting. The participant guide describes this contract."""
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    c = combo(engine, [AAPL_LIMIT, MSFT_LIMIT])
+    aapl_leg, msft_leg = c.child_order_ids
+    assert resting(engine) == {aapl_leg, msft_leg}
+
+    sell(engine, "AAPL", "GW02")
+
+    assert [f["order_id"] for f in msgs(pub, "order.fill.GW01")] == [aapl_leg]
+    assert resting(engine) == {msft_leg}
+    assert c.status is ComboStatus.PARTIALLY_MATCHED

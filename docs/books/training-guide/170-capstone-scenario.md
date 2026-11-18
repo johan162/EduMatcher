@@ -105,7 +105,10 @@ pm-config-deploy --show               # confirm where it landed
 
 Warnings and advisories are fine here; errors are not. Expect the warning
 `C001` (no reference prices): the books have no price until the market makers
-quote, so the static collar only takes effect from the first trades on. If `pm-cverifier`
+quote. The engine arms a symbol's static collar only when it starts with a
+reference price (from the configuration, or from the previous run's
+`book_stats.json`), so here the collars take effect from the *next* engine
+start after the first trades, not from the first trades. If `pm-cverifier`
 reports an error, fix it before deploying — a refused deploy leaves the
 *previous* configuration running, which is the confusing case where the
 exchange starts but has the wrong gateways.

@@ -57,16 +57,18 @@ Different TIF values control when orders are active and when they expire.
 ## Exercise 1: Observe Session Phases
 
 `pm-scheduler --now` replays the whole day, and the engine only accepts the
-transitions in order, so it can show you every phase only when it starts from
-`CLOSED`. If `SESSION_STATUS` in the operator console says anything else
-(after chapter 05 it says `CONTINUOUS`), close the day by hand first:
+transitions in order, so the day has to start from `CLOSED`. If
+`SESSION_STATUS` in the operator console says anything else (after chapter 05
+it says `CONTINUOUS`), `--now` closes the day first, by the shortest legal
+route, and logs `engine is in CONTINUOUS; closing it first via CLOSED`. You
+can also close it by hand beforehand:
 
 ```
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
 ```
 
-Entering `CLOSED` expires every resting `DAY` order, which includes the
+Either way, entering `CLOSED` expires every resting `DAY` order, which includes the
 market makers' quotes from chapter 02, so the books are empty afterwards. That
 is fine for the rest of this chapter and for chapter 07, which build their own
 orders. Now start the scheduler in rapid-fire mode to see all transitions

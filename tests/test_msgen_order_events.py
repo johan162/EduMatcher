@@ -221,7 +221,7 @@ class TestPresenceSemantics:
         _topic, payload = M.decode(M.make_fill_msg("GW1", "O1", 5, 1.25, 3, "PARTIAL"))
         assert "liquidity_flag" not in payload
 
-    @pytest.mark.parametrize("flag", ["MAKER", "TAKER"])
+    @pytest.mark.parametrize("flag", ["MAKER", "TAKER", "AUCTION"])
     def test_fill_liquidity_flag_present_when_given(self, flag: str) -> None:
         _topic, payload = M.decode(
             M.make_fill_msg(

@@ -145,10 +145,20 @@ class TestTheEnums:
 
         assert get_args(G.DropCopyEventEventType) == ("order.fill",)
 
-    def test_liquidity_flag_is_maker_or_taker(self) -> None:
+    def test_liquidity_flag_is_maker_taker_or_auction(self) -> None:
+        """AUCTION for an uncross print, which has no aggressor (L037)."""
         from typing import get_args
 
-        assert set(get_args(G.DropCopyEventLiquidityFlag)) == {"MAKER", "TAKER"}
+        assert set(get_args(G.DropCopyEventLiquidityFlag)) == {
+            "MAKER",
+            "TAKER",
+            "AUCTION",
+        }
+        assert set(get_args(G.DropCopyReplayLiquidityFlag)) == {
+            "MAKER",
+            "TAKER",
+            "AUCTION",
+        }
 
     def test_a_third_liquidity_value_is_rejected(self) -> None:
         with pytest.raises(MessageValidationError, match="liquidity_flag"):

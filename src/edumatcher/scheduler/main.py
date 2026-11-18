@@ -9,6 +9,10 @@ times via a PUSH socket. It runs as a closed-loop driver:
     the transitions still needed to reach the correct current phase.
   - After each transition it listens to the engine's ``session.state``
     broadcast to confirm the change was actually applied.
+  - It follows an engine restart: on the engine's ``system.startup``, or when
+    a transition is not confirmed and the engine then reports a state it never
+    announced, it brings the engine back to the scheduled phase. An
+    operator's transition is announced, so it is left alone.
 
 Schedule dates and times use ``locale.session_timezone`` from the deployed
 configuration (default ``Europe/Stockholm``), not the host's timezone.
@@ -16,7 +20,8 @@ configuration (default ``Europe/Stockholm``), not the host's timezone.
 Usage:
   poetry run pm-scheduler                  # run today's schedule once, then exit
   poetry run pm-scheduler --daily          # run continuously, once per day
-  poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
+  poetry run pm-scheduler --now            # close the engine if needed, then
+                                           # rapid-fire all transitions (testing)
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
   poetry run pm-scheduler -vv              # DEBUG-level diagnostics
   poetry run pm-scheduler --daily --on-close "pm-eod run --pending"
@@ -49,8 +54,7 @@ Typical daily sequence:
 Working days:
   The scheduler drives whatever schedule resolves for *today*: each weekday
   (mon..sun) can carry its own independent schedule, and a bank holiday for
-  the configured ``country`` (top-level ``country:`` field in the config
-  YAML, default ``"Sweden"``) resolves to the ``holidays:`` entry instead,
+  the configured ``locale.country`` (default ``"Sweden"``) resolves to the ``holidays:`` entry instead,
   via the ``python-holidays`` package. A day that resolves to no schedule at
   all is CLOSED. ``--daily`` mode waits through CLOSED days and resumes on
   the next day that has a schedule; a single-shot run started on a CLOSED
@@ -58,17 +62,18 @@ Working days:
 
 Wall-clock re-checking:
   Long waits (until a scheduled time, or overnight between trading days) are
-  never slept in one long ``time.sleep`` call. Instead the scheduler wakes at
-  least every ``WALLCLOCK_RECHECK_SEC`` seconds and re-derives the remaining
-  wait from the current wall-clock time, so a server time adjustment (NTP
-  sync, manual change, DST) is picked up promptly instead of only after a
-  single long sleep started under stale assumptions.
+  never slept in one long ``time.sleep`` call. Instead the scheduler wakes
+  every ``LIVENESS_CHUNK_SEC`` (0.5 s) and re-derives the remaining wait from
+  the current wall-clock time, so a server time adjustment (NTP sync, manual
+  change, DST) is picked up promptly instead of only after a single long
+  sleep started under stale assumptions.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
 import shlex
 import signal
@@ -77,6 +82,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from functools import partial
 from datetime import UTC, date, datetime, timedelta
 from typing import Callable
 from zoneinfo import ZoneInfo
@@ -116,6 +122,7 @@ from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
+    TOPIC_STARTUP,
     topic_session_status,
 )
 
@@ -182,10 +189,10 @@ SCHEDULER_GATEWAY_ID = "SCHEDULER"
 # starting from CLOSED.
 _ENGINE_START_STATE = SessionState.CLOSED
 
-# Long waits (until a scheduled time, or overnight between trading days) are
-# re-derived from the wall clock at least this often, so the scheduler picks
-# up server time adjustments (NTP sync, manual change, DST) promptly instead
-# of trusting a single duration computed once at the start of a long sleep.
+# The upper bound on one sleep in _sleep_until_wallclock, which re-derives a
+# long wait from the wall clock at least this often so the scheduler picks up
+# server time adjustments (NTP sync, manual change, DST). The scheduler's own
+# waits pass the much shorter LIVENESS_CHUNK_SEC.
 WALLCLOCK_RECHECK_SEC = 30.0
 
 #: The chunk the scheduler actually sleeps in while waiting for a transition
@@ -440,7 +447,8 @@ def _sleep_until_wallclock(
     remaining_seconds: Callable[[], float],
     is_running: Callable[[], bool],
     max_chunk: float = WALLCLOCK_RECHECK_SEC,
-) -> None:
+    watch: Callable[[float], bool] | None = None,
+) -> bool:
     """Sleep until ``remaining_seconds()`` reaches zero, re-checking often.
 
     The remaining duration is *re-derived from the wall clock on every
@@ -452,17 +460,27 @@ def _sleep_until_wallclock(
     wrong moment, whereas re-deriving the remaining time from
     ``datetime.now()`` at least every ``max_chunk`` seconds corrects for the
     jump within one wake-up cycle. ``max_chunk`` also bounds every individual
-    ``time.sleep`` call, so the scheduler never sleeps more than
-    ``WALLCLOCK_RECHECK_SEC`` (30s) at a stretch.
+    ``time.sleep`` call (``WALLCLOCK_RECHECK_SEC``, 30 s, by default; the
+    scheduler's waits pass ``LIVENESS_CHUNK_SEC``, 0.5 s).
+
+    ``watch``, when given, spends each chunk instead of ``time.sleep`` and
+    returns ``True`` to end the wait early; the function then returns
+    ``True`` too. It returns ``False`` when the time ran out or the process
+    is stopping.
     """
     global _next_wait_sec
     try:
         while is_running():
             remaining = remaining_seconds()
             if remaining <= 0:
-                return
+                return False
             _next_wait_sec = remaining
-            time.sleep(max(0.0, min(max_chunk, remaining)))
+            chunk = max(0.0, min(max_chunk, remaining))
+            if watch is None:
+                time.sleep(chunk)
+            elif watch(chunk):
+                return True
+        return False
     finally:
         _next_wait_sec = 0.0
 
@@ -522,9 +540,9 @@ class _CloseHook:
     close (pm-clearing writing its close snapshot) have finished, and runs in a
     child process the scheduler does not wait for: a slow or failing command
     never delays the next transition.  One child at a time; a trigger that
-    arrives while one is still running is skipped, which is safe for the
-    intended ``pm-eod run --pending`` because the next trigger picks up
-    whatever was missed.
+    arrives while one is still running starts the command once more when it
+    finishes (several such triggers make one more run), so no close is left
+    unsettled when no later trigger comes (Scheduler review 2026-11, C6).
     """
 
     def __init__(self, command: str, delay_sec: float) -> None:
@@ -532,6 +550,7 @@ class _CloseHook:
         self._delay = delay_sec
         self._lock = threading.Lock()
         self._child: subprocess.Popen[bytes] | None = None
+        self._again = False
         self._timers: list[threading.Timer] = []
         self._reapers: list[threading.Thread] = []
 
@@ -545,16 +564,25 @@ class _CloseHook:
     def _spawn(self) -> None:
         with self._lock:
             if self._child is not None and self._child.poll() is None:
-                log.warning("--on-close command is still running; trigger skipped")
+                if not self._again:
+                    log.info(
+                        "--on-close command is still running; "
+                        "it runs once more when it finishes"
+                    )
+                self._again = True
                 return
-            try:
-                child = subprocess.Popen(self._argv)
-            except OSError as exc:
-                log.error("could not start --on-close command %r: %s", self._argv, exc)
-                return
-            self._child = child
-            reaper = threading.Thread(target=self._reap, args=(child,), daemon=True)
-            self._reapers.append(reaper)
+            self._start_locked()
+
+    def _start_locked(self) -> None:
+        """Start the command and its reaper; the caller holds ``_lock``."""
+        try:
+            child = subprocess.Popen(self._argv)
+        except OSError as exc:
+            log.error("could not start --on-close command %r: %s", self._argv, exc)
+            return
+        self._child = child
+        reaper = threading.Thread(target=self._reap, args=(child,), daemon=True)
+        self._reapers.append(reaper)
         log.info("started --on-close command: %s", shlex.join(self._argv))
         reaper.start()
 
@@ -564,16 +592,29 @@ class _CloseHook:
             log.warning("--on-close command exited %d", code)
         else:
             log.info("--on-close command finished")
+        with self._lock:
+            if self._again:
+                self._again = False
+                self._start_locked()
 
     def wait_timers(self) -> None:
         for timer in list(self._timers):
             timer.join()
 
     def wait(self) -> None:
-        """Wait for pending triggers and the command they started."""
+        """Wait for pending triggers and the commands they started."""
         self.wait_timers()
-        for reaper in list(self._reapers):
-            reaper.join()
+        with self._lock:
+            child = self._child
+        if child is not None and child.poll() is None:
+            log.info("waiting for the --on-close command (pid %d) to finish", child.pid)
+        while True:
+            with self._lock:
+                alive = [r for r in self._reapers if r.is_alive()]
+            if not alive:
+                return
+            for reaper in alive:
+                reaper.join()
 
     def stop(self) -> None:
         """Cancel triggers that have not fired; a running command is left alone."""
@@ -649,6 +690,18 @@ def _poll_live(
             return False
 
 
+def _drain(sock: zmq.Socket[bytes]) -> None:
+    """Discard everything already queued on ``sock``.
+
+    The SUB socket also queues other producers' ``session.state`` broadcasts
+    and late replies to earlier queries, sometimes for hours. Drained right
+    before a request, only what the engine publishes after it can answer it
+    (Scheduler review 2026-11, C3).
+    """
+    while sock.poll(0):
+        sock.recv_multipart()
+
+
 def _confirm_transition(
     confirm_sock: zmq.Socket[bytes],
     expected_state: str,
@@ -659,7 +712,9 @@ def _confirm_transition(
 
     Returns ``True`` once the applied-state broadcast is observed, or ``False``
     if it does not arrive within ``timeout_ms`` (engine rejected the transition
-    or is unreachable). Best-effort: PUB/SUB gives no delivery guarantee.
+    or is unreachable). A broadcast carrying a ``command_id`` answers an
+    operator's transition, not this one, and does not count. Best-effort:
+    PUB/SUB gives no delivery guarantee.
     """
     deadline = time.monotonic() + timeout_ms / 1000.0
     while time.monotonic() < deadline:
@@ -673,6 +728,7 @@ def _confirm_transition(
         if (
             topic == TOPIC_SESSION_STATE
             and str(payload.get("state", "")) == expected_state
+            and not payload.get("command_id")
         ):
             return True
     return False
@@ -693,6 +749,7 @@ def _query_engine_state(
     is unusable — the caller then falls back to assuming a CLOSED start.
     """
     reply_topic = topic_session_status(gateway_id.upper())
+    _drain(sub_sock)
     try:
         push_sock.send_multipart(make_session_state_request_msg(gateway_id))
     except zmq.ZMQError as exc:
@@ -722,17 +779,18 @@ def _catch_up_transitions(
 ) -> list[tuple[str, str]]:
     """Return the past transitions still needed to reach the current phase.
 
-    When the engine's current state is known (finding A2), skip the transitions
-    it has already applied by realigning to the *last* occurrence of that state
-    in the past sequence — this also disambiguates CLOSED, which is both the
-    daily start and end state. When unknown, replay every past transition
-    (assumes the engine booted CLOSED — the H1 fallback).
+    Skip the transitions the engine has already applied by realigning to the
+    *last* occurrence of its state in the past sequence — this also
+    disambiguates CLOSED, which is both the daily start and end state. An
+    unknown state is taken as CLOSED, the state the engine boots in: before
+    the open that replays the day so far, and after the close it replays
+    nothing, where replaying every transition would run the whole day again
+    in milliseconds (Scheduler review 2026-11, C2).
     """
-    if engine_state is None:
-        return list(past)
+    current = SessionState.CLOSED if engine_state is None else engine_state
     result: list[tuple[str, str]] = []
     for hhmm, state in past:
-        if state == engine_state.value:
+        if state == current.value:
             result = []  # engine already here; realign to what comes after
         else:
             result.append((hhmm, state))
@@ -834,6 +892,48 @@ class _Step:
     at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class _Resync:
+    """How :func:`_run_transitions` brings a restarted engine back on schedule.
+
+    An engine restarted with sessions enabled boots CLOSED and the transitions
+    still to come today are rejected from there; without this the market
+    stayed closed until the next day (Scheduler review 2026-11, C1).
+    ``known`` is the engine state the steps were planned from (None when
+    unknown); ``query`` asks the engine for its state now; ``plan`` returns the
+    steps that bring an engine in that state to the scheduled phase, followed
+    by the rest of the day.
+    """
+
+    known: SessionState | None
+    query: Callable[[], SessionState | None]
+    plan: Callable[[SessionState | None], list[_Step]]
+
+
+def _watch_engine(sock: zmq.Socket[bytes], seconds: float, seen: list[str]) -> bool:
+    """Read the SUB socket for up to ``seconds``; ``True`` on an engine start.
+
+    Every ``session.state`` read, whoever asked for it, becomes ``seen[0]``,
+    the last state the scheduler saw the engine announce: an operator's move
+    is announced, an engine restart is not (it boots CLOSED in silence), which
+    is how an unconfirmed transition tells the two apart.
+    """
+    deadline = time.monotonic() + seconds
+    while True:
+        # Rounded up: a remainder under 1 ms would otherwise poll(0) and spin.
+        remaining_ms = math.ceil(max(0.0, (deadline - time.monotonic()) * 1000.0))
+        if not sock.poll(remaining_ms):
+            return False
+        try:
+            topic, payload = decode(sock.recv_multipart())
+        except Exception:
+            continue
+        if topic == TOPIC_STARTUP:
+            return True
+        if topic == TOPIC_SESSION_STATE:
+            seen[0] = str(payload.get("state", ""))
+
+
 def _run_transitions(
     push_sock: PushSocket,
     confirm_sock: zmq.Socket[bytes] | None,
@@ -841,45 +941,90 @@ def _run_transitions(
     steps: list[_Step],
     after: _Step | None = None,
     on_closed: Callable[[], None] | None = None,
+    resync: _Resync | None = None,
 ) -> bool:
     """Drive a sequence of transition steps through one interruptible loop.
 
     Shared by every run mode so there is a single, tested execution path
-    (review finding A1). Returns ``True`` if all steps completed, or ``False``
-    if the run was interrupted.
+    (review finding A1). Returns ``True`` if every step was applied (sent,
+    and confirmed when there is a confirmation socket), ``False`` if the run
+    was interrupted or a step was not applied.
 
     ``after`` is the transition that follows the last step -- not driven
     here, only advertised as its countdown target.  ``on_closed`` is called
     once the CLOSED transition has been dispatched.
+
+    With ``resync`` (and a confirmation socket) the loop follows an engine
+    restart: an engine start read during a wait, or an unconfirmed transition
+    after which the engine reports a state it never announced, replaces the
+    remaining steps with ``resync.plan`` from the engine's state now.
     """
-    for index, step in enumerate(steps):
+    seen = [resync.known.value if resync and resync.known else ""]
+    watch: Callable[[float], bool] | None = None
+    if resync is not None and confirm_sock is not None:
+        watch = partial(_watch_engine, confirm_sock, seen=seen)
+
+    def replan(reason: str) -> list[_Step] | None:
+        """The steps from the engine's state now, or None to carry on."""
+        assert resync is not None
+        state = resync.query()
+        if reason == "unconfirmed" and (state is None or state.value == seen[0]):
+            # Unreachable, or where it was last seen (an operator's move is
+            # announced): not a restart, and replaying would undo a decision.
+            return None
+        now = state.value if state is not None else SessionState.CLOSED.value
+        if reason == "started":
+            log.warning("engine restarted; bringing it from %s to the schedule", now)
+        else:
+            log.warning(
+                "engine is in %s, not %s as last announced; it restarted, "
+                "bringing it back to the schedule",
+                now,
+                seen[0] or "unknown",
+            )
+        seen[0] = state.value if state is not None else ""
+        return resync.plan(state)
+
+    pending = list(steps)
+    fresh = True  # a newly planned list: nothing sent has described its first step
+    all_applied = True
+    while pending:
+        step = pending.pop(0)
         if not is_running():
             log.info("Interrupted")
             return False
 
         # Nothing sent this run has described the first step, so the engine
         # would have no countdown target for the whole wait.
-        if index == 0 and step.at is not None:
+        if fresh and step.at is not None:
             _announce_next(push_sock, step.state, step.at)
+        fresh = False
 
         label = step.label or step.state
         wait = step.wait()
         if wait > 0:
             log.info("Waiting %.0fs for %s", wait, label)
             # Re-derive the remaining wait from ``step.wait()`` on every
-            # wake-up (at least every WALLCLOCK_RECHECK_SEC) rather than
+            # wake-up (every LIVENESS_CHUNK_SEC) rather than
             # trusting the single duration captured above, so a wall-clock
             # adjustment during a long wait is picked up promptly instead of
             # only after sleeping out a now-stale duration.
-            _sleep_until_wallclock(step.wait, is_running, max_chunk=LIVENESS_CHUNK_SEC)
+            started = _sleep_until_wallclock(
+                step.wait, is_running, max_chunk=LIVENESS_CHUNK_SEC, watch=watch
+            )
             if not is_running():
                 log.info("Interrupted")
                 return False
+            if started:
+                replanned = replan("started")
+                if replanned is not None:
+                    pending, fresh = replanned, True
+                    continue
 
         # The step after this one is what the engine will publish as the
         # countdown target. The last step of the day has a successor only
         # when ``after`` names one, and sends nothing rather than invent one.
-        following = steps[index + 1] if index + 1 < len(steps) else after
+        following = pending[0] if pending else after
         next_state = following.state if following and following.at else ""
         next_at = _to_utc_iso(following.at) if following and following.at else ""
 
@@ -892,6 +1037,10 @@ def _run_transitions(
             next_at=next_at,
             on_wake=is_running,
         )
+        if applied:
+            seen[0] = step.state
+        else:
+            all_applied = False
         # The end-of-day command needs a closed day; a close that was not
         # delivered or not confirmed is left to the next trigger.
         if on_closed is not None and step.state == SessionState.CLOSED.value:
@@ -899,8 +1048,12 @@ def _run_transitions(
                 on_closed()
             else:
                 log.warning("CLOSED not confirmed; --on-close not triggered")
+        if not applied and resync is not None and confirm_sock is not None:
+            replanned = replan("unconfirmed")
+            if replanned is not None:
+                pending, fresh = replanned, True
 
-    return True
+    return all_applied
 
 
 def _dispatch_transition(
@@ -916,6 +1069,8 @@ def _dispatch_transition(
     Returns ``False`` if the send failed or the confirmation did not arrive;
     without a confirmation socket a delivered send counts as applied.
     """
+    if confirm_sock is not None:
+        _drain(confirm_sock)
     if not _send_transition(push_sock, state, next_state=next_state, next_at=next_at):
         return False
     if confirm_sock is None:
@@ -949,7 +1104,9 @@ def _run_scheduled(
     scheduled times have already passed must bring the engine to the correct
     current phase before waiting on future transitions (review finding H1).
     When a confirmation socket is available the scheduler first asks the engine
-    for its current state so it only replays what is actually missing (A2).
+    for its current state so it only replays what is actually missing (A2),
+    and re-plans the rest of the day the same way if the engine restarts
+    (Scheduler review 2026-11, C1).
 
     Does nothing (no transitions sent) if today resolves to no schedule at
     all under ``schedule_cfg`` (a CLOSED weekday entry, or a bank holiday for
@@ -992,32 +1149,46 @@ def _run_scheduled(
         else:
             log.warning("could not determine engine state; assuming a " "CLOSED start")
 
-    # Partition the schedule against a single "now" snapshot.
-    now = _clock.now()
-    past: list[tuple[str, str]] = []
-    upcoming: list[tuple[str, str, datetime]] = []
-    for hhmm, state in schedule:
-        # Anchored to the day resolved above: the clock may have crossed
-        # midnight since (the state query alone can take seconds).
-        target = _time_today(hhmm, today)
-        if _clock.is_past(target, now):
-            past.append((hhmm, state))
-        else:
-            upcoming.append((hhmm, state, target))
+    def plan(engine_state: SessionState | None) -> list[_Step]:
+        """Catch-up steps from ``engine_state``, then the rest of the day."""
+        # Partition the schedule against a single "now" snapshot.
+        now = _clock.now()
+        past: list[tuple[str, str]] = []
+        upcoming: list[tuple[str, str, datetime]] = []
+        for hhmm, state in schedule:
+            # Anchored to the day resolved above: the clock may have crossed
+            # midnight since (the state query alone can take seconds).
+            target = _time_today(hhmm, today)
+            if _clock.is_past(target, now):
+                past.append((hhmm, state))
+            else:
+                upcoming.append((hhmm, state, target))
 
-    steps, upcoming = _plan_catch_up(past, upcoming, engine_state)
-    if past and not steps:
-        log.info("Engine already at the current phase; no catch-up needed")
-    elif steps:
-        log.info(
-            "Catching up %d transition(s) to reach the current phase",
-            len(steps),
-        )
+        steps, upcoming = _plan_catch_up(past, upcoming, engine_state)
+        if past and not steps:
+            log.info("Engine already at the current phase; no catch-up needed")
+        elif steps:
+            log.info(
+                "Catching up %d transition(s) to reach the current phase",
+                len(steps),
+            )
 
-    for hhmm, state, target in upcoming:
-        steps.append(
-            _Step(state, _wait_until(target), label=f"{state} (at {hhmm})", at=target)
-        )
+        for hhmm, state, target in upcoming:
+            steps.append(
+                _Step(
+                    state, _wait_until(target), label=f"{state} (at {hhmm})", at=target
+                )
+            )
+        return steps
+
+    resync: _Resync | None = None
+    if confirm_sock is not None:
+        sub = confirm_sock
+
+        def query() -> SessionState | None:
+            return _query_engine_state(push_sock, sub, gateway_id, on_wake=running)
+
+        resync = _Resync(engine_state, query, plan)
 
     after = (
         _Step(
@@ -1028,7 +1199,9 @@ def _run_scheduled(
         if daily
         else None
     )  # an `after` with no `at` names nothing, like a single-shot close
-    if _run_transitions(push_sock, confirm_sock, running, steps, after, on_closed):
+    if _run_transitions(
+        push_sock, confirm_sock, running, plan(engine_state), after, on_closed, resync
+    ):
         log.info("All transitions sent for today.")
 
 
@@ -1047,7 +1220,7 @@ def _run_forever(
     on a CLOSED day, and the overnight wait is extended to land on the next
     day that resolves to a schedule instead of just the next calendar day.
     The overnight wait re-derives its remaining duration from the wall clock
-    at least every ``WALLCLOCK_RECHECK_SEC`` seconds (via
+    every ``LIVENESS_CHUNK_SEC`` (via
     ``_sleep_until_wallclock``) instead of trusting a single monotonic
     deadline computed once, so a server time adjustment during the (possibly
     many-hour) overnight wait is picked up promptly.
@@ -1087,9 +1260,16 @@ def _run_now(
     push_sock: PushSocket,
     delay: float = NOW_MODE_DELAY,
     *,
+    confirm_sock: zmq.Socket[bytes] | None = None,
     is_running: Callable[[], bool] | None = None,
 ) -> None:
-    """Rapid-fire all transitions with short delays (for testing)."""
+    """Rapid-fire all transitions with short delays (for testing).
+
+    The day only runs from CLOSED. With a confirmation socket the engine is
+    asked where it is first and closed by the shortest legal route, and each
+    transition is confirmed; "Done." means the engine applied all of them
+    (Scheduler review 2026-11, C4).
+    """
     running = is_running or (lambda: True)
     transitions = [
         SessionState.PRE_OPEN,
@@ -1101,14 +1281,88 @@ def _run_now(
 
     log.info("--now mode: sending all transitions with %ss delays", delay)
 
-    # First transition fires immediately; the rest are spaced by ``delay``.
-    steps = [
+    steps: list[_Step] = []
+    if confirm_sock is not None:
+        state = _query_engine_state(push_sock, confirm_sock, on_wake=running)
+        if state is None:
+            log.warning("could not determine engine state; assuming a CLOSED start")
+        else:
+            route = _route(state, SessionState.CLOSED)
+            if route:
+                log.info(
+                    "engine is in %s; closing it first via %s",
+                    state.value,
+                    " -> ".join(s.value for s in route),
+                )
+            steps = [
+                _Step(s.value, _no_wait, label=f"{s.value} (close first)")
+                for s in route
+            ]
+
+    # The day's first transition fires at once; the rest are spaced by ``delay``.
+    steps += [
         _Step(state.value, _no_wait if i == 0 else _fixed_wait(delay))
         for i, state in enumerate(transitions)
     ]
 
-    if _run_transitions(push_sock, None, running, steps):
+    if _run_transitions(push_sock, confirm_sock, running, steps):
         log.info("Done.")
+
+
+def _open_confirm_socket() -> zmq.Socket[bytes]:
+    """SUB to the engine's session broadcasts, its reply topic and its starts.
+
+    ``session.state`` confirms transitions (M3), the session-status reply
+    gives the current state (A2), and ``system.startup`` tells of an engine
+    restart (Scheduler review 2026-11, C1).
+    """
+    status_topic = topic_session_status(SCHEDULER_GATEWAY_ID)
+    sock = make_subscriber(
+        ENGINE_PUB_ADDR,
+        TOPIC_SESSION_STATE,
+        status_topic,
+        TOPIC_STARTUP,
+    )
+    # Let the SUB subscription take effect before the state query
+    # (slow-joiner — review finding L5).
+    time.sleep(SUB_CONNECT_SETTLE_SEC)
+    # Logs the topic actually subscribed rather than a second copy
+    # of the string: design section 27.6, where `pm-dc-spy` could
+    # report a subscription the process had not made.
+    log.debug(
+        "subscribed to %s, %s and %s",
+        TOPIC_SESSION_STATE,
+        status_topic,
+        TOPIC_STARTUP,
+    )
+    return sock
+
+
+def _speed(value: str) -> float:
+    """``--speed``: a finite factor above 0 (nan passed ``<= 0``, C5)."""
+    factor = float(value)
+    if not math.isfinite(factor) or factor <= 0:
+        raise argparse.ArgumentTypeError(f"must be a finite number > 0, not {value}")
+    return factor
+
+
+def _delay_sec(value: str) -> float:
+    """``--on-close-delay``: finite seconds, not negative."""
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise argparse.ArgumentTypeError(f"must be a finite number >= 0, not {value}")
+    return seconds
+
+
+def _command(value: str) -> str:
+    """``--on-close``: text that splits into a program and its arguments."""
+    try:
+        argv = shlex.split(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"cannot split {value!r}: {exc}") from None
+    if not argv:
+        raise argparse.ArgumentTypeError("needs a command, got nothing")
+    return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1119,7 +1373,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--now",
         action="store_true",
-        help="Rapid-fire all transitions immediately (for testing)",
+        help=(
+            "Close the engine first if it is not CLOSED, then rapid-fire all "
+            "transitions (for testing)"
+        ),
     )
     parser.add_argument(
         "--daily",
@@ -1141,7 +1398,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--speed",
-        type=float,
+        type=_speed,
         # argparse converts a string default with ``type``.
         default=os.environ.get("EDUMATCHER_SCHEDULER_SPEED") or None,
         metavar="F",
@@ -1163,7 +1420,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-confirm",
         action="store_true",
-        help="Do not query/confirm session state via the engine",
+        help=(
+            "Do not query/confirm session state via the engine (nor follow an "
+            "engine restart)"
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -1181,7 +1441,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",
@@ -1194,6 +1454,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--on-close",
+        type=_command,
         default=None,
         metavar="COMMAND",
         help=(
@@ -1203,7 +1464,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--on-close-delay",
-        type=float,
+        type=_delay_sec,
         default=30.0,
         metavar="SECONDS",
         help="Wait this long after CLOSED before starting --on-close (default: 30)",
@@ -1283,8 +1544,8 @@ def main() -> None:
     if args.speed is not None or args.start is not None:
         if not args.daily:
             parser.error("--speed and --start need --daily")
-        if speed <= 0:
-            parser.error("--speed must be > 0")
+    if args.now and args.daily:
+        parser.error("--now cannot be combined with --daily, --speed or --start")
 
     if args.on_close is not None and args.now:
         log.warning("--on-close is ignored in --now mode")
@@ -1330,7 +1591,17 @@ def main() -> None:
 
     try:
         if args.now:
-            _run_now(push_sock, now_mode_delay, is_running=_is_running)
+            now_confirm = None if args.no_confirm else _open_confirm_socket()
+            try:
+                _run_now(
+                    push_sock,
+                    now_mode_delay,
+                    confirm_sock=now_confirm,
+                    is_running=_is_running,
+                )
+            finally:
+                if now_confirm is not None:
+                    now_confirm.close()
         else:
             # Schedule and country both come from the compiled artifact, so
             # pm-scheduler and pm-engine can no longer disagree about the
@@ -1400,23 +1671,9 @@ def main() -> None:
                 sys.exit(1)
 
             # Subscribe to the engine's session.state broadcasts (to confirm
-            # transitions, M3) and to our session-status reply topic (to recover
-            # the current state on startup, A2).
-            confirm_sock: zmq.Socket[bytes] | None = None
-            if not args.no_confirm:
-                status_topic = topic_session_status(SCHEDULER_GATEWAY_ID)
-                confirm_sock = make_subscriber(
-                    ENGINE_PUB_ADDR,
-                    TOPIC_SESSION_STATE,
-                    status_topic,
-                )
-                # Let the SUB subscription take effect before the state query
-                # (slow-joiner — review finding L5).
-                time.sleep(SUB_CONNECT_SETTLE_SEC)
-                # Logs the topic actually subscribed rather than a second copy
-                # of the string: design section 27.6, where `pm-dc-spy` could
-                # report a subscription the process had not made.
-                log.debug("subscribed to %s and %s", TOPIC_SESSION_STATE, status_topic)
+            # transitions, M3), to our session-status reply topic (to recover
+            # the current state on startup, A2) and to its starts (C1).
+            confirm_sock = None if args.no_confirm else _open_confirm_socket()
 
             try:
                 if close_hook is not None:

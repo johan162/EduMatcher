@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 from urllib.parse import quote
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.clearing.query import (
     day_bounds_ns,
     open_readonly_connection,
@@ -22,6 +23,7 @@ from edumatcher.clearing.store import (
     count_summary_days,
     require_trade_events_id_primary_key,
     open_writer_connection as _open_writer,
+    prune_close_snapshots,
     prune_old_events,
     query_daily,
     query_dates,
@@ -414,7 +416,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when healthy or -1 otherwise",
+        help="Print nothing; exit 0 when healthy, 1 otherwise",
     )
     health.add_argument(
         "--extended",
@@ -532,8 +534,9 @@ def build_parser() -> argparse.ArgumentParser:
     prune = sub.add_parser(
         "prune",
         help=(
-            "Delete trade_events rows older than N days (default: 90); the "
-            "file keeps its size, SQLite reuses the freed pages"
+            "Delete trade_events rows and close snapshots older than N days "
+            "(default: 90; the newest close snapshot is kept); the file keeps "
+            "its size, SQLite reuses the freed pages"
         ),
     )
     prune.add_argument(
@@ -887,12 +890,27 @@ def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
                     "SELECT COUNT(*) FROM trade_events WHERE trade_date < date('now', ?)",
                     (f"-{days} days",),
                 ).fetchone()[0]
+                snapshots = conn.execute(
+                    "SELECT COUNT(*) FROM position_close_snapshot"
+                    " WHERE trade_date < date('now', ?) AND trade_date <"
+                    " (SELECT MAX(trade_date) FROM position_close_snapshot)",
+                    (f"-{days} days",),
+                ).fetchone()[0]
                 print(
                     f"DRY RUN: {count} trade_events rows would be deleted (>{days} days old)."
+                )
+                print(
+                    f"DRY RUN: {snapshots} close-snapshot rows would be deleted"
+                    f" (>{days} days old; the newest close is kept)."
                 )
             else:
                 deleted = prune_old_events(conn, retention_days=days)
                 print(f"Pruned {deleted} trade_events rows older than {days} days.")
+                snapshots = prune_close_snapshots(conn, retention_days=days)
+                print(
+                    f"Pruned {snapshots} close-snapshot rows older than {days} days"
+                    " (the newest close is kept)."
+                )
         except sqlite3.Error as exc:
             print(f"[ERROR] Prune failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
@@ -1053,7 +1071,7 @@ def _handle_health(args: argparse.Namespace, db_path: Path) -> None:
             zmq={"healthy": False, "detail": "health check could not run"},
         )
     if args.quiet:
-        raise SystemExit(0 if healthy else -1)
+        raise SystemExit(0 if healthy else 1)
     if args.format == "json":
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -1098,6 +1116,7 @@ def _handle_health(args: argparse.Namespace, db_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pipe_safe
 def main() -> None:
     from edumatcher.config import DATA_DIR, resolve_data_path
 

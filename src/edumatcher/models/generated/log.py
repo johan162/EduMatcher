@@ -2761,6 +2761,14 @@ _LOG_SERVER_STATE_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "instance_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Random, new at every server start. `last_seq` continues across restarts, so this is how a subscriber recognises a restarted server and re-subscribes (its subscription did not survive).",
+        "constraints": {"max_len": 32},
+    },
+    {
         "name": "state",
         "type": "enum",
         "unit": None,
@@ -2844,6 +2852,7 @@ class LogServerState:
     """
 
     server: str
+    instance_id: str
     state: LogServerStateState
     proto: str
     pub_addr: str
@@ -2865,6 +2874,10 @@ class LogServerState:
         if len(self.server) > 64:
             raise MessageValidationError(
                 f"server: length {len(self.server)} exceeds max_len 64"
+            )
+        if len(self.instance_id) > 32:
+            raise MessageValidationError(
+                f"instance_id: length {len(self.instance_id)} exceeds max_len 32"
             )
         if self.state not in _LOG_SERVER_STATE_STATE_VALUES:
             raise MessageValidationError(
@@ -2893,6 +2906,7 @@ class LogServerState:
         """
         return cls(
             server=str(p["server"]),
+            instance_id=str(p["instance_id"]),
             state=cast(LogServerStateState, str(p["state"])),
             proto=str(p["proto"]),
             pub_addr=str(p["pub_addr"]),
@@ -2909,6 +2923,7 @@ class LogServerState:
         """Return the bus payload, in the spec's declared field order."""
         return {
             "server": self.server,
+            "instance_id": self.instance_id,
             "state": self.state,
             "proto": self.proto,
             "pub_addr": self.pub_addr,
@@ -2945,6 +2960,7 @@ def make_log_server_state(**kw: Any) -> list[bytes]:
 def make_log_server_state_unchecked(
     *,
     server: str,
+    instance_id: str,
     state: LogServerStateState,
     proto: str,
     pub_addr: str,
@@ -2971,6 +2987,7 @@ def make_log_server_state_unchecked(
         _msg.dumps(
             {
                 "server": str(server),
+                "instance_id": str(instance_id),
                 "state": str(state),
                 "proto": str(proto),
                 "pub_addr": str(pub_addr),

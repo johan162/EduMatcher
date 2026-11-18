@@ -488,8 +488,9 @@ Also:
 - The command runs **once more when the scheduler starts**. That is how a day
   that closed while the scheduler was down gets settled.
 - Only **one** `pm-eod` runs at a time. A trigger that finds one still running
-  is skipped (with a warning); that is safe because `--pending` always picks up
-  every date that is waiting.
+  starts it **once more when it finishes** (several such triggers make one
+  more run), so a close that came while the start-up run was busy is still
+  settled; `--pending` picks up every date that is waiting.
 - In `--now` test mode the hook is ignored.
 - `--on-close` takes any command, so you may add your own mailing script, for
   example `--on-close "sh /srv/exchange/close.sh"` where the script runs
@@ -736,10 +737,15 @@ its own**, so with several symbols the lines can add up to 0.01 more or less
 than "Today's result"; the total is the amount that counts (it is rounded so
 that all traders together sum to exactly zero). **Trade times are in UTC**, not
 the exchange's timezone. And the **trade list comes from `trade_events`**, which `pm-clearing`
-prunes after 90 days by default. Settling a very old date later still gives the
-correct amounts (those come from the close snapshots, which are never pruned)
-but the trade list may be empty, and the gate says `not reconciled: the day's
-raw trades were pruned` instead of comparing them with the daily totals.
+prunes after 90 days by default. The close snapshots the amounts come from
+follow the same retention (`pm-clearing --retention-days`), except the newest
+close: a date older than that can no longer be settled on its own (`no close
+snapshot`), but the next settlement still covers it, measured from the last
+settled date's equity that `eod.db` keeps. pm-eod's nightly run settles each
+day well inside the window. The newest close, kept past the window, still
+settles; its trade list is then empty, and the gate says `not reconciled: the
+day's raw trades were pruned` instead of comparing them with the daily
+totals.
 
 When a closed day in between was never settled (a skipped `--force` day, a
 day `pm-clearing` missed), the amount covers every day since the last settled
@@ -1156,7 +1162,7 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | Message | Meaning |
 |---|---|
 | `pm-eod: another pm-eod run is active` | The lock file is held. Wait, or check for a stuck process (`ps aux \| grep pm-eod`). |
-| `--on-close command is still running; trigger skipped` (scheduler log) | A previous run has not finished; harmless — the next run catches up. |
+| `--on-close command is still running; it runs once more when it finishes` (scheduler log, INFO) | A previous run has not finished; the command runs again right after it. |
 | `could not start --on-close command` (scheduler log) | The command was not found. Is `pm-eod` on the scheduler's `PATH`? |
 
 ### Warnings (exit code 3)

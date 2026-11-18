@@ -89,6 +89,9 @@ CLOSE_GRACE_SEC = 5.0
 #: A connection must send HELLO within this long or is closed with
 #: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
 HELLO_TIMEOUT_SEC = 5.0
+#: On a stop, how long sessions get to take their queued lines and the final
+#: EXIT|REASON=shutdown before close() drops what is left (as pm-ralf-gwy).
+SHUTDOWN_FLUSH_SEC = 1.0
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 # How often the engine is asked for its session state. Repeated rather than
@@ -267,8 +270,36 @@ class MarketDataGateway:
                 self._flush_client_writes()
                 self._drop_idle_clients()
                 time.sleep(0.01)
+            self._flush_for_shutdown()
         finally:
             self.close()
+
+    def _flush_for_shutdown(self) -> None:
+        """Say goodbye to every session before a requested stop.
+
+        close() used to close every socket at once: queued lines died with
+        it and a client read only EOF, which looks like a crash (L036). Now:
+        one more engine pass, ``EXIT|REASON=shutdown`` to every session not
+        already closing, then a flush bounded by SHUTDOWN_FLUSH_SEC; close()
+        drops whatever a peer has not taken by then. Not run after a crash.
+        The same as pm-ralf-gwy and pm-dc-gwy.
+        """
+        self._poll_engine_events()
+        for session in list(self._clients.values()):
+            if not session.closing:
+                self._queue_line(
+                    session,
+                    "EXIT",
+                    {"REASON": "shutdown", "TS": iso_utc(time.time())},
+                )
+            self._close_after_flush(session, reason="shutdown")
+        deadline = time.monotonic() + SHUTDOWN_FLUSH_SEC
+        while self._clients and time.monotonic() < deadline:
+            # _flush_client_writes disconnects each session whose queue has
+            # drained; one whose peer takes nothing stays until the deadline.
+            self._flush_client_writes()
+            if self._clients:
+                time.sleep(0.01)
 
     def stop(self) -> None:
         log.info("stop requested")
@@ -303,10 +334,10 @@ class MarketDataGateway:
         self._flush_debug_summary(force=True)
         log.info("closing market data gateway")
         for session in list(self._clients.values()):
-            try:
-                session.sock.close()
-            except OSError:
-                pass
+            self._disconnect(
+                session,
+                reason=session.close_reason if session.closing else "shutdown",
+            )
         self._clients.clear()
 
         if self._server is not None:
@@ -361,16 +392,21 @@ class MarketDataGateway:
         if not self._clients:
             return
 
-        readable = [session.sock for session in self._clients.values()]
+        # poll(), not select(): select() refuses a descriptor of 1024 or
+        # more, which stopped every client being read (L036).
+        poller = select.poll()
+        for fd in self._clients:
+            poller.register(fd, select.POLLIN)
         try:
-            ready, _, _ = select.select(readable, [], [], 0)
-        except (OSError, ValueError) as exc:
-            log.warning("read select failed: %s", exc)
+            ready = poller.poll(0)
+        except OSError as exc:
+            log.warning("read poll failed: %s", exc)
             return
 
-        for sock_obj in ready:
+        # Any event (data, EOF, error) is settled by recv() below.
+        for fd, _event in ready:
             self._dbg_count("readable_sockets")
-            session = self._clients.get(sock_obj.fileno())
+            session = self._clients.get(fd)
             if session is None:
                 continue
 

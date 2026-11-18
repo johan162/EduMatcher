@@ -46,6 +46,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.alf_gwy.config import load_alf_gateway_config
 from edumatcher.api_gateway.config import load_named_api_gateway_configs
 from edumatcher.balf_gwy.config import load_balf_gateway_config
@@ -352,6 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

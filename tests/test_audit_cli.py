@@ -2955,7 +2955,7 @@ class TestCliHealth:
         assert exc_info.value.code == 0
         assert capsys.readouterr() == ("", "")
 
-    def test_health_quiet_exits_minus_one_without_output(
+    def test_health_quiet_exits_one_without_output(
         self,
         monkeypatch: pytest.MonkeyPatch,
         log_file: Path,
@@ -2966,7 +2966,8 @@ class TestCliHealth:
         with pytest.raises(SystemExit) as exc_info:
             _run_cli(monkeypatch, ["--log-file", str(log_file), "health", "-q"])
 
-        assert exc_info.value.code == -1
+        # L017: 1, as without -q; it was -1 (status 255 in a shell).
+        assert exc_info.value.code == 1
         assert capsys.readouterr() == ("", "")
 
     def test_health_reports_pgrep_failure(

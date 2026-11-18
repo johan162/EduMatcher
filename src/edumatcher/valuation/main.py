@@ -7,6 +7,7 @@ import sys
 from importlib.resources import files
 from pathlib import Path
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.valuation.fields import Level
 from edumatcher.valuation.pipeline import CannotValue, run
 from edumatcher.valuation.presets import load_presets
@@ -93,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)

@@ -159,6 +159,9 @@ class _FakeClient:
     def engine_disconnect_monitor(self) -> MagicMock:
         return MagicMock()
 
+    def close_engine_disconnect_monitor(self, monitor: Any) -> None:
+        monitor.close(linger=0)
+
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
         self.calls.append(("quote_bootstrap", (target_gw,), {"symbol": symbol}))
         quotes = [
@@ -877,7 +880,7 @@ def test_admin_engine_peer_disconnect_logs_out_idle_console(
         assert admin._connection_lost is True
         app.exit.assert_called_once_with(exception=KeyboardInterrupt)
     finally:
-        monitor.close(linger=0)
+        client.close_engine_disconnect_monitor(monitor)
         client.close()
         push.close(linger=0)
         peer.close(linger=0)
@@ -993,3 +996,62 @@ def test_admin_heartbeat_loop_survives_an_unreachable_engine(
     c._heartbeat_loop()
 
     assert pusher.closed
+
+
+# -- BOOK prints prices readably (For-Later L006, L008; WP-FL17) ----------------
+
+
+def _book_text(monkeypatch: pytest.MonkeyPatch, book: dict[str, Any]) -> str:
+    from rich.console import Console
+
+    recorder = Console(record=True, width=120)
+    monkeypatch.setattr(console_mod, "console", recorder)
+    console_mod._print_book(book)
+    return recorder.export_text()
+
+
+@pytest.mark.parametrize(
+    ("tick_decimals", "bid", "ask", "shown_bid", "shown_ask"),
+    [(2, 149.8, 150.1, "149.80", "150.10"), (3, 12.5, 12.505, "12.500", "12.505")],
+)
+def test_book_prices_are_printed_at_the_symbols_scale(
+    monkeypatch: pytest.MonkeyPatch,
+    tick_decimals: int,
+    bid: float,
+    ask: float,
+    shown_bid: str,
+    shown_ask: str,
+) -> None:
+    text = _book_text(
+        monkeypatch,
+        {
+            "symbol": "AAPL",
+            "tick_decimals": tick_decimals,
+            "bids": [{"price": bid, "qty": 100}],
+            "asks": [{"price": ask, "qty": 50}],
+            "last_price": bid,
+            "last_qty": 10,
+        },
+    )
+    assert shown_bid in text and shown_ask in text
+    assert f"Last trade: {shown_bid} × 10" in text
+
+
+def test_a_restored_last_price_without_its_quantity_prints_the_price_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After an engine restart book_stats.json gives the price, not the
+    quantity: "150.0 × None" was printed."""
+    text = _book_text(
+        monkeypatch,
+        {
+            "symbol": "AAPL",
+            "tick_decimals": 2,
+            "bids": [{"price": 149.0, "qty": 100}],
+            "asks": [],
+            "last_price": 150.0,
+            "last_qty": None,
+        },
+    )
+    assert "Last trade: 150.00" in text
+    assert "None" not in text

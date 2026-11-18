@@ -27,6 +27,9 @@ export function useLogStream(): void {
         case "server_state":
           s.setServerState(frame.state);
           break;
+        case "gap":
+          s.pushGap(frame.gap);
+          break;
         case "market_session":
           s.setMarketSession(frame.session);
           break;

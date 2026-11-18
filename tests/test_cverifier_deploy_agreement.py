@@ -186,6 +186,22 @@ _MUTATIONS: list[tuple[tuple[Any, ...], Any]] = [
     # The same for pm-ralf-gwy (RALF review C6), and a role with no channel.
     (("post_trade_gateway", "name"), "ralf|01"),
     (("post_trade_gateway", "allowed_roles"), ["RISK"]),
+    # Values the loaders used to read as something else (For-Later L024).
+    (("symbols", "AAPL", "tick_decimals"), True),
+    (("symbols", "AAPL", "outstanding_shares"), True),
+    (("symbols", "AAPL", "order_limits"), {"max_order_qty": 1.5}),
+    (("schedule",), "x"),
+    (("schedule",), 0),
+    (("engine_tuning", "snapshot_interval_sec"), float("nan")),
+    (("log_server",), {"enabled": "x"}),
+    (("log_server",), {"pubsub_enabled": "x"}),
+    (("log_server",), {"name": 5}),
+    (("log_server",), {"bind_address": 5}),
+    (("log_server",), {"db_path": 5}),
+    (("balf_gateway",), {"enabled": "false"}),
+    (("alf_gateway",), {"enabled": "false"}),
+    (("api_gateways",), {"main": {"enabled": "false"}}),
+    (("api_gateways",), {"main": {"swagger_enabled": "x"}}),
 ]
 
 

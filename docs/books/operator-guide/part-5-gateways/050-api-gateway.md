@@ -157,7 +157,7 @@ Useful options:
 | `--clearing-db PATH` |                             config value | `pm-clearing` database, read-only, for the session / month-to-date / year-to-date realized P&L on `GET /positions` and the `/clearing` routes |
 | `--log-level LEVEL`  |                             `WARNING`    | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG` (uppercase; this is the CLI process's own log level, separate from the `log_level` config value that sets uvicorn's own logger) |
 | `-v` / `--verbose`   |                             off          | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet`     |                             off          | Reduce output to warnings/errors |
+| `-q` / `--quiet`     |                             off          | Explicit WARNING log level (the default) |
 | `--log-target`       |                             auto         | Where this process's own operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file PATH`    |                             —            | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout SECONDS` | `30`             | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -195,8 +195,9 @@ that used it. Stopping it ends those sessions:
   positions are complete; only the finished orders this process had cached
   are gone (see [Order cache retention](#order-cache-retention)).
 
-If `pm-api-gwy` exits with status 1 after logging
-"engine listener died", its connection to the engine failed; start it again.
+If `pm-api-gwy` exits with status 1 after logging "engine listener died",
+"index listener died" or "sim listener died", its connection to the engine,
+to pm-index or to pm-market-sim failed; start it again.
 
 
 ## Swagger interface
@@ -884,7 +885,7 @@ curl -v --no-buffer \
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
-| `503 {"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or the engine listener is stopping. A listener that dies stops the whole process with exit status 1 ("engine listener died" in its log) | Check `enabled` in the config block and the gateway's own logs; start `pm-api-gwy` again. `/healthz` does not probe the engine itself |
+| `503 {"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or the engine listener is stopping. A listener that dies stops the whole process with exit status 1 ("engine listener died", "index listener died" or "sim listener died" in its log) | Check `enabled` in the config block and the gateway's own logs; start `pm-api-gwy` again. `/healthz` does not probe the engine itself |
 | `401 Unauthorized` | Missing, malformed or unknown key in the `Authorization` header (`AUTH`) | Use `Authorization: Bearer <key>` with a key listed in `credentials` |
 | `403 ENGINE_AUTH` (not "already connected", not "timed out") | The engine refused the gateway's handshake for that `gateway_id` | Check that the `gateway_id` is allowed by the engine's `participants` list |
 | `403 ENGINE_AUTH` "Gateway already connected: ID" | Another process holds the id at the engine: an ALF or BALF client, a console, another `pm-api-gwy`, or a previous instance of this one that was killed | Stop that process. A killed one is timed out after up to 3 minutes (three missed heartbeats). To free the id at once, an ADMIN calls `POST /api/v1/admin/gateways/{gateway_id}/disconnect` (its `disconnect_behaviour` runs). See [Stopping and restarting](#stopping-and-restarting) |

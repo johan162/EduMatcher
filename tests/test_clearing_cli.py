@@ -917,7 +917,7 @@ class TestHealthVerb:
         assert _run_health(monkeypatch, db_path, ["health", "-q"]) == 0
         assert capsys.readouterr() == ("", "")
 
-    def test_quiet_exits_minus_one_without_output(
+    def test_quiet_exits_one_without_output(
         self,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
@@ -925,7 +925,8 @@ class TestHealthVerb:
     ) -> None:
         _healthy_process(monkeypatch, running=False)
 
-        assert _run_health(monkeypatch, db_path, ["health", "-q"]) == -1
+        # L017: 1, as without -q; it was -1 (status 255 in a shell).
+        assert _run_health(monkeypatch, db_path, ["health", "-q"]) == 1
         assert capsys.readouterr() == ("", "")
 
     def test_run_extended_database_check_times_out_without_waiting_for_the_worker(
@@ -961,14 +962,21 @@ class TestHealthVerb:
         assert stats is None
         assert elapsed < 2
 
-    def test_zmq_health_check_detects_a_bound_replier(self) -> None:
+    def test_zmq_health_check_detects_a_bound_replier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         import threading
 
+        from edumatcher.clearing import cli as clearing_cli
         from edumatcher.clearing.cli import _check_zmq_health
-        from edumatcher.config import CLEARING_HEALTH_BIND_ADDR
         from edumatcher.messaging.bus import make_replier
+        from tests.conftest import free_port
 
-        sock = make_replier(CLEARING_HEALTH_BIND_ADDR)
+        # A private port: the real 5563 collides with parallel workers and
+        # with any exchange running on the same machine.
+        addr = f"tcp://127.0.0.1:{free_port()}"
+        monkeypatch.setattr(clearing_cli, "CLEARING_HEALTH_ADDR", addr)
+        sock = make_replier(addr)
         try:
             # A real pm-clearing would answer from its own receive loop; a
             # thread here stands in for that loop.

@@ -451,6 +451,8 @@ messages:
       since: "1.0"
     fields:
       - { name: server, type: string, validate: { max_len: 64 } }
+      - { name: instance_id, type: string, validate: { max_len: 32 },
+          doc: "Random, new at every server start. `last_seq` continues across restarts, so this is how a subscriber recognises a restarted server and re-subscribes (its subscription did not survive)." }
       - { name: state, type: enum, values: [UP, DOWN] }
       - { name: proto, type: string, validate: { max_len: 16 } }
       - { name: pub_addr, type: string, validate: { max_len: 128 } }

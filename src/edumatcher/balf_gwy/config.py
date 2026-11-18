@@ -18,7 +18,7 @@ from typing import Any
 from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
 from edumatcher.config_include import load_config_mapping
 from edumatcher.config import resolve_gateway_bind_host
-from edumatcher.config_coerce import as_float, as_int
+from edumatcher.config_coerce import as_bool, as_float, as_int, as_str
 
 
 @dataclass(frozen=True)
@@ -52,6 +52,10 @@ class BalfGatewayConfig:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _optional_str(raw: object, label: str) -> str | None:
+    return None if raw is None else as_str(raw, label)
 
 
 def _as_int(raw: object, field: str) -> int:
@@ -103,9 +107,11 @@ def _load_balf_gateway_config_from_raw(raw: dict[str, Any]) -> BalfGatewayConfig
     if not isinstance(section, dict):
         raise ValueError("balf_gateway must be a mapping")
 
-    enabled = bool(section.get("enabled", True))
-    name = str(section.get("name", "balf-gwy01"))
-    bind_address = resolve_gateway_bind_host(section.get("bind_address"))
+    enabled = as_bool(section.get("enabled", True), "balf_gateway.enabled")
+    name = as_str(section.get("name", "balf-gwy01"), "balf_gateway.name")
+    bind_address = resolve_gateway_bind_host(
+        _optional_str(section.get("bind_address"), "balf_gateway.bind_address")
+    )
     port = _as_int(section.get("port", 5560), "port")
     if port <= 0 or port > 65535:
         raise ValueError("balf_gateway.port must be in 1-65535")

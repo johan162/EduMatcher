@@ -26,6 +26,7 @@ from typing import Any, Optional
 
 
 from edumatcher.config import resolve_data_path
+from edumatcher.config_coerce import as_bool, as_float, as_int
 from edumatcher.config_include import load_config_mapping
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
@@ -79,6 +80,17 @@ DEFAULT_SESSION_TIMEZONE = "Europe/Stockholm"
 _MAX_CB_LEVEL_NAME = 32
 
 
+def _int(raw: object) -> int:
+    """``int()`` that refuses a bool and a fraction (L024). The ValueError
+    lands in the caller's ``except``, which names the field."""
+    return as_int(raw, "value")
+
+
+def _float(raw: object) -> float:
+    """``float()`` that refuses a bool and NaN/inf: ``nan <= 0`` is False."""
+    return as_float(raw, "value")
+
+
 def _config_ticks(price: float, tick_decimals: int, symbol: str, where: str) -> int:
     """Convert a display price from the config file to ticks, exactly.
 
@@ -117,7 +129,9 @@ def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
         raise ValueError(f"'{where}.reopening.enabled' must be a boolean")
 
     try:
-        initial_band_pct = float(raw.get("initial_band_pct", defaults.initial_band_pct))
+        initial_band_pct = _float(
+            raw.get("initial_band_pct", defaults.initial_band_pct)
+        )
     except (TypeError, ValueError) as exc:
         raise ValueError(
             f"'{where}.reopening.initial_band_pct' must be numeric"
@@ -126,7 +140,7 @@ def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
         raise ValueError(f"'{where}.reopening.initial_band_pct' must be in (0, 1)")
 
     try:
-        random_end_max_ns = int(
+        random_end_max_ns = _int(
             raw.get("random_end_max_ns", defaults.random_end_max_ns)
         )
     except (TypeError, ValueError) as exc:
@@ -141,7 +155,7 @@ def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
         random_seed: int | None = None
     else:
         try:
-            random_seed = int(seed_raw)
+            random_seed = _int(seed_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 f"'{where}.reopening.random_seed' must be an integer or null"
@@ -159,7 +173,7 @@ def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
             if not isinstance(rung_raw, dict):
                 raise ValueError(f"'{path}' must be a mapping")
             try:
-                widen_pct = float(rung_raw["widen_pct"])
+                widen_pct = _float(rung_raw["widen_pct"])
             except KeyError as exc:
                 raise ValueError(f"'{path}.widen_pct' is required") from exc
             except (TypeError, ValueError) as exc:
@@ -167,7 +181,7 @@ def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
             if not (0 < widen_pct < 1):
                 raise ValueError(f"'{path}.widen_pct' must be in (0, 1)")
             try:
-                min_duration_ns = int(rung_raw["min_duration_ns"])
+                min_duration_ns = _int(rung_raw["min_duration_ns"])
             except KeyError as exc:
                 raise ValueError(f"'{path}.min_duration_ns' is required") from exc
             except (TypeError, ValueError) as exc:
@@ -567,13 +581,13 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         )
         min_qty_raw = mm_global_raw.get("mm_min_qty", mm_global_policy.mm_min_qty)
         try:
-            mm_global_policy.mm_max_spread_ticks = int(max_spread_raw)
+            mm_global_policy.mm_max_spread_ticks = _int(max_spread_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 "Engine config 'mm_obligation_defaults.mm_max_spread_ticks' must be an integer"
             ) from exc
         try:
-            mm_global_policy.mm_min_qty = int(min_qty_raw)
+            mm_global_policy.mm_min_qty = _int(min_qty_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 "Engine config 'mm_obligation_defaults.mm_min_qty' must be an integer"
@@ -610,13 +624,13 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
             )
             sym_min_raw = sym_cfg_raw.get("mm_min_qty", mm_global_policy.mm_min_qty)
             try:
-                sym_max = int(sym_max_raw)
+                sym_max = _int(sym_max_raw)
             except (TypeError, ValueError) as exc:
                 raise ValueError(
                     f"Engine config 'mm_obligation_defaults.symbols.{sym_name}.mm_max_spread_ticks' must be an integer"
                 ) from exc
             try:
-                sym_min = int(sym_min_raw)
+                sym_min = _int(sym_min_raw)
             except (TypeError, ValueError) as exc:
                 raise ValueError(
                     f"Engine config 'mm_obligation_defaults.symbols.{sym_name}.mm_min_qty' must be an integer"
@@ -723,7 +737,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         mm_quotes_raw = cfg.get("market_maker_quotes") or []
 
         try:
-            tick_decimals = int(tick_decimals)
+            tick_decimals = _int(tick_decimals)
         except TypeError, ValueError:
             raise ValueError(f"Symbol '{sym}': tick_decimals must be an integer")
         if not (0 <= tick_decimals <= 8):
@@ -731,7 +745,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
 
         if lbp is not None:
             try:
-                lbp = float(lbp)
+                lbp = _float(lbp)
             except TypeError, ValueError:
                 raise ValueError(f"Symbol '{sym}': last_buy_price must be a number")
             # Converted only to reject a price the symbol's grid cannot
@@ -739,14 +753,14 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
             _config_ticks(lbp, tick_decimals, sym, f"Symbol '{sym}': last_buy_price")
         if lsp is not None:
             try:
-                lsp = float(lsp)
+                lsp = _float(lsp)
             except TypeError, ValueError:
                 raise ValueError(f"Symbol '{sym}': last_sell_price must be a number")
             _config_ticks(lsp, tick_decimals, sym, f"Symbol '{sym}': last_sell_price")
         outstanding_shares: int | None = None
         if outstanding_shares_raw is not None:
             try:
-                outstanding_shares = int(outstanding_shares_raw)
+                outstanding_shares = _int(outstanding_shares_raw)
             except TypeError, ValueError:
                 raise ValueError(
                     f"Symbol '{sym}': outstanding_shares must be a positive integer"
@@ -771,16 +785,15 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
                 )
             gateway_id = gateway_id_raw.strip().upper()
 
+            where = f"Symbol '{sym}': market_maker_quotes[{i}]"
             try:
-                bid_price = float(quote_raw["bid_price"])
-                ask_price = float(quote_raw["ask_price"])
-                bid_qty = int(quote_raw["bid_qty"])
-                ask_qty = int(quote_raw["ask_qty"])
+                bid_price = as_float(quote_raw["bid_price"], f"{where}.bid_price")
+                ask_price = as_float(quote_raw["ask_price"], f"{where}.ask_price")
+                bid_qty = as_int(quote_raw["bid_qty"], f"{where}.bid_qty")
+                ask_qty = as_int(quote_raw["ask_qty"], f"{where}.ask_qty")
                 tif = TIF(str(quote_raw.get("tif", TIF.DAY.value)).upper())
             except (KeyError, TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"Symbol '{sym}': market_maker_quotes[{i}] is invalid"
-                ) from exc
+                raise ValueError(f"{where} is invalid: {exc}") from exc
 
             quote_id_raw = quote_raw.get("quote_id")
             if quote_id_raw is not None and not isinstance(quote_id_raw, str):
@@ -800,7 +813,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
                     f"Symbol '{sym}': market_maker_quotes[{i}] requires bid_price < ask_price"
                 )
 
-            seed_once = bool(quote_raw.get("seed_once", True))
+            seed_once = as_bool(quote_raw.get("seed_once", True), f"{where}.seed_once")
 
             mm_quotes.append(
                 MMQuoteSeed(
@@ -879,7 +892,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         max_qty_raw = effective_limits_raw.get("max_order_qty")
         if max_qty_raw is not None:
             try:
-                max_qty = int(max_qty_raw)
+                max_qty = _int(max_qty_raw)
             except TypeError, ValueError:
                 raise ValueError(
                     f"Symbol '{sym}': order_limits.max_order_qty must be an integer"
@@ -893,7 +906,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         max_value_raw = effective_limits_raw.get("max_order_value")
         if max_value_raw is not None:
             try:
-                max_value = float(max_value_raw)
+                max_value = _float(max_value_raw)
             except TypeError, ValueError:
                 raise ValueError(
                     f"Symbol '{sym}': order_limits.max_order_value must be a number"
@@ -1032,7 +1045,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
                         f"Symbol '{sym}': circuit_breaker.levels.{level_name}.price_shift_pct is required"
                     )
                 try:
-                    price_shift_pct = float(level_cfg_raw["price_shift_pct"])
+                    price_shift_pct = _float(level_cfg_raw["price_shift_pct"])
                 except (TypeError, ValueError) as exc:
                     raise ValueError(
                         f"Symbol '{sym}': circuit_breaker.levels.{level_name}.price_shift_pct must be numeric"
@@ -1047,7 +1060,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
                     halt_duration_ns: int | None = None
                 else:
                     try:
-                        halt_duration_ns = int(halt_duration_raw)
+                        halt_duration_ns = _int(halt_duration_raw)
                     except (TypeError, ValueError) as exc:
                         raise ValueError(
                             f"Symbol '{sym}': circuit_breaker.levels.{level_name}.halt_duration_ns must be an integer or null"
@@ -1168,7 +1181,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
                 if leg_price is None:
                     continue
                 try:
-                    leg_price = float(leg_price)
+                    leg_price = _float(leg_price)
                 except TypeError, ValueError:
                     raise ValueError(
                         f"market_maker_combos[{i}].legs[{j}].{yaml_key} must be a number"
@@ -1232,14 +1245,14 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         description = desc_raw.strip()
 
         try:
-            base_value = float(idx_raw.get("base_value", 1000.0))
+            base_value = _float(idx_raw.get("base_value", 1000.0))
         except (TypeError, ValueError) as exc:
             raise ValueError(f"indices[{i}].base_value must be numeric") from exc
         if base_value <= 0.0:
             raise ValueError(f"indices[{i}].base_value must be > 0")
 
         try:
-            publish_interval_sec = float(idx_raw.get("publish_interval_sec", 1.0))
+            publish_interval_sec = _float(idx_raw.get("publish_interval_sec", 1.0))
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 f"indices[{i}].publish_interval_sec must be numeric"
@@ -1331,13 +1344,13 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         )
         mm_min_qty_raw = item.get("mm_min_qty", mm_global_policy.mm_min_qty)
         try:
-            mm_max_spread_ticks = int(mm_max_spread_ticks_raw)
+            mm_max_spread_ticks = _int(mm_max_spread_ticks_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 f"participants[{i}].mm_max_spread_ticks must be an integer"
             ) from exc
         try:
-            mm_min_qty = int(mm_min_qty_raw)
+            mm_min_qty = _int(mm_min_qty_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
                 f"participants[{i}].mm_min_qty must be an integer"
@@ -1478,7 +1491,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
     if snapshot_interval_raw is None:
         raise ValueError("Engine config 'snapshot_interval_sec' must be numeric")
     try:
-        snapshot_interval_sec = float(snapshot_interval_raw)
+        snapshot_interval_sec = _float(snapshot_interval_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Engine config 'snapshot_interval_sec' must be numeric"
@@ -1490,7 +1503,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         "auction_indicative_interval_sec", _DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC
     )
     try:
-        auction_indicative_interval_sec = float(auction_indicative_raw)
+        auction_indicative_interval_sec = _float(auction_indicative_raw)
     except TypeError, ValueError:
         raise ValueError(
             "Engine config 'auction_indicative_interval_sec' must be numeric"
@@ -1502,7 +1515,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         "quote_history_maxlen", _DEFAULT_QUOTE_HISTORY_MAXLEN
     )
     try:
-        quote_history_maxlen = int(quote_history_raw)
+        quote_history_maxlen = _int(quote_history_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Engine config 'engine_tuning.quote_history_maxlen' must be an integer"
@@ -1516,7 +1529,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         "drop_copy_buffer_size", _DEFAULT_DROP_COPY_BUFFER_SIZE
     )
     try:
-        drop_copy_buffer_size = int(drop_copy_buffer_raw)
+        drop_copy_buffer_size = _int(drop_copy_buffer_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Engine config 'engine_tuning.drop_copy_buffer_size' must be an integer"
@@ -1530,7 +1543,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         "recent_trades_maxlen", _DEFAULT_RECENT_TRADES_MAXLEN
     )
     try:
-        recent_trades_maxlen = int(recent_trades_raw)
+        recent_trades_maxlen = _int(recent_trades_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Engine config 'engine_tuning.recent_trades_maxlen' must be an integer"
@@ -1544,7 +1557,7 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
         "depth_snapshot_tolerance_ticks", _DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     )
     try:
-        depth_snapshot_tolerance_ticks = int(depth_snapshot_raw)
+        depth_snapshot_tolerance_ticks = _int(depth_snapshot_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             "Engine config 'engine_tuning.depth_snapshot_tolerance_ticks' must be an integer"
@@ -1568,6 +1581,10 @@ def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
     # that resolved shape rather than re-implementing shortcut resolution.
     schedule_cfg: ScheduleConfig | None = None
     schedule_raw = raw.get("schedule")
+    if schedule_raw is not None and not isinstance(schedule_raw, dict):
+        raise ValueError(
+            f"Engine config 'schedule' must be a mapping, got {schedule_raw!r}"
+        )
     if isinstance(schedule_raw, dict):
         known_schedule_keys = {"weekdays", "weekend", "holidays", *DAY_KEYS}
         unknown_schedule_keys = set(schedule_raw) - known_schedule_keys

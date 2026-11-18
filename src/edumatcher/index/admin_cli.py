@@ -31,6 +31,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.commands import CommandError, CommandTimeoutError, ExchangeCommandClient
 from edumatcher.config import INDEX_PUB_CONNECT_ADDR, INDEX_PULL_CONNECT_ADDR
 from edumatcher.models.generated.index import (
@@ -600,6 +601,7 @@ _HANDLERS = {
 # ---------------------------------------------------------------------------
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

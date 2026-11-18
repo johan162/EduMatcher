@@ -26,11 +26,11 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 
 | Mode | Best for | Needs on your machine | What you get | Command style |
 |---|---|---|---|---|
-| **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all six web GUIs | `./edumatcher.sh start` |
+| **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all seven web GUIs | `./edumatcher.sh start` |
 | **Containers from source** | Changing the code and seeing it run as a system | Podman/Docker, Poetry, Node | The same, built from your checkout | `make up-all` |
 | **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell ems` |
 | **pipx** | Students running processes by hand, one per terminal | Python 3.14, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
-| **pipx + GUI containers** | Running the exchange natively but still wanting the browser applications | Python 3.14, `pipx`, Podman or Docker | The pipx exchange, plus the six web GUIs as ready-built containers | `./edumatcher.sh start` |
+| **pipx + GUI containers** | Running the exchange natively but still wanting the browser applications | Python 3.14, `pipx`, Podman or Docker | The pipx exchange, plus the seven web GUIs as ready-built containers | `./edumatcher.sh start` |
 | **Poetry checkout** | Developing, running the test suite | Python 3.14, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
 The container modes give you the whole system — engine, gateways, REST API and
@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 Then open <http://localhost:8090>.
 
-That starts a complete exchange plus six web applications, from images built
+That starts a complete exchange plus seven web applications, from images built
 and published by the project. Nothing is compiled on your machine: no Python,
 no Node, no checkout. The only requirement is Podman or Docker.
 
@@ -124,7 +124,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.81.1
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.81.2
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -648,7 +648,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.81.1 --snapshot
+    bash -s -- --version 0.81.2 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -671,7 +671,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.81.1 --snapshot
+bash curl_setup_vm.sh --version 0.81.2 --snapshot
 ```
 
 

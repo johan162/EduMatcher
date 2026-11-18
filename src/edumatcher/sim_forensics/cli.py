@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.cli_version import add_version_argument, package_version
 from edumatcher.config import DATA_DIR
 from edumatcher.sim_forensics import report
@@ -61,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)

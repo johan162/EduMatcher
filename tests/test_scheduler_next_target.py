@@ -133,6 +133,14 @@ def test_a_mid_day_start_announces_the_next_step_it_waits_for(
     events = run_at("2026-11-06T12:00")
     started = time.time()
     confirm = MagicMock()
+    # An empty SUB socket: a watched wait spends its time in poll, and this
+    # fixture's clock only moves through (the patched) time.sleep.
+
+    def empty_poll(timeout: int = 0) -> int:
+        time.sleep(timeout / 1000)
+        return 0
+
+    confirm.poll.side_effect = empty_poll
     query = MagicMock(return_value=SessionState.CONTINUOUS)
 
     with pytest.MonkeyPatch.context() as mp:

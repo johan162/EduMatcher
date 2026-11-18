@@ -15,7 +15,7 @@
 #
 # EM_STACK=sim in .env makes every command drive compose.ai-sim.yaml and the
 # 'edumatcher-sim' containers instead; the installer sets it with --sim.
-# EM_STACK=guis drives compose.guis.yaml: the six web GUIs only, for an
+# EM_STACK=guis drives compose.guis.yaml: the seven web GUIs only, for an
 # exchange you run yourself with pipx; the installer sets it with --guis.
 #
 # Everything runs from this directory; there is nothing installed elsewhere.

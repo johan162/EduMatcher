@@ -17,7 +17,7 @@ import logging
 import threading
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import zmq
 
@@ -65,6 +65,9 @@ class IndexClient:
         self._sub = make_subscriber(pub_addr, "")
         self._running = False
         self._thread: threading.Thread | None = None
+        #: Called on the event loop when the receive thread dies; pm-api-gwy
+        #: then stops with exit status 1, as for the engine listener.
+        self.on_listener_failure: Callable[[], None] | None = None
         # A list per topic, not a single future. ``index.history.<request_id>``
         # is addressed per call, but ``index.rebalance_ack.<gateway_id>`` is
         # shared by every rebalance that gateway issues, so concurrent calls
@@ -210,7 +213,7 @@ class IndexClient:
                 except zmq.ZMQError as exc:
                     if exc.errno != errno.EINTR:
                         raise
-                    break
+                    continue
                 if self._sub not in ready:
                     continue
                 try:
@@ -219,6 +222,13 @@ class IndexClient:
                     log.warning("Dropping malformed index PUB message: %s", exc)
                     continue
                 self._loop.call_soon_threadsafe(self._handle_event, topic, payload)
+        except Exception:
+            # Still meant to run, so not a stop_listener() closing the
+            # sockets under it: as the engine listener (L033).
+            if self._running:
+                log.exception("index listener died; stopping pm-api-gwy")
+                if self.on_listener_failure is not None:
+                    self._loop.call_soon_threadsafe(self.on_listener_failure)
         finally:
             self._running = False
 

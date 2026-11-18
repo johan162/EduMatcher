@@ -14,6 +14,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.cli_version import add_version_argument
 from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.config_include import ConfigIncludeError, load_config_mapping
@@ -95,6 +96,7 @@ def _wants_ascii(explicit: bool) -> bool:
     return bool(encoding) and "utf" not in encoding
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 

@@ -17,6 +17,7 @@ from dataclasses import fields, replace
 
 import holidays
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.cli_version import package_version
 
 from edumatcher.config_deploy import CompileError, compile_config
@@ -2257,6 +2258,7 @@ def _require_index_reference_prices(config: dict[str, Any]) -> None:
             )
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

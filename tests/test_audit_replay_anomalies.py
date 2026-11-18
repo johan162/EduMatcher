@@ -1066,18 +1066,26 @@ class TestLiquidityAttribution:
 
         assert LIQUIDITY_FLAG_DISAGREE not in log.codes()
 
-    def test_an_uncross_print_has_two_makers(self) -> None:
-        """Both sides rested, so there is no aggressor and the engine flags
-        both MAKER."""
+    def test_an_uncross_print_is_auction_on_both_sides(self) -> None:
+        """Both sides rested, so there is no aggressor: the engine flags
+        both AUCTION (L037)."""
         log = Log().line("trade.executed", _trade(aggressor_side="AUCTION"))
-        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="MAKER"))
-        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="AUCTION"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="AUCTION"))  # fmt: skip
 
         assert LIQUIDITY_FLAG_DISAGREE not in log.codes()
 
-    def test_an_uncross_print_with_a_taker_is_not(self) -> None:
+    @pytest.mark.parametrize("flag", ["TAKER", "MAKER"])
+    def test_an_uncross_print_with_a_maker_or_taker_is_not(self, flag: str) -> None:
         log = Log().line("trade.executed", _trade(aggressor_side="AUCTION"))
-        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag=flag))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="AUCTION"))  # fmt: skip
+
+        assert LIQUIDITY_FLAG_DISAGREE in log.codes()
+
+    def test_a_continuous_trade_flagged_auction_is_not(self) -> None:
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="AUCTION"))
         log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
 
         assert LIQUIDITY_FLAG_DISAGREE in log.codes()

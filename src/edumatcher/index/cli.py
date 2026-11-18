@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import INDEX_HEALTH_ADDR
 from edumatcher.healthcheck import (
@@ -495,7 +496,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when healthy or -1 otherwise",
+        help="Print nothing; exit 0 when healthy, 1 otherwise",
     )
     health.add_argument(
         "--extended",
@@ -835,7 +836,7 @@ def _cmd_health(args: argparse.Namespace) -> None:
             zmq={"healthy": False, "detail": "health check could not run"},
         )
     if args.quiet:
-        raise SystemExit(0 if healthy else -1)
+        raise SystemExit(0 if healthy else 1)
     if args.format == "json":
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -889,6 +890,7 @@ def _cmd_health(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pipe_safe
 @exit_on_config_error
 def main() -> None:
     parser = build_parser()

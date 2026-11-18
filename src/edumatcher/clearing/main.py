@@ -15,8 +15,9 @@ The flush transaction atomically writes:
 3. incremental daily deltas    (UPSERT into gateway_daily_summary)
 
 On startup, at every close of the market (``session.state`` CLOSED) and at
-every ``system.eod``, the process prunes trade_events rows older than
-``--retention-days`` (90) and logs the count of deleted rows.
+every ``system.eod``, the process prunes trade_events rows and close
+snapshots older than ``--retention-days`` (90; the newest close snapshot is
+always kept) and logs the count of deleted rows.
 
 A failed write keeps the buffer and is retried every flush interval, logged
 once per outage and counted in the ``clearing.flush_failures`` beacon metric;
@@ -72,6 +73,7 @@ from edumatcher.clearing.store import (
     flush_batch,
     latest_trade_seq,
     open_writer_connection,
+    prune_close_snapshots,
     prune_old_events,
     reconcile_session_timezone,
     record_gateway_connect,
@@ -345,11 +347,26 @@ class ClearingProcess:
             log.info("warm start: restored %d position(s) from the database", len(rows))
         log.debug("warm start restored positions=%d", len(rows))
 
+    def _prune(self) -> int:
+        """Apply ``--retention-days`` to ``trade_events`` and to the close
+        snapshots (L019); returns the ``trade_events`` rows deleted."""
+        pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+        snapshots = prune_close_snapshots(
+            self._conn, retention_days=self._retention_days
+        )
+        if snapshots:
+            log.info(
+                "pruned %d close-snapshot row(s) older than %d days",
+                snapshots,
+                self._retention_days,
+            )
+        return pruned
+
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
         pruned = 0
         if self._retention_days > 0:
-            pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+            pruned = self._prune()
         log.info(
             "starting clearing runtime db=%s flush_size=%d flush_interval=%ss retention_days=%d",
             self._db_path,
@@ -873,7 +890,7 @@ class ClearingProcess:
         3. Take the day's close snapshot unless the day's real close already
            took a final one (no scheduler: the shutdown is the close).
         4. Write an EOD sentinel row to session_events.
-        5. Prune trade_events past the retention window.
+        5. Prune trade_events and close snapshots past the retention window.
         """
         try:
             ts_ns = now_ns()
@@ -967,9 +984,7 @@ class ClearingProcess:
                 # long-running process does not only prune at startup.
                 pruned = 0
                 if self._retention_days > 0:
-                    pruned = prune_old_events(
-                        self._conn, retention_days=self._retention_days
-                    )
+                    pruned = self._prune()
             log.info(
                 "EOD received — %d symbol mark(s) applied, session_events row written for %s",
                 len(eod_marks),
@@ -1032,9 +1047,7 @@ class ClearingProcess:
                         snapshot_rows = write_close_snapshot(self._conn, day)
                         log.info("close snapshot: %d position(s)", snapshot_rows)
                 if state == "CLOSED" and self._retention_days > 0:
-                    pruned = prune_old_events(
-                        self._conn, retention_days=self._retention_days
-                    )
+                    pruned = self._prune()
             if pruned:
                 log.info(
                     "close prune removed %d trade_events row(s) older than %d days",
@@ -1267,8 +1280,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=_RETENTION_DAYS,
         metavar="N",
         help=(
-            f"Delete trade_events rows older than N days on startup and at"
-            f" every close (default: {_RETENTION_DAYS}; 0 = disable pruning)"
+            f"Delete trade_events rows and close snapshots older than N days"
+            f" on startup and at every close; the newest close snapshot is"
+            f" kept (default: {_RETENTION_DAYS}; 0 = disable pruning)"
         ),
     )
     parser.add_argument(
@@ -1293,8 +1307,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--quiet",
         action="store_true",
         help=(
-            "Log warnings and errors only; this is the default, and -v or "
-            "--log-level override it"
+            "Explicit WARNING log level (the default); -v and --log-level take precedence"
         ),
     )
     parser.add_argument(

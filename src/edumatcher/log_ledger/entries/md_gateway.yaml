@@ -80,7 +80,7 @@
     - "If the load is genuine, raise `market_data_gateway.max_connections`, run `pm-config-deploy` and restart pm-md-gwy."
 
 - logger: edumatcher.md_gateway.gateway
-  template: "read select failed: %s"
+  template: "read poll failed: %s"
   level: WARNING
   explanation: >
     Waiting for data from the connected clients failed for one pass of the main

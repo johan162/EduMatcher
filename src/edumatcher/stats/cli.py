@@ -11,6 +11,7 @@ from datetime import tzinfo
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.config import STATS_DB_FILE, STATS_HEALTH_ADDR, resolve_data_path
 from edumatcher.healthcheck import (
     PING_TIMEOUT_MS,
@@ -403,7 +404,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when healthy or -1 otherwise",
+        help="Print nothing; exit 0 when healthy, 1 otherwise",
     )
     health.add_argument(
         "--extended",
@@ -735,6 +736,7 @@ def _run_query(
     return _INDEX_IDS_COLUMNS, rows, None
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -773,7 +775,7 @@ def main() -> None:
                 zmq={"healthy": False, "detail": "health check could not run"},
             )
         if args.quiet:
-            raise SystemExit(0 if healthy else -1)
+            raise SystemExit(0 if healthy else 1)
         if args.format == "json":
             print(json.dumps(report, indent=2, sort_keys=True))
         else:

@@ -435,6 +435,20 @@ class ExchangeCommandClient:
         """Monitor the engine transport for a disconnect after authentication."""
         return self._push.get_monitor_socket(events=zmq.EVENT_DISCONNECTED)
 
+    def close_engine_disconnect_monitor(self, monitor: zmq.Socket[bytes]) -> None:
+        """Detach and close a monitor from :meth:`engine_disconnect_monitor`.
+
+        Closing only the monitor socket is not enough: libzmq's I/O thread
+        sends monitor events with a blocking send, so a later disconnect on
+        the PUSH socket would block that thread -- and every socket sharing
+        the context -- forever on a pipe nobody reads.
+        """
+        try:
+            self._push.disable_monitor()
+        except zmq.ZMQError:
+            pass  # PUSH socket already closed
+        monitor.close(linger=0)
+
     def close(self) -> None:
         """Close ZMQ sockets (only when they were created by this instance)."""
         if self._owns_sockets:

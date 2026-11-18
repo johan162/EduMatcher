@@ -394,7 +394,13 @@ start it:
   ... INFO edumatcher.scheduler.main - Waiting 1337s for PRE_OPEN (at 09:00)
   ```
 
-- after 16:05 on a weekday it catches up straight to `CLOSED`;
+- after 16:05 on a weekday the engine is already where the day ends
+  (`CLOSED`), so it sends nothing and exits:
+
+  ```
+  ... INFO edumatcher.scheduler.main - Engine already at the current phase; no catch-up needed
+  ```
+
 - on a weekend it reports that the day is closed and exits at once.
 
 To skip the wait and drive the sequence immediately, stop it (`Ctrl-C`) and
@@ -418,7 +424,19 @@ Expected output (timestamps trimmed; between the transitions you also see a
 ```
 
 `--now` starts the day's sequence from this moment instead of the configured
-wall-clock times; `--delay 5` gives you five seconds between phases.
+wall-clock times; `--delay 5` gives you five seconds between phases. The day
+can only start from `CLOSED`, so if the first run left the market open (you
+started it during trading hours), `--now` closes it first and says so before
+the five transitions:
+
+```
+... INFO edumatcher.scheduler.main - engine is in CONTINUOUS; closing it first via CLOSED
+... INFO edumatcher.scheduler.main - -> CLOSED (close first)
+```
+
+`Done.` means the engine applied every transition; one it did not apply is
+logged as a `WARNING` (`no confirmation that the engine applied …`) and
+`Done.` is not printed.
 
 !!! warning "`--now` runs the whole day"
     `--now` does not stop at continuous trading: it carries on through the

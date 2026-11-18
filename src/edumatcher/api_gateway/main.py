@@ -161,10 +161,12 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         engine.on_listener_failure = _listener_died
         engine.start_listener()
         index_client = IndexClient(config.index_pull_addr, config.index_pub_addr, loop)
+        index_client.on_listener_failure = _listener_died
         index_client.start_listener()
         sim = SimClient(
             SIM_PUB_ADDR, loop, sectors=load_sectors(REF_DATA_DIR / SIM_FILE_NAME)
         )
+        sim.on_listener_failure = _listener_died
         sim.start_listener()
         app.state.sim = sim
         app.state.config = config
@@ -469,7 +471,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",
@@ -587,7 +589,7 @@ def main() -> None:
         log.critical("fatal runtime error: %s", exc)
         raise
     if getattr(app.state, "listener_failed", False):
-        log.critical("engine listener died; exiting with status 1")
+        log.critical("a listener died; exiting with status 1")
         sys.exit(1)
 
 

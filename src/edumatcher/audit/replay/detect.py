@@ -98,6 +98,7 @@ _SIDE_SELL = "SELL"
 
 _MAKER = "MAKER"
 _TAKER = "TAKER"
+_AUCTION = "AUCTION"
 #: An uncross has no aggressor, and the engine flags both of its sides MAKER.
 _AGGRESSOR_AUCTION = "AUCTION"
 #: Which of the trade's two order ids the aggressor is, by side.
@@ -869,13 +870,12 @@ class Detector:
         trade: Fact,
         found: list[Anomaly],
     ) -> None:
-        """MAKER and TAKER against the trade's ``aggressor_side``.
+        """MAKER, TAKER and AUCTION against the trade's ``aggressor_side``.
 
         Both specs derive the flag the same way -- the aggressing side is the
-        TAKER, the resting side the MAKER, and exactly one of a trade's two
-        events is TAKER. An auction print has no aggressor and the engine
-        flags both sides MAKER, which is the case ``lexicon.fill_verb``
-        already reasons about.
+        TAKER, the resting side the MAKER, and exactly one of a continuous
+        trade's two events is TAKER. An auction print has no aggressor and
+        both sides are AUCTION (L037).
 
         A billing invariant: maker and taker fees invert on it, so a wrong
         flag is not a display problem.
@@ -884,7 +884,7 @@ class Detector:
             return
         aggressor = _str(trade.payload, "aggressor_side")
         if aggressor == _AGGRESSOR_AUCTION:
-            expected = _MAKER
+            expected = _AUCTION
         elif aggressor in (_SIDE_BUY, _SIDE_SELL):
             aggressing = _str(trade.payload, _AGGRESSOR_FIELD[aggressor])
             expected = _TAKER if leg.order_id == aggressing else _MAKER

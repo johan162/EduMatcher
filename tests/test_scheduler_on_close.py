@@ -47,20 +47,29 @@ class TestCloseHook:
         assert time.monotonic() - start >= 0.5
         hook.wait()
 
-    def test_a_second_call_while_running_is_skipped(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    def test_a_call_while_running_runs_once_more_afterwards(
+        self, tmp_path: Path
     ) -> None:
+        # C6: a trigger is never dropped; it runs when the busy one finishes.
         marker = tmp_path / "count"
-        code = f"open('{marker}','a').write('x'); import time; time.sleep(1)"
+        code = f"open('{marker}','a').write('x'); import time; time.sleep(0.5)"
         hook = _CloseHook(command(code), delay_sec=0)
         hook()
         wait_for(marker)
-        with caplog.at_level("WARNING"):
-            hook()
-            hook.wait_timers()
+        hook()
         hook.wait()
-        assert marker.read_text() == "x"
-        assert "still running" in caplog.text
+        assert marker.read_text() == "xx"
+
+    def test_calls_while_running_are_coalesced_into_one(self, tmp_path: Path) -> None:
+        marker = tmp_path / "count"
+        code = f"open('{marker}','a').write('x'); import time; time.sleep(0.5)"
+        hook = _CloseHook(command(code), delay_sec=0)
+        hook()
+        wait_for(marker)
+        hook()
+        hook()
+        hook.wait()
+        assert marker.read_text() == "xx"
 
     def test_a_missing_command_is_logged_not_raised(
         self, caplog: pytest.LogCaptureFixture

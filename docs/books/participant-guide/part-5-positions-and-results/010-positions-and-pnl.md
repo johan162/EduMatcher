@@ -105,11 +105,10 @@ pm-clearing [OPTIONS]
   --flush-interval SEC   Max seconds between flushes (>=0.1, default: 5)
   --print-every N        Print a P&L table of every position every N trades
                          (0 = never, the default)
-  --retention-days N     Prune trade_events rows older than N days on startup,
-                         at every close and on each system.eod (default: 90) —
-                         see the note under Retention below for what `0` does
-                         (not quite "disable pruning", despite the real
-                         `--help` text's wording)
+  --retention-days N     Delete trade_events rows and close snapshots older
+                         than N days on startup and at every close; the
+                         newest close snapshot is kept (default: 90; 0 =
+                         disable pruning)
   --log-level LEVEL      Explicit log level: CRITICAL, ERROR, WARNING,
                          INFO, DEBUG (default: WARNING)
   --log-target TARGET    Where operational logs go: server (default,
@@ -119,7 +118,7 @@ pm-clearing [OPTIONS]
                          Grace window before falling back to a local log file
                          when pm-log-srv is unreachable (default: 30)
   -v, --verbose          Increase verbosity (-v: INFO, -vv: DEBUG)
-  -q, --quiet            Reduce log output to warnings/errors
+  -q, --quiet            Explicit WARNING log level (the default)
   --sql-trace            Log executed SQLite SQL statements (off by default)
   --version              Show version and exit
   --help                 Show help and exit
@@ -262,21 +261,13 @@ and must be recreated; the system does not migrate historical short IDs.
 | `ingest_ts_ns` | INTEGER | Ingestion timestamp (local wall clock) |
 
 Retention: rows older than `--retention-days` (default 90, compared against
-the UTC date) are deleted on startup, at every close of the market
-(`session.state` `CLOSED`), on each `system.eod`, and on demand via
-`pm-clearing-cli prune`.
-
-!!! warning "`--retention-days 0` behaves differently depending on which trigger fires"
-    The three automatic triggers are not consistent about `0`. On **startup**
-    and on **every `system.eod`**, pruning runs unconditionally — `0` does
-    **not** disable it there, it deletes every row dated before today (UTC).
-    On **market close** (`session.state` → `CLOSED`) specifically, pruning is
-    skipped entirely when `--retention-days` is `0` — the one trigger where
-    `0` genuinely means "keep everything". `pm-clearing-cli prune` is
-    unaffected either way: its own `--days` rejects `0` outright (`--days`
-    must be `>= 1`). If you want to reliably keep every row forever
-    regardless of which trigger fires, use a large value (e.g. `36500`)
-    rather than relying on `0`.
+the UTC date; a row exactly N days old stays) are deleted on startup, at
+every close of the market (`session.state` `CLOSED`), on each `system.eod`,
+and on demand via `pm-clearing-cli prune` (`--days N`, `--dry-run`). The same
+rule, at the same moments, prunes `position_close_snapshot`, except the
+newest close, which the next settlement starts from. `--retention-days 0`
+disables all three automatic prunes; `pm-clearing-cli prune` refuses
+`--days 0`.
 
 ### `gateway_symbol_positions`
 
@@ -366,8 +357,12 @@ that date's rows — **unless the date's snapshot is final**: the date's latest
 session phase is `CLOSED`, the market was open earlier that day, and a snapshot
 exists. A final snapshot is the real
 close and may already be settled, so neither a shutdown nor the `CLOSED` an
-engine restart announces after the close replaces it. Rows are small and **are
-not pruned** with `trade_events`.
+engine restart announces after the close replaces it. Every position is
+copied, flat ones included, so a date is a full position table: dates older
+than `--retention-days` are pruned with `trade_events`, except the newest
+close, which pm-eod settles the next day from. pm-eod keeps each settled
+date's equity in `eod.db`, so a pruned snapshot does not change a
+settlement.
 
 | Column | Type | Description |
 |---|---|---|
@@ -792,8 +787,9 @@ Read the numbers with these rules:
   string beside them.
 - **Lag.** `pm-clearing` writes fills in batches, so a fill can take up to
   5 seconds (one flush) to appear.
-- **Retention.** Raw trades are kept for 90 days by default
-  (`retained_from` on `/trades`); daily rows and close snapshots stay.
+- **Retention.** Raw trades and close snapshots are kept for 90 days by
+  default (`retained_from` on `/trades`; the newest close always stays);
+  daily rows stay.
 - **Settlement is not margin.** A settlement moves the day's close-to-close
   P&L; the balance is your opening balance plus those amounts. Neither is
   cash, equity or collateral, and neither exists until `pm-eod` has run.
@@ -847,7 +843,8 @@ themselves do not accept them.
 | `snapshots` | `position_close_snapshot` | Every position saved at each session close (quantity, cumulative realized and unrealized P&L, closing price) | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
 | `eod` | `session_events` | End-of-day sentinel rows written on `system.eod`, including mark prices applied | `--from`, `--to`, `--limit` |
 | `gaps` | `session_events` | Trade-feed gaps: trades the engine executed that never reached `pm-clearing`, so were never booked | `--from`, `--to`, `--limit` |
-| `prune` | `trade_events` | Deletes rows older than N days (default 90); write-access verb (does not VACUUM) | `--days`, `--dry-run` |
+| `prune` | `trade_events`, `position_close_snapshot` | Deletes rows older than N days (default 90; the newest close snapshot is kept); write-access verb (does not VACUUM) | `--days`, `--dry-run` |
+| `rebuild` | pm-audit's trail → a new database | Replays every `trade.executed` from the audit trail into a **new** `clearing.db` and lists the positions that differ from the live one (exit 0 none, 3 some, 1 refused); the live file is only read. See [Repairing `clearing.db`](../../operator-guide/part-6-observe-and-recover/010-persistence.md#repairing-clearingdb-after-a-feed-gap) | `--from-audit DATA_DIR`, `--output PATH` |
 
 
 ### gateways — live gateway P&L totals
@@ -1145,8 +1142,7 @@ Database stats:
 ```
 
 The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
-printed and the exit code is `0` when healthy or `-1` (255 in a shell)
-otherwise. `--format json` prints the same report as a JSON object (`csv`
+printed and the exit code is the same. `--format json` prints the same report as a JSON object (`csv`
 prints the same text as `table`); `--raw-output` does not apply.
 
 Unlike the query verbs, `health` runs even when `clearing.db` does not exist; a

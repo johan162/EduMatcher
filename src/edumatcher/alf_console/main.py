@@ -236,7 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",
@@ -916,6 +916,14 @@ class Gateway:
                         console.print(
                             f"[dim][WARN] drop-copy listener error: {exc}[/dim]"
                         )
+        # Detach the monitor before closing its reading end. libzmq's I/O
+        # thread sends monitor events with a *blocking* send: left attached,
+        # the next disconnect on sub_sock blocks that thread forever on a
+        # pipe nobody reads, and with it every socket of the shared context.
+        try:
+            self.sub_sock.disable_monitor()
+        except zmq.ZMQError:
+            pass  # sub_sock already closed
         monitor_sock.close(linger=0)
         self._resync_push_sock.close(linger=0)
         self._resync_push_sock = None

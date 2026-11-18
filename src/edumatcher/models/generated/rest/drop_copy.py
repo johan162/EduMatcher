@@ -14,9 +14,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 DropCopyEventEventType = Literal["order.fill"]
-DropCopyEventLiquidityFlag = Literal["MAKER", "TAKER"]
+DropCopyEventLiquidityFlag = Literal["MAKER", "TAKER", "AUCTION"]
 DropCopyReplayEventType = Literal["order.fill"]
-DropCopyReplayLiquidityFlag = Literal["MAKER", "TAKER"]
+DropCopyReplayLiquidityFlag = Literal["MAKER", "TAKER", "AUCTION"]
 
 
 class DropCopyEvent(BaseModel):
@@ -64,8 +64,9 @@ class DropCopyEvent(BaseModel):
     """
     liquidity_flag: DropCopyEventLiquidityFlag
     """Derived from the trade's aggressor side: the aggressor is the TAKER and the
-    resting side the MAKER. Exactly one of the two events a trade produces is
-    TAKER.
+    resting side the MAKER. Exactly one of the two events a continuous trade
+    produces is TAKER. An uncross print (`aggressor_side` AUCTION) has no
+    aggressor: neither side took liquidity, and both events are AUCTION.
     """
 
 

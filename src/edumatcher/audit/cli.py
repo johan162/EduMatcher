@@ -49,6 +49,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.audit.archive import (
     ARCHIVE_BUSY_LINE,
     DEFAULT_LEVEL,
@@ -521,7 +522,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when healthy or -1 otherwise",
+        help="Print nothing; exit 0 when healthy, 1 otherwise",
     )
     health.add_argument(
         "--extended",
@@ -1067,7 +1068,7 @@ def _handle_health(
             zmq={"healthy": False, "detail": "health check could not run"},
         )
     if args.quiet:
-        raise SystemExit(0 if healthy else -1)
+        raise SystemExit(0 if healthy else 1)
     if args.format == "json":
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
@@ -1186,6 +1187,7 @@ def _handle_verify(args: argparse.Namespace, audit_dir: Path) -> int:
     return 1 if problems else 0
 
 
+@pipe_safe
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

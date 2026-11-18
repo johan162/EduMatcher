@@ -16,6 +16,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from edumatcher.cli_pipe import pipe_safe
 from edumatcher.msgen import generate as gen
 from edumatcher.msgen import literals as lit
 from edumatcher.msgen.spec import SpecError, load_all
@@ -93,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@pipe_safe
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 

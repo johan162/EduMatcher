@@ -677,7 +677,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Increase verbosity (-v: INFO, -vv: DEBUG)",
     )
     parser.add_argument(
-        "-q", "--quiet", action="store_true", help="Reduce output to warnings/errors"
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",

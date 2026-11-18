@@ -60,6 +60,17 @@ describe("formatChangePct", () => {
     expect(formatChangePct(148.5, 150)).toBe("-1.00%");
   });
 
+  it("has no sign on a change that rounds to zero (L002)", () => {
+    expect(formatChangePct(149.9999, 150)).toBe("0.00%");
+    expect(formatChangePct(150.0001, 150)).toBe("0.00%");
+    expect(formatChangePct(150, 150)).toBe("0.00%");
+  });
+
+  it("keeps the sign of a change that shows", () => {
+    expect(formatChangePct(150.015, 150)).toBe("+0.01%");
+    expect(formatChangePct(149.985, 150)).toBe("-0.01%");
+  });
+
   it("returns — when either value is null or open is 0", () => {
     expect(formatChangePct(null, 150)).toBe("—");
     expect(formatChangePct(150, null)).toBe("—");

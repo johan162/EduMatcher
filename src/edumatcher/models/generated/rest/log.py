@@ -336,6 +336,11 @@ class LogServerState(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     server: str = Field(max_length=64)
+    instance_id: str = Field(max_length=32)
+    """Random, new at every server start. `last_seq` continues across restarts, so
+    this is how a subscriber recognises a restarted server and re-subscribes (its
+    subscription did not survive).
+    """
     state: LogServerStateState
     proto: str = Field(max_length=16)
     pub_addr: str = Field(max_length=128)

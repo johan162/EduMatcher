@@ -57,10 +57,12 @@
   template: "could not determine engine state; assuming a CLOSED start"
   level: WARNING
   explanation: >
-    At startup pm-scheduler asked the engine for its session state and got no
-    answer within 2 seconds, so it assumes the engine is CLOSED and replays
-    the day's transitions so far. If the engine is in fact further on, some of
-    them are refused.
+    pm-scheduler asked the engine for its session state (at startup, or at the
+    start of a `--now` run) and got no answer within 2 seconds, so it assumes
+    the engine is CLOSED, the state it starts in. Before the close it sends
+    the day's transitions so far; after the close it sends nothing. If the
+    engine is in fact further on, the transitions it cannot take are refused
+    and logged as not confirmed.
   actions:
     - "Check that pm-engine is running (`pm-opctl-cli list`) and started before pm-scheduler."
     - "Check the engine's session state with `pm-monitor-cli status`; restart pm-scheduler once the engine is up."
@@ -95,11 +97,12 @@
   level: WARNING
   explanation: >
     pm-scheduler could not hand a session transition to the engine within 2
-    seconds, so the engine did not change phase. The schedule carries on with
-    its next transition, which the engine may refuse from the wrong phase.
+    seconds, so the engine did not change phase. The schedule carries on.
+    When the engine starts again it announces it, and pm-scheduler brings it
+    to the phase the schedule says is current.
   actions:
     - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
-    - "Once the engine is back, restart pm-scheduler; it reconciles the engine to the current phase."
+    - "If the engine was up all along, restart pm-scheduler; it reconciles the engine to the current phase at start-up."
 
 - logger: edumatcher.scheduler.main
   template: "failed to send transition to %s: %s"
@@ -108,7 +111,7 @@
     Sending a session transition to the engine failed with a messaging error,
     so the engine did not change phase.
   actions:
-    - "Read the error; then restart pm-scheduler, which reconciles the engine to the current phase."
+    - "Read the error; then restart pm-scheduler, which reconciles the engine to the current phase at start-up."
 
 - logger: edumatcher.scheduler.main
   template: "no confirmation that the engine applied %s (it may have been rejected or the engine is unreachable)"
@@ -117,10 +120,13 @@
     pm-scheduler sent a session transition but did not see the engine announce
     the new phase within 2 seconds. Either the engine refused it (look for an
     "Invalid transition" row from pm-engine at the same time) or it is not
-    running or responding.
+    running or responding. pm-scheduler then asks the engine its state: if
+    the engine restarted without being seen, a "restarted" row follows and
+    the engine is brought back to the schedule; if an operator moved it, it
+    is left where it is.
   actions:
     - "Look for pm-engine's \"Invalid transition\" row at the same time; it names the phase the engine is in."
-    - "Check the engine's session state with `pm-monitor-cli status`; restart pm-scheduler to reconcile it."
+    - "Check the engine's session state with `pm-monitor-cli status`; if it is not where it should be and no operator moved it, restart pm-scheduler to reconcile it."
 
 - logger: edumatcher.scheduler.main
   template: "could not announce the next transition (%s): %s"
@@ -131,6 +137,30 @@
     time.
   actions:
     - "Check that pm-engine is running (`pm-opctl-cli list`)."
+
+- logger: edumatcher.scheduler.main
+  template: "engine restarted; bringing it from %s to the schedule"
+  level: WARNING
+  explanation: >
+    pm-scheduler saw pm-engine announce a new start during the trading day.
+    An engine with sessions enabled starts CLOSED, so pm-scheduler sends the
+    transitions that bring it to the phase the schedule says is current, and
+    carries on with the day from there.
+  actions:
+    - "Check why pm-engine restarted (its own log rows just before this one, or `pm-opctl-cli list`)."
+    - "Check that the engine reached the scheduled phase (`pm-monitor-cli status`)."
+
+- logger: edumatcher.scheduler.main
+  template: "engine is in %s, not %s as last announced; it restarted, bringing it back to the schedule"
+  level: WARNING
+  explanation: >
+    A transition was not confirmed, and the engine then reported a session
+    state it never announced. That happens when pm-engine restarted without
+    pm-scheduler seeing its start message. pm-scheduler sends the transitions
+    that bring the engine to the phase the schedule says is current.
+  actions:
+    - "Check why pm-engine restarted (`pm-opctl-cli list`, and its log rows before this one)."
+    - "Check that the engine reached the scheduled phase (`pm-monitor-cli status`)."
 
 # --- end-of-day command ----------------------------------------------------
 
@@ -144,16 +174,6 @@
   actions:
     - "Check the engine's session state with `pm-monitor-cli status`; the previous row says why the close was not confirmed."
     - "Run the end-of-day command by hand if today's run is needed now."
-
-- logger: edumatcher.scheduler.main
-  template: "--on-close command is still running; trigger skipped"
-  level: WARNING
-  explanation: >
-    The end-of-day command was due again while the previous run of it had not
-    finished, so it was not started a second time.
-  actions:
-    - "Check why the previous run takes so long; it may be stuck."
-    - "In compressed mode (`--speed`), days can end faster than the command finishes; use a lower speed."
 
 - logger: edumatcher.scheduler.main
   template: "could not start --on-close command %r: %s"

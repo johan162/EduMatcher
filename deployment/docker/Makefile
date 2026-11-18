@@ -142,7 +142,7 @@ help:
 	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
 	@echo "  make down-all           Stop and remove every container"
 	@echo ""
-	@echo "  make build-guis                    Rebuild all six web-app images"
+	@echo "  make build-guis                    Rebuild all seven web-app images"
 	@echo "  make build-guis GUI=terminal-gui   ... just one"
 	@echo "  make up-all BUILD=1                Rebuild the web-app images, then start"
 	@echo "  make up-all BUILD=1 GUI=log-gui    ... rebuilding only that one"
@@ -247,7 +247,7 @@ build: check .env
 # job. The consequence is that a change in web-apps/ is invisible until its
 # image is rebuilt explicitly — which is what this target is for.
 #
-#   make build-guis                       all six
+#   make build-guis                       all seven
 #   make build-guis GUI=terminal-gui      one
 #   make up-all BUILD=1 [GUI=...]         rebuild, then start
 #

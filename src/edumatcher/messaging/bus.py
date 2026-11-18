@@ -43,6 +43,8 @@ class PushSocket(Protocol):
 
     def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]: ...
 
+    def disable_monitor(self) -> None: ...
+
     def setsockopt(self, option: int, value: Any) -> Any: ...
 
     def close(self, linger: int | None = None) -> None: ...
@@ -65,6 +67,40 @@ def get_context() -> zmq.Context[Any]:
     if _context is None:
         _context = zmq.Context.instance()
     return _context
+
+
+_SNDMORE = int(zmq.SNDMORE)
+
+
+class BusSocket(zmq.Socket[bytes]):
+    """A ``zmq.Socket`` whose ``send_multipart`` does its flag arithmetic on
+    plain ints.
+
+    pyzmq's own computes ``zmq.SNDMORE | flags`` for every frame but the last,
+    and ``SNDMORE`` is an ``IntFlag``: on Python 3.14 that OR goes through
+    ``enum.Flag.__or__`` and costs about 1.2 µs, more than the send itself.
+    A 3-frame publish measured 3.8 µs with pyzmq's loop and 1.3 µs with this
+    one (Engine latency review 2026-11, P1). Create sockets with
+    ``context.socket(kind, socket_class=BusSocket)``.
+
+    pyzmq's up-front check that every frame supports the buffer protocol is
+    left out: ``send`` raises the same ``TypeError`` on the bad frame.
+    """
+
+    def send_multipart(
+        self,
+        msg_parts: Any,
+        flags: int = 0,
+        copy: bool = True,
+        track: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        flags = int(flags)
+        more = flags | _SNDMORE
+        send = self.send
+        for part in msg_parts[:-1]:
+            send(part, more, copy=copy, track=track)
+        return send(msg_parts[-1], flags, copy=copy, track=track)
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +343,10 @@ class CausalPusher:
     def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]:
         return cast(zmq.Socket[bytes], self._sock.get_monitor_socket(events=events))
 
+    def disable_monitor(self) -> None:
+        """Detach the monitor; call before closing the socket it returned."""
+        self._sock.disable_monitor()
+
     # The socket surface callers actually use, declared rather than left to
     # __getattr__. __getattr__ keeps working for everything else, but a
     # *declared* member is what lets these wrappers satisfy `PushSocket`
@@ -336,14 +376,14 @@ def make_publisher(addr: str) -> "CausalPublisher":
     wants to publish needs to know none of it; a caller that attributes what it
     publishes calls ``set_cause``.
     """
-    sock = get_context().socket(zmq.PUB)
+    sock = get_context().socket(zmq.PUB, socket_class=BusSocket)
     sock.bind(addr)
     return CausalPublisher(SequencedPublisher(sock))
 
 
 def make_pusher(addr: str) -> PushSocket:
     """PUSH socket — gateway sends orders to engine, each with an envelope."""
-    sock = get_context().socket(zmq.PUSH)
+    sock = get_context().socket(zmq.PUSH, socket_class=BusSocket)
     sock.setsockopt(zmq.SNDTIMEO, _PUSH_SEND_TIMEOUT_MS)
     sock.setsockopt(zmq.SNDHWM, _PUSH_SEND_HWM)
     sock.setsockopt(zmq.IMMEDIATE, _PUSH_IMMEDIATE)
