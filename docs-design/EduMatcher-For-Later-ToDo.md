@@ -147,6 +147,7 @@ way.
 | L039 | 2026-11-16 | pm-engine (position/orders queries) | `system.position_request` and `order.orders_request` carry no requester: any client that can reach the engine's PUSH socket reads any participant's orders and positions | Low | Open |
 | L040 | 2026-11-16 | tests (`test_monitor_e2e.py`) | Two e2e tests expect a process event's detail to end in the bare state (`-> DEAD`, `HEALTHY -> SILENT`); since `4bc205db` the detail carries a reason, so both fail | Low | Fixed |
 | L041 | 2026-11-17 | pm-engine (collars) | A symbol that starts without a reference price gets no static collar until the next engine start, however long it trades (decided in WP-FL20 / Q11 for 1.x) | Low | Open |
+| L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -854,6 +855,28 @@ For 1.0 the training guide (ch. 17) now says so (Q11 (a)).
 reference price becomes known (its first trade, or an opening auction
 print), with the static band around that price; a test on a wired engine
 that the second order after the first trade is collared.
+
+
+## L042 — Report the trading date of the engine's session state
+
+**Found:** 2026-11-18, pm-scheduler review (`reviews/EduMatcher-Scheduler-Review-2026-11.md` §9).
+
+**Finding.** `system.session_status` carries the engine's current session
+state but not when it was entered. pm-scheduler's start-up catch-up
+(`scheduler/main.py` `_plan_catch_up`) accepts any state on today's path as
+today's. An engine left in `CONTINUOUS` (or `CLOSING_AUCTION`) by a day that
+never closed, found by a scheduler started during the next day's trading
+hours, is therefore left there: the previous day's `DAY` orders keep
+resting, no archive runs, the daily counters are not reset and no opening
+auction happens. A `--daily` scheduler that stays up routes such an engine
+to `CLOSED` at midnight, so only a scheduler outage across the close
+exposes it.
+
+**Recommendation (1.x).** Add the session-local trading date of the last
+applied transition to `system.session_status`; pm-scheduler treats a state
+entered on an earlier date as off-path and routes it through `CLOSED`. Test
+on a wired engine: state set "yesterday", scheduler started at 10:00 →
+`CLOSED`, `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`.
 
 ---
 
