@@ -550,15 +550,20 @@ def query_events(
     subject: str | None = None,
     limit: int = 50,
     seq_range: tuple[int, int] | None = None,
+    through_seq: int | None = None,
 ) -> list[dict[str, Any]]:
     """The newest ``limit`` matching events, oldest first. Read-only, one
     statement, so pm-monitor's writer is never held up. ``seq_range`` is an
-    exclusive ``(after, before)`` bound, for filling a gap in a live feed."""
+    exclusive ``(after, before)`` bound for backfill; ``through_seq`` is the
+    inclusive history cutoff when following."""
     where: list[str] = []
     params: list[Any] = []
     if seq_range is not None:
         where.append("seq > ? AND seq < ?")
         params.extend(seq_range)
+    if through_seq is not None:
+        where.append("seq <= ?")
+        params.append(through_seq)
     if since is not None:
         where.append("ts >= ?")
         params.append(since)
@@ -653,15 +658,17 @@ def _events(args: argparse.Namespace, db: Path, sock: zmq.Socket[bytes] | None) 
     header = True
     if db.exists():
         try:
-            # The follow position is the log's newest seq, matching or not:
-            # everything up to it has been considered.
-            last_seq = newest_seq(db)
+            # Use the same cutoff for history and follow, even for filtered
+            # rows. Events committed after it belong to the live feed.
+            if sock is not None:
+                last_seq = newest_seq(db)
             rows = query_events(
                 db,
                 since=args.since,
                 kind=args.kind,
                 subject=args.subject,
                 limit=args.limit,
+                through_seq=last_seq if sock is not None else None,
             )
         except sqlite3.Error as exc:
             print(f"[ERROR] cannot read {db}: {exc}", file=sys.stderr)

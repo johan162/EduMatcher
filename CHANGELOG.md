@@ -1,4 +1,4 @@
-## [v0.81.2] - 2026-11-18
+## [v0.81.3] - 2026-11-18
 
 Release Type: minor
 
@@ -30,6 +30,7 @@ This release closes a broad set of smaller findings: configuration loaders now r
 - Fixed `pm-scheduler` taking operator-issued session broadcasts as confirmation of its own transitions
 - Fixed `pm-scheduler` accepting invalid `--speed`, `--on-close` and `--on-close-delay` values, and `--now` combined with `--daily`; these are now refused at start-up
 - Fixed `pm-scheduler --now` not closing the engine first, and `--on-close` running twice for a trigger that arrived while its command was running
+- Fixed a race-condition in pm-monitor-cli events --follow, If an event was committed after the CLI read its follow cursor but before it fetched history, the CLI could print that event as both history and live output. 
 
 ### 📚 Documentation
 - Corrected the web-application count and ports, DAY combo persistence, combo all-or-none guarantees, collar timing, and halt behaviour across restarts

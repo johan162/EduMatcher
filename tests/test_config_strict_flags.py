@@ -110,13 +110,8 @@ def test_api_gateway_real_booleans_load(tmp_path: Path, value: bool) -> None:
 # -- every configuration the repository ships still loads ---------------------
 
 _ROOT = Path(__file__).resolve().parents[1]
-_SHIPPED = sorted(
-    [
-        *(_ROOT / "docs/examples/ref_data").glob("*/engine_config.yaml"),
-        _ROOT / "src/data/ref_data/engine_config.yaml",
-        *(_ROOT / "web-apps/config-gui/.fixtures").glob("*.yaml"),
-    ]
-)
+# Local runtime data and generated config-GUI fixtures aren't shipped.
+_SHIPPED = sorted((_ROOT / "docs/examples/ref_data").glob("*/engine_config.yaml"))
 
 
 @pytest.mark.parametrize(

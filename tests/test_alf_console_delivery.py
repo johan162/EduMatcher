@@ -48,7 +48,8 @@ def _own_fill(gateway_id: str, order_id: str = "o1") -> list[bytes]:
 
 _ENGINE_SIDE = textwrap.dedent("""
     import select, sys, time
-    from edumatcher.messaging.bus import make_publisher
+    import zmq
+    from edumatcher.messaging.bus import get_context, make_publisher
     from edumatcher.models.message import make_fill_msg
     from tests.alf_console_harness import trade_frames
 
@@ -57,6 +58,9 @@ _ENGINE_SIDE = textwrap.dedent("""
     order = {"symbol": "AAPL", "side": "BUY", "quantity": 1, "order_type": "LIMIT"}
     fill = make_fill_msg(gateway_id, "o1", 1, 100.0, 0, "FILLED", order=order)
     trade = trade_frames(1)
+    # Keep the fake publisher's queue from dropping the burst before it
+    # reaches the console. This default applies only to child-process sockets.
+    get_context().setsockopt(zmq.SNDHWM, n_trades + n_fills + 1)
     pub = make_publisher(addr)
 
     def marker(price):
@@ -115,22 +119,29 @@ def test_burst_of_market_trades_loses_no_own_fill(
         def _wait_marker(price: float) -> None:
             deadline = time.monotonic() + 30
             while gw._last_prices.get("ZZSYNC") != price:
-                assert time.monotonic() < deadline, "console never saw the marker"
+                assert engine.poll() is None, f"publisher exited: {engine.returncode}"
+                assert listener.is_alive(), f"listener stopped before marker {price}"
+                assert time.monotonic() < deadline, f"console never saw marker {price}"
                 time.sleep(0.005)
 
         _wait_marker(1.0)
         engine.stdin.write("go\n")
         engine.stdin.flush()
-        rate = engine.stdout.readline().strip()
         _wait_marker(2.0)
         engine.stdin.write("stop\n")
         engine.stdin.flush()
-        engine.wait(timeout=10)
+        assert engine.wait(timeout=10) == 0
+        rate = engine.stdout.readline().strip()
     finally:
         gw._running = False
         listener.join(timeout=5)
         if engine.poll() is None:
             engine.kill()
+            engine.wait(timeout=5)
+        if engine.stdin is not None:
+            engine.stdin.close()
+        if engine.stdout is not None:
+            engine.stdout.close()
         for sock in (
             gw.push_sock,
             gw._index_push_sock,
