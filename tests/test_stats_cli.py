@@ -434,14 +434,21 @@ def test_health_quiet_exits_one_without_output(
     assert capsys.readouterr() == ("", "")
 
 
-def test_zmq_health_check_detects_a_bound_replier() -> None:
+def test_zmq_health_check_detects_a_bound_replier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import threading
 
-    from edumatcher.config import STATS_HEALTH_BIND_ADDR
     from edumatcher.messaging.bus import make_replier
+    from edumatcher.stats import cli as stats_cli
     from edumatcher.stats.cli import _check_zmq_health
+    from tests.conftest import free_port
 
-    sock = make_replier(STATS_HEALTH_BIND_ADDR)
+    # A private port: the real 5561 collides with parallel workers and with
+    # any exchange running on the same machine.
+    addr = f"tcp://127.0.0.1:{free_port()}"
+    monkeypatch.setattr(stats_cli, "STATS_HEALTH_ADDR", addr)
+    sock = make_replier(addr)
     try:
         # A real pm-stats would answer from its own receive loop; a thread
         # here stands in for that loop without pulling in the whole process.

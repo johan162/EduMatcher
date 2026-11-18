@@ -1020,10 +1020,16 @@ from edumatcher.log_srv.schema import open_db
 from edumatcher.log_srv.writer import LogEventRow
 
 def rss_mb():
-    for line in Path("/proc/self/status").read_text().splitlines():
-        if line.startswith("VmRSS:"):
-            return int(line.split()[1]) / 1024
-    raise RuntimeError("no VmRSS")
+    status = Path("/proc/self/status")
+    if status.exists():  # Linux: current RSS in kB
+        for line in status.read_text().splitlines():
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1]) / 1024
+        raise RuntimeError("no VmRSS")
+    import subprocess, os  # macOS/BSD: no /proc; ask ps (RSS in kB)
+    out = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())],
+                         capture_output=True, text=True, check=True).stdout
+    return int(out.strip()) / 1024
 
 db, pub_port, pull_port, rows_total = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 open_db(Path(db)).close()

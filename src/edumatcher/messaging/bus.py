@@ -43,6 +43,8 @@ class PushSocket(Protocol):
 
     def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]: ...
 
+    def disable_monitor(self) -> None: ...
+
     def setsockopt(self, option: int, value: Any) -> Any: ...
 
     def close(self, linger: int | None = None) -> None: ...
@@ -340,6 +342,10 @@ class CausalPusher:
 
     def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]:
         return cast(zmq.Socket[bytes], self._sock.get_monitor_socket(events=events))
+
+    def disable_monitor(self) -> None:
+        """Detach the monitor; call before closing the socket it returned."""
+        self._sock.disable_monitor()
 
     # The socket surface callers actually use, declared rather than left to
     # __getattr__. __getattr__ keeps working for everything else, but a

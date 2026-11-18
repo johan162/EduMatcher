@@ -1295,7 +1295,7 @@ class AdminConsole:
             self._heartbeat_stop.set()
             heartbeat.join()
             try:
-                monitor.close(linger=0)
+                self._client.close_engine_disconnect_monitor(monitor)
             finally:
                 try:
                     if not self._connection_lost:

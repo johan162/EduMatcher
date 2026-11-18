@@ -159,6 +159,9 @@ class _FakeClient:
     def engine_disconnect_monitor(self) -> MagicMock:
         return MagicMock()
 
+    def close_engine_disconnect_monitor(self, monitor: Any) -> None:
+        monitor.close(linger=0)
+
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
         self.calls.append(("quote_bootstrap", (target_gw,), {"symbol": symbol}))
         quotes = [
@@ -877,7 +880,7 @@ def test_admin_engine_peer_disconnect_logs_out_idle_console(
         assert admin._connection_lost is True
         app.exit.assert_called_once_with(exception=KeyboardInterrupt)
     finally:
-        monitor.close(linger=0)
+        client.close_engine_disconnect_monitor(monitor)
         client.close()
         push.close(linger=0)
         peer.close(linger=0)
