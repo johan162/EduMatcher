@@ -8,10 +8,12 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from edumatcher.models.generated.health import make_health_event
 from edumatcher.monitor import cli
 from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
@@ -311,6 +313,40 @@ class TestEvents:
         # live ones follow without a duplicate or a gap (seq dedupe).
         assert seqs == list(range(1, len(seqs) + 1))
         assert len(seqs) >= 5 and all(r["kind"] == "RESUME" for r in rows[4:])
+
+    def test_follow_counts_an_event_written_during_history_read_once(
+        self,
+        mon: Monitor,
+        db: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _store_events(mon)
+        store = mon.store
+        assert store is not None
+        get_newest_seq = cli.newest_seq
+        ts = "2026-10-19T10:00:00.000Z"
+        live_event = make_health_event(
+            seq=5, ts=ts, kind="RESUME", severity="INFO", subject="AAPL", detail="timer"
+        )
+        sub = Mock()
+        sub.poll.side_effect = [True]
+        sub.recv_multipart.return_value = live_event
+        monkeypatch.setattr(cli, "_subscriber", lambda *_args: sub)
+
+        def append_after_watermark(path: Path) -> int:
+            watermark = get_newest_seq(path)
+            store.add_event(5, ts, "RESUME", "INFO", "AAPL", "timer")
+            return watermark
+
+        monkeypatch.setattr(cli, "newest_seq", append_after_watermark)
+        code, out, _ = _run(
+            capsys,
+            *_args(mon, db, "--format", "json", "events", "--follow", "--count", "1"),
+        )
+
+        assert code == 0
+        assert [json.loads(line)["seq"] for line in out.splitlines()] == [1, 2, 3, 4, 5]
 
 
 def test_follow_fills_a_gap_from_the_database(
