@@ -728,6 +728,13 @@ DC-off hides an own drop-copy fill; the test helpers' fake
 session's uncommitted `config_gen/cli_comments.py` change) and
 `test_api_gateway_ws_lifecycle` (passed on rerun).
 
+CI follow-up: the burst fixture's PUB could hit the default 1,000-message
+send high-water mark, independent of the console's receive queue. The runner
+reported an own-fill sequence gap, then the console logged out because the fake
+engine had no PULL endpoint for recovery requests. The subprocess now sizes
+its send queue for the test burst. The test still requires all 2,000 fills;
+production PUB buffering and the separate gap-and-resync tests are unchanged.
+
 ### WP-ACN04 — `POS` shows what the engine holds, also after a restart (C4; after Q5)
 
 **Tests first** (`tests/test_alf_console_positions.py`):
