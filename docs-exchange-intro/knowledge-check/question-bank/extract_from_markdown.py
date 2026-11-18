@@ -5,7 +5,10 @@ Reads the 30-question self-study checks (``../self-study-30-questions``) and the
 20-question quizzes (``../quiz-20-questions``, whose plaintext key must be
 decrypted first) and writes the whole bank as ONE questions file and ONE answers
 file. Area, difficulty, numerical and tag classification lives in the tables
-below. Once the Markdown sources are retired, the JSON files are the source of
+below. Two things are carried over from an existing bank rather than rebuilt:
+each Markdown question's ``book_refs`` (refined per question after the first
+migration) and every question written directly in the bank (``source_file`` is
+null). Once the Markdown sources are retired, the JSON files are the source of
 truth and this script is no longer needed.
 """
 
@@ -389,8 +392,26 @@ def build() -> tuple[dict[str, Any], dict[str, Any]]:
     return qdoc, {"schema_version": "1.0", "answers": answers}
 
 
+def merge_existing(qdoc: dict[str, Any], adoc: dict[str, Any]) -> None:
+    """Keep refined book_refs and bank-native questions from the current bank."""
+    qpath, apath = HERE / "questions.json", HERE / "answers.json"
+    if not qpath.exists():
+        return
+    old_q = json.loads(qpath.read_text(encoding="utf-8"))["questions"]
+    refs = {q["id"]: q["book_refs"] for q in old_q}
+    for q in qdoc["questions"]:
+        q["book_refs"] = refs.get(q["id"], q["book_refs"])
+    native = [q for q in old_q if q["source_file"] is None]
+    qdoc["questions"] += native
+    if native:
+        old_a = json.loads(apath.read_text(encoding="utf-8"))["answers"]
+        ids = {q["id"] for q in native}
+        adoc["answers"] += [a for a in old_a if a["question_id"] in ids]
+
+
 def main() -> None:
     qdoc, adoc = build()
+    merge_existing(qdoc, adoc)
     for name, doc in (("questions.json", qdoc), ("answers.json", adoc)):
         (HERE / name).write_text(
             json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

@@ -75,8 +75,8 @@
           "enum": ["knowledge_check", "quiz"]
         },
         "source_file": {
-          "description": "Path of the originating Markdown file, relative to docs-exchange-intro/knowledge-check/.",
-          "type": "string",
+          "description": "Path of the originating Markdown file, relative to docs-exchange-intro/knowledge-check/, or null for questions written directly in the bank.",
+          "type": ["string", "null"],
           "minLength": 1
         },
         "variant": { "type": "integer", "minimum": 1 },

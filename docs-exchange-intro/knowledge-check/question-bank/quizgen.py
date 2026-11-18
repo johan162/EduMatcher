@@ -57,7 +57,7 @@ class Statement(TypedDict):
 class Question(TypedDict):
     id: str
     source: str
-    source_file: str
+    source_file: str | None
     variant: int
     number: int
     title: str
