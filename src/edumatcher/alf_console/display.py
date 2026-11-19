@@ -90,7 +90,7 @@ HELP_TEXT = """
 
   [bold]Combo orders (multi-leg):[/bold]
   NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|GTC|LEG_COUNT=<n>|LEG0.SYM=<sym>|LEG0.SIDE=BUY|LEG0.QTY=<n>|LEG0.PRICE=<p>|LEG1.SYM=...[|SMP=<action>][|TAG=<tag>]
-    • Per leg: LEG<i>.SYM= LEG<i>.SIDE= LEG<i>.QTY= [LEG<i>.TYPE=LIMIT (default)|MARKET|STOP|STOP_LIMIT]
+    • Per leg: LEG<i>.SYM= LEG<i>.SIDE= LEG<i>.QTY= [LEG<i>.TYPE=LIMIT (default)|MARKET|STOP|STOP_LIMIT|FOK|IOC]
       [LEG<i>.PRICE=<p>] [LEG<i>.STOP=<p>]
     • 2–10 legs, each on a different symbol
     • Child orders are posted to books and fill independently

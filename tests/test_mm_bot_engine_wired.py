@@ -664,6 +664,18 @@ class TestObligationsAndRefusals:
             bot._symbols_state["AAPL"].startup_failed_reason or ""
         )
 
+    def test_a_sent_quote_is_logged_at_the_tick_precision(
+        self, wire_factory: Any, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.INFO, logger=_BOT_LOGGER)
+        wire = wire_factory(["AAPL"])
+        wire.start(gap=0.20, verbose=True)
+
+        sent = [
+            r.getMessage() for r in caplog.records if "QUOTE sent" in r.getMessage()
+        ]
+        assert sent and sent[-1].endswith("QUOTE sent bid=99.90 ask=100.10")
+
     def _refusing(self, wire: Wire) -> None:
         engine_config = wire.engine._engine_config
         assert engine_config is not None

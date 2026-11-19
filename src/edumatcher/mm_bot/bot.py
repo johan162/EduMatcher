@@ -1285,7 +1285,10 @@ class MMBot:
         self._quote_id_to_symbol[quote_id] = symbol
         while len(self._quote_id_to_symbol) > self._quote_id_index_cap:
             self._quote_id_to_symbol.popitem(last=False)
-        self._debug(f"[{symbol}] QUOTE sent bid={bid} ask={ask}")
+        self._debug(
+            f"[{symbol}] QUOTE sent bid={_price_text(symbol, bid)} "
+            f"ask={_price_text(symbol, ask)}"
+        )
 
     def _index_legs(self, symbol: str, bid_order_id: str, ask_order_id: str) -> None:
         """Remember which symbol and side two leg order ids belong to."""
