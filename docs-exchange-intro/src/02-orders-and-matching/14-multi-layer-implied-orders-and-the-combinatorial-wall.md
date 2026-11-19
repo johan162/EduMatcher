@@ -151,6 +151,8 @@ To reason about chains of any length, the vector model becomes a graph.
 
 Read the spread rows slowly: they are the previous chapter's sign convention in graph form. A spread bid goes *from* the near month (bought) *to* the far month (sold), and its weight is the spread price itself, sign included.
 
+![The four kinds of edge, using the orders from the table. Each book can produce an arrow in each direction: its bids point one way, its asks the other. The arrow always leaves the node the order buys and enters the node it gives up.](assets/implied-edge-rules-small.png)
+
 Step back and look at the whole strip this way, and the previous chapter's circle of 78 books takes on a new meaning. Put $ in the middle. Each outright book is now a spoke between a month and $, and each spread book is a chord between two months:
 
 ![The 12-month strip as a graph. Each line is one order book: a spoke for each outright, a chord for each spread. Each line can carry orders in both directions: bids one way, asks the other.](assets/implied-hub-78-edges-small.png)
@@ -188,6 +190,10 @@ The generation of an implied quote is the number of edges in its path, minus one
 
 **Cycles are crossed markets.** A cycle of resting orders (a path from a node back to itself) has a position vector of zero: its orders could trade with each other and nobody else. They *can* do so exactly when the total they are willing to pay is at least zero, since the cash must balance. A January bid at 75.00 (weight +75.00) and a January ask at 74.99 (weight −74.99) form a cycle of weight +0.01: a crossed book. Because a matching engine trades every crossing it can see the moment it arises (the previous chapter's Level 8), a correctly running engine never has a cycle of non-negative weight at rest *within the scope of implication it has enabled*. (Cycles longer than the enabled depth can stay crossed; closing them is left to arbitrageurs. CME confirms that implied bids can sit at the same or inverted price levels as implied offers, and that they do not trade against each other [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024].) In shortest-path terms, **an uncrossed family of books is a graph with no negative cycles** (after negating the weights), which is precisely the condition under which classical algorithms such as Bellman–Ford (which repeatedly relaxes every edge until no path can be improved) find optimal paths in polynomial time, that is, in time that grows only moderately with the number of books and orders. The condition holds fully when implication is unlimited, because then every crossed cycle is traded away on arrival; with a depth limit, longer crossed cycles may exist and the search must also respect the limit.
 
+The previous chapter's "free money" example (Level 8) is exactly such a cycle. A January ask at 74.95, a Jan/Feb spread bid at −2.00 and a February bid form the loop $ → Jan → Feb → $. Whether the books are crossed depends only on the sign of the loop's total weight:
+
+![The same three-order cycle with two different February bids. On the left the weights sum to −0.02: the February bid is two cents below the implied February ask, and nothing can trade. On the right they sum to +0.02: the three orders could trade with one another with two cents to spare, so the engine trades them the moment the last of them arrives.](assets/implied-crossed-cycle-small.png)
+
 ### Finding the best route, step by step
 
 How does an engine actually search? The core of Bellman–Ford is easy to run by hand, and doing so once makes "shortest path" concrete. Take a three-month strip and ask: **what is the cheapest way to buy one March lot?** That is the best (lowest) March ask, real or implied. The resting orders that can help a buyer are:
@@ -203,7 +209,9 @@ How does an engine actually search? The core of Bellman–Ford is easy to run by
 
 The "cost" column is simply the negated weight, which is easier to read when shopping: it is what you pay to move one step along the edge. For example, the Jan/Feb spread bidder will take January from you and give you February, provided February is priced 0.60 above January, so turning one January lot into one February lot costs 0.60.
 
-The algorithm keeps a table "cheapest known cost to get long each month" and improves it in **rounds**. In round *k* it is allowed to use at most *k* real orders, so round *k* finds the best price up to generation *k* − 1. Each round looks at every edge u → v and asks: "is (best cost of u from the previous round) + (edge cost) cheaper than what I know for v?" If yes, it records the new cost and remembers which edge produced it (so the route can be reconstructed later).
+The algorithm keeps a table "cheapest known cost to get long each month" and improves it in **rounds**. In round *k* it is allowed to use at most *k* real orders, so round *k* finds the best price up to generation *k* − 1. Each round looks at every edge u → v and asks: "is (best cost of u from the previous round) + (edge cost) cheaper than what I know for v?" If yes, it records the new cost and remembers which edge produced it (so the route can be reconstructed later). This single check is called **relaxing** the edge, and it is the only operation the algorithm performs:
+
+![One relaxation step, from round 2 of the search below. Going long January costs 70.00, and the Jan/Feb spread bid turns that January lot into a February lot for 0.60 more, which beats the 70.70 of the real February ask.](assets/implied-relaxation-small.png)
 
 | Round (max orders) | Jan | Feb | Mar | What changed |
 |---|---|---|---|---|
@@ -213,10 +221,30 @@ The algorithm keeps a table "cheapest known cost to get long each month" and imp
 | 3 (generation ≤ 2) | 70.00 | 70.60 | **71.05** | Mar: 70.60 (round-2 Feb) + 0.45 = 71.05 beats 71.10. |
 | 4 | 70.00 | 70.60 | 71.05 | No change: stop. |
 
+The same four rounds as pictures:
+
+![The search for the cheapest March lot, round by round. Each box holds the cheapest known cost of getting long that month. Orange marks the values that improved in that round and the edges that improved them. The last panel follows the remembered edges back from March to $, which recovers the winning route.](assets/implied-bellman-ford-rounds-small.png)
+
 Read the answer from the table. The best March ask is **71.05**, reached by the route $ → Jan → Feb → Mar (January ask, Jan/Feb bid, Feb/Mar bid): a generation-2 implied quote, 0.15 better than the real March ask. Two observations:
 
 1. **The depth limit is just the number of rounds.** A generation-1 engine stops after round 2 and publishes 71.10; a generation-2 engine runs one more round and finds 71.05. That is how an exchange's "maximum generation" setting turns into code.
 2. **The search is cheap; this is the good news.** Each round touches every edge once, and the number of rounds is at most the number of months. Finding the best price never required listing routes one by one. The trouble, as the next section shows, starts with everything the exchange must do *besides* finding this one number: here, for instance, the engine must also know that the 71.05 route and the 71.10 route both depend on the same January ask, so they cannot both be sold in full.
+
+!!! info "Bellman–Ford in brief"
+
+    **Origin.** Lester Ford (1956) and Richard Bellman (1958) published the algorithm independently, and Edward Moore found it at about the same time, so it is sometimes called Bellman–Ford–Moore. It solves the *single-source shortest-path* problem: the cheapest route from one starting node to every other node of a graph.
+
+    **The idea.** Give the source cost 0 and every other node "unknown". Relax every edge, then do it again, round after round. After round *k*, every node's cost is at least as good as the cheapest route of at most *k* edges. A route that never visits a node twice has at most V − 1 edges in a graph of V nodes, so V − 1 rounds always suffice: 12 rounds for the 13-node strip graph.
+
+    **Why not Dijkstra?** Dijkstra's algorithm (1959) is faster and better known, but it requires every edge cost to be zero or more. Implied-pricing graphs contain negative costs: every bid edge into $ has cost −P (the bidder pays *you*), and so does a spread bid at a positive price. Bellman–Ford handles negative costs correctly.
+
+    **Negative cycles are crossed markets.** If the costs around a cycle sum to less than zero, every extra lap makes the route cheaper, so the costs never settle. Bellman–Ford detects this with one extra round: if anything still improves in round V, such a cycle exists. In this chapter's terms that is a cycle of positive weight, a crossed family of books. The classic textbook use is the same problem in another market: finding a currency arbitrage, a loop of exchange rates that ends with more money than it started with.
+
+    **Generation limits come almost free.** The textbook version updates costs in place, so a single round can chain several improvements and finish early. To enforce a generation limit, each round must read only the *previous* round's costs, as in the table above. Then round *k* really means "at most *k* real orders", and an engine with maximum generation *g* simply stops after *g* + 1 rounds. Because the engine never leaves a crossed cycle within its own depth at rest, the best route within the limit never needs to visit a month twice, so what the search finds is always a valid construction.
+
+    **One search per starting node.** A search from $ prices the best ask in every outright book at once: a route $ → x means "short x". Bids and spreads need routes that *start* at a month (x → $ is a bid for x; x → y is a bid for the x/y spread), so the engine also searches once from each month: 13 searches in all, which together price both sides of all 78 books.
+
+    **Cost.** Only the best order on each side of each book can lie on a best route, so the full 12-month strip has at most 2 × 78 = 156 edges. One search is at most 12 × 156 = 1,872 additions and comparisons, and all 13 together fewer than 25,000. That is very little work for a modern processor, which is why the best price is not where the wall stands.
 
 This is a genuinely useful result, and it matches what at least one exchange advertises: ICE states that its engine "will determine the best bid and offer price in each market regardless of the number of generations required", within a given strip type [ICE, *ICE Futures Implied Prices* FAQ]. For the *best price* in a world of simple two-legged calendar spreads, the number of generations is not the problem.
 
