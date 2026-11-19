@@ -12,6 +12,9 @@ files = [
   "010-installation.md",
   "020-vm-runtime-image.md",
   "030-container-deployment-walkthrough.md",
+  "040-deploying-tapedeck.md",
+  "050-deploying-the-trading-gui.md",
+  "060-deploying-the-order-book-viewer.md",
 ]
 
 [[parts]]

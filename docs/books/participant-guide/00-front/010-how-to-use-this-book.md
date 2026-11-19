@@ -16,7 +16,7 @@ profit, and using the trading screens. It is written from the trader's seat.
 | Part | What you learn |
 |---|---|
 | **I. Trading basics** | How an order book works, what each phase of the trading day does to your orders, and how you connect |
-| **II. Orders** | The trader console, every order type and time in force, combo orders, and the idea of implied orders |
+| **II. Orders** | The trader console, every order type and time in force, the risk controls that can refuse or halt your orders, combo orders, and the idea of implied orders |
 | **III. Market making** | What a market maker does, quote obligations and lifecycle, and the market-maker bot |
 | **IV. Automated trading** | The AI trader bots, and how they decide what to trade |
 | **V. Positions and results** | Position tracking, average cost, realized and unrealized P&L, and your end-of-day statement |

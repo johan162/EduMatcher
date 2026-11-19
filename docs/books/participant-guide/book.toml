@@ -20,6 +20,7 @@ dir = "part-2-orders"
 files = [
   "010-the-trader-console.md",
   "020-order-types.md",
+  "025-risk-controls-you-meet.md",
   "030-combo-and-oco-orders.md",
   "040-implied-orders.md",
 ]

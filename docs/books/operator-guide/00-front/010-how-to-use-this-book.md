@@ -15,7 +15,7 @@ including recovering from a crash.
 
 | Part | What you learn |
 |---|---|
-| **I. Install and deploy** | Every installation mode, the container networking, every directory the system uses, and the VM runtime image |
+| **I. Install and deploy** | Every installation mode, the container networking, every directory the system uses, the VM runtime image, and deploying TapeDeck, the Trading GUI and the Order Book Viewer |
 | **II. Configure** | Writing, verifying, deploying and inspecting a configuration, the form-based Configuration GUI, and ready-made examples |
 | **III. Run** | Starting, monitoring, restarting and shutting down the process set, and the operator console |
 | **IV. Run a market** | Listing symbols, valuation, sessions and auctions, risk controls, statistics, the market index, and closing the day (settlement and statements) |
