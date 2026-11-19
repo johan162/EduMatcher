@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - Which of the five installation modes fits what you are trying to do
+    - Which of the six installation modes fits what you are trying to do
     - How the container deployment is wired, and why the web GUIs reach the
       exchange without any published port being involved
     - What `127.0.0.1` and `0.0.0.0` mean in each of the three separate places
@@ -34,7 +34,7 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 | **Poetry checkout** | Developing, running the test suite | Python 3.14, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
 The container modes give you the whole system — engine, gateways, REST API and
-the six browser applications — with one command. The pipx and Poetry modes
+the seven browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare `pm-*` command. In Poetry mode, prefix
 those commands with `poetry run`. The browser applications are not part of
@@ -101,7 +101,7 @@ no Node, no checkout. The only requirement is Podman or Docker.
    `.env.example` **from that release's tag**, so the files and the images
    always come from one commit.
 4. Writes `.env`, creating `data/` and `config/` beside it.
-5. Pulls the six images and starts them.
+5. Pulls the eight images (the exchange and the seven web GUIs) and starts them.
 
 Step 3 is worth noting: the support files come from the release tag being
 installed, not from a branch, so the compose file and the images can never
@@ -111,12 +111,13 @@ describe different systems.
 
 | Option | Default | Effect |
 |---|---|---|
-| `--version X.Y.Z` | newest release | Install one specific release. All six images carry this tag, so it pins the whole system |
+| `--version X.Y.Z` | newest release | Install one specific release. All eight images carry this tag, so it pins the whole system |
 | `--config NAME` | `s10-basic` | Deploy a bundled example configuration |
 | `--config FILE` | — | ...or a path to an `engine_config.yaml` of your own |
 | `--dir PATH` | `~/.edumatcher` | Where to install |
 | `--sim` | — | Install the AI-trader simulation instead, into `~/.edumatcher-sim` |
 | `--guis` | — | Install only the web GUIs, for an exchange run with pipx, into `~/.edumatcher-guis` ([details](#web-applications-with-a-pipx-exchange)) |
+| `--speed N` / `--start TS` | — | With `--sim` only: run the simulated calendar N times faster than real time, starting at `TS` (for example `2026-11-02T08:58`) |
 | `--no-start` | — | Fetch, configure and download the images, but do not start anything. `./edumatcher.sh start` then needs no network |
 | `--help` | — | Show the options |
 
@@ -145,14 +146,14 @@ into this file.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system. `latest` follows the newest release |
+| `EM_VERSION` | *(the installed release)* | Which release to run. All eight images carry this tag, so one value pins the whole system. `latest` follows the newest release |
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders), `default`, `mini` or `micro`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | `TZ` | `Europe/Stockholm` | Container timezone. Set it to match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
-| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the five protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602, and `pm-monitor`'s 5611) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
 | `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
@@ -207,6 +208,9 @@ cd ~/.edumatcher
 ./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
 ./edumatcher.sh start               # bring it back
+./edumatcher.sh restart             # stop + start, e.g. after editing .env
+./edumatcher.sh share on            # classroom: publish on the LAN, then restart (share off undoes it)
+./edumatcher.sh pull                # download the images, start nothing
 ./edumatcher.sh upgrade             # newest release: asks first if running, replaces the images
 ./edumatcher.sh update              # pull the newest release and restart, without asking
 ./edumatcher.sh update 0.20.5       # ...or move to an exact one
@@ -259,13 +263,13 @@ whole edit-test loop. Switching back to a bundled example is
 ## Containers from the source checkout
 
 Use this when you are changing EduMatcher and want to see your change running
-as a whole system. It builds the same six images from your working tree.
+as a whole system. It builds the same eight images from your working tree.
 
 ```bash
 git clone https://github.com/johan162/EduMatcher.git
 cd EduMatcher/deployment/docker
 make build          # builds a wheel from the checkout, then the image
-make up-all         # exchange + terminal-, log-, trader-, book- and dash-gui
+make up-all         # exchange + terminal-, log-, trader-, book-, dash- and clearing-gui
 ```
 
 `make help` lists every target. The two that matter are `up` (the exchange
@@ -299,7 +303,7 @@ alone) and `up-all` (the exchange plus the GUIs).
 | `CONFIG=<name>` | `s10-basic` | Deploy a bundled example |
 | `CONFIG=<file>` | — | Deploy an `engine_config.yaml` of your own; the file is copied to `deployment/docker/config/` and mounted read-only |
 | `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini`, `micro`, `mm-demo` or `ai-swarm`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
-| `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
+| `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602, and `pm-monitor`'s 5611) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
 | `SSH=1` | off | Run `sshd` in the container on `SSH_PORT`, authorised by your `~/.ssh/*.pub` |
 | `CONFIG_GUI=1` | off | Include the configuration builder in `up-all`. It is opt-in because it talks to nothing — it is a standalone authoring tool |
 
@@ -331,7 +335,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `EM_PROFILE` | `default` | Process profile to start |
 | `TZ` | `Europe/Stockholm` | Container timezone — match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See below |
-| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the five protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `SSH_PORT` | `2222` | Host port forwarded to `sshd` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
 | `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
@@ -395,7 +399,7 @@ different things, and only one of them is a security boundary.
 
 ### One compose project, one private network
 
-All six containers belong to a single Compose project, so Compose puts them on
+All the containers belong to a single Compose project, so Compose puts them on
 one private network and gives each a name on it. The backend answers to the
 hostname `edumatcher`.
 
@@ -413,6 +417,7 @@ flowchart LR
         TRD["trader-gui\n:8093"]
         BOOK["book-gui\n:8094"]
         DASH["dash-gui\n:8095"]
+        CLR["clearing-gui\n:8096"]
         BE["edumatcher\nengine + all gateways"]
     end
 
@@ -422,6 +427,7 @@ flowchart LR
     BROWSER --> TRD
     BROWSER --> BOOK
     BROWSER --> DASH
+    BROWSER --> CLR
     CLIENT -->|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM -->|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
@@ -429,6 +435,7 @@ flowchart LR
     TRD -->|"edumatcher:8080 REST + WebSocket"| BE
     BOOK -->|"edumatcher:8081 market-data WebSocket\n+ history"| BE
     DASH -->|"edumatcher:5611 health snapshots"| BE
+    CLR -->|"edumatcher:8080 REST"| BE
 ```
 
 Two things follow, and both are easy to get wrong:
@@ -480,7 +487,7 @@ Each service listener resolves its bind host in this order, first match wins:
 
 | Precedence | Source | Example |
 |---|---|---|
-| 1 | The process's own command-line flag — `--bind` on the four protocol gateways, `--host` on `pm-log-srv` and `pm-api-gwy` | `pm-md-gwy --bind 127.0.0.1` |
+| 1 | The process's own command-line flag — `--bind` on the five protocol gateways, `--host` on `pm-log-srv` and `pm-api-gwy` | `pm-md-gwy --bind 127.0.0.1` |
 | 2 | The `EDUMATCHER_GATEWAY_BIND_HOST` environment variable | `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1` |
 | 3 | `bind_address:` (or `host:` for `pm-api-gwy`) in the engine configuration | `bind_address: 10.0.0.5` |
 | 4 | The built-in default | `0.0.0.0` |
@@ -720,7 +727,7 @@ pm-setup --no-config            # create the directory only
 ## Web applications with a pipx exchange
 
 The browser applications are separate projects and are not in the Python
-package. If you run the exchange with `pipx` you can still have all six of
+package. If you run the exchange with `pipx` you can still have all seven of
 them: they are published as ready-built container images, and a small
 installer runs just those, pointed at the exchange on your own machine. It
 works the same for a plain exchange and for the AI-trader simulation.
@@ -732,7 +739,7 @@ flowchart LR
         PM["pipx exchange\npm-opctl-cli start\ngateways on 0.0.0.0"]
         DATA[("EDUMATCHER_DATA_DIR")]
         subgraph guis["GUI containers — compose.guis.yaml"]
-            G["terminal · log · trader\nbook · dash · config"]
+            G["terminal · log · trader\nbook · dash · clearing · config"]
         end
     end
     BROWSER -->|"8090-8096"| G
@@ -785,7 +792,7 @@ cd ~/.edumatcher-guis
 ```
 
 This downloads `compose.guis.yaml`, `edumatcher.sh` and a `.env` into
-`~/.edumatcher-guis`, pulls the six images from `ghcr.io` and starts them. The
+`~/.edumatcher-guis`, pulls the seven images from `ghcr.io` and starts them. The
 installer reads the exchange's data directory from `EDUMATCHER_DATA_DIR` in the
 shell you run it from, and from `~/.local/share/edumatcher` when that is not
 set, so run it in a shell where your `pm-*` commands work. If you set the
@@ -846,7 +853,7 @@ dashboard that reports the monitor as down while everything else works.
 | Container | Reaches on your machine | Used for |
 |---|---|---|
 | TapeDeck, Order Book Viewer | 5570, 8081, 5600 | Market data, history, log forwarding |
-| Trading GUI | 8080 | Orders and account data |
+| Trading GUI, Clearing GUI | 8080 | Orders and account data; positions, P&L and settlement |
 | Log Operator Console | 5601, 5602, `log.db` | The log stream and its history |
 | Operator Dashboard | 5611, `metrics.db`, 8081, 5600 | Process health and the session schedule |
 | Configuration GUI | nothing | Standalone editor |

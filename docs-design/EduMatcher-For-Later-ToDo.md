@@ -147,7 +147,7 @@ way.
 | L039 | 2026-11-16 | pm-engine (position/orders queries) | `system.position_request` and `order.orders_request` carry no requester: any client that can reach the engine's PUSH socket reads any participant's orders and positions | Low | Open |
 | L040 | 2026-11-16 | tests (`test_monitor_e2e.py`) | Two e2e tests expect a process event's detail to end in the bare state (`-> DEAD`, `HEALTHY -> SILENT`); since `4bc205db` the detail carries a reason, so both fail | Low | Fixed |
 | L041 | 2026-11-17 | pm-engine (collars) | A symbol that starts without a reference price gets no static collar until the next engine start, however long it trades (decided in WP-FL20 / Q11 for 1.x) | Low | Open |
-| L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Open |
+| L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Fixed 2026-11-19 (`state_since` on `system.session_status`) |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -877,6 +877,15 @@ applied transition to `system.session_status`; pm-scheduler treats a state
 entered on an earlier date as off-path and routes it through `CLOSED`. Test
 on a wired engine: state set "yesterday", scheduler started at 10:00 →
 `CLOSED`, `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`.
+
+**Fixed (2026-11-19).** `system.session_status` carries `state_since`, the
+UTC instant the engine entered its state (its start for the boot state); a
+wall instant rather than a trading date, so a compressed-clock scheduler can
+compare it with its own day. At start-up pm-scheduler treats a non-`CLOSED`
+state entered before its day began as left over (`_left_over`) and
+`_plan_catch_up` closes it by the shortest legal route before planning the
+day from `CLOSED`. Tests: `test_scheduler_reconcile.py` (planner, boundary)
+and `test_scheduler_closed_loop.py` (wired engine, the scenario above).
 
 ---
 

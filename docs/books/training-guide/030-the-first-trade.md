@@ -178,8 +178,9 @@ against the best bids first — **price priority**:
 - the last 50 shares at **149.80** against TRADER01.
 
 TRADER01 receives a partial fill (200 → 150 remaining). TRADER02's console
-reports the whole order filled at the average price,
-`qty=450 @149.9333…` — (400 × 149.95 + 50 × 149.80) / 450.
+reports the whole order filled at the average price, shown to the symbol's
+two decimals: `qty=450 @149.93` — (400 × 149.95 + 50 × 149.80) / 450 =
+149.9333…
 
 :material-checkbox-blank-outline: **Checkpoint:** cross-gateway fill confirmed on both sides.
 

@@ -46,7 +46,7 @@ where they live.
 | | Containers | `pm-opctl-cli` on the host | One terminal per process |
 |---|---|---|---|
 | Start the exchange | `./edumatcher.sh start` or `make up-all` | `pm-opctl-cli start` | 8–14 commands, in order |
-| Web applications | four by default, `config-gui` opt-in¹ | started separately | started separately |
+| Web applications | six by default, `config-gui` opt-in¹ | started separately | started separately |
 | Process table | `make status` | `pm-opctl-cli list` | `ps`, and your own notes |
 | Process logs | `data/emo/<name>.log` | `<DATA_DIR>/emo/<name>.log` | each terminal's scrollback |
 | Best for | classrooms, demos, anyone who wants it *running* | scripted or repeated local runs | learning what each process does, and debugging one of them |
@@ -227,8 +227,11 @@ listening on the core sockets.
 Typical signals:
 
 ```text
-Loaded deployed config .../ref_data/engine_config.json
+using compiled config .../ref_data/engine_config.json (compiled 2026-11-19T18:43:58.000Z from .../engine_config.yaml)
+Loaded config from .../ref_data/engine_config.json  (10 symbol(s): AAPL, AMZN, ...; 4 gateway id(s))
 Session handling: enabled (startup state: CLOSED)
+Risk enforcement: collars=off, circuit_breakers=on
+Injected 10 market-maker quote(s) and 0 combo(s).
 Drop copy PUB bound on port 5557
 Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
@@ -303,8 +306,11 @@ Each entry in a profile is a `name`, a `command`, and optionally a
 ### What it gives you that a row of terminals does not
 
 - **Ordering.** Processes are started in the profile's order, which encodes the
-  dependencies described below. It does not wait for each one to become
-  healthy — for a slow first start, check `pm-opctl-cli list` before inviting
+  dependencies described below. Two waits are built in: `pm-log-srv` is given
+  up to 10 s to accept connections, and when the profile also starts the
+  engine, `pm-audit` must pass its health check within 10 s or `pm-engine` is
+  not started at all, so no event goes unrecorded. Nothing else is waited
+  for — for a slow first start, check `pm-opctl-cli list` before inviting
   participants in.
 - **A process table.** `list` reports each process as `running`, `not
   responding` (the PID is alive but its check failed) or `dead`. A
@@ -393,7 +399,9 @@ depend on the services underneath them.
     the applications at an exchange you started by hand instead, run them from
     `web-apps/<app>/` — see
     [The Development Loop](../../architecture-and-development/part-4-developing/020-development-workflow.md), whose "hybrid" setup
-    is exactly this case.
+    is exactly this case — or, without a checkout, install the released GUI
+    containers alone with `install.sh --guis`
+    ([Web applications with a pipx exchange](../part-1-install-and-deploy/010-installation.md#web-applications-with-a-pipx-exchange)).
 
 !!! note "Where are participant terminals?"
         Local interactive participant terminals (`pm-alf-console --id TRADER01`) are
@@ -438,7 +446,7 @@ that matter for a long-running exchange:
 | `pm-stats` | `--keep-days N` | `0` (keep all) | Keep N days of `trade_log`, `order_events`, `price_snapshots` and `feed_gaps`; daily rollups are kept for good |
 | `pm-stats` | `--keep-order-events-days N` | as `--keep-days` | Separate (shorter) retention for order events, which dominate the file under an AI swarm |
 | `pm-stats` | `--human-gateways GLOB,…` and `--keep-human-order-events-days N` | none | Give the order events of people (e.g. `'TRADER*'`) a longer retention than bots |
-| `pm-clearing` | `--retention-days N` | `90` | Delete individual `trade_events` rows older than N days at startup and at every close; `0` disables pruning. Daily summaries are kept |
+| `pm-clearing` | `--retention-days N` | `90` | Delete `trade_events` rows and close snapshots older than N days at startup and at every close; the newest close snapshot is always kept, `0` disables pruning. Daily summaries are kept |
 | `pm-clearing` | `--print-every N` | `0` | Print a P&L table of every position every N trades; `0` never. Drawn on the thread that reads the trade feed: with thousands of positions one table takes seconds, so keep it for small classroom ledgers |
 | `pm-clearing` | `--flush-size N`, `--flush-interval SEC` | `100`, `5.0` | Write the buffered trades to SQLite when N have accumulated (1–100) or SEC seconds (≥ 0.1) have passed |
 | `pm-clearing` | `--datapath PATH`, `--db-name NAME` | data directory, `clearing.db` | Where the database lives |
@@ -514,7 +522,8 @@ order-entry clients. Both ultimately send orders into the same engine.
 pm-md-gwy      # CALF market data, default TCP :5570
 pm-ralf-gwy    # RALF post-trade dissemination
 pm-dc-gwy      # DC1 TCP relay for engine drop copy
-pm-api-gwy     # REST/WebSocket API, default HTTP :8080
+pm-api-gwy     # REST/WebSocket API, default HTTP :8080; with several
+               # api_gateways instances: pm-api-gwy --instance desk, etc.
 pm-index       # optional real-time index calculator
 ```
 
@@ -530,9 +539,9 @@ pm-log-cli query --limit 20
 ```
 
 `pm-log-srv` records operational logging, not trading events. Use it alongside
-`pm-audit`, not instead of it. Automatic logging into `pm-log-srv` is being
-rolled out process by process; see [Centralized Log Server](../part-6-observe-and-recover/040-log-server.md) for
-current support and CLI workflows.
+`pm-audit`, not instead of it. Every `pm-*` process ships its log lines to it;
+see [Centralized Log Server](../part-6-observe-and-recover/040-log-server.md) for
+the CLI workflows.
 
 ### TapeDeck trader information terminal
 
@@ -709,8 +718,12 @@ session.
 
 **5. Submit a harmless resting order**
 
+A buy priced below the best offer rests instead of trading. Look at
+`BOOK|SYM=AAPL` first: with the default `s10-basic` configuration the seeded
+market maker offers AAPL at 22.98, so a buy at 150.00 would trade at once.
+
 ```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=20.00|TIF=DAY
 ```
 
 Then verify it appears in `pm-viewer --symbol AAPL` or `pm-admin` `BOOK|SYM=AAPL`.
@@ -1049,10 +1062,13 @@ tar -czf edumatcher-session-$(date +%Y%m%d-%H%M%S).tgz \
 
 ### Shutting down a managed stack
 
-`pm-opctl-cli stop` sends `SIGTERM` to everything it started, in alphabetical
-order by process name — which is *not* the startup order above. For a session
-whose records matter, stop order entry first (close the participant
-terminals, or halt the session with `pm-admin`), then let it stop the rest.
+`pm-opctl-cli stop` sends `SIGTERM` to everything it started, in waves, each
+given up to 15 s to exit before the next: first everything that is not listed
+below (gateways, scheduler, bots), then `pm-engine`, then the recorders
+(`pm-clearing`, `pm-stats`, `pm-audit`, `pm-index`, `pm-monitor`) so they see
+the engine's last messages, and last `pm-log-srv`. Participant terminals it did
+not start are not touched: for a session whose records matter, close them (or
+halt the session with `pm-admin`) first.
 
 For a container:
 
@@ -1079,9 +1095,13 @@ Goal: prove that a local install can start, accept orders and match one trade.
     ```bash
     mkdir -p ~/edumatcher-smoke
     cd ~/edumatcher-smoke
-    pm-setup
+    pm-setup --config s3-basic-nomm --force
     pm-config-deploy --show
     ```
+
+    `s3-basic-nomm` starts with empty books and no sessions, so the two
+    orders below can only trade with each other. With the default `s10-basic`
+    the seeded market maker would take the other side of both.
 
 2. Start engine:
 
@@ -1193,11 +1213,14 @@ Goal: expose order entry, market data and post-trade feeds to client developers.
 Goal: run the browser terminal for a classroom screen or observer desk.
 
 1. Start core engine and recorders.
-2. Start market data and API history services:
+2. Start market data and API history services. With more than one
+   `api_gateways` instance configured (every bundled nominal and complex
+   example has `desk` and `dashboards`), name the one that holds the
+   read-only key:
 
     ```bash
     pm-md-gwy
-    pm-api-gwy
+    pm-api-gwy --instance dashboards
     ```
 
 3. Optionally start operational logs:
@@ -1210,7 +1233,8 @@ Goal: run the browser terminal for a classroom screen or observer desk.
 
     ```bash
     cd web-apps/terminal-gui
-    export PM_TERMINAL_API_KEY='...'
+    export PM_TERMINAL_API_KEY='...'                # the gateway_id: null key
+    export API_GATEWAY_URL='http://host.docker.internal:8081'   # the default
     make up
     ```
 

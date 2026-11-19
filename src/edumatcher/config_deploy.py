@@ -65,6 +65,7 @@ from edumatcher.cverifier.cli import run as run_verifier
 from edumatcher.cverifier.models import CheckResult, Severity
 from edumatcher.dc_gateway.config import load_dc_gateway_config
 from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.examples import examples_root as examples_root  # noqa: F401
 from edumatcher.examples import resolve_example as resolve_example
 from edumatcher.log_srv.config import load_log_client_config, load_log_server_config
 from edumatcher.monitor.config import load_monitor_config

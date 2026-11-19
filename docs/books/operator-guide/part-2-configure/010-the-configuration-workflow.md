@@ -152,20 +152,19 @@ Use it when:
 - you want consistent defaults and validation hints
 - you need repeatable config generation in scripts
 
-## Generate Configs with `config-gui` 
+## Generate Configs with `config-gui`
 
-A more user friendly way to create a configuration file (also known as 
-reference data) is to spin up the Web-App. The easiest way to run it is by running the
-container image. You can use either `docker` or `podman` but in the examples we use
-`podman`
+A more user-friendly way to create a configuration file (also known as
+reference data) is the Configuration GUI web application. The one-command
+container install already runs it at <http://localhost:8092>. On its own, run
+the released image with `podman` or `docker`:
 
-1. Download latest `edumatcher-config-gui-<VERSION>.tar.gz` and unzip 
-2. `podman load --input dist/edumatcher-config-gui-<VERSION>tar.gz` 
-3. Then run: `podman run -p 8080:8080 edumatcher-config-gui:<VERSION>`
+```bash
+podman run -d --name config-gui -p 8092:8092 ghcr.io/johan162/edumatcher-config-gui:latest
+```
 
-You can then access the UI at `http://localhost:8080/`
-
-More details of the Web app and how to use it can be found in [Configuration GUI](./030-config-gui.md)
+and open <http://localhost:8092/>. Other ways to run it, and how to use it, are
+in [Configuration GUI](./030-config-gui.md).
 
 ## Verify Configs with `pm-cverifier`
 
@@ -640,9 +639,14 @@ pm-config-gen \
   --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 \
   --api-gateway-instance dashboards::8081 \
   --api-gateway-readonly-key \
+  --seed-mm-mid-range 100:200 \
+  --seed-last-prices-from-mm \
   --seed 20260814 \
   --output engine_config.yaml
 ```
+
+(`--seed-mm-mid-range` gives `MM01`'s seed quotes real prices; without it they
+are `null` stubs that `pm-config-deploy` refuses until you fill them in.)
 
 With named instances, `--api-gateway-readonly-key` is generated only for
 identity-free instances such as `dashboards::8081`; it is not added to the
@@ -1235,7 +1239,9 @@ processes; restart them to pick it up.
 
 To list a new symbol (an IPO) in the running configuration, stop the exchange
 and use `pm-new-symbol` (alias `pm-ipo`). It edits the deployed
-configuration's authored source, validates it, and redeploys it:
+configuration's authored source, validates it, and redeploys it. It never
+edits a bundled example, so a configuration deployed by `pm-setup` or
+`--example` must first be copied and deployed as your own:
 
 ```bash
 pm-new-symbol --symbol NEWCO --ipo-price 20.00 --outstanding-shares 50000000
@@ -1424,7 +1430,7 @@ column like a printed index.
 ```text
 ╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────╮
 │ docs/examples/ref_data/s10-nominal-setup/engine_config.yaml                                      │
-│ 42.7 kB  ·  2026-10-11 20:27  ·  via --file                                                      │
+│ 45.8 kB  ·  2026-11-15 22:15  ·  via --file                                                      │
 │ ● on sessions   ○ off collars   ● on breakers   ● on mm-oblig                                    │
 │ 10 symbols   4 participants   2 API gateways   5 keys   17 listeners                             │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -1450,13 +1456,13 @@ column like a printed index.
 │  8081   HTTP       pm-api-gwy    REST API — dashboards                       0.0.0.0     set     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─  API KEYS  ─────────────────────────────────────────────────────────────────────────────────────╮
-│ GATEWAY ID      API GW        ROLE              API KEY                                          │
+│ GATEWAY ID           API GW              ROLE                     API KEY                        │
 │ ──────────────────────────────────────────────────────────────────────────────────────────────── │
-│ TRADER01        desk          TRADER            key-trader01-••••••••••••••••••••••••••••g6u1    │
-│ TRADER02        desk          TRADER            key-trader02-••••••••••••••••••••••••••••y09z    │
-│ OPS01           desk          ADMIN             key-ops01-••••••••••••••••••••••••••••oes2       │
-│ MM01            desk          MARKET_MAKER      key-mm01-••••••••••••••••••••••••••••1o3s        │
-│ —               dashboards    READ-ONLY         key-readonly-••••••••••••••••••••••••••••nrjd    │
+│ TRADER01             desk                TRADER                   key-trader01-••u5b4            │
+│ TRADER02             desk                TRADER                   key-trader02-••k137            │
+│ OPS01                desk                ADMIN                    key-ops01-••oysu               │
+│ MM01                 desk                MARKET_MAKER             key-mm01-••k13q                │
+│ —                    dashboards          READ-ONLY                key-readonly-••9au1            │
 │ masked — run with -a/--all to reveal                                                             │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

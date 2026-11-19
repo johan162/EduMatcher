@@ -195,6 +195,9 @@ CLI override options:
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Explicit WARNING log level (the default) |
+| `--log-target` | `server` | Where this process's own log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | — | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 **Config file location**
 

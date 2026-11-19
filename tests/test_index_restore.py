@@ -250,7 +250,9 @@ def test_restart_applies_engine_phase_snapshot_before_next_transition(
     assert idx.session_state == "UNKNOWN"
 
     restarted._handle_sub_message(
-        make_session_status_msg("PM_INDEX", "CONTINUOUS", sessions_enabled=True)
+        make_session_status_msg(
+            "PM_INDEX", "CONTINUOUS", "2024-01-09T06:00:00.000Z", sessions_enabled=True
+        )
     )
 
     assert idx.session_state == "CONTINUOUS"

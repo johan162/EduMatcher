@@ -163,6 +163,11 @@ def fast_timeouts(monkeypatch: Any, ms: int = 100) -> None:
     )
     monkeypatch.setattr(
         sched,
+        "_query_engine_status",
+        partial(sched._query_engine_status, timeout_ms=ms),
+    )
+    monkeypatch.setattr(
+        sched,
         "_query_engine_state",
         partial(sched._query_engine_state, timeout_ms=ms),
     )

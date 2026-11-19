@@ -1100,6 +1100,12 @@ class SessionStatus(BaseModel):
 
     state: str = Field(max_length=32)
     """Same values as `session.state.state`."""
+    state_since: str = Field(max_length=32)
+    """UTC instant the engine entered `state` -- its last accepted transition, else
+    its start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets a caller tell a state left
+    over from an earlier day, such as a `CONTINUOUS` whose close never came, from
+    the same state entered today.
+    """
     sessions_enabled: bool
     """False when the deployment runs continuously with no session schedule at all,
     which makes `state` advisory.

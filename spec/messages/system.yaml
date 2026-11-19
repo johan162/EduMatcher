@@ -1472,6 +1472,15 @@ messages:
           doc: "Topic-only; dropped from the body by the default projection." }
       - { name: state, type: string, validate: { max_len: 32 },
           doc: "Same values as `session.state.state`." }
+      - name: state_since
+        type: string
+        validate: { max_len: 32 }
+        doc: >
+          UTC instant the engine entered `state` -- its last accepted
+          transition, else its start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets
+          a caller tell a state left over from an earlier day, such as a
+          `CONTINUOUS` whose close never came, from the same state entered
+          today.
       - { name: sessions_enabled, type: bool,
           doc: "False when the deployment runs continuously with no session
                 schedule at all, which makes `state` advisory." }

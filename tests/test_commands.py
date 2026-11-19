@@ -993,14 +993,18 @@ class TestRecvBehaviour:
 
 class TestSessionStatus:
     def test_returns_state_and_sessions_enabled(self) -> None:
-        ack = make_session_status_msg("GW_ADMIN", "CONTINUOUS", True)
+        ack = make_session_status_msg(
+            "GW_ADMIN", "CONTINUOUS", "2024-01-09T06:00:00.000Z", True
+        )
         client, push = _client(recv_queue=_q(ack))
         result = client.session_status()
         assert result["state"] == "CONTINUOUS"
         assert result["sessions_enabled"] is True
 
     def test_sends_correct_topic(self) -> None:
-        ack = make_session_status_msg("GW_ADMIN", "CLOSED", False)
+        ack = make_session_status_msg(
+            "GW_ADMIN", "CLOSED", "2024-01-09T06:00:00.000Z", False
+        )
         client, push = _client(recv_queue=_q(ack))
         client.session_status()
         topic, payload = _last_sent(push)
@@ -1008,7 +1012,9 @@ class TestSessionStatus:
         assert payload["gateway_id"] == "GW_ADMIN"
 
     def test_sessions_disabled(self) -> None:
-        ack = make_session_status_msg("GW_ADMIN", "PRE_OPEN", False)
+        ack = make_session_status_msg(
+            "GW_ADMIN", "PRE_OPEN", "2024-01-09T06:00:00.000Z", False
+        )
         client, push = _client(recv_queue=_q(ack))
         result = client.session_status()
         assert result["sessions_enabled"] is False

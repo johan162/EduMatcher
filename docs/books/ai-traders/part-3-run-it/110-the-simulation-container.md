@@ -250,6 +250,7 @@ compose file (the installer writes one) or on the command line, as in
 | `GHCR_OWNER` | `johan162` | Whose published images to pull |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the ports are published on |
 | `TERMINAL_GUI_PORT`, `LOG_GUI_PORT`, `TRADER_GUI_PORT`, `BOOK_GUI_PORT`, `DASH_GUI_PORT`, `CLEARING_GUI_PORT` | 8090, 8091, 8093, 8094, 8095, 8096 | Host ports of the GUIs |
+| `INDEX_IDS` | `EDU50` | The indexes TapeDeck's Index view follows; change it only with your own configuration |
 | `PM_READONLY_API_KEY` | the `s300-sim` key | The read-only key the GUIs use; change it only with your own configuration |
 | `AISIM_IMAGE` | the GHCR image | A different backend image, e.g. one you built |
 
@@ -279,6 +280,9 @@ the 300 tickers (name, industry, CEO, founder story, financials, P/E, …). Look
 them up with `./edumatcher.sh shell pm-compdb-cli show AAPL`, or list and
 filter them with `pm-compdb-cli list`. It is built only when missing, so
 companies you add survive restarts; delete it to get the bundled set back.
+The market caps in it also set each share's outstanding shares in `s300-sim`,
+and the 50 largest companies make up its `EDU50` index
+([Watching the Market](../part-4-watch-and-teach/130-watching-the-market.md#the-edu50-index)).
 The reference manual's
 [pm-compdb-cli](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-compdb-cli-company-database-cli)
 section explains where the source files are and when the entrypoint builds the

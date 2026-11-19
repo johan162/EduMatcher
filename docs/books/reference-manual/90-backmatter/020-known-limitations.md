@@ -39,9 +39,11 @@ explains the detail.
 | **Engine concurrency** | The engine is one single-threaded event loop and the single writer for a data directory: no hot standby and no failover. One data directory is one exchange | A deliberate choice: it removes locks and makes matching deterministic. Restarting restores resting orders and combos from the persisted state. See [Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md) |
 | **Lossy event bus** | The `PUB`/`SUB` feeds drop messages for a subscriber that falls behind its high-water mark, silently. The engine's inbound `PULL` queue can also fill | Every published message carries a per-topic sequence number in its envelope, so a consumer can detect a gap; the drop-copy feed adds a `from_seq` replay. See [Architecture Overview](../../architecture-and-development/part-1-architecture/010-architecture-overview.md) and [Order Flow End to End](../../architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end.md) |
 | **Drop-copy replay** | The replay buffer holds the last `drop_copy_buffer_size` events (default `10000`). A consumer that was away longer receives only the subset still buffered | Fill the gap from the audit log. See [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) |
-| **Security** | The internal bus has no authentication or encryption and binds to `127.0.0.1` by default. The `pm-index` command socket accepts any non-empty `gateway_id` and uses it only to route acks. BALF has no protocol-level encryption | Keep the bus on a private interface; put external gateways behind TLS or a tunnel. See [Environment variables](../part-1-command-line/010-processes-environment-and-ports.md#network-variables) |
+| **Security** | The internal bus has no authentication or encryption and binds to `127.0.0.1` by default. The `pm-index` command socket accepts any non-empty `gateway_id` and uses it only to route acks. The engine's position and open-orders queries carry no requester, so any client that can reach the engine's `PULL` socket can read any participant's orders and positions. BALF has no protocol-level encryption | Keep the bus on a private interface; put external gateways behind TLS or a tunnel. See [Environment variables](../part-1-command-line/010-processes-environment-and-ports.md#network-variables) |
 | **BALF 1.0.0** | No OCO, no multi-leg combos, no market-data broadcast, no sequence recovery (reconnect on a gap), no order query, symbols of at most 8 ASCII characters; a `pm-balf-gwy` restart forgets the `order_id`s of orders left on the book | Use ALF for OCO and combos, `pm-md-gwy` for market data. See [BALF Gateway](../../operator-guide/part-5-gateways/020-balf-gateway.md) |
 | **Indices** | At most 5 indices, cap-weighted | See the `indices` block in [Configuration Schema](../part-3-configuration/010-schema-and-process-blocks.md) |
+| **Corporate actions** | A split or dividend applied with `pm-index-admin-cli` adjusts the constituent in the index only. The engine, the market makers and `pm-market-sim` keep trading the symbol at the old price, so the next trade moves the index by the split factor | Apply it only when the symbol will trade at the adjusted price from then on, ideally during `PRE_OPEN`. See [Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md#applying-corporate-actions) |
+| **Static collar without a reference price** | A symbol that starts with no persisted last price and no `last_buy_price`/`last_sell_price` gets no static collar until the next engine start, however long it trades. The dynamic collar still applies once it has traded | Give every symbol a reference price in the configuration. See [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md#band-definitions) |
 | **Market-maker bot** | The `passive` strategy does not skew for inventory, and cannot be combined with `inventory_skew`. Its notion of "covered" is judged from aggregated price levels | See [The Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) |
 
 The rest of this chapter is a worked case study of one limitation that *was*
@@ -278,10 +280,11 @@ def _executions(trades: list[Trade]) -> dict[str, _Execution]:
         for oid, side in ((t.buy_order_id, "BUY"), (t.sell_order_id, "SELL")):
             ex = out.get(oid)
             if ex is None:
-                ex = out[oid] = _Execution("TAKER" if side == agg else "MAKER")
+                ex = out[oid] = _Execution(_liquidity_flag(side, agg))
             ex.qty += t.quantity
             ex.notional += t.price * t.quantity   # integer ticks
             ex.trade_ids.append(t.id)
+            ex.ts_ns = t.ts_ns
     return out
 ```
 

@@ -1373,7 +1373,7 @@ Open to every key, read-only included.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "state", "sessions_enabled", "next", "session_timezone", "session_date" }` | `state` and `next` come from the engine; `session_timezone` (IANA) is the exchange timezone every wall-clock time and history `date` filter is in, and `session_date` today's trading date in it |
+| `200 OK` | `{ "state", "state_since", "sessions_enabled", "next", "session_timezone", "session_date" }` | `state`, `state_since` (the UTC instant the engine entered `state`) and `next` come from the engine; `session_timezone` (IANA) is the exchange timezone every wall-clock time and history `date` filter is in, and `session_date` today's trading date in it |
 
 **Errors**
 

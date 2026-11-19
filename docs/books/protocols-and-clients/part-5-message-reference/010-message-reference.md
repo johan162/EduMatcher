@@ -4675,6 +4675,7 @@ Engine to caller: the current session state, on request. The polled answer to th
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
 | `state` | `string` | required | max_len 32 | Same values as `session.state.state`. |
+| `state_since` | `string` | required | max_len 32 | UTC instant the engine entered `state` -- its last accepted transition, else its start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets a caller tell a state left over from an earlier day, such as a `CONTINUOUS` whose close never came, from the same state entered today. |
 | `sessions_enabled` | `bool` | required | — | False when the deployment runs continuously with no session schedule at all, which makes `state` advisory. |
 | `next` | [`NextTransition`](#nexttransition) | omitted when unset | — | The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one. |
 | `last_trade_id` | `string` | `null` when unset | max_len 32 | The id of the last trade this engine run has made so far, null before its first: what `system.eod` will name if the run ends now. |

@@ -408,3 +408,80 @@ scratch directory (`./edumatcher.sh start`), with the exchange image built from
 Answered from the first pass: Q8 (`STATUS` quote legs) and Q17 (ATO expiry
 text) no longer reproduce. Q14 (illegal transition → `TIMEOUT`) still does.
 Out-of-scope findings went to `EduMatcher-For-Later-ToDo.md` as L003–L015 (L009 is Q14's console half: REST now answers `409`, the consoles still `TIMEOUT`).
+
+## 6. Third pass — drift check against 0.81.3 + working tree (2026-11-19)
+
+**Method:** static, not a run-through. Every `pm-*` command and `--flag` in a
+code block was checked against the current `--help`; every console verb, every
+`INFO/WARNING` log line, every `$EX/…` path and every Markdown link/anchor was
+resolved against the source tree; chapters were cross-read against every
+behaviour change in the 0.79.0–0.81.3 changelog.
+
+**Fixed:**
+
+- `EX=$(python -c "from edumatcher.config_deploy import examples_root; …")`
+  (ch. 14, 22, 23, 24, 26, 27, 29 and the AI-traders book) raised
+  `ImportError`: the uncommitted move of `examples_root` to
+  `edumatcher/examples.py` dropped the re-export its own docstring promises.
+  Re-exported; `test_installed_examples_resolve_outside_a_repository_checkout`
+  now asks `config_deploy` (it failed before the fix).
+- ch. 07 and ch. 25 still said `pm-admin` prints `TIMEOUT` for an illegal
+  session transition; since 0.81.1 it prints `SESSION  REJECTED  Invalid
+  transition …` (ch. 06 already said so).
+- ch. 06: `pm-audit --terminal` no longer prints in 10-s batches.
+- ch. 18: `pm-orders` shows a rejected order with blank columns and
+  `REJECTED (<reason>)`, not `?`.
+- ch. 11: two links to a vanished `#risk-controls-and-collars` anchor now point
+  at the operator guide's Risk Controls chapter.
+
+**Completeness gaps (not changed — scope decision):** never exercised:
+Trader GUI, Log GUI, `pm-log-cli` (`explain`, `ledger`), `pm-monitor-cli`,
+`pm-audit-cli`/`pm-audit-replay`, `pm-help`, `pm-clearing-cli rebuild
+--from-audit`, config `include:`/`credentials_file`.
+
+### 6.1 Container run (same day)
+
+Exchange image built from the working tree (wheel, `--target runtime`,
+tagged `ghcr.io/johan162/edumatcher:trainrev`), curl install in a scratch
+directory, every command typed into `./edumatcher.sh shell` windows via tmux.
+
+**Run and matching after the fixes below:** ch. 06 (audit, refused
+transitions), 07 (opening auction, exact fills), 13 (drop copy `AUCTION`
+flag), 16/17 (operator halt survives restart; MARKET rejected, LIMIT rests),
+18 (`pm-orders` reject row), 19 (KICK), 20 (all ten exercises, unchanged),
+21, 22, 23, 24, 25, 26, 27, 28, 29 (valuation, `--list`, opening auction),
+ch. 03 Ex. 5, plus every `pm-clearing-cli`/`pm-stats-cli` command of ch. 12
+and 15 (exit 0).
+
+**Fixed from the run:**
+
+- ch. 26 Ex. 7 **broken**: `add --sym AMZN` is refused since 0.79
+  (`AMZN is not a configured symbol`). AMZN is now in Ex. 1/9's `--symbols`
+  (seeded prices unchanged); INIT sample divisor (8187542000) and Ex. 8/9
+  sample tables/lines updated (`close_session_state` column, which index
+  `INDEX` shows is a race).
+- ch. 25 Ex. 4: a REST submit is `202` + `PENDING` (verdict on the WebSocket
+  or `?wait=ack`), not "an accepted response".
+- ch. 23: `WELCOME` carries `EPOCH`. ch. 24: `INDIC` ends `|PHASE=…`.
+  ch. 06: `session.state` payload has `command_id`. ch. 22: `connect()`
+  returns the description, `session_status()` returns `last_trade_id`.
+- ch. 28: duplicate logon says `TRADER01 already connected`; heartbeats at
+  1–4 s, not 0–4 s.
+- ch. 03 / 29: console average/fill prices print at tick precision
+  (`@149.93`, `@120.00`).
+- ch. 13/25: `AUCTION` liquidity flag; ch. 16: `book_stats.json` (prices and
+  halts) listed; ch. 17: "try to trade" made a MARKET order; ch. 29: missing
+  `Deployed to …` line.
+
+**Checked, no change needed:** halts across restart (only `HALT_SYM`
+persists; `clear --state` removes it), 60-s heartbeat expiry (only
+`ExchangeCommandClient` lacks heartbeats, and the guide uses it one-shot),
+ch. 28's "orders cancelled on close" (still true for a closing session).
+
+**Not run this pass:** ch. 01, 02, 04, 05, 08–12, 14, 15 (beyond the CLI
+sweep), most of 16–18. They were run on 0.78.4; the 0.79–0.81 changes that
+touch them were checked individually above.
+
+**Noticed, not changed:** `pm-dc-spy` prints `10@250.0` and
+`pm-index-admin-cli` raw floats (`new_level=1002.3450261384919`), unlike the
+consoles; `pm-admin-cli` emits ANSI codes when not on a terminal.

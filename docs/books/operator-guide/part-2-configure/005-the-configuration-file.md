@@ -847,7 +847,7 @@ engine_tuning:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `auction_indicative_interval_sec` | number `> 0` | `1.0` | Minimum time between republications of the indicative uncross price during a call phase (`PRE_OPEN`, `PRE_CLOSE`, or a halt). |
+| `auction_indicative_interval_sec` | number `> 0` | `1.0` | Minimum time between republications of the indicative uncross price during an auction call phase (`OPENING_AUCTION` or `CLOSING_AUCTION`); halted symbols are skipped. |
 | `engine_tuning.snapshot_interval_sec` | number `> 0` | `0.5` | Minimum time between order-book snapshots for a symbol whose book changed. Lower: fresher viewers, more CPU and traffic. |
 | `engine_tuning.quote_history_maxlen` | integer `> 0` | `30` | Inactivated quotes remembered per gateway for `QLEGS RECENT` / `ALL`. Memory-only. |
 | `engine_tuning.drop_copy_buffer_size` | integer `> 0` | `10000` | Drop-copy events kept for replay when a subscriber reconnects. |
@@ -1113,6 +1113,8 @@ audiences different keys on different ports.
 | `timeouts.engine_auth_sec` | `3.0` | Wait for the engine to accept the gateway's login. |
 | `timeouts.engine_reply_sec` | `3.0` | Wait for an engine reply to a request. |
 | `timeouts.wait_ack_sec` | `3.0` | Wait used by `?wait=ack`. |
+| `engine_pull_addr`, `engine_pub_addr` | `tcp://<engine host>:5555`, `:5556` | The engine's ZeroMQ endpoints. Normally left unset. |
+| `index_pull_addr`, `index_pub_addr` | `tcp://<index bind host>:5559`, `:5558` | `pm-index`'s ZeroMQ endpoints. Normally left unset. |
 
 Each entry of `credentials`:
 
@@ -1254,6 +1256,15 @@ rows to log viewers such as `pm-log-ui`:
 | `max_backfill_rows` | `100000` | Hard cap on rows in one backfill. |
 | `max_pending_rows` | `20000` | Per-subscriber stream buffer; a slow viewer loses its oldest rows (counted in `dropped`). Also sets the ZeroMQ send high-water mark to `max_pending_rows / backfill_chunk_rows` messages per viewer, so a wedged viewer costs the server about twice this many rows at most. |
 | `pub_sndhwm` | `10000` | Upper cap on that ZeroMQ send high-water mark, in messages. Messages lost there show as `msg_no` gaps. |
+
+An optional `client` mapping inside `log_server` is read not by `pm-log-srv`
+but by every other process, for how it ships its own log lines:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `client.connect_timeout_sec` | `0.5` | TCP connect timeout for each attempt to reach the log server. |
+| `client.failover_timeout_sec` | `30.0` | How long a process keeps retrying a lost connection before it switches, for good, to a local file. `--log-failover-timeout` overrides it. |
+| `client.failover_dir` | `<data dir>/logs` | Where those local failover files go. |
 
 `port`, `pub_port` and `pull_port` must all differ. See
 [Centralized Log Server](../part-6-observe-and-recover/040-log-server.md).

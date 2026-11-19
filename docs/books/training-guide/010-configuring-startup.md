@@ -342,7 +342,7 @@ prints only warnings and errors. Expected output includes lines like these
 (timestamps and paths will differ):
 
 ```
-... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 4 gateway id(s))
+... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.json  (3 symbol(s): AAPL, MSFT, TSLA; 4 gateway id(s))
 ... INFO edumatcher.engine.main - Session handling: enabled (startup state: CLOSED)
 ... INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```

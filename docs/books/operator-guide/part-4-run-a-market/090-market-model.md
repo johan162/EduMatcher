@@ -127,7 +127,7 @@ Both bind to `EDUMATCHER_SIM_BIND_HOST` (default `127.0.0.1`).
 and lists the symbols whose market mid is furthest from the value:
 
 ```text
-pm-market-sim: RUNNING seq=4120 symbols=150
+pm-market-sim: RUNNING seq=4120 symbols=150 open_rumours=0
 symbol        value        mid  mid/value
 TSLA         212.40     219.95     +3.55%
 ...

@@ -85,6 +85,7 @@ from edumatcher.config import (
     BOOK_STATS_FILE,
     RUN_SEQ_FILE,
     ENGINE_CONFIG_FILE,
+    COMPILED_CONFIG_FILE,
     DATA_DIR,
 )
 from edumatcher.engine.auction import (
@@ -590,6 +591,12 @@ _MAX_WIRE_NOTE_LEN = 256
 _MAX_WIRE_CB_LEVEL_LEN = 32
 
 
+def _utc_now_iso() -> str:
+    """Now as UTC ISO-8601 with milliseconds, the form ``next.at`` uses."""
+    now = datetime.now(timezone.utc)
+    return now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
     """Normalise an identifier arriving from the wire, bounded and upper-cased.
 
@@ -761,6 +768,10 @@ class Engine:
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
+        # When the engine entered _session_state: reported on
+        # system.session_status so a scheduler can tell a state left over
+        # from an earlier day from the same state entered today (L042).
+        self._session_state_since: str = _utc_now_iso()
         # Set by run(); unit tests that call handlers directly never have one.
         self._gc_policy: GcPolicy | None = None
         # The next scheduled transition, as told by whoever drove the last
@@ -821,8 +832,10 @@ class Engine:
                 if self._sessions_enabled:
                     # Start CLOSED and wait for scheduler transitions.
                     self._session_state = SessionState.CLOSED
+                # The deployed engine reads the artifact, not the YAML beside it.
+                source = COMPILED_CONFIG_FILE if engine_config is not None else path
                 log.info(
-                    f"Loaded config from {path}  "
+                    f"Loaded config from {source}  "
                     f"({len(self._allowed_symbols)} symbol(s): "
                     f"{', '.join(sorted(self._allowed_symbols))}; "
                     f"{len(self._allowed_participants)} gateway id(s))"
@@ -2038,9 +2051,9 @@ class Engine:
                     "QTY_OUT_OF_RANGE",
                     "ICEBERG visible_qty must not exceed quantity",
                 )
-        # G12: pre-trade order-size and notional caps. Configured per risk
-        # level with a per-symbol override; an unconfigured symbol has no cap.
-        # A priceless order (MARKET, IOC) has no known notional, so only the
+        # G12: pre-trade order-size and notional caps. Configured per symbol
+        # only; an unconfigured symbol has no cap. A priceless order (MARKET,
+        # an IOC sent without a price) has no known notional, so only the
         # quantity cap can apply to it.
         limits = self._order_limits.get(order.symbol)
         if limits is not None:
@@ -2707,6 +2720,7 @@ class Engine:
             make_session_status_msg(
                 gateway_id,
                 self._session_state.value,
+                self._session_state_since,
                 self._sessions_enabled,
                 next_state=self._next_session_state,
                 next_at=self._next_session_at,
@@ -6432,6 +6446,7 @@ class Engine:
 
         # --- Apply the transition ---
         self._session_state = to_state
+        self._session_state_since = _utc_now_iso()
         if to_state == SessionState.CONTINUOUS and self._gc_policy is not None:
             self._gc_policy.arm_freeze()
 
@@ -6696,10 +6711,16 @@ class Engine:
                 sub_trades, sub_events = book.run_stops(now_ns())
                 self._publish_dispatch(sub_trades, sub_events)
 
+                eq_price = (
+                    from_ticks(result.eq_price, symbol)
+                    if result.eq_price is not None
+                    else None
+                )
                 log.info(
                     f"UNCROSS {symbol}: {len(trades)} trade(s) "
-                    f"@ {result.eq_price}, qty={result.eq_qty}, "
-                    f"surplus={result.surplus} ({result.imbalance_side})"
+                    f"@ {eq_price}, qty={result.eq_qty}, "
+                    f"surplus={result.surplus} "
+                    f"({result.imbalance_side or 'balanced'})"
                 )
             else:
                 log.info(f"UNCROSS {symbol}: no crossable interest")

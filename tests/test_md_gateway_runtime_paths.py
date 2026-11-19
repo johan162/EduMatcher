@@ -1212,7 +1212,10 @@ def test_bus_gaps_are_a_watched_monitor_increase() -> None:
 def _status_frames(seq: int, state: str = "CONTINUOUS") -> list[bytes]:
     from edumatcher.models.message import make_session_status_msg
 
-    return _sequenced(make_session_status_msg("MD-GWY01", state, True), seq)
+    return _sequenced(
+        make_session_status_msg("MD-GWY01", state, "2024-01-09T06:00:00.000Z", True),
+        seq,
+    )
 
 
 def _halt_status_frames(seq: int, halted: list[dict[str, object]]) -> list[bytes]:

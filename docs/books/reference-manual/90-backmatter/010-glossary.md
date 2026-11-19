@@ -50,12 +50,6 @@ exchange instance keeps its deployed configuration, databases, logs and saved
 state. All processes of one exchange must use the same one. See
 [Environment variables](../part-1-command-line/010-processes-environment-and-ports.md#environment-variables).
 
-**Episode (audit replay):** In `pm-audit-replay`, a group of causally connected
-facts with one business meaning: one order, one trade, one quote or one command,
-together with its outcome. Episodes sit between the raw events and the narrated
-story, and are kept in the episode index (`audit_replay.db`). See [Audit
-Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md).
-
 **Deployed configuration:** The compiled configuration at
 `<data directory>/ref_data/engine_config.json` that every process reads. You
 edit `engine_config.yaml` and install it with `pm-config-deploy` (or
@@ -64,9 +58,19 @@ edit `engine_config.yaml` and install it with `pm-config-deploy` (or
 **Engine (`pm-engine`):** EduMatcher's matching engine, the single process that
 owns every order book and decides every trade.
 
+**Episode (audit replay):** In `pm-audit-replay`, a group of causally connected
+facts with one business meaning: one order, one trade, one quote or one command,
+together with its outcome. Episodes sit between the raw events and the narrated
+story, and are kept in the episode index (`audit_replay.db`). See [Audit
+Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md).
+
 **Equity (settlement sense):** In the settlement documentation, a position's *cumulative realized plus unrealized P&L*. Not to be confused with *equity* meaning shares; the general-terms entry below describes that sense.
 
 **`EXCHANGE` (ledger account):** The account in `eod.db` that absorbs the rounding residual of a day (a cent or two at most), so the amounts of every day sum to exactly zero. A reserved name: no gateway may use it.
+
+**Gateway ID:** The identity a participant presents when it connects, for
+example `TRADER01`. It is the participant's `id` from the configuration;
+messages and protocols call it `gateway_id`. See also *Gateway*.
 
 **Health beacon:** The small message every long-running `pm-*` process pushes
 to `pm-monitor` every two seconds (`monitor.beacon_interval_sec`). `pm-monitor`
@@ -80,10 +84,6 @@ and whoever next reaches it at the top discards it (`_peek`). Because dead
 entries pile up deep in the book, `_compact_heaps` rebuilds the heaps once they
 hold more than twice the live entries plus 64. The consequence to remember is
 that the length of a heap is not the number of resting orders.
-
-**Gateway ID:** The identity a participant presents when it connects, for
-example `TRADER01`. It is the participant's `id` from the configuration;
-messages and protocols call it `gateway_id`. See also *Gateway*.
 
 **Ledger (`eod.db`):** The settlement database written by `pm-eod`: one row per participant per settled trading date (plus an `EXCHANGE` row that absorbs the rounding residual), plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.
 
@@ -104,7 +104,7 @@ simple for teaching.
 
 **Process profile:** A named set of `pm-*` processes that `pm-opctl-cli` starts
 and stops together: `micro`, `mini`, `default`, `mm-demo` (the default set
-plus a market-maker bot) or `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders).
+plus a market-maker bot), `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders) or `ai-sim` (`ai-swarm` set up to run for weeks with a hundred AI traders on the `s300-sim` example).
 
 **Recorder:** A process that turns the engine's live events into durable
 records: `pm-stats` (prices and volumes), `pm-clearing` (positions and P&L) and

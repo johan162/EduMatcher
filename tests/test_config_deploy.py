@@ -28,7 +28,6 @@ from edumatcher.market_sim.config import load_sim_config
 from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG, main as setup_main
 import edumatcher.config_deploy as config_deploy
 import edumatcher.examples as examples_mod
-from edumatcher.examples import examples_root
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -287,7 +286,8 @@ class TestExamples:
         monkeypatch.setattr(examples_mod, "__file__", str(package_file))
 
         assert config_deploy.resolve_example("s150-nominal") == config
-        examples = examples_root().parent
+        # The books tell learners to ask config_deploy, not edumatcher.examples.
+        examples = config_deploy.examples_root().parent
         assert examples / "ref_data" / "s150-nominal-setup" / "swarm.yaml" == swarm
         assert examples / "news" / "chip-race.yaml" == news
         assert swarm.is_file()

@@ -9,8 +9,11 @@ governs. For worked examples, recipes, and rationale, see
 The schema described here is derived from and MUST match the runtime loaders:
 `engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,
 `ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`,
-`dc_gateway/config.py`, `log_srv/config.py`, and `scheduler/main.py`
-(`schedule` and `locale.country` only). `pm-cverifier` is the reference validator.
+`dc_gateway/config.py`, `log_srv/config.py` and `monitor/config.py`.
+`pm-config-deploy` runs each of them once over the authored file and installs
+the resolved result as `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, the
+only configuration file a running process reads. `pm-cverifier` is the
+reference validator.
 
 ---
 
@@ -70,14 +73,16 @@ if optional, its absence leaves the feature disabled.
 
 ### 1.5 Unknown keys
 
-Loaders are **permissive**: a key not defined in this specification is **ignored**
-and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. `pm-cverifier` reports an unrecognised key anywhere in the file —
-at the top level or at any depth of an engine section (§5) or gateway and service
-block (§6) — as an **error** (`S121`), because the loader's silent fallback to a
-default would otherwise hide the typo. The one exception is the key set of
-`schedule` itself, whose unknown keys are reported as `M027`. `pm-config-show --all`
-also lists top-level sections that are not part of this specification.
+Conforming producers MUST NOT emit keys not defined in this specification.
+`pm-cverifier` reports an unrecognised key anywhere in the file — at the top
+level or at any depth of an engine section (§5) or gateway and service block
+(§6) — as an **error** (`S121`); the one exception is the key set of `schedule`
+itself, whose unknown keys are reported as `M027`. `pm-config-deploy` refuses
+any file with a verifier error, so an unknown key is never deployed. The
+loaders themselves are permissive and ignore unknown keys, except in
+`participant_defaults` (CV22) and `schedule`, which they reject.
+`pm-config-show --all` also lists top-level sections that are not part of this
+specification.
 
 ### 1.6 Case normalisation
 
@@ -940,19 +945,24 @@ rejected at load.
 
 ## 8. Processing model
 
-1. **Parse.** Load the document as YAML; a non-mapping root is rejected (§1.2).
-2. **Section ownership.** `pm-engine` reads the engine sections (§5) plus the
-   `SymbolSpec`/nested structures — with one exception, `locale.country` (§5.10),
-   which is read only by `pm-scheduler`; each auxiliary process reads only its own
-   block (§6). No single process reads the whole file.
+1. **Parse.** Load the document as YAML, merging any `include:` files; a
+   non-mapping root is rejected (§1.2).
+2. **Whole-file validation.** `pm-config-deploy` runs `pm-cverifier`'s four
+   layers (YAML, schema, semantic, completeness) over every section; any
+   error refuses the deploy. `pm-cverifier` is the reference conformance
+   checker.
 3. **Normalisation.** Symbols, gateway ids, index ids, and enum values are
    upper-cased (§1.6).
-4. **Validation.** Field-level constraints (§4–§6) are checked, then the
-   cross-field rules (§7). The first violation MAY abort loading.
-5. **Unknown keys** are ignored (§1.5).
-6. **Whole-file validation.** `pm-cverifier` validates every section — including
-   blocks no runtime process consumes on its own — across four layers (YAML,
-   schema, semantic, completeness). It is the reference conformance checker.
+4. **Section validation and defaults.** Each section's loader checks its
+   field-level constraints (§4–§6), then the cross-field rules (§7), and
+   resolves every default. The first violation MAY abort loading.
+5. **Install.** The resolved sections are written to
+   `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, with a copy of the
+   authored source beside it.
+6. **Section ownership.** At startup, `pm-engine` reads the engine sections
+   (§5) of the compiled file and each auxiliary process only its own block
+   (§6); `pm-scheduler` also reads `schedule` and `locale`. No single process
+   uses the whole file.
 7. **Whole-file presentation.** `pm-config-show` reads every section for
    display only. It is read-only and non-normative: it neither validates nor
    resolves defaults, and it MUST NOT be treated as a conformance signal — a

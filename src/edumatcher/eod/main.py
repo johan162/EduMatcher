@@ -365,10 +365,12 @@ def _cmd_show(args: argparse.Namespace, paths: Paths) -> int:
             "trade_date": args.date,
             "account": a,
             "amount": fmt_minor(amounts[a]),
+            # To the cent, as the statements print it; the ledger keeps the
+            # unrounded split.
             "detail": (
-                {s: str(v) for s, v in sorted(detail[a].items())}
+                {s: f"{v:.2f}" for s, v in sorted(detail[a].items())}
                 if args.format == "json"
-                else " ".join(f"{s}={v}" for s, v in sorted(detail[a].items()))
+                else " ".join(f"{s}={v:.2f}" for s, v in sorted(detail[a].items()))
             ),
         }
         for a in sorted(amounts)

@@ -32,7 +32,8 @@ headline in the **News** view probably jumped (an unannounced change in its
 value), or is being pushed by momentum traders. The **Trade Tape** shows who
 traded: `AI` ids are the swarm, `MM01` the market maker, `TRADER` ids your
 students. During the auctions the **Session & Halt Status Board** counts
-down to the next phase.
+down to the next phase. The **Index** view charts the `EDU50` index
+([below](#the-edu50-index)).
 
 ### Order Book Viewer: one book up close
 
@@ -130,6 +131,24 @@ pm-stats-cli dates                                  # the trading dates recorded
 
 `pm-stats` keeps the daily rows for good and individual trades for the last
 seven days ([Running It for Weeks](150-running-it-for-weeks.md)).
+
+### The EDU50 index
+
+`s300-sim` has one index, `EDU50`: the 50 largest companies by the market caps
+in the company database (`NVDA`, `AAPL`, `MSFT`, … `BX`), weighted by price ×
+outstanding shares and starting at 1000. Each share's outstanding shares are
+its company's market cap divided by its starting price, so the weights begin
+at the company profiles' caps. Like a real large-cap index it is top-heavy:
+the ten largest make up about 64% of it and technology about 47%. It shows
+the large-cap market, not the average share: a day when technology falls
+moves `EDU50` far more than one when utilities do.
+
+```bash
+pm-stats-cli index-daily --index-id EDU50       # open, high, low, close per day
+pm-index-cli indices                            # the index and its constituents
+```
+
+`pm-index` calculates it ([The Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md)).
 
 ## Who made money
 

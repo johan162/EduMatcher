@@ -231,8 +231,10 @@ stateDiagram-v2
     CLOSED --> [*] : engine shutdown
 ```
 
-Invalid transitions are silently rejected by the engine and logged to
-stdout (the engine's `logging` output stream, not stderr).
+Invalid transitions are refused: the engine answers the sender on
+`session.transition_ack.<gateway>` with the reason (`pm-admin` prints
+`SESSION  REJECTED  Invalid transition CLOSED → CONTINUOUS (allowed:
+PRE_OPEN)`), logs it, and publishes no `session.state` change.
 
 
 
@@ -336,6 +338,20 @@ and the engine then reports a phase it never announced. An operator's own
 transitions (an early close, a phase frozen for an exercise) are announced,
 so the scheduler leaves them alone; it carries on with the schedule's next
 transition, which the engine may refuse from there.
+
+The engine also reports *when* it entered its phase. A scheduler that starts
+after an outage spanning a close can find the engine still `CONTINUOUS` (or in
+any phase but `CLOSED`) from an earlier day. It then closes that day first, by
+the shortest legal route, so its DAY orders expire and its close is archived,
+and only then brings the engine to today's phase:
+
+```text
+WARNING edumatcher.scheduler.main - engine is still in CONTINUOUS from an earlier day; closing that day first via CLOSED
+```
+
+A phase left over from before the continuous session (`PRE_OPEN`,
+`OPENING_AUCTION`) can only close through `CONTINUOUS`, so its book uncrosses
+on the way.
 
 With `--no-confirm` the scheduler hears nothing from the engine: it neither
 confirms transitions nor follows a restart, and it cannot tell where the
@@ -816,13 +832,16 @@ When an uncross completes, the engine publishes:
 
 ## Hands-on: driving an opening auction manually
 
-This short walkthrough uses two terminals with `sessions_enabled: true`. Terminal 1
+This short walkthrough uses two terminals with `sessions_enabled: true` and an
+empty AAPL book (a `-nomm` example such as `s3-nominal-nomm`). Terminal 1
 runs `pm-admin --id OPS01` (a gateway configured with `role: ADMIN`) — the
 `SESSION|STATE=` command that advances the session is only available there, not
 in `pm-alf-console`.
 
 ```text
-# Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
+# Terminal 1 — ADMIN gateway (pm-admin --id OPS01); the engine starts CLOSED
+[OPS01|ADMIN]> SESSION|STATE=PRE_OPEN
+SESSION  now PRE_OPEN
 [OPS01|ADMIN]> SESSION|STATE=OPENING_AUCTION
 SESSION  now OPENING_AUCTION
 
@@ -833,7 +852,7 @@ SESSION  now OPENING_AUCTION
 # Terminal 1 — trigger the uncross
 [OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
 SESSION  now CONTINUOUS
-# Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
+# Engine logs (-v): UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (balanced)
 # and publishes an auction.result.AAPL message with the same fields.
 ```
 

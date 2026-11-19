@@ -5424,6 +5424,14 @@ _SESSION_STATUS_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 32},
     },
     {
+        "name": "state_since",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "UTC instant the engine entered `state` -- its last accepted transition, else its start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets a caller tell a state left over from an earlier day, such as a `CONTINUOUS` whose close never came, from the same state entered today.",
+        "constraints": {"max_len": 32},
+    },
+    {
         "name": "sessions_enabled",
         "type": "bool",
         "unit": None,
@@ -5461,6 +5469,7 @@ class SessionStatus:
 
     gateway_id: str
     state: str
+    state_since: str
     sessions_enabled: bool
     next: NextTransition | None = None
     last_trade_id: str | None = None
@@ -5479,6 +5488,10 @@ class SessionStatus:
         if len(self.state) > 32:
             raise MessageValidationError(
                 f"state: length {len(self.state)} exceeds max_len 32"
+            )
+        if len(self.state_since) > 32:
+            raise MessageValidationError(
+                f"state_since: length {len(self.state_since)} exceeds max_len 32"
             )
         if self.next is not None:
             self.next.validate()
@@ -5499,6 +5512,7 @@ class SessionStatus:
         return cls(
             gateway_id=str(p.get("gateway_id", "")),
             state=str(p["state"]),
+            state_since=str(p["state_since"]),
             sessions_enabled=bool(p["sessions_enabled"]),
             next=None if p.get("next") is None else NextTransition.from_dict(p["next"]),
             last_trade_id=(
@@ -5510,6 +5524,7 @@ class SessionStatus:
         """Return the bus payload, in the spec's declared field order."""
         payload: dict[str, Any] = {
             "state": self.state,
+            "state_since": self.state_since,
             "sessions_enabled": self.sessions_enabled,
             "last_trade_id": self.last_trade_id,
         }

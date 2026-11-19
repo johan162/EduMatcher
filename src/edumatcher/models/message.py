@@ -769,6 +769,7 @@ def make_session_state_request_msg(gateway_id: str) -> list[bytes]:
 def make_session_status_msg(
     gateway_id: str,
     state: str,
+    state_since: str,
     sessions_enabled: bool,
     next_state: str = "",
     next_at: str = "",
@@ -776,6 +777,7 @@ def make_session_status_msg(
 ) -> list[bytes]:
     """Engine → operator: reply with the current session state.
 
+    ``state_since`` is the UTC instant the engine entered ``state``.
     ``next_state``/``next_at`` are the countdown target the engine holds,
     both or neither, so a caller that missed the last transition can still
     count down to the next one.
@@ -783,6 +785,7 @@ def make_session_status_msg(
     return _gen_system.make_session_status(
         gateway_id=gateway_id,
         state=state,
+        state_since=state_since,
         sessions_enabled=sessions_enabled,
         next=({"state": next_state, "at": next_at} if next_state and next_at else None),
         last_trade_id=last_trade_id,
