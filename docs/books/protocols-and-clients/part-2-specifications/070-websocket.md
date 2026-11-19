@@ -250,6 +250,11 @@ The client sends control frames as JSON objects at any time after
 - **Items form:** `"items": [{"symbols": ["*"], "channels": ["book"]}, {"symbols": ["AAPL"], "channels": ["depth"]}]`
   is a list of independent rules: book for every symbol, depth for AAPL only.
 - An empty `symbols` list, or `["*"]`, means every symbol.
+- `resume` on a snapshot topic (`book.AAPL`, `depth.AAPL`, an `auction`
+  topic) re-sends that topic's current snapshot. On `trade.executed` it replays
+  the buffered prints after `from_seq` for the symbol named in `symbols`, or
+  for every symbol when `symbols` is omitted. When nothing is newer than
+  `from_seq` the reply is empty: no events and no `resume.rejected`.
 - An item may carry `resume_from: {"trades": <seq>}`; on `subscribe` and
   `snapshot` the `trades` channel then replays buffered prints after that
   `seq` instead of sending the whole tail.

@@ -16,7 +16,7 @@ participant in the configuration.
 **ALF, BALF, CALF, RALF, LALF, DC1:** EduMatcher's protocols: ALF ("Almost
 FIX") is text order entry, BALF (Binary ALF) binary order entry, CALF (Channel
 ALF) the market-data feed, RALF (Reconciliation ALF) post-trade dissemination,
-LALF (Log ALF) centralized logging and DC1 the drop-copy feed over TCP.
+LALF (Logging ALF) centralized logging and DC1 the drop-copy feed over TCP.
 See [Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md).
 
 **Arrival sequence (`arrival_seq`):** The number an order book assigns to an

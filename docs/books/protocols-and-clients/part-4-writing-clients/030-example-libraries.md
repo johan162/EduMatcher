@@ -425,11 +425,12 @@ python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
 # Also subscribe to an index feed (skipped if the gateway doesn't advertise
 # INDEX support in WELCOME|CH_SUPPORTED=)
 python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
-    --symbols AAPL --index EDU100
+    --symbols AAPL --index EDU50
 
-# Resume from a known sequence number (single-stream resume)
+# Resume from a known sequence number (single-stream resume); --epoch is the
+# WELCOME|EPOCH= of the gateway run that sequence came from
 python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
-    --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042
+    --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042 --epoch 3f9a01bc
 ```
 
 Channels are not selected with a flag — the client always requests every
@@ -465,7 +466,7 @@ printf("%s\n", calf_get_field(&msg, "BID"));  /* "149.50" */
 ```bash
 cd docs/examples/calf
 make
-./calf_subscriber 127.0.0.1 5570 AAPL,MSFT EDU100
+./calf_subscriber 127.0.0.1 5570 AAPL,MSFT EDU50
 ```
 
 Arguments are positional: `host [port [symbols [index_id]]]`.  `symbols` is
@@ -573,9 +574,10 @@ cd docs/examples/ralf
 # to exactly what that role may access (here: just the CLEARING channel)
 python3 ralf_subscriber.py --host 127.0.0.1 --port 5580 --role CLEARING
 
-# Resume from a known sequence number
+# Resume from a known sequence number; --epoch is the WELCOME|EPOCH= of the
+# gateway run that sequence came from (the gateway refuses LASTSEQ without it)
 python3 ralf_subscriber.py --host 127.0.0.1 --port 5580 \
-    --role CLEARING --lastseq 77
+    --role CLEARING --lastseq 77 --epoch b4f8a907
 ```
 
 Pass `--channels` explicitly to override a role's default channel set —
@@ -982,15 +984,24 @@ Every Python example runs against a real exchange in `make test-e2e`
 
 ### Authentication
 
-All requests require a `Bearer` token in the `Authorization` header.
-The default development key is `key-trader-demo`.
+All requests require a `Bearer` token in the `Authorization` header. The
+examples fall back to the placeholder `key-trader-demo`, which no bundled
+configuration accepts: every configuration generates its own keys, such as
+`key-trader01-rpi8z7`. List the keys of the deployed configuration, unmasked,
+with:
 
-Configure via environment variables:
+```bash
+pm-config-show -a
+```
+
+Then configure the examples via environment variables:
 
 ```bash
 export EDUMATCHER_API_URL="http://127.0.0.1:8080"
-export EDUMATCHER_API_KEY="key-trader-demo"
+export EDUMATCHER_API_KEY="key-trader01-rpi8z7"   # a key from pm-config-show -a
 ```
+
+The snippets below write `key-trader-demo` where your own key goes.
 
 ### Python API — `api_gateway_client.py`
 
@@ -1078,7 +1089,8 @@ python3 submit_market_order.py --side SELL --symbol MSFT --qty 50 --wait-ack
 python3 submit_market_order.py --url http://10.0.0.5:8080 --key mykey \
     --side BUY --symbol TSLA --qty 10
 
-# One order's whole life; --price below the bid so it rests
+# One order's whole life; --price below the bid so it rests (22.70 suits the
+# s10-basic configuration, where AAPL trades near 22.88; check the book first)
 python3 order_lifecycle.py --symbol AAPL --price 22.70
 
 # The book over REST: every symbol's top of book, then AAPL's ladder

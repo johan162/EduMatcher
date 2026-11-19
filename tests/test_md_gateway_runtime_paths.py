@@ -533,7 +533,7 @@ def test_poll_index_events_emits_idx(
     assert msg_type == "IDX"
     assert ch == "INDEX"
     assert sym == "EDU100"
-    assert fields["LEVEL"] == "1042.5"
+    assert fields["LEVEL"] == "1042.50"
 
 
 def test_poll_engine_events_nonfatal_handler_exception(

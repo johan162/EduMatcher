@@ -724,3 +724,19 @@ def test_apply_halt_status_agreeing_with_the_gateway_changes_nothing() -> None:
     assert n.apply_halt_status([{"symbol": "aapl", "halt_source": "CB"}]) == []
     assert n.apply_halt_status([]) != []
     assert n.apply_halt_status([]) == []
+
+
+def test_index_level_fields_carry_no_float_noise() -> None:
+    _, fields = EngineNormaliser().normalise_index_update(
+        {
+            "index_id": "edu50",
+            "level": 1000.0000000000001,
+            "session_state": "CONTINUOUS",
+            "day": {"open": 999.9999999999999, "high": 1000.1, "low": 999.4},
+        }
+    )
+
+    assert fields["LEVEL"] == "1000.00"
+    assert fields["OPEN"] == "1000.00"
+    assert fields["HIGH"] == "1000.10"
+    assert fields["LOW"] == "999.40"

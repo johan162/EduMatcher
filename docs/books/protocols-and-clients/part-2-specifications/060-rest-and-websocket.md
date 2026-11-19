@@ -456,70 +456,115 @@ Minimal response:
 
 ```json
 {
-  "order_id": "ORD-20260806-00042",
-  "status": "PENDING"
+  "order_id": "867b2a3876a765ce6bdd66d02283fb22",
+  "client_tag": null,
+  "status": "PENDING",
+  "accepted": null,
+  "reject_code": null,
+  "event": null,
+  "ack_timeout": false
 }
 ```
 
-Full response:
+Full response (with `?wait=ack`; `event` is the engine's acknowledgement,
+shortened here):
 
 ```json
 {
-  "order_id": "ORD-20260806-00042",
+  "order_id": "7acb7b382343ca92003b35e49bffebf9",
   "client_tag": "desk1-aapl-00042",
   "status": "ACKED",
   "accepted": true,
+  "reject_code": null,
   "event": {
-    "order_id": "ORD-20260806-00042",
+    "order_id": "7acb7b382343ca92003b35e49bffebf9",
     "accepted": true,
-    "gateway_id": "G1"
-  }
+    "reason": "",
+    "symbol": "AAPL",
+    "side": "BUY",
+    "order_type": "LIMIT",
+    "tif": "DAY",
+    "qty": 100,
+    "price": 187.25,
+    "price_ticks": 18725,
+    "smp_action": "CANCEL_AGGRESSOR",
+    "client_tag": "desk1-aapl-00042",
+    "tick_decimals": 2,
+    "ts_ns": 1795131572219373690
+  },
+  "ack_timeout": false
 }
 ```
 
 #### Reference data example (`GET /api/v1/reference`)
 
-Minimal response:
+Minimal response (no symbols, no risk levels, sessions disabled):
 
 ```json
 {
   "symbols": [],
-  "risk": {},
+  "risk": {"levels": []},
   "indexes": [],
-  "schedule": {},
+  "schedule": {"sessions_enabled": false, "country": "SE", "schedule": null},
   "config_version": "sha256:..."
 }
 ```
 
-Full response:
+Full response (one entry of each list shown; the weekday blocks `tue` to
+`sun`, `holidays` and most `upcoming_holidays` left out):
 
 ```json
 {
   "symbols": [
     {
-      "symbol": "AAPL",
+      "symbol": "AAL",
       "tick_decimals": 2,
-      "level": "L1"
+      "level": "DEFAULT",
+      "collar": {"static_band_pct": 0.2, "dynamic_band_pct": 0.03},
+      "circuit_breaker": {
+        "reference_window_ns": 300000000000,
+        "levels": [
+          {"name": "L1", "price_shift_pct": 0.04, "halt_duration_ns": 180000000000},
+          {"name": "L3", "price_shift_pct": 0.15, "halt_duration_ns": null}
+        ]
+      }
     }
   ],
   "risk": {
-    "default_level": "L1",
-    "levels": {
-      "L1": {
-        "soft_pct": 5.0,
-        "hard_pct": 10.0
-      }
-    }
+    "default_level": "DEFAULT",
+    "levels": [
+      {"name": "DEFAULT", "collar": {"static_band_pct": 0.2, "dynamic_band_pct": 0.03}}
+    ]
   },
   "indexes": [
     {
-      "id": "TECH10",
-      "description": "Tech sample index"
+      "id": "EDU50",
+      "description": "EduMatcher 50, the 50 largest companies by market cap",
+      "base_value": 1000.0,
+      "constituents": ["NVDA", "AAPL", "MSFT"]
     }
   ],
   "schedule": {
     "sessions_enabled": true,
-    "country": "US"
+    "country": "SE",
+    "schedule": {
+      "mon": {
+        "pre_open": "09:00",
+        "opening_auction_start": "09:25",
+        "continuous_start": "09:30",
+        "closing_auction_start": "16:00",
+        "closing_auction_end": "16:05"
+      },
+      "today": {
+        "pre_open": "09:00",
+        "opening_auction_start": "09:25",
+        "continuous_start": "09:30",
+        "closing_auction_start": "16:00",
+        "closing_auction_end": "16:05"
+      },
+      "today_is_holiday": false,
+      "upcoming_holidays": [{"date": "2026-12-25", "name": "Juldagen"}]
+    }
   },
   "config_version": "sha256:6d8d..."
 }
@@ -543,10 +588,15 @@ Full response:
 {
   "trades": [
     {
+      "ts": "2026-08-06T09:30:00.000+00:00",
+      "trade_id": "000001-000000001",
       "symbol": "AAPL",
       "price": 187.3,
       "quantity": 50,
-      "ts": "2026-08-06T09:30:00Z"
+      "tick_decimals": 2,
+      "buy_gateway_id": "TRADER02",
+      "sell_gateway_id": "MM01",
+      "aggressor_side": "BUY"
     }
   ],
   "count": 1,
@@ -573,23 +623,13 @@ Full request:
 }
 ```
 
-Minimal response:
+Response (the only shape; a refusal is `409 TRANSITION_REJECTED`):
 
 ```json
 {
   "requested_state": "CONTINUOUS",
   "status": "APPLIED",
-  "command_id": "c_01K17P..."
-}
-```
-
-Full response:
-
-```json
-{
-  "requested_state": "CONTINUOUS",
-  "status": "APPLIED",
-  "command_id": "c_01K17P9B7C6W9X0Y8Z7"
+  "command_id": "cmd-f41bb1b161cc9fb8d6d54353608f1bcc"
 }
 ```
 

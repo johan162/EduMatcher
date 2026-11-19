@@ -458,7 +458,7 @@ class EngineNormaliser:
     ) -> tuple[str, dict[str, str]]:
         """Map internal index.update payload to CALF INDEX fields."""
         index_id = str(payload.get("index_id", "")).upper()
-        level = _as_decimal(payload.get("level")) or "0"
+        level = _as_index_level(payload.get("level")) or "0"
         fields: dict[str, str] = {
             "LEVEL": level,
             "SESSION": str(payload.get("session_state", "")).upper() or "UNKNOWN",
@@ -474,7 +474,7 @@ class EngineNormaliser:
         day_high = day.get("high")
         day_low = day.get("low")
         if day_open is not None:
-            open_text = _as_decimal(day_open)
+            open_text = _as_index_level(day_open)
             if open_text is not None:
                 fields["OPEN"] = open_text
                 try:
@@ -489,11 +489,11 @@ class EngineNormaliser:
                 except TypeError, ValueError, ZeroDivisionError:
                     pass
         if day_high is not None:
-            high_text = _as_decimal(day_high)
+            high_text = _as_index_level(day_high)
             if high_text is not None:
                 fields["HIGH"] = high_text
         if day_low is not None:
-            low_text = _as_decimal(day_low)
+            low_text = _as_index_level(day_low)
             if low_text is not None:
                 fields["LOW"] = low_text
 
@@ -696,6 +696,18 @@ def _as_decimal(raw: Any) -> str | None:
     if raw is None:
         return None
     return str(raw)
+
+
+def _as_index_level(raw: Any) -> str | None:
+    """An index level as CALF decimal text, to two decimals: the level is a
+    float sum, so ``str()`` would put noise such as ``1000.0000000000001`` on
+    the wire."""
+    if raw is None:
+        return None
+    try:
+        return f"{float(raw):.2f}"
+    except TypeError, ValueError:
+        return None
 
 
 def _as_int_text(raw: Any) -> str | None:

@@ -5,10 +5,10 @@
 
     - What CALF is and why a market-data protocol is separate from order entry
     - How CALF channels expose different levels of market information
-    - How `TOP`, `TRADE`, and `STATE` complement each other
+    - How `TOP`, `TRADE`, `STATE` and the other channels complement each other
     - How participants subscribe and stay synchronized using a generic text protocol
     - How sequence numbers and replay make reconnect behavior deterministic
-    - How the same CALF model can disseminate derived index calculations
+    - How the same CALF model disseminates the exchange's index levels
 
 
 
@@ -43,8 +43,13 @@ CALF separates data into channels so clients can subscribe only to what they nee
 | `TOP` | Best bid/ask, top sizes, last-trade fields (`SNAP` + `MD`) | UI book widgets, spread monitoring, execution bots |
 | `TRADE` | Executed prints (`TRADE`) | Tape display, strategy triggers, volume analytics |
 | `STATE` | Session/instrument state transitions (`STATE`) | Session-aware bots, operational monitors |
+| `DEPTH` | Several price levels per side, aggregated (`SNAP` + `DEPTH`) | Ladders, liquidity analysis |
+| `AUCTION` | Auction uncross results and, during a call phase, the indicative price (`AUCTION`, `INDIC`) | Auction strategies, opening/closing price displays |
+| `CB` | Circuit-breaker halt and resume detail: level, trigger price, reopening time (`SNAP` + `CB`) | Halt displays, risk monitors |
+| `INDEX` | Index levels from `pm-index` (`SNAP` + `IDX`) | Index dashboards, benchmark tracking |
 
-Think of the three channels as answering increasingly specific questions about the market:
+The full rules for each are in the [CALF Protocol Reference](../part-2-specifications/030-calf.md).
+The three core channels answer increasingly specific questions about the market:
 
 | Question | Channel |
 |---|---|
@@ -124,7 +129,7 @@ SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|A
 MD|CH=TOP|SYM=AAPL|SEQ=101|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400
 
 # A trade executed: 200 shares at 150.12, buy-side was the aggressor
-TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-07T10:16:00.141Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 ```
 
 ```mermaid
@@ -235,37 +240,27 @@ The same protocol works for all, with different subscription sets.
 
 ## CALF and Index Dissemination
 
-The `CALF` channel model is also suitable for **disseminating index calculations**.
-
-Conceptually, an index feed is just another ordered stream of derived market facts:
-
-- index value
-- timestamp
-- optional contribution metadata
-- sequence for gap detection/recovery
-
-In EduMatcher, this can be integrated in the same operational pattern as other CALF
-streams, so clients can consume index updates with the same subscription, sequence,
-and replay semantics they already use for `TOP`/`TRADE`/`STATE`.
-
-Practical options include:
-
-- publishing index values as a dedicated CALF stream in the gateway
-- mapping index updates into `STATE`-style or dedicated symbol streams for consumers
-
-A client subscribing to index data would follow the same handshake and sequence rules as any other CALF stream. For example, an index update might look like:
+The same channel model carries **index levels**. `pm-index` computes each
+configured index and publishes its level; `pm-md-gwy` turns those updates into
+the `INDEX` channel, with the same subscription, sequence and replay rules as
+`TOP`/`TRADE`/`STATE`. An index id is not a tradable symbol, so it is not in
+`WELCOME|SYMBOLS=` and `SYM=*` is not allowed: subscribe to each index by id.
 
 ```text
-SUB|CH=TOP|SYM=EDU-INDEX
-SNAP|CH=TOP|SYM=EDU-INDEX|SEQ=1|TS=2026-06-07T10:00:00.000Z|LAST=1042.30
-MD|CH=TOP|SYM=EDU-INDEX|SEQ=2|TS=2026-06-07T10:00:05.000Z|LAST=1043.10
+SUB|CH=INDEX|SYM=EDU50
+SNAP|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|OPEN=5100.00|HIGH=5130.10|LOW=5098.20|SESSION=CONTINUOUS
+IDX|CH=INDEX|SYM=EDU50|SEQ=13|TS=2026-06-07T10:16:05.000Z|LEVEL=5124.10|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+24.10|PCTCHG=+0.47
 ```
+
+A `SNAP` without `LEVEL` means the gateway has had no level for that id since
+it started — normal outside trading hours, or for an id that does not exist.
+See [`IDX`](../part-2-specifications/030-calf.md#idx) for every field.
 
 The key idea: **one generic subscriber model for both raw market events and derived index events**.
 
 ```mermaid
 flowchart LR
-    E[Engine market events] --> X[Index calculator]
+    E[Engine market events] --> X[pm-index]
     X --> G[pm-md-gwy normalisation and fanout]
     G --> C1[Index dashboard]
     G --> C2[Strategy bot]
@@ -282,7 +277,7 @@ For a robust CALF client implementation:
 
 1. **Parse line-by-line** — TCP is a byte stream; a single `recv()` can contain part of a line, one full line, or several lines at once. Buffer and split on `\n`.
 2. **Track `last_seq` per stream** — keep a dict keyed by `(CH, SYM)` and check every incoming `SEQ`.
-3. **Treat missing fields in `MD` as unchanged** — if an `MD` message has no `ASK` field, the ask price has not moved since the last `SNAP` or `MD` that carried it. Do not reset it to zero.
+3. **Treat missing fields in `MD` as unchanged, and empty ones as withdrawn** — if an `MD` message has no `ASK` field, the ask price has not moved since the last `SNAP` or `MD` that carried it; `ASK=` with an empty value means the ask side is now empty. Do not reset a missing field to zero.
 4. **Handle `HB`** — a heartbeat means the gateway is alive but quiet. If neither data nor `HB` arrives, the connection may be dead.
 5. **On gap, attempt replay; on replay miss, reset from `SNAP`** — send `RESUME|CH=<ch>|SYM=<sym>|LASTSEQ=<n>|EPOCH=<epoch of the run n came from>`, and drop any replayed message at or below the `SEQ` you already recorded. If you get `ERR CODE=REPLAY_MISS` instead, accept the fresh `SNAP` that follows on the snapshot-backed channels; on `TRADE`/`AUCTION` none follows and the gap is permanent.
 6. **Keep subscriptions narrow** — only subscribe to `(CH, SYM)` pairs your process actually uses.
@@ -293,11 +288,11 @@ For a robust CALF client implementation:
 
 CALF gives EduMatcher a readable but production-shaped market-data model:
 
-- channelized information levels (`TOP`, `TRADE`, `STATE`)
+- channelized information levels (`TOP`, `TRADE`, `STATE`, `DEPTH`, `AUCTION`, `CB`, `INDEX`)
 - snapshot baseline + incremental updates
 - deterministic sync via per-stream sequences
 - bounded replay for short disconnect recovery
-- reusable dissemination pattern for derived outputs such as index calculations
+- the same dissemination pattern for derived outputs such as index levels
 
 This makes CALF a practical bridge between educational clarity and realistic feed behavior.
 
