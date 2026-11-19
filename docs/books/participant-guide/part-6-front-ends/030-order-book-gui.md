@@ -216,9 +216,9 @@ BOOK_GUI_PORT=8100 make up
 
 #### All the web applications against one backend
 
-`web-apps/Makefile` starts the log console, TapeDeck, the Trading GUI and the
-order book viewer together, each from its own directory, and points them all at
-one backend address:
+`web-apps/Makefile` starts the log console, TapeDeck, the Trading GUI, the
+order book viewer, the operator dashboard and the Clearing GUI together, each
+from its own directory, and points them all at one backend address:
 
 ```bash
 cd web-apps

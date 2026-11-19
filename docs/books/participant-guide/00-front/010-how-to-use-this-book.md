@@ -19,8 +19,8 @@ profit, and using the trading screens. It is written from the trader's seat.
 | **II. Orders** | The trader console, every order type and time in force, combo orders, and the idea of implied orders |
 | **III. Market making** | What a market maker does, quote obligations and lifecycle, and the market-maker bot |
 | **IV. Automated trading** | The AI trader bots, and how they decide what to trade |
-| **V. Positions and results** | Position tracking, average cost, realized and unrealized P&L |
-| **VI. Front-ends** | TapeDeck, the Trading GUI and the Order Book Viewer |
+| **V. Positions and results** | Position tracking, average cost, realized and unrealized P&L, and your end-of-day statement |
+| **VI. Front-ends** | TapeDeck, the Trading GUI, the Order Book Viewer and the Clearing GUI |
 | **Appendix** | An FAQ on order types, saved orders, average cost and self-match prevention |
 
 ## Where to start

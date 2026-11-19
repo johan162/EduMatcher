@@ -152,12 +152,11 @@ order into an empty book is therefore an accepted order that immediately
 cancels in full — **not** a rejection, and worth distinguishing when you write
 a client:
 
-!!! note "Not shown in `pm-alf-console`"
-    `pm-alf-console`'s terminal display prints `CANCELLED <order-id>` without
-    the reason, even though the underlying message carries it. To see
-    `CANCEL_REASON` for yourself, connect over the real ALF TCP gateway
-    (`pm-alf-gwy`) with a raw client, or use the REST API's `cancel_reason`
-    field — see [ALF TCP Gateway — Unsolicited cancels](../../operator-guide/part-5-gateways/010-alf-gateway.md#unsolicited-cancels).
+!!! note "Where you see the reason"
+    `pm-alf-console` prints it on the cancel line:
+    `CANCELLED <order-id> reason=INSUFFICIENT_LIQUIDITY`. Over the ALF TCP
+    gateway (`pm-alf-gwy`) it is the `CANCEL_REASON` field, and over REST the
+    `cancel_reason` field — see [ALF TCP Gateway — Unsolicited cancels](../../operator-guide/part-5-gateways/010-alf-gateway.md#unsolicited-cancels).
 
 | Situation | What you receive |
 |---|---|
@@ -1326,7 +1325,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=2.00
 | No `STOP=` and no prior trade | **REJECTED** (engine cannot compute initial stop) |
 | Submitted during auction phase | **Accepted** — rests until the auction uncroses, then evaluated on next trade |
 | Large `trail_offset` relative to price | Stop may never trigger if the market doesn't move that far |
-| Triggered during uncross | The resulting MARKET order participates in the uncross matching round |
+| Triggered by the uncross print | Converted to MARKET and executed after the uncross, not inside it |
 | Multiple trailing stops on the same symbol | All are evaluated after every trade in O(t) time (t = number of trailing stops) |
 | Several prints in one sweep | Evaluated once per incoming order, against the sweep's **last** price: the stop ratchets once, to that price |
 | Amend | **Rejected** — cancel and re-enter instead |
@@ -1501,14 +1500,13 @@ otherwise be marketable.
 
 | Scenario                          | Behaviour                                                                              |
 |-----------------------------------|----------------------------------------------------------------------------------------|
-| Order not found (wrong ID)        | **REJECTED** — "Order not found"                                                       |
+| Order not found (wrong ID)        | **REJECTED** `ORDER_NOT_FOUND` — "Order not found"                                     |
 | Order owned by another gateway    | **REJECTED** — "Cannot amend an order owned by another gateway"                        |
-| Order already filled              | **REJECTED** — "Cannot amend FILLED order"                                             |
-| Order already cancelled           | **REJECTED** — "Cannot amend CANCELLED order"                                          |
+| Order already filled, cancelled or expired | **REJECTED** `ORDER_NOT_FOUND` — "Order not found": a finished order has left the book |
 | MARKET / STOP / FOK order         | **REJECTED** — e.g. `"Cannot amend STOP orders"` (message names the actual order type) |
 | Session state is `CLOSED`         | **REJECTED** — "Market is closed"                                                      |
 | New price violates the symbol's collar | **REJECTED** — same collar-rejection reason a `NEW` order at that price would get |
-| `QTY=` is not a valid integer     | **REJECTED** — "Amend quantity must be an integer"                                     |
+| `QTY=` is not a whole number      | Refused by the console before sending (`Parse error: QTY= is not a whole number: '1.5'`); the engine answers a direct client with "Amend quantity must be an integer" |
 | New QTY $\leq$ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity"                      |
 | New QTY = 0 or negative           | **REJECTED** — "Quantity must be positive"                                             |
 | New PRICE $\leq$ 0                | **REJECTED** — "Price must be positive"                                                |

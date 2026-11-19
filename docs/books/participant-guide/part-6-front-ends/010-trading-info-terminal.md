@@ -101,9 +101,10 @@ make up-all
 ```
 
 Then open **<http://localhost:8090>**. The log console comes up on
-[8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the trading GUI on [8093](020-trading-platform-gui.md) and
-the order book viewer on 8094 and the
-[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095 at the same time.
+[8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the trading GUI on [8093](020-trading-platform-gui.md),
+the [order book viewer](030-order-book-gui.md) on 8094, the
+[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095 and the
+[Clearing GUI](040-clearing-gui.md) on 8096 at the same time.
 
 There are no addresses to configure because every container shares one
 Compose network, on which the exchange answers to the hostname `edumatcher`.

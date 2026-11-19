@@ -45,6 +45,9 @@ Each seeded quote entry defines:
 - `bid_price`, `ask_price`
 - `bid_qty`, `ask_qty`
 - optional `tif` (default `DAY`), optional `quote_id`
+- optional `seed_once` (default `true`): skip the seed when a quote for the
+  same gateway and symbol was restored from the previous run — see
+  [Market Making → `seed_once`](020-market-making.md#controlling-when-seeds-are-applied-seed_once)
 
 If at least one `MARKET_MAKER` gateway is configured, the engine **requires**
 each symbol to define at least one quote seed — the config loader rejects the
@@ -95,19 +98,21 @@ has them validated and injected the normal way. `pm-config-gen
 9.  Begin accepting gateway connections
 ```
 
-For a clean first run, clear persisted files so no stale state competes with
-your seeds:
+For a clean first run, clear the persisted files in the data directory
+(`pm-opctl-cli show` prints where it is) so no stale state competes with your
+seeds:
 
 ```bash
-rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
-poetry run pm-engine --verbose
+cd <data directory>
+rm -f gtc_orders.json book_stats.json gtc_combos.json
+pm-engine --verbose
 ```
 
-The engine will print one line per injected quote:
+The engine logs one line per injected quote, then a total:
 
 ```
-[ENGINE] MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
-[ENGINE] Injected 3 market-maker quote(s) and 0 combo(s).
+MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
+Injected 3 market-maker quote(s) and 0 combo(s).
 ```
 
 ### `gateway_id` is an accounting identity, not a connectivity check
@@ -215,6 +220,7 @@ Gateway to engine:
 Engine to gateway:
 
 - `quote.ack.<GW_ID>`
+- `quote.cancel_ack.<GW_ID>` (the answer to `QUOTE_CANCEL`)
 - `quote.status.<GW_ID>`
 - `risk.kill_switch_ack.<GW_ID>`
 

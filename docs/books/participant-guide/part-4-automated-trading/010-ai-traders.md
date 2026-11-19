@@ -67,8 +67,8 @@ detail. The built-in presets (`pm-ai-trader --list-presets`):
 | `block-taker` | trend | sweep (FOK) | few-large | stop-limit | Takes whole blocks or nothing |
 | `contrarian` | reversion | passive (GTC) | cautious | bracket (OCO) | Fades moves patiently |
 | `auction-player` | reversion | passive | cautious | — | Trades mostly in the opening and closing auctions (ATO/ATC) |
-| `value-investor` | value | passive | cautious | — | Buys below its view of the true value, sells above |
-| `institutional` | value | twap | few-large | — | Large parent orders toward the value, worked in slices over minutes |
+| `value-investor` | value | passive | cautious | stop-limit | Buys below its view of the true value, sells above |
+| `institutional` | value | twap | few-large | stop-limit | Large parent orders toward the value, worked in slices over minutes |
 | `news-trader` | news | marketable | aggressive | — | Trades headlines within seconds, in their direction |
 | `combo-trader` | basket | combo | own | — | Baskets of two to five symbols as one all-or-none combo: pairs, long or short baskets, hedged books, sector rotation |
 

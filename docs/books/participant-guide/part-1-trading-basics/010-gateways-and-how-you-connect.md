@@ -102,13 +102,14 @@ matching engine and of every other gateway.
 
 Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
-- **ALF** — configured under `participants`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `participants`).
+- **ALF** — the TCP listener of `pm-alf-gwy` is configured under the top-level `alf_gateway` key. Every order-entry identity, whichever gateway it arrives through (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`), must exist under `participants`, which `pm-engine` authenticates it against.
   Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
 - **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable.
 - **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection.
 - **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection.
 - **DC1** — configured under the top-level `dc_gateway` key; used by `pm-dc-gwy`. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol.
 - **LALF** — configured under the top-level `log_server` key; used by `pm-log-srv`. Collects operational `logging`-module output from every other `pm-*` process over a persistent TCP connection into a queryable SQLite database. The same key also configures **LALF-PS**, the ZeroMQ `PUB`/`PULL` interface that distributes those rows back out to live log viewers.
+- **REST/WebSocket** — configured under the top-level `api_gateways` key, one block per instance (the bundled configurations define `desk` on 8080 and `dashboards` on 8081); used by `pm-api-gwy`. Each instance lists the API keys it accepts and the participant each key trades as.
 
 See [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for the full field-by-field schema of
 each gateway's configuration block, and [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md)

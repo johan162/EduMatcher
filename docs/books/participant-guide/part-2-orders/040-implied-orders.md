@@ -384,10 +384,12 @@ exchanges support additional implication directions:
 | Implied-out | Spread → Outrights | A resting spread order implies an outright quote in one leg, given liquidity in the other |
 | Implied-through | Spread → Spread | Liquidity in spread AB and outright B together imply a quote in spread AC |
 
-**Implied-out example:** A trader posts "sell MSFT-AAPL spread at 205.00." If
-AAPL has a resting bid at 210.00, the exchange can derive an implied offer in
-MSFT at 415.00 (= 205.00 + 210.00). This publishes synthetic sell liquidity in
-the outright MSFT book that did not previously exist.
+**Implied-out example:** A trader posts "sell MSFT-AAPL spread at 205.00" —
+sell MSFT, buy AAPL, for a net 205.00. If AAPL has a resting offer at 210.00,
+the exchange can derive an implied offer in MSFT at 415.00 (= 205.00 + 210.00):
+a buyer of MSFT at 415.00 trades with the spread seller, who buys AAPL from
+that offer at 210.00. This publishes synthetic sell liquidity in the outright
+MSFT book that did not previously exist.
 
 **Implied-through** chains multiple relationships: spread AB liquidity combined
 with outright B liquidity generates implied quotes in spread AC. The

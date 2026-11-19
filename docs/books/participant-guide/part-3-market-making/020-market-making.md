@@ -179,8 +179,8 @@ flowchart TD
     own inventory across sessions — but if you're using it for a classroom
     exercise and expect each session to start from the full configured
     quantity, restart discipline alone will not reset it; delete
-    `src/data/gtc_orders.json` (see the testing tip under
-    [`seed_once`](#controlling-when-seeds-are-applied-seed_once) above) or
+    `gtc_orders.json` in the data directory (see the testing tip under
+    [`seed_once`](#controlling-when-seeds-are-applied-seed_once) below) or
     switch the leg's `tif` to `DAY` and let a business-day rollover clear it.
 
 ### What happens to the *hit* leg itself, not just the sibling
@@ -375,7 +375,7 @@ This is done with the `market_maker_quotes` key under each symbol in
 ```yaml
 symbols:
   AAPL:
-    tick_size: 0.01
+    tick_decimals: 2
     market_maker_quotes:
       - gateway_id: MM01      # must be a configured MARKET_MAKER gateway
         quote_id: SEED-MM01-AAPL
@@ -436,8 +436,9 @@ flowchart TD
 ```
 
 !!! tip "Resetting to \"first day\" for testing"
-    Delete `src/data/gtc_orders.json` (and, if you also want prior trade
-    history and reference prices gone, `src/data/book_stats.json`) before
+    Delete `gtc_orders.json` in the data directory (`pm-opctl-cli show`
+    prints it; and, if you also want prior trade
+    history and reference prices gone, `book_stats.json`) before
     starting the engine. With no persisted quote to restore, every
     `seed_once: true` seed fires again on the next startup — this is the
     standard way to reset a demo exchange to day-one state.
@@ -560,12 +561,12 @@ that remainder as a quote and cancels it under either `CANCEL_QUOTES_ONLY` or
 `GW02` is a customer who buys 200 shares.
 
 ```
-# Configure engine_config.yaml:
-#   gateways.MM01.role = MARKET_MAKER
-#   gateways.MM01.enforce_mm_obligation = true
-#   gateways.MM01.mm_max_spread_ticks = 10
-#   gateways.MM01.mm_min_qty = 100
-#   gateways.MM01.quote_refresh_policy = INACTIVATE_ON_ANY_FILL
+# engine_config.yaml, under participants:, entry id: MM01
+#   role: MARKET_MAKER
+#   enforce_mm_obligation: true
+#   mm_max_spread_ticks: 10
+#   mm_min_qty: 100
+#   quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
 # 1. MM01 posts a quote
 [MM01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|QUOTE_ID=q1
@@ -665,18 +666,19 @@ The mapping is explicit in both directions:
 
 The fill arrives as a normal `order.fill.<gateway_id>` event for a leg `order_id`.
 
-Important implementation detail:
+`order.fill` includes `quote_id` in its payload (an `Order`'s `quote_id`
+field is carried straight through to the fill event), and `side` says which
+leg traded: `BUY` is the bid, `SELL` the ask. A fill therefore identifies its
+quote and leg on its own.
 
-- `order.fill` **does** include `quote_id` in its published payload (an
-  `Order`'s `quote_id` field is carried straight through to the fill event).
-
-Therefore the MM must identify quote-leg fills by keeping the mapping returned
-by `quote.ack`:
+Keeping the mapping returned by `quote.ack` is still worthwhile, to check that
+a fill belongs to the quote the MM believes is current rather than to a
+remainder of an older one:
 
 - `quote_id -> {symbol, bid_order_id, ask_order_id}`
 - `order_id -> {quote_id, leg_side, symbol}`
 
-Then the rule is simple:
+With it the rule is simple:
 
 - if `fill.order_id == bid_order_id`, the fill belongs to the bid leg of that quote
 - if `fill.order_id == ask_order_id`, the fill belongs to the ask leg of that quote
@@ -715,7 +717,7 @@ In practice the MM should keep:
 - current active quote per symbol
 - reverse map from child `order_id` to `quote_id`
 - local state showing whether the quote is active, cancelled, or inactivated
-- local pending-submission state for edge cases where a fill arrives before `quote.ack`
+- local pending-submission state, so a quote sent but not yet acknowledged is not sent twice
 
 ### Exact implementation model
 
@@ -789,11 +791,8 @@ The fill payload includes fields such as:
 - `qty`
 - `price`
 
-It **does** include `quote_id` (see above).
-
-So the MM must not assume that `order.fill` alone is enough to identify the
-logical quote instance unless the MM already persisted the order-id mapping from
-`quote.ack`.
+It also carries `quote_id` (see above), so a fill names its quote without any
+further state.
 
 ### Quote lifecycle messages and what they mean
 
@@ -813,7 +812,7 @@ Important details:
 
 - on rejection, `accepted=false` and no leg IDs are usable
 - on acceptance, `bid_order_id` and `ask_order_id` are the critical correlation keys
-- on explicit `QUOTE_CANCEL`, the engine currently sends an acceptance ack with the `quote_id`, but no leg IDs
+- an explicit `QUOTE_CANCEL` is answered on a different topic, `quote.cancel_ack.<gateway_id>`, carrying the symbol and the cancelled leg IDs (see [Explicit cancel case](#explicit-cancel-case))
 
 #### `quote.status.<gateway_id>`
 
@@ -848,49 +847,47 @@ order-book event.
 
 This is the most important correctness section in the note.
 
-The engine does **not** always emit messages in the intuitive order
-`quote.ack -> quote.status ACTIVE -> later fill -> later inactive/cancel`.
+`quote.ack` and `quote.status ACTIVE` always come first. After them, the
+messages a fill causes do **not** arrive in the intuitive
+`fill -> sibling cancel -> inactive` order.
 
 #### Normal resting-quote case
 
-If neither leg matches immediately on insert, the MM will typically see:
+If neither leg matches on insert, the MM sees:
 
 1. `quote.ack accepted=true`
 2. `quote.status ACTIVE`
-3. later, if a leg trades, one or more `order.fill`
-4. if policy inactivates the quote, `order.cancelled` for the sibling leg
-5. `quote.status INACTIVE_*`
+3. later, when a leg trades and the policy inactivates the quote: the
+   sibling's `order.cancelled` and `quote.status INACTIVE_*`, and the hit
+   leg's `order.fill` — the fill often arriving **last**, because the engine
+   pulls the sibling at the moment of the fill, before anything else that
+   order causes is matched
 
-#### Immediate-match-on-insert edge case
+#### Immediate-match-on-insert case
 
-The engine inserts the two quote legs into the books **before** it emits
-`quote.ack` and `quote.status ACTIVE`.
+If a leg crosses the book as it arrives, the order is the same:
+`quote.ack accepted=true`, `quote.status ACTIVE`, and only then the fill's
+messages — for example `quote.status INACTIVE_BID_FILLED`, the bid's
+`order.fill`, and `order.cancelled` (`QUOTE_LEG_FILLED`) for an ask that never
+reached the book.
 
-Therefore, if one leg matches immediately on entry, the MM may observe:
-
-1. `order.fill` for the filled leg
-2. possibly `order.cancelled` for the sibling leg
-3. `quote.status INACTIVE_*`
-4. only then `quote.ack accepted=true`
-5. and then `quote.status ACTIVE`
-
-That ordering is counter-intuitive, but it is what the current engine code does.
-
-Practical consequence for the MM:
-
-- the MM must tolerate fills arriving before `quote.ack`
-- the MM must be able to reconcile those early fills once `quote.ack` provides `bid_order_id` and `ask_order_id`
+Practical consequence for the MM: by the time any fill arrives, `quote.ack`
+has already delivered the leg IDs, but the MM must not infer causation from
+arrival order — a `quote.status INACTIVE_*` can precede the `order.fill` that
+caused it.
 
 #### Explicit cancel case
 
-On `QUOTE_CANCEL|SYM=<symbol>`, the engine currently does:
+On `QUOTE_CANCEL|SYM=<symbol>`, the engine:
 
-1. cancel any still-resting bid/ask child orders, emitting `order.cancelled` per resting child
-2. emit `quote.status CANCELLED`
-3. emit `quote.ack accepted=true`
+1. cancels any still-resting bid/ask child orders, emitting `order.cancelled` per resting child
+2. emits `quote.status CANCELLED`
+3. answers the request with `quote.cancel_ack accepted=true`, carrying the
+   symbol and the IDs of the legs it cancelled (`accepted=false` with a
+   reason when there was no quote to cancel)
 
-So in this path, `quote.status CANCELLED` comes **before** the final successful
-`quote.ack`.
+So in this path, `quote.status CANCELLED` comes **before** the
+`quote.cancel_ack`.
 
 #### Replace-by-new-quote case
 
@@ -981,10 +978,13 @@ case that is easy to get wrong (a full fill collapses the nuance below,
 since there is no remainder left to reason about). The MM may see:
 
 ```text
-[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
-[09:31:02] CANCELLED  S9F3E1AA
+[09:31:02] CANCELLED S9F3E1AA reason=QUOTE_LEG_FILLED
 [09:31:02] QUOTE INACTIVE_BID_FILLED  Q123
+[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
+
+(The sibling's cancel and the status change can arrive before the fill that
+caused them.)
 
 #### How the MM identifies the fill as belonging to the active quote
 
@@ -1076,7 +1076,7 @@ Typical resulting events:
 ```text
 [09:31:02] CANCELLED  S9F3E1AA
 [09:31:02] QUOTE CANCELLED  Q123  Cancelled by participant
-[09:31:02] QUOTE ACK  Q123
+[09:31:02] QUOTE CXL OK AAPL  legs cancelled=1
 ```
 
 Then the MM submits a new quote.
@@ -1097,45 +1097,24 @@ The engine will:
 This means the MM does **not** have to send `QUOTE_CANCEL` first if it is
 immediately replacing the quote with another quote on the same symbol.
 
-### Example 4: immediate fill before `quote.ack`
+### Example 4: a quote that trades as it arrives
 
-This is the tricky case that every robust MM must handle.
-
-Suppose the quote is marketable as soon as it is inserted. The MM may see:
+Suppose the bid is marketable as soon as it is inserted — a seller already
+rests at 209.80. The MM sees:
 
 ```text
-[09:30:00] FILL      B1A8C2D4  qty=500 @209.80  remaining=0  [FILLED]
-[09:30:00] CANCELLED  S9F3E1AA
-[09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
 [09:30:00] QUOTE ACK  Q123  bid=B1A8C2D4 ask=S9F3E1AA
 [09:30:00] QUOTE ACTIVE  Q123
+[09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
+[09:30:00] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
+[09:30:00] CANCELLED S9F3E1AA reason=QUOTE_LEG_FILLED
 ```
 
-Yes, that ordering is possible in the current engine.
-
-#### What the MM must do in this case
-
-The MM needs one more local concept:
-
-- `pending_quote_by_symbol`
-
-When it sends:
-
-```text
-QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
-```
-
-it should locally remember that there is a pending quote submission for AAPL.
-
-Then if an early fill arrives before `quote.ack`, the MM can:
-
-1. temporarily buffer the fill by `(gateway_id, symbol)`
-2. wait for `quote.ack`
-3. use `bid_order_id` and `ask_order_id` from the ack to retroactively resolve that buffered fill
-4. then continue normal state handling
-
-Without this pending-submit buffer, the MM cannot deterministically map an
-early fill to the quote until the ack arrives.
+The acknowledgement and `ACTIVE` come first, so the leg IDs are known before
+any fill. Under `INACTIVATE_ON_ANY_FILL` the ask never reaches the book: it
+is cancelled with `QUOTE_LEG_FILLED` as soon as the bid trades, and the quote
+is already `INACTIVE_BID_FILLED` when the fill line arrives. The bid's
+remaining 400 keeps resting, as in Example 1.
 
 ### MM operator workflow via `pm-alf-console`
 
@@ -1281,9 +1260,9 @@ What the operator should do next depends on the configured refresh policy.
 Typical terminal output:
 
 ```text
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
-[09:31:02.418] CANCELLED be2170fd
-[09:31:02.418] QUOTE INACTIVE_BID_FILLED  Q123
+[09:31:02.416] CANCELLED be2170fd reason=QUOTE_LEG_FILLED
+[09:31:02.417] QUOTE INACTIVE_BID_FILLED  Q123
+[09:31:02.418] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
 
 Operator interpretation:
@@ -1359,7 +1338,7 @@ Typical output:
 [09:31:20.010] CANCELLED 7c4a91e2
 [09:31:20.011] CANCELLED be2170fd
 [09:31:20.011] QUOTE CANCELLED  Q123  Cancelled by participant
-[09:31:20.012] QUOTE ACK  Q123
+[09:31:20.012] QUOTE CXL OK AAPL  legs cancelled=2
 ```
 
 Important operator note:
@@ -1522,7 +1501,8 @@ pending_quote[symbol] = {
 }
 ```
 
-This exists specifically to survive the immediate-fill-before-ack edge case.
+It records a quote that was sent but not yet acknowledged, so the MM does not
+send a second one for the same symbol in the meantime.
 
 ### What the MM must know to re-issue a quote
 
@@ -1566,8 +1546,7 @@ The MM must choose one of:
 
 The MM must not assume:
 
-- that `order.fill` contains `quote_id`
-- that `quote.ack` always arrives before every other quote-related message
+- that the messages a fill causes arrive in cause-and-effect order (`quote.status INACTIVE_*` can precede the `order.fill`)
 - that `quote.status ACTIVE` always means the quote is still active at the moment it is received
 - that `QUOTE_CANCEL` is keyed by `quote_id` rather than by symbol
 
@@ -1627,9 +1606,9 @@ sequenceDiagram
     ENG-->>MM: quote.status.MM01 {quote_id=Q123, status=ACTIVE}
 
     TK->>ENG: aggressive order hits B1
-    ENG-->>MM: order.fill.MM01 {order_id=B1, ...}
-    ENG-->>MM: order.cancelled.MM01 {order_id=S1}
+    ENG-->>MM: order.cancelled.MM01 {order_id=S1, cancel_reason=QUOTE_LEG_FILLED}
     ENG-->>MM: quote.status.MM01 {quote_id=Q123, status=INACTIVE_BID_FILLED}
+    ENG-->>MM: order.fill.MM01 {order_id=B1, quote_id=Q123, ...}
 
     MM->>MM: map B1 -> Q123 using quote.ack state
     MM->>MM: compute replacement quote
@@ -1640,27 +1619,27 @@ sequenceDiagram
 
 - The engine's unique active quote slot is `(gateway_id, symbol)`.
 - `quote_id` identifies the logical quote instance occupying that slot.
-- The MM identifies quote-leg fills by `order_id`, not by `quote_id` in the fill payload.
+- A fill carries `quote_id` and `side`; matching its `order_id` against the `quote.ack` mapping confirms it belongs to the current quote.
 - `quote.ack` is the critical mapping message because it provides `bid_order_id` and `ask_order_id`.
 - Under `INACTIVATE_ON_ANY_FILL`, sibling cancellation is automatic.
 - Under `INACTIVATE_ON_FULL_FILL`, sibling cancellation happens only after full fill.
 - Under `NEVER_INACTIVATE`, the MM must decide when to cancel or replace.
 - **No policy ever automatically cancels the *hit* leg's own remainder on a partial fill, under any policy** — sibling cancellation and quote inactivation are statements about the untouched leg and the bookkeeping slot, not about the traded leg's own resting quantity. The hit leg's remainder is cleaned up by exactly one mechanism regardless of policy: the engine's replace-in-slot logic, triggered by the MM's own next `QUOTE` or `QUOTE_CANCEL` for that symbol.
 - Re-quoting can be done either by explicit `QUOTE_CANCEL` followed by new `QUOTE`, or by sending a replacement `QUOTE` directly on the same symbol — either path guarantees any leftover resting quantity from the previous quote (sibling or hit-leg remainder alike) is cancelled first.
-- The MM must tolerate edge cases where `order.fill` and even `quote.status INACTIVE_*` arrive before `quote.ack`.
+- `quote.ack` and `quote.status ACTIVE` arrive before any fill of that quote, but the messages a fill causes can arrive in any order: `quote.status INACTIVE_*` and the sibling's cancel often precede the `order.fill`.
 
 ### Operational checklist for the MM implementation
 
 - Always send your own `QUOTE_ID` for clean reconciliation.
 - Persist `quote.ack` mappings immediately.
 - Maintain `order_id -> quote_id` reverse lookup.
-- Correlate fills by `order_id`, never by assumed `quote_id` in the fill payload.
+- Correlate fills by `quote_id` and `side`, and check the `order_id` against the latest `quote.ack`.
 - Subscribe to all of:
   - `order.fill.<gateway_id>`
   - `order.cancelled.<gateway_id>`
   - `quote.ack.<gateway_id>`
   - `quote.status.<gateway_id>`
-- Add pending-submit buffering for the immediate-fill-before-ack edge case.
+- Do not infer causation from arrival order among a fill's `order.fill`, `order.cancelled` and `quote.status`.
 - Treat `quote.status INACTIVE_*` or `quote.status CANCELLED` as the authoritative signal that the previous quote slot is no longer active — **not** as a signal that every previously resting order from that quote is gone; a partially-filled leg can still be resting after either status.
 - Use direct replacement `QUOTE` when you want the engine to perform atomic replace semantics on the same symbol — this is also what cancels any leftover partially-filled leg from the previous quote, whether or not `quote.status` ever reported it as inactive.
 

@@ -119,7 +119,7 @@ doing. If you are not sure, use the first.
 
 | | What it is | Open | Use it when |
 |---|---|---|---|
-| **The whole stack** | The exchange and the five web applications started by default (`terminal-gui`, `log-gui`, `trader-gui`, `book-gui`, `dash-gui`) — a sixth, `config-gui`, is opt-in (`CONFIG_GUI=1`) since it talks to no exchange — together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
+| **The whole stack** | The exchange and the six web applications started by default (`terminal-gui`, `log-gui`, `trader-gui`, `book-gui`, `dash-gui`, `clearing-gui`) — a seventh, `config-gui`, is opt-in (`CONFIG_GUI=1`) since it talks to no exchange — together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
 | **This app alone, in a container** | Just the Trading GUI, pointed at an exchange you started some other way | <http://localhost:8093> | The exchange runs elsewhere — another machine, a VM, a host install |
 | **Local dev server** | Vite with hot reload, on your machine | <http://localhost:8193> | You are changing this application's code |
 
@@ -148,8 +148,9 @@ Then open **<http://localhost:8093>**. The exchange's REST API is reachable at
 
 The other applications come up at the same time: the trader terminal on
 [8090](010-trading-info-terminal.md), the log console on
-[8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the order book viewer on 8094 and the
-[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095.
+[8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the order book viewer on 8094, the
+[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095 and the
+[Clearing GUI](040-clearing-gui.md) on 8096.
 
 Everyday commands, from `deployment/docker` (or with `./edumatcher.sh` in a
 released install):
@@ -673,20 +674,21 @@ Notes worth knowing before you place an order:
 - A **TRAILING_STOP** needs a reference to trail from. If the symbol has never
   traded and you supply no stop price, the engine rejects it with *"Trailing
   stop requires STOP= or a prior trade price"*.
-- **FOK**'s pre-check for "can this fill in full right now" excludes hidden
-  iceberg reserve and any same-gateway liquidity that self-match prevention
-  would filter out — so a FOK can reject with *"Insufficient liquidity"* even
-  when the visible book total looks sufficient.
+- **FOK**'s pre-check for "can this fill in full right now" counts the
+  hidden reserve of resting icebergs but excludes any same-gateway liquidity
+  that self-match prevention would filter out — so a FOK can reject with
+  *"Insufficient liquidity"* even when the visible book total looks
+  sufficient, if much of it is your own.
 - **IOC requires a price** — it isn't a bare sweep like MARKET, it's a
   price-limited immediate execution with no resting remainder.
 - **MARKET, FOK and IOC are the "cannot rest" types**, and that single fact
-  explains most of their special-casing: they are rejected outright during
-  either auction phase and on a halted symbol, because in both cases the
-  engine is not matching continuously and there is nowhere for them to go.
-  Every other type is accepted and rests without matching until matching
-  resumes. During an auction the ticket disables those three tabs and shows a
-  banner; if one of them is selected when the auction starts, the ticket falls
-  back to `LIMIT` rather than dead-ending.
+  explains most of their special-casing: they are rejected outright outside
+  continuous trading (pre-open and both auctions) and on a halted symbol,
+  because then the engine is not matching and there is nowhere for them to
+  go. Every other type is accepted and rests without matching until matching
+  resumes. The ticket disables those three tabs whenever that is the case
+  (with a banner during an auction); if one of them is selected when it
+  happens, the ticket falls back to `LIMIT` rather than dead-ending.
 - See [Order Types](../part-2-orders/020-order-types.md) for the full engine-level reference.
 
 #### OCO orders
@@ -741,9 +743,10 @@ field). Before anything is sent, the ticket checks:
 
 - The market isn't `CLOSED` (blocked client-side with *"Market is closed — no
   orders accepted"*).
-- MARKET, FOK, and IOC aren't being submitted during an auction phase
-  (blocked client-side with *"`{TYPE}` orders are not accepted during an
-  auction"*).
+- MARKET, FOK, and IOC aren't being submitted outside continuous trading or
+  on a halted symbol (the ticket disables those tabs; the reason shown is
+  *"`{TYPE}` not accepted outside continuous trading"* or *"`{SYMBOL}` is
+  halted — `{TYPE}` orders not accepted"*).
 - Every required field for the selected type is present and valid — see
   [Errors and how to read them](#errors-and-how-to-read-them) for the exact
   messages.
@@ -1351,7 +1354,7 @@ the relevant field. Nothing reached the gateway.
 | "Trail offset required" | TRAILING_STOP with no trail offset |
 | "Price required for a LIMIT leg" / "Stop price required for a STOP leg" | OCO or Combo leg missing its required price field |
 | "Market is closed — no orders accepted" | Submitting while the phase is `CLOSED` |
-| "`{TYPE}` orders are not accepted during an auction" | MARKET / FOK / IOC during a call phase |
+| "`{TYPE}` not accepted outside continuous trading" / "`{SYMBOL}` is halted — `{TYPE}` orders not accepted" | MARKET / FOK / IOC in pre-open, an auction, or on a halted symbol |
 | "Price must be a positive number" | Amend dialog, non-numeric or non-positive price |
 | "Quantity must be a positive integer" | Amend dialog, blank / zero / negative / fractional quantity |
 | "Quantity must exceed the `{filled}` already filled — cancel the order instead" | Amend dialog; mirrors the engine's `qty > filled` rule exactly, including the boundary |
@@ -1382,8 +1385,7 @@ Amend and cancel have their own rejection set:
 
 | Message | Cause |
 |---|---|
-| `Order not found` | The id is unknown, or already evicted |
-| `Cannot amend FILLED order` (or CANCELLED / REJECTED / EXPIRED) | Terminal orders cannot be amended |
+| `Order not found` | The id is unknown, or the order has already filled, been cancelled or expired and so left the book |
 | `Cannot amend {TYPE} orders` | Only LIMIT and ICEBERG are amendable |
 | `Cannot amend an order owned by another gateway` / `Cannot cancel an order owned by another gateway` | Cross-gateway attempt |
 | `Amend requires at least PRICE or QTY` | Empty amend — normally caught locally first |
@@ -1738,7 +1740,7 @@ outside that network, and it has to be told how to get back in.
 | Trade History, the chart's history, or the Order Detail timeline is empty | Same cause — no `pm-stats` | Live fills and live events still appear; only the durable record is missing |
 | The blotter looks stale or disagrees with the engine | A missed event or a long reconnect | Press **Refresh** on Active Orders for an explicit `GET /orders` reconcile |
 | An order I submitted isn't in the blotter and I got no rejection | The ack timed out (`ack_timeout`) | Do **not** resubmit — press Refresh and look again; see [class C errors](#class-c-timeouts-which-are-not-rejections) |
-| MARKET / FOK / IOC tabs are disabled | An auction phase is running | Expected — those three cannot rest, so the engine refuses them during a call phase |
+| MARKET / FOK / IOC tabs are disabled | The phase is not `CONTINUOUS`, or the symbol is halted | Expected — those three cannot rest, so the engine refuses them whenever it is not matching |
 | Flatten and Flatten All are disabled | The phase is not `CONTINUOUS` | Expected — flatten submits MARKET orders |
 | A quote was rejected with "Quotes are only allowed for MARKET_MAKER participants" | The key's gateway is not a market maker | Use a `MARKET_MAKER` credential |
 | Quote Bootstrap legs show blank per-leg columns | The gateway served `/quotes/legs` from its warm cache | Expected; use the Active Quotes table above for authoritative per-side price/qty, or press **Resync** |
