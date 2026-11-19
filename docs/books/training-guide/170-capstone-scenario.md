@@ -257,8 +257,10 @@ From the admin gateway:
 ```
 
 The reply, `HALTED  TSLA  <n> quote leg(s) cancelled`, shows that the halt
-also pulled `MM_TSLA_01`'s quote. Try to trade TSLA from a trader gateway and
-confirm it is rejected (`code=INSTRUMENT_HALTED`). Then resume, and let the
+also pulled `MM_TSLA_01`'s quote. Send a market order for TSLA from a trader
+gateway (`NEW|SYM=TSLA|SIDE=BUY|TYPE=MARKET|QTY=10`) and confirm it is
+rejected (`code=INSTRUMENT_HALTED`); a limit order would be accepted and rest,
+unmatched, until the resume. Then resume, and let the
 market maker quote again — the halt did not leave it a quote to come back
 to:
 

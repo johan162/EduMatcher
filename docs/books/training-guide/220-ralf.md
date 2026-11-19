@@ -140,14 +140,15 @@ python3 ralf_subscriber.py \
 Then make a trade (the two limit orders in the note above). Expected:
 
 ```
-WELCOME: type=WELCOME fields={'PROTO': 'RALF1', 'GW': 'ralf-gwy01', 'ROLE': 'CLEARING', 'REPLAY': '86400', 'HBINT': '2'}
+WELCOME: type=WELCOME fields={'PROTO': 'RALF1', 'GW': 'ralf-gwy01', 'EPOCH': '3c29c9fc', 'ROLE': 'CLEARING', 'REPLAY': '86400', 'HBINT': '2'}
 Subscribed CH=['CLEARING'] SYM=* as role=CLEARING
 SNAP  CH=CLEARING SYM=* SEQ=0
 HB    (gateway heartbeat)
 EXEC  AAPL         60 @      150.0 BUY  ch=CLEARING
 ```
 
-`HB` arrives every 2 seconds (`HBINT=2`). An `EOD` line follows only when the
+`HB` arrives every 2 seconds (`HBINT=2`). `EPOCH` names this run of the
+gateway, so yours differs; Exercise 4 uses it. An `EOD` line follows only when the
 engine shuts down cleanly (chapter 12).
 
 :material-checkbox-blank-outline: Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.

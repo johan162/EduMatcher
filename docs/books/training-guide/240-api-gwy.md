@@ -269,7 +269,11 @@ curl -X DELETE 'http://127.0.0.1:8080/api/v1/orders/ORDER_ID?request_tag=rest-cx
 
 Expected behavior:
 
-- the submit call returns an accepted response or an engine validation error
+- the submit call returns `202 Accepted` with `"status": "PENDING"`: the order
+  was sent, and the engine's verdict follows on the private WebSocket
+  (Exercise 9). Add `?wait=ack` to the URL to wait for it instead
+  (`"status": "ACKED"`, `"accepted": true`). A request the gateway can check
+  itself — a price off the tick grid, say — is refused at once with `400`
 - a valid cancel request targets the authenticated credential's `gateway_id`
 - `request_tag` is echoed on the cancel response/event and identifies this
   request, not the original order
@@ -511,7 +515,8 @@ Expected behavior:
   ack lists them under `always`
 - an `order.fill` event's `data.liquidity_flag` tells you whether *your*
   order supplied liquidity (`MAKER`, it was resting) or removed it
-  (`TAKER`, it crossed the spread) — no join against another feed required
+  (`TAKER`, it crossed the spread); a fill from an auction uncross is
+  `AUCTION` on both sides — no join against another feed required
 
 :material-checkbox-blank-outline: Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.
 
@@ -574,8 +579,8 @@ HTTP/1.1 409 Conflict
 {"error":{"code":"TRANSITION_REJECTED","message":"Invalid transition CONTINUOUS → CONTINUOUS (allowed: CLOSED, CLOSING_AUCTION)","reject_code":"UNKNOWN"}}
 ```
 
-This is one place where REST tells you more than the console: `pm-admin`
-only prints `TIMEOUT` for the same request.
+`pm-admin` gives the same reason for the same request
+(`SESSION  REJECTED  Invalid transition …`).
 
 Look at cross-gateway order visibility:
 

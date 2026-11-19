@@ -129,7 +129,7 @@ ticks of 0.01).
 Circuit-breaker trigger percentages and halt durations come from a global
 ladder, `circuit_breaker_defaults`, applied to every symbol unless a symbol
 defines its own `circuit_breaker.levels` override (see the `TSLA` pattern in
-[The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)).
+[Risk Controls — Circuit breakers](../operator-guide/part-4-run-a-market/040-risk-controls.md#circuit-breakers)).
 Add a one-level ladder:
 
 ```yaml
@@ -414,7 +414,7 @@ only the *static* band is being tested:
 MSFT's 290.00 would have been rejected under L2 as well, and AAPL's 142.00 would
 have passed under L1: the level is the whole difference. An inline `collar:` on
 a symbol still overrides its level field by field, which is how `TSLA` in
-[The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)
+[Risk Controls — Price collars](../operator-guide/part-4-run-a-market/040-risk-controls.md#price-collars)
 sets only a tighter `dynamic_band_pct`.
 
 Three of the six orders were accepted and are still resting. Remove them

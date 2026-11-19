@@ -360,7 +360,7 @@ observe:
   one at every opening and closing auction, and for a reopening after a halt.
   To get a non-empty one, enter a crossing sell and buy while the call phase is
   open (a sell of 50 at 149.50 from `TRADER01` and a buy of 40 at 151.00
-  from `TRADER02`); the indicative then reads `INDICQTY=40|IMBQTY=10|INDICPX=149.5|IMB=SELL`,
+  from `TRADER02`); the indicative then reads `INDICQTY=40|IMBQTY=10|INDICPX=149.5|IMB=SELL|PHASE=CLOSING_AUCTION`,
   and `SESSION|STATE=CLOSED` ends the call phase with
   `AUCTION|…|EQQTY=40|TRADES=1|IMBQTY=10|REASON=SCHEDULED|EQPX=149.5|IMBSIDE=SELL`.
   Reopen the market (`PRE_OPEN`, then `CONTINUOUS`) before you go on.

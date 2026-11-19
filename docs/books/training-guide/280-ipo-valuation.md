@@ -349,6 +349,7 @@ pm-valuation --case tornfalk --no-tui --mode deterministic --list
 [output]
 Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding
   no seed quote: the book opens empty
+Deployed to …/ref_data/engine_config.json. Start the exchange to open trading.
 ```
 
 `s3-nominal-nomm` has sessions enabled (the opening auction needs them) and its
@@ -371,7 +372,7 @@ with `SESSION|STATE=CONTINUOUS`.
     120.00 and at 125.00 all 1000 buy shares can trade (1200 are offered, 200
     too many). The maximum matched quantity, 1000, is first reached at **120.00**,
     and the engine keeps the lowest of tied prices, so TORN opens at 120.00:
-    `TRADER01` is filled 1000 @120.0; `TRADER02` sells 600 + 400 @120.0 and the
+    `TRADER01` is filled 1000 @120.00; `TRADER02` sells 600 + 400 @120.00 and the
     last 200 of its 120.00 offer expire unfilled, because it is an `ATO` order.
     The book is empty again.
 

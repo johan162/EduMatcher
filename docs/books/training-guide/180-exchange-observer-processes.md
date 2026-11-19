@@ -94,8 +94,8 @@ Place one order from each trader:
 Compare this process with the gateway-local `ORDERS` command. `ORDERS` is useful
 inside one gateway; `pm-orders` is useful when you want an exchange-wide monitor.
 `pm-orders` only shows events it saw arrive, so start it before the orders.
-A rejected order shows `?` in most columns: the rejection carries the order
-ID, not the order.
+A rejected order leaves most columns blank and shows the reason in its status
+(`REJECTED (<reason>)`): the rejection carries the order ID, not the order.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-orders` shows orders from both gateways, while `ORDERS` shows only the current gateway's cache.
 

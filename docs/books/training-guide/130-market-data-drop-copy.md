@@ -97,7 +97,8 @@ one per side of the trade:
 ```
 
 `#2` is that gateway's own drop-copy sequence number; `TAKER`/`MAKER` says
-which side took liquidity.
+which side took liquidity (a fill from an auction uncross says `AUCTION` on
+both sides).
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-dc-spy` prints a fill
 event for a trade you caused, and you can say why an external consumer would

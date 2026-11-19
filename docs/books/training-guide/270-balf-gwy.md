@@ -509,7 +509,7 @@ connecting two clients using the same gateway ID.
 
 The default is `REJECT_NEW` (the generated config shows it). A second `LOGON`
 as `TRADER01` while the first session is open gets `accepted=False`, code
-`0x02` and the message `Gateway already connected`.
+`0x02` and the message `TRADER01 already connected`.
 
 Also verify heartbeat handling:
 
@@ -518,8 +518,8 @@ Also verify heartbeat handling:
 - Ensure your client replies with `HEARTBEAT_ACK`.
 - Skip ACK replies to confirm timeout disconnect after `heartbeat_timeout_sec`:
   with the generated values (1 s interval, 5 s timeout) a client that logs on
-  and then only reads receives frames at 0, 1, 2, 3 and 4 s, and the gateway
-  closes the connection at 5 s.
+  and then only reads receives its `LOGON_ACK` and then a `HEARTBEAT` at 1, 2,
+  3 and 4 s, and the gateway closes the connection at 5 s.
 
 :material-checkbox-blank-outline: Checkpoint: observed both duplicate-session behaviour and heartbeat timeout semantics.
 
