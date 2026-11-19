@@ -663,6 +663,7 @@ class StateModel:
         for name in (
             "restored_orders",
             "discarded_stale_day_orders",
+            "discarded_unconfigured_orders",
             "failed_orders",
             "quote_remnants_restored",
             "rebuilt_quotes",
@@ -675,8 +676,9 @@ class StateModel:
 
     def _on_recovery_item(self, fact: Fact, found: list[Anomaly]) -> None:
         # AR-0.5 made recovery per-entity. "Which order failed to restore?" was
-        # unanswerable while the trail carried only the counts above.
-        if _str(fact.payload, "outcome") in ("FAILED", "DISCARDED"):
+        # unanswerable while the trail carried only the counts above. A
+        # DISCARDED_* order is the restore working as intended, not a failure.
+        if _str(fact.payload, "outcome") == "FAILED":
             entity = _str(fact.payload, "entity_id")
             if entity:
                 self.run.recovery_failures.append(entity)

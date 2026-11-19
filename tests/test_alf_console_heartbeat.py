@@ -33,7 +33,7 @@ def test_heartbeat_loop_sends_beat_on_its_own_socket_then_stops() -> None:
 
     topic, payload = decode(own_push.send_multipart.call_args.args[0])
     assert topic == "system.gateway_heartbeat"
-    assert payload == {"gateway_id": "GW01", "interval_sec": 60}
+    assert payload == {"gateway_id": "GW01", "interval_sec": 5}
     own_push.close.assert_called_once()
 
 

@@ -552,7 +552,8 @@ The exchange allows only **one live connection per participant ID**, whichever
 process holds it. If another process already holds the ID at the engine, the
 engine refuses the connect and the `LOGON` is answered with
 `LOGON_ACK(accepted=0, reject_code=0x01)` carrying the message
-`Gateway already connected: <ID>`.
+`Gateway already connected: <ID> — if that session is gone, the ID is freed
+within <N> s`, counted from the holder's last heartbeat.
 
 To make sure a process that dies silently cannot keep its ID locked, `pm-balf-gwy`
 sends the engine a `system.gateway_heartbeat` for every authenticated session

@@ -68,8 +68,9 @@ pm-opctl-cli start
 ```
 
 The process set includes `pm-scheduler`, which moves the exchange through the
-phases at the times in the timetable — in the container's time zone, which is
-`Europe/Stockholm` unless you set `TZ` in `.env`. Outside those hours the exchange simply sits
+phases at the times in the timetable — in the configuration's own time zone,
+`Europe/Stockholm` (its `locale.session_timezone` setting), whatever the clock
+of your computer says. Outside those hours the exchange simply sits
 in `CLOSED`. In this chapter you will drive the phases by hand, which works
 at any time of day.
 
@@ -180,9 +181,15 @@ chapter has you work one out by hand.
 
 !!! tip "Phases only move forward"
     The engine accepts only the transitions in the order shown in the
-    diagram. A jump such as `CLOSED` straight to `CONTINUOUS` is refused. If
-    a `SESSION|STATE=` command seems to do nothing, run `SESSION_STATUS` to
-    see where you really are.
+    diagram; only the opening auction may be skipped (`PRE_OPEN` straight to
+    `CONTINUOUS`). Any other jump is refused, and the reply names the steps
+    that are allowed:
+
+    ```text
+    SESSION  REJECTED  Invalid transition CLOSED → CONTINUOUS (allowed: PRE_OPEN)
+    ```
+
+    `SESSION_STATUS` always tells you where you really are.
 
 Finish the day the same way — `SESSION|STATE=CLOSING_AUCTION`, then
 `SESSION|STATE=CLOSED` — and any `DAY` orders still resting expire.
@@ -201,7 +208,7 @@ The exchange records everything while it runs. From a shell inside it:
 pm-stats-cli trades           # every matched trade
 pm-stats-cli daily            # open, high, low, close and volume per symbol and day
 pm-clearing-cli pnl           # positions and profit or loss per participant
-pm-audit-cli events --limit 20    # the last 20 events of the full audit trail
+pm-audit-cli events --reverse --limit 20    # the 20 newest events of the full audit trail
 ```
 
 These read the databases written by `pm-stats`, `pm-clearing` and `pm-audit`.

@@ -209,6 +209,11 @@ def make_order_new_unchecked_msg(order_dict: dict[str, Any]) -> list[bytes]:
 #: consecutive misses, so a dead process frees its ID within ~3x this.
 GATEWAY_HEARTBEAT_INTERVAL_SEC = 60
 
+#: The beat of the interactive consoles (pm-alf-console, pm-admin). A person
+#: who restarts a console that died without logging out waits up to ~3x this
+#: for its ID, so it is short; there are only ever a few consoles.
+INTERACTIVE_HEARTBEAT_INTERVAL_SEC = 5
+
 
 def make_gateway_heartbeat_msg(
     gateway_id: str, interval_sec: int = GATEWAY_HEARTBEAT_INTERVAL_SEC
@@ -1807,6 +1812,7 @@ def make_startup_msg(
 def make_startup_recovery_msg(
     restored_orders: int = 0,
     discarded_stale_day_orders: int = 0,
+    discarded_unconfigured_orders: int = 0,
     failed_orders: int = 0,
     quote_remnants_restored: int = 0,
     rebuilt_quotes: int = 0,
@@ -1822,6 +1828,7 @@ def make_startup_recovery_msg(
     return _gen_system.make_startup_recovery(
         restored_orders=restored_orders,
         discarded_stale_day_orders=discarded_stale_day_orders,
+        discarded_unconfigured_orders=discarded_unconfigured_orders,
         failed_orders=failed_orders,
         quote_remnants_restored=quote_remnants_restored,
         rebuilt_quotes=rebuilt_quotes,

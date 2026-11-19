@@ -131,6 +131,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -146,7 +147,7 @@ import yaml
 
 from edumatcher.cli_pipe import pipe_safe
 from edumatcher.cli_version import package_version
-from edumatcher.config_deploy import examples_root
+from edumatcher.examples import examples_root
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     AUDIT_LOG_FILE,
@@ -1221,13 +1222,44 @@ def _remove_path(path: Path) -> bool:
     return removed
 
 
-def _running_pm_pids() -> list[int]:
-    """Best-effort list of live pm-* process PIDs, for the confirmation prompt.
+_PM_PROGRAM = re.compile(r"pm-[a-z0-9][a-z0-9-]*")
 
-    Excludes this process: ``pm-opctl-cli`` itself matches ``pm-``.
+
+def _is_pm_program(cmdline: list[str]) -> bool:
+    """True when the program itself is a pm-* command: argv[0], or the script
+    a Python interpreter runs (console scripts run as ``python /path/pm-foo``).
+    "pm-" elsewhere -- a shell's ``-c`` text, a file name, npm's
+    ``npm-cli.js`` -- does not make a pm-* process."""
+    if not cmdline:
+        return False
+    programs = [cmdline[0]]
+    if os.path.basename(cmdline[0]).startswith("python") and len(cmdline) > 1:
+        programs.append(cmdline[1])
+    return any(_PM_PROGRAM.fullmatch(os.path.basename(p)) for p in programs)
+
+
+def _running_pm_pids() -> list[str]:
+    """Best-effort "pm-engine (pid 7)" for each live pm-* process, for the
+    confirmation prompt.
+
+    Excludes this process and its ancestors: the shell that ran
+    ``pm-opctl-cli clear`` cannot write to the data directory.
     """
     try:
-        return [pid for pid in pgrep_pids("pm-") if pid != os.getpid()]
+        me = psutil.Process()
+        skip = {me.pid, *(parent.pid for parent in me.parents())}
+        found: list[str] = []
+        for proc in psutil.process_iter(["pid", "cmdline"]):
+            pid, cmdline = proc.info["pid"], proc.info["cmdline"] or []
+            if pid in skip or not _is_pm_program(cmdline):
+                continue
+            program = next(
+                os.path.basename(p)
+                for p in cmdline[:2]
+                if _PM_PROGRAM.fullmatch(os.path.basename(p))
+            )
+            found.append(f"{program} (pid {pid})")
+        return found
     except Exception:
         return []
 
@@ -1258,7 +1290,8 @@ def clear_data(*, scope: str, assume_yes: bool) -> int:
     if live_pids:
         print(
             f"\nWarning: {len(live_pids)} pm-* process(es) appear to be running "
-            "and may recreate or write to these files during/after the clear."
+            "and may recreate or write to these files during/after the clear: "
+            f"{', '.join(live_pids)}."
         )
 
     if not assume_yes:

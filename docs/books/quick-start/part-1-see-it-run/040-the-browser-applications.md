@@ -10,7 +10,11 @@
 
 **Time:** about 15 minutes. **You need:** the container installation from
 [Install and Start](020-install-and-start.md). The browser applications are
-not part of the Python package.
+not part of the Python package; on that route, install them as containers
+with `--guis`, as described in
+[Install and Start](020-install-and-start.md#route-2-the-python-package), and
+run the `pm-*` commands below directly instead of through
+`./edumatcher.sh shell`.
 
 ## Seven windows on one exchange
 

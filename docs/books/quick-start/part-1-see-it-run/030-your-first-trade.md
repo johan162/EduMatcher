@@ -57,6 +57,9 @@ pm-setup --config s3-basic-nomm --force
 pm-opctl-cli start
 ```
 
+The market maker's quotes from `s10-basic` do not come back: they belong to
+that configuration, and `s3-basic-nomm` declares none.
+
 Then open two terminals with the same `EDUMATCHER_DATA_DIR`.
 
 !!! tip "The minimal exchange, by hand"

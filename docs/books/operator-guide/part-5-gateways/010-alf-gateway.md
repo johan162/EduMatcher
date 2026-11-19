@@ -137,7 +137,8 @@ A participant ID can have only **one** live connection to the exchange at a
 time, whichever process holds it — `pm-alf-gwy`, `pm-balf-gwy`, `pm-alf-console`
 or `pm-api-gwy`.  If the ID is already connected, the engine refuses the
 second connect and `WELCOME` never arrives: the gateway answers
-`ERR|CODE=AUTH_FAILED|DETAIL=Gateway already connected: TRADER01` and closes.
+`ERR|CODE=AUTH_FAILED|DETAIL=Gateway already connected: TRADER01 — if that session is gone, the ID is freed within 12 s`
+and closes. The engine counts that time from the holder's last heartbeat.
 (Two processes sharing one ID would share one session, so either one dropping
 would cancel the other's orders.)
 
@@ -150,9 +151,11 @@ right after `WELCOME`, and a session that closes stops being reported.  After
 **3 consecutive missed beats** (15 s) the engine disconnects the session as if
 it had said goodbye: the participant's `disconnect_behaviour` is applied and
 the ID can be connected again.  So if `pm-alf-gwy` itself dies, its clients can
-log back on through a restarted gateway within about 15 seconds.  (Single-ID
-processes such as `pm-alf-console` beat every 60 seconds, so their ID stays
-locked for up to three minutes.)
+log back on through a restarted gateway within about 15 seconds.  The
+interactive consoles `pm-alf-console` and `pm-admin` also beat every 5
+seconds, and they log out properly when their terminal window is closed or
+they are killed (`SIGHUP`, `SIGTERM`), so only a hard crash leaves their ID
+held, for at most 15 seconds.
 
 This engine heartbeat is **separate from** the `HB` / `PING` / `idle_timeout_sec`
 mechanism above, which is between your TCP client and the gateway and is much

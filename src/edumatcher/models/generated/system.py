@@ -3595,6 +3595,14 @@ _STARTUP_RECOVERY_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "discarded_unconfigured_orders",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Orders the deployed configuration no longer allows: their symbol or participant is not configured, or they are a seed quote whose market maker and symbol have no seed in it (a seed belongs to the configuration that declared it).",
+        "constraints": {"ge": 0},
+    },
+    {
         "name": "failed_orders",
         "type": "int",
         "unit": "dimensionless",
@@ -3654,6 +3662,7 @@ class StartupRecovery:
 
     restored_orders: int  # unit: dimensionless
     discarded_stale_day_orders: int  # unit: dimensionless
+    discarded_unconfigured_orders: int  # unit: dimensionless
     failed_orders: int  # unit: dimensionless
     quote_remnants_restored: int  # unit: dimensionless
     rebuilt_quotes: int  # unit: dimensionless
@@ -3674,6 +3683,10 @@ class StartupRecovery:
         if self.discarded_stale_day_orders < 0:
             raise MessageValidationError(
                 f"discarded_stale_day_orders: {self.discarded_stale_day_orders!r} must be >= 0"
+            )
+        if self.discarded_unconfigured_orders < 0:
+            raise MessageValidationError(
+                f"discarded_unconfigured_orders: {self.discarded_unconfigured_orders!r} must be >= 0"
             )
         if self.failed_orders < 0:
             raise MessageValidationError(
@@ -3707,6 +3720,7 @@ class StartupRecovery:
         return cls(
             restored_orders=int(p["restored_orders"]),
             discarded_stale_day_orders=int(p["discarded_stale_day_orders"]),
+            discarded_unconfigured_orders=int(p["discarded_unconfigured_orders"]),
             failed_orders=int(p["failed_orders"]),
             quote_remnants_restored=int(p["quote_remnants_restored"]),
             rebuilt_quotes=int(p["rebuilt_quotes"]),
@@ -3719,6 +3733,7 @@ class StartupRecovery:
         return {
             "restored_orders": self.restored_orders,
             "discarded_stale_day_orders": self.discarded_stale_day_orders,
+            "discarded_unconfigured_orders": self.discarded_unconfigured_orders,
             "failed_orders": self.failed_orders,
             "quote_remnants_restored": self.quote_remnants_restored,
             "rebuilt_quotes": self.rebuilt_quotes,
@@ -3751,6 +3766,7 @@ def make_startup_recovery_unchecked(
     *,
     restored_orders: int,
     discarded_stale_day_orders: int,
+    discarded_unconfigured_orders: int,
     failed_orders: int,
     quote_remnants_restored: int,
     rebuilt_quotes: int,
@@ -3773,6 +3789,7 @@ def make_startup_recovery_unchecked(
             {
                 "restored_orders": int(restored_orders),
                 "discarded_stale_day_orders": int(discarded_stale_day_orders),
+                "discarded_unconfigured_orders": int(discarded_unconfigured_orders),
                 "failed_orders": int(failed_orders),
                 "quote_remnants_restored": int(quote_remnants_restored),
                 "rebuilt_quotes": int(rebuilt_quotes),
@@ -3807,12 +3824,14 @@ RecoveryItemKind = Literal["ORDER", "COMBO"]
 _RECOVERY_ITEM_OUTCOME_VALUES = (
     "RESTORED",
     "DISCARDED_STALE_DAY",
+    "DISCARDED_UNCONFIGURED",
     "FAILED",
     "QUOTE_REMNANT",
 )
 RecoveryItemOutcome = Literal[
     "RESTORED",
     "DISCARDED_STALE_DAY",
+    "DISCARDED_UNCONFIGURED",
     "FAILED",
     "QUOTE_REMNANT",
 ]
@@ -3840,7 +3859,7 @@ _RECOVERY_ITEM_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "enum",
         "unit": None,
         "required": True,
-        "doc": "RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no combo failure path to report yet.",
+        "doc": "RESTORED/DISCARDED_STALE_DAY/DISCARDED_UNCONFIGURED/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. DISCARDED_UNCONFIGURED is an order the deployed configuration no longer allows (see `startup_recovery.discarded_unconfigured_orders`). QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no combo failure path to report yet.",
         "values": _RECOVERY_ITEM_OUTCOME_VALUES,
     },
     {
@@ -3872,10 +3891,10 @@ class RecoveryItem:
     ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-
     trail.md). Published once per entity, before the single summary
     `startup_recovery` broadcast, so the counts there are the cross-check:
-    `restored_orders + discarded_stale_day_orders + failed_orders` must equal the
-    number of ORDER-kind recovery_item lines whose outcome is RESTORED,
-    DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal
-    the number of COMBO-kind lines.
+    `restored_orders + discarded_stale_day_orders + discarded_unconfigured_orders
+    + failed_orders` must equal the number of ORDER-kind recovery_item lines whose
+    outcome is RESTORED, DISCARDED_STALE_DAY, DISCARDED_UNCONFIGURED or FAILED
+    respectively, and `restored_combos` must equal the number of COMBO-kind lines.
 
     `QUOTE_REMNANT` is deliberately not exclusive with `RESTORED`: a quote-origin order
     whose sibling leg did not survive is *both* one of `restored_orders` (it rests on

@@ -52,6 +52,7 @@ from rich.table import Table
 from zmq.utils.monitor import recv_monitor_message
 
 from edumatcher.config import ENGINE_PULL_ADDR
+from edumatcher.cli_signals import logout_on_hangup
 from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 from edumatcher.log_srv.config import (
@@ -62,7 +63,7 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher
 from edumatcher.models.message import (
-    GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    INTERACTIVE_HEARTBEAT_INTERVAL_SEC,
     make_gateway_heartbeat_msg,
 )
 
@@ -1167,6 +1168,8 @@ class AdminConsole:
         self._client = ExchangeCommandClient(self._gw_id)
         self._known_symbols: list[str] = []
         self._connection_lost = False
+        self._exit_requested = False
+        self._prompt_app: Any = None
         self._heartbeat_stop = threading.Event()
 
     def _heartbeat_loop(self) -> None:
@@ -1178,13 +1181,30 @@ class AdminConsole:
         try:
             while True:
                 try:
-                    push_sock.send_multipart(make_gateway_heartbeat_msg(self._gw_id))
+                    push_sock.send_multipart(
+                        make_gateway_heartbeat_msg(
+                            self._gw_id, INTERACTIVE_HEARTBEAT_INTERVAL_SEC
+                        )
+                    )
                 except zmq.Again:
                     log.debug("gateway_id=%s heartbeat dropped: engine unreachable", self._gw_id)  # fmt: skip
-                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                if self._heartbeat_stop.wait(INTERACTIVE_HEARTBEAT_INTERVAL_SEC):
                     return
         finally:
             push_sock.close(linger=0)
+
+    def _request_exit(self) -> None:
+        """SIGHUP or SIGTERM: leave the prompt loop as EXIT does, so the
+        console logs out instead of the process just ending."""
+        log.info("terminal closed or terminated gateway_id=%s", self._gw_id)
+        self._exit_requested = True
+        app = self._prompt_app
+        if app is not None and app.is_running:
+            app.loop.call_soon_threadsafe(
+                lambda: (
+                    app.exit(exception=KeyboardInterrupt) if app.is_running else None
+                )
+            )
 
     # ------------------------------------------------------------------
     # Command dispatch
@@ -1272,10 +1292,11 @@ class AdminConsole:
             )
             prompt_str = FormattedText([("class:prompt", f"[{self._gw_id}|ADMIN]> ")])
 
-            with pt_patch_stdout(raw=True):
-                while not self._connection_lost:
+            with logout_on_hangup(self._request_exit), pt_patch_stdout(raw=True):
+                while not self._connection_lost and not self._exit_requested:
 
                     def _start_monitor() -> None:
+                        self._prompt_app = session.app
                         session.app.create_background_task(
                             self._watch_engine_disconnect(session.app, monitor)
                         )

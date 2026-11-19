@@ -70,6 +70,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
 from edumatcher.config_artifact import exit_on_config_error
+from edumatcher.cli_signals import logout_on_hangup
 from edumatcher.cli_version import add_version_argument
 from edumatcher.config import (
     DROP_COPY_PUB_ADDR,
@@ -93,7 +94,7 @@ from edumatcher.models.message import (
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
-    GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    INTERACTIVE_HEARTBEAT_INTERVAL_SEC,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
     make_kill_switch_msg,
@@ -740,7 +741,9 @@ class Gateway:
             while True:
                 try:
                     push_sock.send_multipart(
-                        make_gateway_heartbeat_msg(self.gateway_id)
+                        make_gateway_heartbeat_msg(
+                            self.gateway_id, INTERACTIVE_HEARTBEAT_INTERVAL_SEC
+                        )
                     )
                     break
                 except zmq.Again:
@@ -751,11 +754,13 @@ class Gateway:
                         return
 
             while True:
-                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                if self._heartbeat_stop.wait(INTERACTIVE_HEARTBEAT_INTERVAL_SEC):
                     return
                 try:
                     push_sock.send_multipart(
-                        make_gateway_heartbeat_msg(self.gateway_id)
+                        make_gateway_heartbeat_msg(
+                            self.gateway_id, INTERACTIVE_HEARTBEAT_INTERVAL_SEC
+                        )
                     )
                 except zmq.Again:
                     log.debug(
@@ -775,7 +780,17 @@ class Gateway:
         self._connection_lost = True
         log.error("engine connection lost gateway_id=%s", self.gateway_id)
         console.print("[red]Engine connection was lost; logging out.[/red]")
+        self._exit_prompt()
 
+    def _request_exit(self) -> None:
+        """SIGHUP or SIGTERM: leave the prompt loop as EXIT does, so the
+        session logs out instead of the process just ending."""
+        log.info("terminal closed or terminated gateway_id=%s", self.gateway_id)
+        self._running = False
+        self._exit_prompt()
+
+    def _exit_prompt(self) -> None:
+        """End a prompt that is waiting for input; safe from any thread."""
         session = self._prompt_session
         if session is None:
             return
@@ -2294,7 +2309,7 @@ class Gateway:
         prompt_str = [("class:prompt", f"[{self.gateway_id}]> ")]
 
         try:
-            with pt_patch_stdout(raw=True):
+            with logout_on_hangup(self._request_exit), pt_patch_stdout(raw=True):
                 while self._running:
                     try:
                         line = session.prompt(prompt_str)  # type: ignore[arg-type]

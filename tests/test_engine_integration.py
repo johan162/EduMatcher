@@ -133,7 +133,7 @@ def test_separate_admin_identities_can_connect_while_duplicate_identity_is_refus
     duplicate_topic, duplicate_auth = decode(pub_sock.sent[-1])
     assert duplicate_topic == "system.gateway_auth.GW_ADMIN"
     assert duplicate_auth["accepted"] is False
-    assert duplicate_auth["reason"] == "Gateway already connected: GW_ADMIN"
+    assert duplicate_auth["reason"].startswith("Gateway already connected: GW_ADMIN — ")
 
 
 def test_new_order_rejected_when_gateway_not_connected(engine_with_allowlists) -> None:
