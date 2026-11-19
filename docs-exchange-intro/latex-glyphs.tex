@@ -1,0 +1,19 @@
+% Keep the current font wherever it has the glyph; use DejaVu Sans otherwise.
+\usepackage{newunicodechar}
+\DeclareRobustCommand{\bookglyph}[1]{%
+  \iffontchar\font"#1\relax
+    \char"#1\relax
+  \else
+    {\sffamily\char"#1\relax}%
+  \fi
+}
+\newunicodechar{μ}{\bookglyph{03BC}}
+\newunicodechar{⁰}{\bookglyph{2070}}
+\newunicodechar{⁵}{\bookglyph{2075}}
+\newunicodechar{⁸}{\bookglyph{2078}}
+\newunicodechar{⁹}{\bookglyph{2079}}
+\newunicodechar{⁻}{\bookglyph{207B}}
+\newunicodechar{≈}{\bookglyph{2248}}
+\newunicodechar{≤}{\bookglyph{2264}}
+\newunicodechar{≥}{\bookglyph{2265}}
+\newunicodechar{✓}{\bookglyph{2713}}

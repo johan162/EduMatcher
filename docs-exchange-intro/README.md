@@ -48,6 +48,10 @@ Then it runs the existing pipeline:
 4. inject into LaTeX templates
 5. compile the four PDF variants with XeLaTeX
 
+The PDF templates keep Latin Modern for body text and use DejaVu Sans for
+the symbols listed in [latex-glyphs.tex](latex-glyphs.tex) when the current font
+does not contain them.
+
 ## Commands
 
 From this directory:
