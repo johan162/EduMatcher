@@ -11,6 +11,8 @@ book, and the default of the `edumatcher-ai-sim` container image.
 - `companies.db`: made-up company profiles for all 300 tickers, matching their sectors and industries, plus 100 Swedish and Nordic companies whose tickers the simulation does not trade; query with `pm-compdb-cli --db companies.db list`, rebuild with `pm-compdb-cli --db companies.db init --force` (the source is `src/edumatcher/compdb/companies/*.yaml`)
 - Sessions: enabled, the same 09:00–16:05 schedule on weekdays and weekends, Sweden's calendar and time zone; collars off; market-maker obligations enforced
 - Seeded market-maker quotes on every symbol
+- Outstanding shares: each symbol's `companies.db` market cap divided by its seeded price, so price × shares starts at the company's market cap
+- Index `EDU50`: the 50 largest companies by `companies.db` market cap, cap-weighted, base value 1000 (`NVDA`, `AAPL`, `MSFT`, … `BX`); about 47% technology, the ten largest about 64%. TapeDeck shows it in the Index view (the container sets `INDEX_IDS=EDU50`)
 - Market-data gateway: `max_symbols_per_client: 300`
 - Run it: `pm-config-deploy --example s300-sim`, then `pm-opctl-cli start ai-sim`
 - Regenerate: `./mkrefdata.sh [--seed INTEGER]` (this file was generated with `--seed 300100`)
