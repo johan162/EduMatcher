@@ -1,13 +1,13 @@
-Version: 1.0.0
+Version: 2.0.0
 
-Date: 2026-05-31
+Date: 2026-11-21
 
 Status: Published
 
 
 # How a Financial Exchange Works
 
-**A Conceptual Introduction for Software Developers**
+**A Conceptual Introduction**
 
 # Preface to the Second Edition
 
