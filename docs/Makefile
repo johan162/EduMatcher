@@ -169,8 +169,8 @@ exchange-intro:
 # ============================================================================================
 # Main build targets
 # ============================================================================================
-docs-all: book-all pdf-exchange-intro epub-exchange-intro
-omnibus: docs-all chapters-pdf book-bundles
+docs-all: book-all pdf-exchange-intro epub-exchange-intro 
+omnibus: docs-all chapters-pdf book-bundles web-exchange-intro
 
 # ============================================================================================
 # Documentation checks and navigation
@@ -251,3 +251,82 @@ mp-bump: ## Bump the version for the documented multipass bootstrap sctip to the
 	@echo -e "$(DARKYELLOW)- Bumping multipass bootstrap script version to $(BRIGHTCYAN)$(VERSION)$(DARKYELLOW)...$(NC)"
 	@{ grep -rlE --include='*.md' -e '--version[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+' $(BOOKS_DIR) ../README.md || true; } | xargs -r perl -pi -e 's/(--version\s+)\d+\.\d+\.\d+/$${1}$(VERSION)/g'
 	@echo -e "$(GREEN)✓ All multipass bootstrap scripts version updated to $(BRIGHTCYAN)$(VERSION)$(GREEN)$(NC)"
+
+
+# ============================================================================================
+# Exchange Introduction Web target
+# Assembles docs/how-exchange-works.md from the canonical source files in
+# docs-exchange-intro/src (Parts I–IV plus the References backmatter).
+#
+# Rules:
+#   - 00-frontmatter/ is excluded (version header, title page, preface).
+#   - 90-backmatter/20-glossary.md is excluded.
+#   - 90-backmatter/21-references.md is included.
+#   - Heading levels are shifted one step deeper throughout:
+#       #   → ##    (part / chapter titles)
+#       ##  → ###   (section headings)
+#       ### → ####  (sub-sections)
+#   - A blank line is inserted between concatenated files so pandoc/MkDocs
+#     does not merge the last line of one file with the first of the next.
+#   - Assets from ../docs-exchange-intro/assets are copied to the output directory and paths 
+#     are updated accordingly.
+#
+# ============================================================================================
+
+# Source directories (in document order)
+EXCHANGE_INTRO_SRC := ../docs-exchange-intro/src
+EXCHANGE_INTRO_ASSETS := ../docs-exchange-intro/assets
+
+# All Part I–IV source files in sorted order, excluding 00-frontmatter entirely
+EXCHANGE_INTRO_PART_FILES := \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/01-foundation/[0-9][0-9]-*.md)) \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/02-orders-and-matching/[0-9][0-9]-*.md)) \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/03-risk-and-compliance/[0-9][0-9]-*.md)) \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/04-technology-and-infrastructure/[0-9][0-9]-*.md))
+
+# References backmatter only (glossary intentionally excluded)
+EXCHANGE_INTRO_BACKMATTER := $(EXCHANGE_INTRO_SRC)/90-backmatter/21-references.md
+
+# All inputs that should trigger a rebuild of the output file
+EXCHANGE_INTRO_SOURCES := $(EXCHANGE_INTRO_PART_FILES) $(EXCHANGE_INTRO_BACKMATTER)
+
+# The generated output file
+HOW_EXCHANGE_WORKS := $(DOCS_DIR)/how-exchange-works.md
+HOW_EXCHANGE_WORKS_ASSETS := $(DOCS_DIR)/assets/how-exchange-works
+
+$(HOW_EXCHANGE_WORKS): $(EXCHANGE_INTRO_SOURCES)
+	@echo -e "$(DARKYELLOW)- Assembling $(BRIGHTCYAN)how-exchange-works.md$(DARKYELLOW) from exchange-intro sources...$(NC)"
+	@# Write the fixed page header (kept outside the source files so it is never generated)
+	@printf '%s\n' \
+		'## How a Financial Exchange Works' \
+		'' \
+		'**A Conceptual Introductions**' \
+		'' \
+		'> *No code. No fear. Just the concepts you need to understand a financial exchange.*' \
+		'' \
+		'---' \
+		'' > $@
+	@# Concatenate every source file, separated by a blank line, and shift heading levels:
+	@#   #   →  ##    (part and chapter titles)
+	@#   ##  →  ###   (sections)
+	@#   ### →  ####  (sub-sections)
+	@# awk adds the blank separator between files; sed does the heading shift.
+	@awk 'FNR==1 && NR!=1 { print "" }; { print }' \
+		$(EXCHANGE_INTRO_SOURCES) \
+		| sed -E \
+			-e 's/^#### /##### /g' \
+			-e 's/^### /#### /g' \
+			-e 's/^## /### /g' \
+			-e 's/^# /## /g' \
+		>> $@
+	@rm -rf $(HOW_EXCHANGE_WORKS_ASSETS)
+	@mkdir -p $(HOW_EXCHANGE_WORKS_ASSETS)
+	@cp -r $(EXCHANGE_INTRO_ASSETS)/*.png $(HOW_EXCHANGE_WORKS_ASSETS) 2>/dev/null || true
+	@# Convert all "/assets/" paths in the markdown to point to the correct location
+	@echo -e "$(DARKYELLOW)- Updating asset paths in $(BRIGHTCYAN)$@$(DARKYELLOW) to $(BRIGHTCYAN)$(HOW_EXCHANGE_WORKS_ASSETS)/ $(DARKYELLOW)...$(NC)"
+	@sed -i '' -E 's#\(assets/#\($(HOW_EXCHANGE_WORKS_ASSETS)/#g' $@
+	@echo -e "$(GREEN)✓ $(BRIGHTCYAN)how-exchange-works.md$(GREEN) assembled ($(words $(EXCHANGE_INTRO_SOURCES)) source files)$(NC)"
+
+web-exchange-intro: $(HOW_EXCHANGE_WORKS) ## Regenerate docs/how-exchange-works.md from docs-exchange-intro/src sources
+
+.PHONY: web-exchange-intro
