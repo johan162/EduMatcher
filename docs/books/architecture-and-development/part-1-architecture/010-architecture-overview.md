@@ -519,7 +519,7 @@ and `pm-log-srv` (`:5601`/`:5602`) for log subscriptions; the recorders and
 pings. Every other socket in the system connects.
 
 All of these flows are described in prose, with the reasons behind them, in
-[The Message Architecture](015-message-architecture.md#4-how-data-flows-through-the-exchange).
+[The Message Architecture](015-message-architecture.md#how-data-flows-through-the-exchange).
 
 Where each of these ends up on disk is covered in
 [Persistence & crash recovery](#persistence-crash-recovery); how they behave when a
@@ -728,7 +728,7 @@ exist beside it:
 
 The engine itself runs a single-threaded event loop around `zmq.Poller` with a
 200 ms timeout, so no engine state is ever touched by two threads and no lock
-is needed. See [One turn of the run loop](015-message-architecture.md#6-making-zeromq-fast).
+is needed. See [One turn of the run loop](015-message-architecture.md#making-zeromq-fast).
 
 
 
@@ -1381,7 +1381,7 @@ function RUN():
                   // and system.eod, close sockets
 ```
 
-The real loop is `Engine.run`; [The Message Architecture](015-message-architecture.md#6-making-zeromq-fast)
+The real loop is `Engine.run`; [The Message Architecture](015-message-architecture.md#making-zeromq-fast)
 draws one turn of it.
 
 No locks, no shared memory, no race conditions.  The sequential dispatch guarantees
@@ -1517,27 +1517,12 @@ Replay itself exists only at the external edges: CALF `replay_window_sec`, RALF
 ## Performance Optimizations
 
 A sequence of pure-Python changes (no C extensions, no Cython, no multiprocessing)
-raised single-thread throughput by roughly **2.8×**. This section explains each
-technique and *why* it works.
-
-!!! warning "Throughput is strongly CPU-architecture dependent"
-    The headline "after" figure of **~160,000 orders/second** is measured on
-    **ARM (Apple Silicon)**. The identical code on a typical **Intel x86** desktop
-    reaches roughly **~80,000 orders/second** — about half. The "before" baseline
-    (~57,000/s) and the latency table below are ARM figures. Treat all absolute
-    numbers as *illustrative of the relative gains*, not as a portable benchmark;
-    see [Why ARM and Intel differ so much](#why-arm-and-intel-differ-so-much).
-
-!!! info "These are the figures of the original optimisation pass"
-    The numbers in this section were measured when these ten techniques were
-    introduced, on an engine that did less per order than today's. Since then
-    every order also carries a causal envelope and per-topic sequences, is
-    echoed to the audit trail, and passes more risk gates, so absolute
-    throughput is lower now: `make test-perf` measures about 42 000–45 000
-    orders a second on the development machine, and the engine's share of one
-    order is about 22 µs. The techniques and their relative effect are
-    unchanged. Current measurements, and how to take them honestly, are in
-    [Performance Engineering](../part-2-inside-the-engine/030-performance-engineering.md).
+cut the cost of handling an order on the engine's hot path. This section explains
+each technique and *why* it works. The nanosecond figures are per-call costs of the
+individual operations, measured when each technique was introduced; they show
+what each one saves, not the engine's throughput. The engine's current measured
+cost per order, and how to measure it honestly, are in
+[Performance Engineering](../part-2-inside-the-engine/030-performance-engineering.md).
 
 
 ### How to read the numbers
@@ -1907,42 +1892,12 @@ always fully initialized, which can confuse static analysis tools like mypy.
 | 9 | Local var caching | ~200–800 ns | Sweep loop |
 | 10 | `__new__` deserialization | ~400 ns | `Order.from_dict()` |
 
-**Result:**
-
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Throughput | 57,000 TPS | 160,000 TPS | **+180%** |
-| Median latency | 23.5 µs | 8.5 µs | **−64%** |
-| P90 latency | 25.7 µs | 10.0 µs | **−61%** |
-
 All of these improvements are **pure Python** — no C extensions, no multi-threading,
 no unsafe hacks.  The key insight is that in a tight loop, small costs (100 ns here,
-200 ns there) compound rapidly.  At ~160,000 orders/second (ARM), each order has a
-budget of only **6.25 µs** — every nanosecond matters. On Intel x86 the budget is
-roughly double (~12.5 µs at ~80,000/s), because the per-order work is the same but
-each interpreter step is slower (below).
-
-### Why ARM and Intel differ so much
-
-The **same code** runs ~2× faster on Apple Silicon (ARM) than on a typical Intel
-x86 desktop. This is a property of the *workload* — a CPython bytecode interpreter
-doing pointer-chasing and small-object allocation — meeting two very different
-microarchitectures. The dominant hypotheses (in rough order of expected impact;
-confirming the split requires profiling, e.g. `perf stat` on each host):
-
-| Factor | Why it favours Apple Silicon |
-|--------|------------------------------|
-| **Interpreter dispatch** | CPython's eval loop is a giant computed-goto over bytecodes — a torrent of hard-to-predict indirect branches. Apple's very wide decode and large branch-prediction resources swallow this better than mainstream x86 desktop parts. |
-| **Memory latency & cache** | Refcounting and dict/attribute lookups are latency-bound pointer chases. Apple Silicon's on-package unified memory and large L1/L2 (and huge SLC) cut the average miss cost that this workload pays constantly. |
-| **Single-thread IPC / clocks** | The engine is single-threaded, so only 1-core performance matters. High-IPC M-series cores at competitive clocks beat many Intel desktop cores on this specific scalar, branchy, allocation-heavy code. |
-| **Refcount write traffic** | Every `INCREF`/`DECREF` is a small write; Apple's store buffering and cache bandwidth absorb the churn with less stall. |
-| **Native library codegen** | `orjson` (Rust) and the Python build itself may be compiled with better-tuned codegen / SIMD paths on `arm64` than the x86 wheels in use. |
-
-Two caveats. First, "Intel" and "ARM" are not monolithic: a recent high-clock
-Xeon/Core will close much of the gap versus an older desktop part, and the numbers
-here compare the specific machines used. Second, the *relative* speedups of the ten
-techniques above are stable across both architectures — only the absolute TPS moves.
-If you publish throughput figures, always state the CPU.
+200 ns there) compound rapidly: an order's whole trip through the engine is measured
+in tens of microseconds, so a saving of one microsecond per order is a few percent.
+Absolute figures depend heavily on the CPU and the Python version; if you publish
+one, state both.
 
 ## Configuration Choices That Impact Performance
 
@@ -1959,7 +1914,7 @@ market-data throttle.
 | `market_data_gateway.replay_window_sec` · `post_trade_gateway.replay_retention_sec` | CALF / RALF | `30` · `86400` | Replay reach vs replay-buffer memory. |
 | `*.heartbeat_interval_sec` · `*.idle_timeout_sec` | all gateways | varies | Idle-traffic volume vs dead-peer detection latency. |
 | `*.max_commands_per_second` · `*.max_messages_per_second` · `api rate_limit` | ALF / BALF / API | `100` · `100` · `10` | Ingress throttles that protect the single-threaded engine from a runaway client. |
-| ZeroMQ high-water marks | `messaging/bus.py` and each consumer | PUSH `SNDHWM` 1000 (fail fast); recorder and gateway `RCVHWM` 100 000–200 000; PUB default 1000 per subscriber | Decide how large a burst a consumer survives before PUB drops for it. Constants in code, not configuration — see [Buffer sizes](015-message-architecture.md#8-buffer-sizes-and-why-they-are-what-they-are). |
+| ZeroMQ high-water marks | `messaging/bus.py` and each consumer | PUSH `SNDHWM` 1000 (fail fast); recorder and gateway `RCVHWM` 100 000–200 000; PUB default 1000 per subscriber | Decide how large a burst a consumer survives before PUB drops for it. Constants in code, not configuration — see [Buffer sizes](015-message-architecture.md#buffer-sizes-and-why-they-are-what-they-are). |
 
 Rule of thumb: to reduce load, **raise `snapshot_interval_sec`** first (it scales
 across every consumer at once); to reduce latency for a specific external consumer,

@@ -31,7 +31,7 @@
     scripts this chapter describes; absolute values depend on the host.
 
 
-## 1. The ideas the design rests on
+## The ideas the design rests on
 
 Eight ideas explain almost everything in the messaging layer. The rest of the
 chapter is their consequences.
@@ -62,7 +62,7 @@ chapter is their consequences.
    that authenticate and validate.
 
 
-## 2. The exchange at a glance
+## The exchange at a glance
 
 ![Every EduMatcher process, the buses it binds or connects to, and the boundary between the trusted host and the network.](../../../assets/architecture/arch-system-overview.png){ width="100%" }
 
@@ -89,13 +89,13 @@ The service layer — `pm-alf-gwy` (5565), `pm-balf-gwy` (5560), `pm-api-gwy`
 the engine. A remote client never touches a ZeroMQ socket.
 
 
-## 3. The design decisions
+## The design decisions
 
 Each decision below gives the choice, the reason, what was rejected, and what
 the choice costs. The costs are real; knowing them is what stops a later
 change from undoing the decision by accident.
 
-### 3.1 Separate processes on a message bus
+### Separate processes on a message bus
 
 **Choice.** Every function — matching, each gateway, clearing, statistics,
 audit, index calculation, monitoring — is its own OS process.
@@ -112,7 +112,7 @@ the hardest bugs there are, and the GIL removes most of the speed).
 processes to start, stop and watch — which is what `pm-opctl-cli`, the health
 bus and the central log server exist for.
 
-### 3.2 ZeroMQ, and no broker
+### ZeroMQ, and no broker
 
 **Choice.** ZeroMQ sockets connect the processes directly. There is no
 message broker.
@@ -127,10 +127,10 @@ free, at the price of a second critical process, milliseconds of latency, and
 an operational burden out of proportion to a teaching exchange.
 
 **Cost.** No durability and no delivery guarantee on PUB/SUB. The system
-compensates with sequence numbers (§7), recorders that persist what they
+compensates with sequence numbers ([Seeing what was lost](#seeing-what-was-lost)), recorders that persist what they
 receive, and replay at the external edges.
 
-### 3.3 The engine is the sole binder of its bus
+### The engine is the sole binder of its bus
 
 **Choice.** `pm-engine` binds :5555/:5556/:5557; every other process connects.
 `pm-index`, `pm-market-sim`, `pm-monitor` and `pm-log-srv` bind buses of their
@@ -143,7 +143,7 @@ automatically after the peer restarts.
 **Cost.** The engine is a single point of failure by design. There is exactly
 one book; a second engine would be a second, divergent market.
 
-### 3.4 One thread, one message at a time
+### One thread, one message at a time
 
 **Choice.** The engine handles each command to completion — validation,
 acknowledgement, matching, every resulting publish — before it reads the next.
@@ -159,12 +159,12 @@ messages — a long auction uncross, a garbage collection — delays every
 message queued behind it. The [Performance Engineering](../part-2-inside-the-engine/030-performance-engineering.md)
 chapter is mostly about keeping that "between" short.
 
-### 3.5 Commands by PUSH/PULL, events by PUB/SUB, no request/reply sockets
+### Commands by PUSH/PULL, events by PUB/SUB, no request/reply sockets
 
 **Choice.** Every request to the engine, including read queries, is a PUSH.
 Every answer is a PUB, on a topic that names the asking gateway
 (`order.ack.TRADER01`, `system.symbols.TRADER01`). REP sockets exist only for
-the liveness pings of §2.
+the liveness pings of [The exchange at a glance](#the-exchange-at-a-glance).
 
 **Why.** PUSH/PULL fair-queues many senders into one reader, which is exactly
 "many gateways, one engine". Answering on PUB means the engine never holds a
@@ -176,7 +176,7 @@ enforce a strict request-reply lock-step that does not fit asynchronous fills.
 and replies to different gateways share one socket — which is why the
 subscription prefix must be unique per gateway id.
 
-### 3.6 Topics are dotted names with the routing key last
+### Topics are dotted names with the routing key last
 
 **Choice.** A topic is `family.event`, optionally followed by one parameter:
 `trade.executed`, `book.AAPL`, `order.fill.TRADER01`, `index.update`.
@@ -191,7 +191,7 @@ and parse these strings, so no process types a topic literal
 "fills for two gateways" except by subscribing twice. A parameter must not
 contain a dot.
 
-### 3.7 Messages are specified, then generated
+### Messages are specified, then generated
 
 **Choice.** `spec/messages/*.yaml` is the single source of truth: topic,
 fields, types, units, which fields are optional, validation rules, and the
@@ -209,7 +209,7 @@ See [Message Generation](../part-4-developing/040-message-generation.md).
 has a validating builder for the edges and a byte-identical `_unchecked` twin
 for the engine's measured hot paths, and a test pins that they agree.
 
-### 3.8 JSON payloads inside, binary only at one edge
+### JSON payloads inside, binary only at one edge
 
 **Choice.** The internal bus carries JSON (encoded with `orjson`). The binary
 BALF protocol exists only between clients and `pm-balf-gwy`.
@@ -221,16 +221,16 @@ microsecond, so the readability costs little next to the rest of the path.
 **Cost.** Field names are repeated in every message, and a consumer parses
 text. Neither has shown up as a bottleneck in a profile.
 
-### 3.9 Metadata in a trailing frame
+### Metadata in a trailing frame
 
 **Choice.** Sequence numbers and the causal envelope ride in one ASCII frame
-behind the payload, not in the JSON. See §5.
+behind the payload, not in the JSON. See [The design of a message](#the-design-of-a-message).
 
 **Why.** Stamping a message never decodes and re-encodes it; the same fields
 need not be declared on 136 message types; and `decode()` reads only the
 first two frames, so no consumer had to change when the frame was added.
 
-### 3.10 Detect loss on the internal bus; replay at the edges
+### Detect loss on the internal bus; replay at the edges
 
 **Choice.** The engine's PUB socket drops a message for a subscriber whose
 queue is full, and the subscriber detects the hole from the sequence numbers.
@@ -240,7 +240,7 @@ drop copy, the WebSocket trade stream — keep replay buffers and support
 
 **Why.** Blocking the publisher would let one stuck subscriber halt the
 market (idea 3). Internal subscribers are co-located processes with deep
-queues (§8), so drops are rare and signal a fault to fix. External parties
+queues ([Buffer sizes, and why they are what they are](#buffer-sizes-and-why-they-are-what-they-are)), so drops are rare and signal a fault to fix. External parties
 are on networks the exchange does not control, so they get the replay.
 
 **Cost.** An internal consumer that misses messages cannot ask for them
@@ -248,7 +248,7 @@ again; it can report the gap (pm-stats writes `feed_gaps`, the gateways count
 `*.bus_gaps`) and an operator can rebuild from the audit trail
 (`pm-clearing-cli rebuild` replays it).
 
-### 3.11 The command is recorded before it is handled
+### The command is recorded before it is handled
 
 **Choice.** The engine re-publishes every command it receives (but not read
 queries) onto its PUB socket *before* dispatching it, keeping the sender's
@@ -262,7 +262,7 @@ a message that is actually in the trail.
 not echoed, so its reply starts a chain of its own rather than citing a
 message nobody recorded.
 
-### 3.12 Senders fail fast; publishers never wait
+### Senders fail fast; publishers never wait
 
 **Choice.** Every PUSH socket is made with `SNDTIMEO=0`, `IMMEDIATE=1` and
 `SNDHWM=1000`. A send that cannot be queued at once raises `zmq.Again`, and
@@ -276,7 +276,7 @@ that delivers stale orders minutes later is not.
 
 **Cost.** During an engine restart, clients see refusals and must retry.
 
-### 3.13 Market data is throttled; trades are not
+### Market data is throttled; trades are not
 
 **Choice.** `trade.executed`, fills and acknowledgements are published at
 once. Full book images (`book.<SYM>`, `depth.<SYM>`) are published at most once
@@ -288,7 +288,7 @@ bus; at a thousand trades a second nobody needs a thousand books. Throttling
 turns a per-trade cost into a per-interval one and is the single largest
 lever on bus volume.
 
-### 3.14 Durability by checkpoint and recorders, not a write-ahead log
+### Durability by checkpoint and recorders, not a write-ahead log
 
 **Choice.** The engine checkpoints its resting book to JSON every 5 s and at
 shutdown (atomic write, fsync before rename). Trades are made durable by the
@@ -299,9 +299,9 @@ A five-second checkpoint bounds what a crash can lose while costing nothing
 per order.
 
 **Cost.** A `SIGKILL` or power loss loses up to five seconds of book changes
-and whatever was in flight on the bus. See §10.
+and whatever was in flight on the bus. See [Resilience: how failures are detected and survived](#resilience-how-failures-are-detected-and-survived).
 
-### 3.15 A separate socket for drop copy
+### A separate socket for drop copy
 
 **Choice.** Fill records for compliance consumers go out on their own PUB
 socket (:5557) with a session-wide sequence and a 10 000-message in-memory
@@ -312,7 +312,7 @@ be able to prove completeness. A dedicated socket keeps the volume low and
 the sequence meaningful. If :5557 is taken, the engine logs a warning and
 runs without drop copy: a port conflict must not stop matching.
 
-### 3.16 Two network planes
+### Two network planes
 
 **Choice.** The core plane (`pm-engine`, `pm-index`) binds `127.0.0.1` by
 default; the service layer binds `0.0.0.0`. See
@@ -323,7 +323,7 @@ default; the service layer binds `0.0.0.0`. See
 on the host can. Being reachable is the gateways' purpose, and they
 authenticate.
 
-### 3.17 Health and logs on buses of their own
+### Health and logs on buses of their own
 
 **Choice.** Every long-running process runs a `HealthReporter` thread that
 PUSHes a beacon to `pm-monitor` every 2 s, and ships its log records to
@@ -335,7 +335,7 @@ non-blocking sends, so a missing monitor or log server costs nothing.
 Operational traffic never shares a queue with market events.
 
 
-## 4. How data flows through the exchange
+## How data flows through the exchange
 
 ![One NEW order from the trader's keystroke to the fan-out of its results, with the causal ids each message carries.](../../../assets/architecture/arch-order-flow.png){ width="100%" }
 
@@ -391,7 +391,7 @@ events. Their field lists are declared in the same message specs, so the
 gateways do not invent wire formats of their own.
 
 
-## 5. The design of a message
+## The design of a message
 
 ![The three frames of a PUSH and a PUB message, and the component that writes each part.](../../../assets/architecture/arch-message-frames.png){ width="100%" }
 
@@ -411,7 +411,7 @@ empty field meaning absent:
 - `correlation_id` — the chain: the root command's id, inherited unchanged by
   every descendant.
 - On PUB only, in front of these: `seq`, counted per topic, and `eseq`,
-  counted per socket (§7).
+  counted per socket ([Seeing what was lost](#seeing-what-was-lost)).
 
 **Who writes it.** `CausalPusher` wraps every PUSH socket and stamps a root
 envelope. `CausalPublisher` wraps the engine's PUB socket; the run loop calls
@@ -441,7 +441,7 @@ same build: the trailing frame changed shape in the 2026-11 messaging review,
 and there is no negotiation.
 
 
-## 6. Making ZeroMQ fast
+## Making ZeroMQ fast
 
 The engine publishes several messages per order, so the cost of one publish
 is multiplied many times. These are the techniques in use, with what each one
@@ -473,7 +473,7 @@ socket, on a `BusSocket`, and on `make_publisher()`, in a loop of 200 000 with
 the garbage collector disabled; take the best of five runs.
 
 
-## 7. Seeing what was lost
+## Seeing what was lost
 
 ![Per-topic and per-socket sequence numbers, and why a loss at the end of a burst is seen late.](../../../assets/architecture/arch-gap-detection.png){ width="100%" }
 
@@ -508,7 +508,7 @@ Three properties matter in practice:
    high-water mark — a capacity problem to fix, not a normal event.
 
 
-## 8. Buffer sizes, and why they are what they are
+## Buffer sizes, and why they are what they are
 
 ![Every queue a message passes through on the command path and the event path, with its size and the points where it can be lost.](../../../assets/architecture/arch-buffers-hwm.png){ width="100%" }
 
@@ -527,7 +527,7 @@ depends on the socket type:
 
 So the queue that decides whether a subscriber loses messages is the sum of
 its own receive pipe, the kernel buffers and the publisher's send pipe for
-it. The measured 14 000 of §7 is roughly 1000 + 1000 plus what the kernel held.
+it. The measured 14 000 of [Seeing what was lost](#seeing-what-was-lost) is roughly 1000 + 1000 plus what the kernel held.
 
 ### Every buffer in the system
 
@@ -560,7 +560,7 @@ message) would suit a viewer that only needs the latest book, but it cannot
 be combined with multipart messages, and every message here has three frames.
 
 
-## 9. Stopping cleanly: what happens on SIGTERM
+## Stopping cleanly: what happens on SIGTERM
 
 ![pm-opctl-cli stop sends SIGTERM in four waves, each waited out before the next.](../../../assets/architecture/arch-shutdown-waves.png){ width="100%" }
 
@@ -640,7 +640,7 @@ end of the stream, including `system.eod`, exactly as it would miss any other
 message. That is detectable (its sequence jumps on the next run's messages,
 and pm-audit reports the missing `eseq`), but it is not prevented. Terminating
 the context with a bounded linger after the final publish would close that
-window; see §11.
+window; see [Known limits](#known-limits).
 
 ### What an abrupt stop loses
 
@@ -651,7 +651,7 @@ window; see §11.
 | A gateway killed | Lines queued to its clients | Nothing at the engine is lost; the engine notices the missing heartbeats and applies the session's disconnect behaviour |
 
 
-## 10. Resilience: how failures are detected and survived
+## Resilience: how failures are detected and survived
 
 | Failure | How it is detected | What happens |
 |---|---|---|
@@ -673,7 +673,7 @@ A slow consumer loses its own messages; a bad message loses itself; a failed
 flush loses its own work. Nothing propagates back into the engine's loop.
 
 
-## 11. Known limits
+## Known limits
 
 These are deliberate limits of a teaching exchange, recorded so that nobody
 mistakes them for guarantees:
@@ -683,12 +683,12 @@ mistakes them for guarantees:
   the engine for them again.
 - **Unsent ZeroMQ messages are lost at exit.** The engine closes its sockets
   but does not terminate the context with a linger, so anything still queued
-  for a stalled subscriber dies with the process (§9). Closing the PUB socket
+  for a stalled subscriber dies with the process ([Stopping cleanly: what happens on SIGTERM](#stopping-cleanly-what-happens-on-sigterm)). Closing the PUB socket
   with a bounded linger and terminating the context would let up to that
   linger's worth be delivered, at the cost of a slower stop.
 - **One engine, no failover.** A standby engine would need replicated state
   and sequenced command logs; see
-  [What Is Missing](020-guided-tour.md#16-what-is-missing-the-gap-to-production).
+  [What Is Missing](020-guided-tour.md#what-is-missing-the-gap-to-production).
 - **The internal bus is unauthenticated and unencrypted.** It is safe only on
   a trusted host. CurveZMQ or network ACLs would be needed before exposing it.
 - **Five seconds of exposure.** A crash loses up to one checkpoint interval

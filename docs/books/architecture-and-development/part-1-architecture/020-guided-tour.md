@@ -68,29 +68,30 @@ Terms you will encounter throughout this document, defined up front:
 ## Table of Contents
 
 1. [Quick-Reference Glossary](#quick-reference-glossary)
-1. [What Is an Exchange? The One-Sentence Version](#1-what-is-an-exchange-the-one-sentence-version)
-1. [The Limit Order: The Atom of Trading](#2-the-limit-order-the-atom-of-trading)
-1. [The Order Book: A Sorted List of Promises](#3-the-order-book-a-sorted-list-of-promises)
-1. [The First Match: How Two Orders Become a Trade](#4-the-first-match-how-two-orders-become-a-trade)
-1. [Data Structures: Why Heaps?](#5-data-structures-why-heaps)
-1. [The Order Model: Every Field Explained](#6-the-order-model-every-field-explained)
-1. [Beyond Limit Orders: The Full Order Type Taxonomy](#7-beyond-limit-orders-the-full-order-type-taxonomy)
-1. [The Trading Day: Auctions and Continuous Matching](#8-the-trading-day-auctions-and-continuous-matching)
-1. [Complex Orders: Combos and OCO](#9-complex-orders-combos-and-oco)
-1. [Market-Maker Quotes: Two Orders, One Obligation](#10-market-maker-quotes-two-orders-one-obligation)
-1. [The Message Bus: Why ZeroMQ?](#11-the-message-bus-why-zeromq)
-1. [The Full Process Architecture](#12-the-full-process-architecture)
-1. [Optimisations: Speed, Memory, and Latency](#13-optimisations-speed-memory-and-latency)
-1. [Persistence: Surviving a Restart](#14-persistence-surviving-a-restart)
-1. [Clearing and Settlement: Following the Money](#15-clearing-and-settlement-following-the-money)
-1. [What Is Missing: The Gap to Production](#16-what-is-missing-the-gap-to-production)
+1. [What Is an Exchange? The One-Sentence Version](#what-is-an-exchange-the-one-sentence-version)
+1. [The Limit Order: The Atom of Trading](#the-limit-order-the-atom-of-trading)
+1. [The Order Book: A Sorted List of Promises](#the-order-book-a-sorted-list-of-promises)
+1. [The First Match: How Two Orders Become a Trade](#the-first-match-how-two-orders-become-a-trade)
+1. [Data Structures: Why Heaps?](#data-structures-why-heaps)
+1. [The Order Model: Every Field Explained](#the-order-model-every-field-explained)
+1. [Beyond Limit Orders: The Full Order Type Taxonomy](#beyond-limit-orders-the-full-order-type-taxonomy)
+1. [The Trading Day: Auctions and Continuous Matching](#the-trading-day-auctions-and-continuous-matching)
+1. [Complex Orders: Combos and OCO](#complex-orders-combos-and-oco)
+1. [Market-Maker Quotes: Two Orders, One Obligation](#market-maker-quotes-two-orders-one-obligation)
+1. [The Message Bus: Why ZeroMQ?](#the-message-bus-why-zeromq)
+1. [The Full Process Architecture](#the-full-process-architecture)
+1. [Optimisations: Speed, Memory, and Latency](#optimisations-speed-memory-and-latency)
+1. [Persistence: Surviving a Restart](#persistence-surviving-a-restart)
+1. [Clearing and Settlement: Following the Money](#clearing-and-settlement-following-the-money)
+1. [What Is Missing: The Gap to Production](#what-is-missing-the-gap-to-production)
 
 
 
 ## How to Use This Document
 
-Read sections 1–5 in order — they build on each other and the later sections will
-not make sense without them. After Section 5, most sections are self-contained and
+Read the sections from *What Is an Exchange?* to *Data Structures: Why Heaps?*
+in order — they build on each other and the later sections will
+not make sense without them. After [Data Structures: Why Heaps?](#data-structures-why-heaps), most sections are self-contained and
 can be read in any order depending on what you want to understand.
 
 **Recommended reading sequence for the codebase itself:**
@@ -108,7 +109,7 @@ understand the core.
 
 
 
-## 1. What Is an Exchange? The One-Sentence Version
+## What Is an Exchange? The One-Sentence Version
 
 An exchange is a system that takes **buy orders** and **sell orders** from many
 participants, figures out which buyers and sellers agree on a price, and executes
@@ -122,7 +123,7 @@ explicit about what is missing), but it models every core concept faithfully.
 
 
 
-## 2. The Limit Order: The Atom of Trading
+## The Limit Order: The Atom of Trading
 
 A **limit order** is a participant saying: *“I want to buy X shares of AAPL, but
 I will not pay more than $150.00.”* Or the reverse: *“I want to sell X shares but
@@ -134,11 +135,11 @@ The key word is **limit** — the participant places a maximum (for a buy) or mi
 
 In EduMatcher, this translates directly to the `Order` dataclass. The field names
 and types below are the **original**, pre-tick-migration ones — simplest to teach
-the matching logic with — not the current source; Section 6 explains the real
+the matching logic with — not the current source; [The Order Model: Every Field Explained](#the-order-model-every-field-explained) explains the real
 current names (`price_ticks`, `ts_ns`, etc.) once the full field list is in view:
 
 ```python
-# models/order.py (original, pre-migration names — see Section 6)
+# models/order.py (original, pre-migration names — see The Order Model)
 @dataclass(slots=True)
 class Order:
     id:           str          # globally unique identifier
@@ -190,7 +191,7 @@ graph TD
 
 Each attribute access saves roughly 20-40 nanoseconds. With thousands of fills per
 second and 5+ attribute accesses per fill, this compounds to 1-2 microseconds saved
-per order — about 15% of the total per-order budget.
+per order.
 
 Memory savings are also significant: no per-object `__dict__` means each `Order`
 uses roughly 40% less memory. With thousands of resting orders in the book, this
@@ -198,7 +199,7 @@ reduces both memory consumption and garbage collection pressure.
 
 
 
-## 3. The Order Book: A Sorted List of Promises
+## The Order Book: A Sorted List of Promises
 
 The **order book** is the core data structure of an exchange. It holds all resting
 (unfilled) orders, organised by price level, waiting for a counterparty.
@@ -302,7 +303,7 @@ self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
 def _book(self, symbol: str) -> OrderBook:
     if symbol not in self.books:  # create on first use
         book = OrderBook(symbol, recent_trades_maxlen=self.recent_trades_maxlen)
-        book.on_quote_leg_fill = self._on_quote_leg_filled   # see Section 10
+        book.on_quote_leg_fill = self._on_quote_leg_filled   # see Market-Maker Quotes
         book.on_oco_leg_done = self._check_oco_after_event
         book.trace = self._trace
         self.books[symbol] = book
@@ -311,7 +312,7 @@ def _book(self, symbol: str) -> OrderBook:
 
 
 
-## 4. The First Match: How Two Orders Become a Trade
+## The First Match: How Two Orders Become a Trade
 
 Here is the simplest possible matching scenario:
 
@@ -348,7 +349,7 @@ def _match_limit(self, order, trades, events, now):
 ```python
 def _sweep(self, aggressor, opposite_heap, price_limit, trades, events, now):
     # Cache frequently-accessed attributes as locals for speed.
-    # (Section 13 shows the full set of cached locals including _smp_action
+    # (Optimisations shows the full set of cached locals including _smp_action
     # and _gw_id for self-match prevention; this version is simplified.)
     _side = aggressor.side
     _peek = self._peek
@@ -415,7 +416,7 @@ def _apply_fill(self, aggressor, passive, fill_qty, fill_price, trades, events, 
 The result: a `Trade` object is produced and added to the `trades` list. The engine
 will publish this to all subscribers on the message bus. The passive order’s heap
 entry is marked `valid = False` so `_peek` will skip it next time (lazy deletion —
-explained fully in Section 5).
+explained fully in [Data Structures: Why Heaps?](#data-structures-why-heaps)).
 
 ### What Happens to `trades` and `events` After `process()` Returns?
 
@@ -459,7 +460,7 @@ The next buy order that matches $211.00 would fill against those remaining 50 sh
 
 
 
-## 5. Data Structures: Why Heaps?
+## Data Structures: Why Heaps?
 
 ### The Problem
 
@@ -499,7 +500,7 @@ Using a tuple `(price, arrival_seq)` as the key encodes **price-time priority** 
 free: Python compares tuples element-by-element, so same-price orders are broken by
 arrival order automatically. `arrival_seq` is a counter the book increments each
 time it admits an order — deliberately *not* the order's own `timestamp`, which the
-client supplies and could back-date to jump the queue (see Section 6).
+client supplies and could back-date to jump the queue (see [The Order Model: Every Field Explained](#the-order-model-every-field-explained)).
 
 ### The `_HeapEntry` Wrapper
 
@@ -652,9 +653,10 @@ Where n = resting orders, P = distinct price levels (P << n in practice).
 
 
 
-## 6. The Order Model: Every Field Explained
+## The Order Model: Every Field Explained
 
-> **Migration note:** The code examples in Sections 2–5 and 13 use the
+> **Migration note:** The code examples from *The Limit Order* to *Data
+> Structures*, and in *Optimisations*, use the
 > **original**, pre-tick-migration names for simplicity: `price`, `stop_price`,
 > `trail_offset` and `timestamp`. The current names, shown in the listing
 > below, make the integer representation explicit: `price_ticks`,
@@ -812,7 +814,7 @@ dispatch alone. Writing slot values directly via `__new__` eliminates this.
 
 
 
-## 7. Beyond Limit Orders: The Full Order Type Taxonomy
+## Beyond Limit Orders: The Full Order Type Taxonomy
 
 ### Market Order
 
@@ -1023,14 +1025,14 @@ if passive.remaining_qty > 0 and passive.displayed_qty == 0:
 ```
 
 `_reinsert_iceberg` is the key mechanism, not the timestamp update: it assigns the
-order a **fresh `arrival_seq`** (Section 6 — this, not the timestamp, is what the
+order a **fresh `arrival_seq`** ([The Order Model: Every Field Explained](#the-order-model-every-field-explained) — this, not the timestamp, is what the
 heap key is actually built from) and pushes a new heap entry under that later
 sequence number, correctly losing queue priority to every order already resting at
 that price.
 
 
 
-## 8. The Trading Day: Auctions and Continuous Matching
+## The Trading Day: Auctions and Continuous Matching
 
 Real exchanges do not simply run continuous matching all day. A typical trading day
 looks like this:
@@ -1194,9 +1196,9 @@ the same timestamp — reflecting their logical simultaneity.
 
 
 
-## 9. Complex Orders: Combos and OCO
+## Complex Orders: Combos and OCO
 
-Iceberg orders are covered in Section 7. This section covers the two order types
+Iceberg orders are covered in [Beyond Limit Orders: The Full Order Type Taxonomy](#beyond-limit-orders-the-full-order-type-taxonomy). This section covers the two order types
 that link multiple orders together at the engine level.
 
 ### OCO (One-Cancels-Other)
@@ -1376,13 +1378,13 @@ legs are evaluated together before any fills are committed.
 
 
 
-## 10. Market-Maker Quotes: Two Orders, One Obligation
+## Market-Maker Quotes: Two Orders, One Obligation
 
 A `QUOTE` is how a market maker posts continuous two-sided liquidity: one message
 carries a bid and an ask together, and replacing it is a single atomic operation
 rather than two independent cancel/new pairs. Underneath, a quote is nothing more
 than two ordinary `LIMIT` orders in the book — same heaps, same price-time
-priority, same matching logic as Section 4. What is different is bookkeeping: the
+priority, same matching logic as [The First Match: How Two Orders Become a Trade](#the-first-match-how-two-orders-become-a-trade). What is different is bookkeeping: the
 engine needs to answer "which two orders belong to this gateway's current quote on
 this symbol?" cheaply, and it needs to keep that answer correct through fills,
 cancels, disconnects, and restarts. This section covers the two indexes that make
@@ -1479,7 +1481,7 @@ funnel that can make an order start or stop resting — insert in `_rest()`,
 `_add_stop()`, `_add_trailing_stop()`; remove in `_purge_from_indexes()` and the
 direct `_order_index` pops in `_check_stops()`/`_check_trailing_stops()` — so it
 follows the same "Dual-Index Pattern" discipline as `_order_index`/`_entry_index`
-from Section 5:
+from [Data Structures: Why Heaps?](#data-structures-why-heaps):
 
 ```python
 # _rest() — plain and quote-leg LIMIT orders
@@ -1490,7 +1492,7 @@ self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 
 ```python
 # _add_stop() / _add_trailing_stop() — STOP, STOP_LIMIT, TRAILING_STOP
-# (a separate insertion funnel from _rest(), see Section 7)
+# (a separate insertion funnel from _rest(), see Beyond Limit Orders)
 self._order_index[order.id] = order
 self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 ```
@@ -1552,7 +1554,7 @@ order in every book — and filtered in Python for a matching `gateway_id`.  On 
 real exchange, walking every resting order across every book on every gateway
 disconnect is not a performance nitpick: with enough symbols and enough resting
 orders, that sweep runs long enough to block the (deliberately single-threaded,
-see Section 12) engine thread for a visible stretch, during which no other
+see [The Full Process Architecture](#the-full-process-architecture)) engine thread for a visible stretch, during which no other
 gateway's orders can be acknowledged, matched, or cancelled either — the kind of
 latency spike a real venue's risk and monitoring would treat as an incident, not
 a shrug. `orders_for_gateway` turns that O(total resting orders) scan into
@@ -1680,7 +1682,7 @@ indexes hold themselves to.
 ### Restart: Both Indexes Rebuild From the Same Source
 
 Neither index has its own on-disk format. `QuoteIndex` and `_orders_by_gateway`
-are both pure derivations from the persisted `Order` records (Section 14 covers
+are both pure derivations from the persisted `Order` records ([Persistence: Surviving a Restart](#persistence-surviving-a-restart) covers
 GTC persistence in full). On restore, `Engine._restore_gtc` calls
 `book.process(order, match=False)` for every persisted order; whichever funnel
 that order's type reaches — `_rest()` for a resting `LIMIT`, `_add_stop()` for a
@@ -1696,7 +1698,7 @@ than synthesizing a `QuoteEntry` for a quote that is missing half of itself.
 
 
 
-## 11. The Message Bus: Why ZeroMQ?
+## The Message Bus: Why ZeroMQ?
 
 ### The Problem with Direct Function Calls
 
@@ -1913,7 +1915,7 @@ neither shape can be read as the other. Every consumer that only calls
 `decode()` is unaffected. The cost is on the publish side, never a JSON
 re-encode: a stamped publish costs about 4.0 µs against 1.6 µs for a bare
 3-frame send (measured 2026-11-20), and 1.0 µs of the difference is minting the
-ULID. [The Message Architecture, §6](015-message-architecture.md#6-making-zeromq-fast)
+ULID. [The Message Architecture — Making ZeroMQ fast](015-message-architecture.md#making-zeromq-fast)
 explains how the cost was brought down.
 
 For JSON serialization, EduMatcher uses `orjson` when available — a C-extension
@@ -1995,7 +1997,7 @@ registry. Just connect and start sending.
 
 
 
-## 12. The Full Process Architecture
+## The Full Process Architecture
 
 EduMatcher is a **multi-process system**. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
@@ -2111,7 +2113,7 @@ sessions at once from a single-threaded event loop.
 The real position state lives in a private `_Position` dataclass in
 `clearing/ledger.py` (field names differ — `net_qty`, `mark_price`, etc.); the
 conceptually-equivalent, simplified version below is easier to read fill logic
-against (Section 15 covers the full real VWAP walkthrough):
+against ([Clearing and Settlement: Following the Money](#clearing-and-settlement-following-the-money) covers the full real VWAP walkthrough):
 
 ```python
 # conceptually clearing/ledger.py — simplified field names
@@ -2131,7 +2133,7 @@ class PositionRecord:
 
 The clearing process subscribes to `trade.executed`, updates a P&L ledger for each
 participant on each side of every trade, and batches the updated rows into
-`clearing.db` (SQLite) — never a CSV file; see Section 15 for the history of
+`clearing.db` (SQLite) — never a CSV file; see [Clearing and Settlement: Following the Money](#clearing-and-settlement-following-the-money) for the history of
 the `clearing_report.csv` path this replaced.
 The VWAP cost basis update:
 
@@ -2174,44 +2176,21 @@ is the closest thing to a full audit trail in the system.
 
 
 
-## 13. Optimisations: Speed, Memory, and Latency
+## Optimisations: Speed, Memory, and Latency
 
 This section collects all performance-oriented decisions in one place, explains
 the reasoning, and quantifies the expected impact where possible.
 
-### The Latency Budget
+### Where the Time Goes
 
-Before reading individual optimisations, it helps to understand what we are
-optimising for. This budget is the one measured when these optimisations were
-made, at 57,000 orders/second — **~17.5 microseconds** per order (1 second ÷
-57,000). Today's engine does more per order (a causal envelope, the command
-echo, more risk gates); its current profile is in
-[Performance Engineering](../part-2-inside-the-engine/030-performance-engineering.md#2-where-the-time-goes):
-
-```mermaid
-xychart-beta
-    title "Per-order latency budget — ~17,500 ns total at 57,000 orders/sec"
-    x-axis ["ZMQ+decode", "from_dict", "validation", "_sweep", "_apply_fill", "_check_stops", "_publish", "overhead"]
-    y-axis "nanoseconds" 0 --> 6000
-    bar [2500, 1000, 200, 4000, 1200, 100, 3000, 5500]
-```
-
-|Step|Component                                |Cost          |Notes                            |
-|----|-----------------------------------------|--------------|---------------------------------|
-|1   |ZMQ receive + decode JSON                |~2,500 ns     |                                 |
-|2   |`Order.from_dict()`                      |~1,000 ns     |With `__new__` bypass + enum maps|
-|3   |Tick validation + price conversion       |~200 ns       |                                 |
-|4   |`_sweep()` matching loop                 |~4,000 ns     |Varies by fill count             |
-|5   |`Trade.create()` + `_apply_fill()`       |~1,200 ns     |                                 |
-|6   |`_check_stops()`                         |~100 ns       |O(1) when no stops trigger       |
-|7   |Publishing (now `_publish_dispatch()`)   |~3,000 ns     |JSON encode + ZMQ send           |
-|8   |Overhead (function calls, misc)          |~5,500 ns     |                                 |
-|    |**Total**                                |**~17,500 ns**|                                 |
-
-Each optimisation in this section attacks one of these buckets. The numbers are
-approximate and vary by hardware, OS scheduler, and fill rate — but the relative
-proportions are stable. JSON serialization and the sweep loop together consume the
-most time; both receive dedicated optimisations below.
+Before reading individual optimisations, it helps to know what they are up
+against. An order's trip through the engine — decode, gates, matching, building
+and publishing its messages — is measured in tens of microseconds, and no single
+function dominates it: the profile is a long list of small costs. The measured
+breakdown, and how to take such a measurement without fooling yourself, is in
+[Performance Engineering — Where the time goes](../part-2-inside-the-engine/030-performance-engineering.md#where-the-time-goes).
+Each technique below removes one of those small costs; the figures quoted are
+per-call costs of the operation involved, not throughput.
 
 ### Architecture: Single Timestamp Per Order
 
@@ -2256,9 +2235,6 @@ in the inner loop. `__slots__` eliminates the per-object `__dict__`, making
 attribute access ~30% faster and reducing memory by ~40% per instance. This also
 reduces GC (Garbage Collection) pressure — with fewer and smaller objects allocated
 per order, Python’s garbage collector runs less frequently.
-
-At 57,000 orders/second (the tested throughput), `__slots__` on `Order` alone saves
-roughly 2µs per order from reduced attribute lookup in the sweep loop.
 
 ### Pre-Built Enum Lookup Dicts
 
@@ -2387,9 +2363,7 @@ def create(cls, ...):
 
 `uuid.uuid4()` calls `/dev/urandom` — a system call costing ~1.5-2µs. Trade IDs
 combine a persisted engine-run sequence with an in-process monotonic counter,
-so they stay durable and sortable without a syscall in the inner loop. At
-57,000 trades per second, avoiding UUID generation saves roughly 86ms per second
-of CPU time on ID generation alone.
+so they stay durable and sortable without a syscall in the inner loop.
 
 ### Local Variable Caching in the Inner Loop
 
@@ -2445,7 +2419,7 @@ only visible quantity, so it is used for depth and best bid/offer, not for this.
 
 
 
-## 14. Persistence: Surviving a Restart
+## Persistence: Surviving a Restart
 
 When the engine restarts, two categories of state need to be restored:
 
@@ -2557,11 +2531,11 @@ after restart.
   `clearing.db` as it goes and warm-starts its ledger from there after a
   restart, so a clearing restart loses nothing it had committed.
 - **Messages in flight** — anything still in a ZeroMQ queue when a process dies
-  (see [The Message Architecture, §9](015-message-architecture.md#9-stopping-cleanly-what-happens-on-sigterm)).
+  (see [The Message Architecture — Stopping cleanly: what happens on SIGTERM](015-message-architecture.md#stopping-cleanly-what-happens-on-sigterm)).
 
 
 
-## 15. Clearing and Settlement: Following the Money
+## Clearing and Settlement: Following the Money
 
 Clearing is the process of ensuring both sides of a trade actually deliver what they
 promised: the buyer delivers money, the seller delivers shares. EduMatcher
@@ -2654,7 +2628,7 @@ and legal infrastructure.
 
 
 
-## 16. What Is Missing: The Gap to Production
+## What Is Missing: The Gap to Production
 
 EduMatcher is explicitly educational. Here is a complete and honest accounting of
 what would need to be added to make it production-grade. Each item is a
@@ -2679,7 +2653,7 @@ same kind of bounded replay: CALF (`RESUME` within `replay_window_sec`), RALF
 (`LASTSEQ` within `replay_retention_sec`) and the drop copy (a 10 000-record
 ring behind `drop_copy.replay`, relayed by `pm-dc-gwy`). How loss is detected on
 the internal bus is in
-[The Message Architecture, §7](015-message-architecture.md#7-seeing-what-was-lost).
+[The Message Architecture — Seeing what was lost](015-message-architecture.md#seeing-what-was-lost).
 
 **What is still missing:** on the core ZMQ bus (the one clearing, stats, and audit
 consume), there is no `replay_request`/response protocol and no persistent message
@@ -2842,7 +2816,7 @@ something is committed to the log, it happened; if it is not in the log, it did 
 `now_ns()` wraps `time.time_ns()` with a guarantee of strictly increasing
 values even when the system clock is adjusted backward. All `Order`, `Trade`, and
 `ComboOrder` timestamps are `int` nanoseconds. The price-time priority heap key is
-actually `(±price_ticks, arrival_seq)` (Section 6) — an engine-assigned monotonic
+actually `(±price_ticks, arrival_seq)` ([The Order Model: Every Field Explained](#the-order-model-every-field-explained)) — an engine-assigned monotonic
 sequence, not the timestamp itself, so a back-dated client timestamp cannot jump
 the queue; both components are integers either way, so comparison is exact.
 

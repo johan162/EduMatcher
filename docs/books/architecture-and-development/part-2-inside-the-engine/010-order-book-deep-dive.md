@@ -459,7 +459,7 @@ the quote-reissue path. When a gateway's last order leaves the book,
 `_discard_from_gateway_index` deletes the gateway key too, so
 `resting_count_by_gateway()` reports only gateways that actually have orders.
 For why this matters on a real venue, see the
-[guided tour, §10](../part-1-architecture/020-guided-tour.md#10-market-maker-quotes-two-orders-one-obligation).
+[guided tour — Market-Maker Quotes: Two Orders, One Obligation](../part-1-architecture/020-guided-tour.md#market-maker-quotes-two-orders-one-obligation).
 
 ### `_bid_qty` / `_ask_qty` — display depth per price level
 
@@ -1834,7 +1834,7 @@ In both cases the engine's handler calls back into `book.cancel_order()`. That
 is safe in the middle of a sweep: the cancel only flips `valid`, adjusts the
 dicts and maybe compacts the heaps (compaction keeps the same list objects),
 and the next `_peek` simply skips the dead entry. See the
-[guided tour, §10](../part-1-architecture/020-guided-tour.md#10-market-maker-quotes-two-orders-one-obligation)
+[guided tour — Market-Maker Quotes: Two Orders, One Obligation](../part-1-architecture/020-guided-tour.md#market-maker-quotes-two-orders-one-obligation)
 for the engine side.
 
 
@@ -2258,7 +2258,7 @@ Reading is good; watching one order move through the code is better. Because
 `OrderBook` needs no network, you can drive it from a ten-line script and step
 through every function in this chapter.
 
-### 1. A book lab script
+### A book lab script
 
 Save this as `book_lab.py` in the **repository root** (do not commit it) and
 run it with `poetry run python book_lab.py`:
@@ -2341,7 +2341,7 @@ events: [('b1cf', 'FILLED', 0), ('e12b', 'FILLED', 0), ('b1cf', 'FILLED', 0), ('
 Every worked example in this chapter came from a variation of this script.
 Change the orders and predict the output *before* you run it.
 
-### 2. Debugger configurations
+### Debugger configurations
 
 The repository does not ship a `.vscode/launch.json`. Create one with these
 three configurations (you need the Python and Python Debugger extensions):
@@ -2400,7 +2400,7 @@ three configurations (you need the Python and Python Debugger extensions):
   into `book.process`. The engine waits while you are stopped, so gateways may
   report missed heartbeats — that is expected when debugging a live system.
 
-### 3. Where to put breakpoints
+### Where to put breakpoints
 
 Set them by function name and follow the order as it moves down this table:
 
@@ -2425,7 +2425,7 @@ in `_sweep`, or `order.order_type.value == "STOP"` in `process`. A
 **logpoint** prints without stopping, which is ideal inside the sweep loop:
 `fill {fill_qty} @ {best_price} vs {best.id[:4]}`.
 
-### 4. Watch expressions that do not change the book
+### Watch expressions that do not change the book
 
 ```text
 sorted((e.key, e.order.id[:4], e.valid) for e in self._asks)   # true priority order
@@ -2455,7 +2455,7 @@ If that raises, the message says which invariant (I1–I5) broke. This is the
 fastest way to find the exact step at which an edit to `order_book.py` breaks
 the synchronisation rules.
 
-### 5. Reading the debug log
+### Reading the debug log
 
 With `-vv` (or `--log-level DEBUG`) the engine's `edumatcher.engine.order_book`
 logger narrates matching without a debugger:
@@ -2471,7 +2471,7 @@ logger narrates matching without a debugger:
 | `trailing stop ratchet` / `trailing stop triggered` | `_check_trailing_stops` |
 | `cancel order_id=...`, `amend order_id=... priority_reset=` | `cancel_order`, `amend_order` |
 
-### 6. Experiments to try
+### Experiments to try
 
 1. **Price improvement.** Rest an ask at 100.00, send a BUY LIMIT at 101.00 and
    confirm the trade prints at 100.00.
@@ -2489,7 +2489,7 @@ logger narrates matching without a debugger:
    `_ask_qty` shows only 100, yet the FOK fills — step through
    `fillable_quantity` to see why.
 
-### 7. Gotchas while debugging
+### Gotchas while debugging
 
 - `len(book._bids)` includes dead entries; use `len(book._entry_index)` or
   `book_stats()`.

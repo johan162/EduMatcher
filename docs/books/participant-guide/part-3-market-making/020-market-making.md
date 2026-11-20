@@ -917,7 +917,7 @@ engine handles this with a fallback: it looks up the gateway's own resting
 quote-origin orders on this symbol directly (via `OrderBook`'s
 per-gateway index of resting quote legs, not through the `QuoteIndex`) and
 cancels anything it finds there too, **before** creating the new legs. See
-[docs/architecture/020-guided-tour.md §10](../../architecture-and-development/part-1-architecture/020-guided-tour.md#10-market-maker-quotes-two-orders-one-obligation)
+[Guided Tour — Market-Maker Quotes](../../architecture-and-development/part-1-architecture/020-guided-tour.md#market-maker-quotes-two-orders-one-obligation)
 for exactly how that index is kept in sync and why it exists alongside
 `QuoteIndex` rather than replacing it. No `quote.status CANCELLED` is emitted for this
 fallback cancellation — the quote was already announced
