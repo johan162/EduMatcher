@@ -459,7 +459,7 @@ the quote-reissue path. When a gateway's last order leaves the book,
 `_discard_from_gateway_index` deletes the gateway key too, so
 `resting_count_by_gateway()` reports only gateways that actually have orders.
 For why this matters on a real venue, see the
-[guided tour, §10](../part-1-architecture/020-guided-tour.md#10-market-maker-quotes-two-orders-one-obligation).
+[guided tour — Market-Maker Quotes: Two Orders, One Obligation](../part-1-architecture/020-guided-tour.md#market-maker-quotes-two-orders-one-obligation).
 
 ### `_bid_qty` / `_ask_qty` — display depth per price level
 
@@ -481,8 +481,8 @@ Three rules define these dictionaries:
    `best_bid_ticks()` (`max` over the keys) and `bid_levels` rely on.
 3. **Not used for matching.** `_sweep` walks the heaps. Because of rule 1 the
    index *under-counts* liquidity when icebergs rest, which is why the FOK
-   pre-check (`_fok_available_qty`) and the combo pre-check
-   (`fillable_quantity`) walk the heap entries instead.
+   pre-check (`fillable_quantity`) and the combo pre-check
+   (`fillable_quantities`) walk the heap entries instead.
 
 Why two dicts instead of one keyed by `(side, price)`? The two sides are
 queried separately (best bid vs best ask, bid depth vs ask depth), and during
@@ -1024,7 +1024,7 @@ fine, the rest is cancelled with `INSUFFICIENT_LIQUIDITY` and reported.
 
 Fill-or-kill is the only matcher that looks **before** it trades: a partial
 fill cannot be undone, so the decision is made up front by
-`_fok_available_qty`. It cannot use `_ask_qty`/`_bid_qty`, because those
+`fillable_quantity`. It cannot use `_ask_qty`/`_bid_qty`, because those
 under-count icebergs, so it walks the real resting orders in priority order:
 
 ```python
@@ -1059,9 +1059,13 @@ orders), and then the FOK becomes either **CANCELLED** with
 liquidity shortfall). A safety net after the sweep cancels any remainder,
 which should never fire given an accurate pre-check.
 
-`fillable_quantity(side, price_limit)` is a simpler public cousin (counts all
-hidden quantity, no SMP); the engine's all-or-none combo pre-check uses it
-(finding **M5**).
+The walk lives in `_walk_fillable_quantities` and has two public faces.
+`fillable_quantity` is the FOK pre-check: it applies the gateway's SMP policy
+and stops counting once it has found the quantity it needs. `fillable_quantities`
+returns two totals from one walk — what the order could trade with SMP applied,
+and what it could trade without — and is what the engine's all-or-none combo
+pre-check uses (finding **M5**), so it can tell a self-match from a genuine
+shortage.
 
 ### ICEBERG — `_match_iceberg`
 
@@ -1830,7 +1834,7 @@ In both cases the engine's handler calls back into `book.cancel_order()`. That
 is safe in the middle of a sweep: the cancel only flips `valid`, adjusts the
 dicts and maybe compacts the heaps (compaction keeps the same list objects),
 and the next `_peek` simply skips the dead entry. See the
-[guided tour, §10](../part-1-architecture/020-guided-tour.md#10-market-maker-quotes-two-orders-one-obligation)
+[guided tour — Market-Maker Quotes: Two Orders, One Obligation](../part-1-architecture/020-guided-tour.md#market-maker-quotes-two-orders-one-obligation)
 for the engine side.
 
 
@@ -2090,7 +2094,7 @@ advertised 600 and the print would have been 60.
 | **Imbalance is post-SMP.** | Publishing an imbalance that counts doomed orders misleads participants. | Totals are taken from the survivors. |
 | **Icebergs.** | The hidden reserve counts toward volume but trades only slice by slice, and a SMP cancel kills the reserve too. | Volume uses the full quantity; a fill is the shown slice, refilling at the back of the level; a cancel removes the whole order. |
 | **Overridden price.** | An operator or breaker can assert a price that the walk did not pick. | The walk and the resolve pass run at that price; the reported `eq_qty` is what actually executed. |
-| **Verification.** | An independent check has to model the same rules or it reports every SMP auction as wrong. | The simulation forensics replay (`tools/sim_forensics/checks/matching.py`, `_walk`) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against `compute_equilibrium`. |
+| **Verification.** | An independent check has to model the same rules or it reports every SMP auction as wrong. | The simulation forensics replay (`src/edumatcher/sim_forensics/checks/matching.py`, `_walk`) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against `compute_equilibrium`. |
 
 ### Where this lives in the code
 
@@ -2254,7 +2258,7 @@ Reading is good; watching one order move through the code is better. Because
 `OrderBook` needs no network, you can drive it from a ten-line script and step
 through every function in this chapter.
 
-### 1. A book lab script
+### A book lab script
 
 Save this as `book_lab.py` in the **repository root** (do not commit it) and
 run it with `poetry run python book_lab.py`:
@@ -2337,7 +2341,7 @@ events: [('b1cf', 'FILLED', 0), ('e12b', 'FILLED', 0), ('b1cf', 'FILLED', 0), ('
 Every worked example in this chapter came from a variation of this script.
 Change the orders and predict the output *before* you run it.
 
-### 2. Debugger configurations
+### Debugger configurations
 
 The repository does not ship a `.vscode/launch.json`. Create one with these
 three configurations (you need the Python and Python Debugger extensions):
@@ -2396,7 +2400,7 @@ three configurations (you need the Python and Python Debugger extensions):
   into `book.process`. The engine waits while you are stopped, so gateways may
   report missed heartbeats — that is expected when debugging a live system.
 
-### 3. Where to put breakpoints
+### Where to put breakpoints
 
 Set them by function name and follow the order as it moves down this table:
 
@@ -2421,7 +2425,7 @@ in `_sweep`, or `order.order_type.value == "STOP"` in `process`. A
 **logpoint** prints without stopping, which is ideal inside the sweep loop:
 `fill {fill_qty} @ {best_price} vs {best.id[:4]}`.
 
-### 4. Watch expressions that do not change the book
+### Watch expressions that do not change the book
 
 ```text
 sorted((e.key, e.order.id[:4], e.valid) for e in self._asks)   # true priority order
@@ -2451,7 +2455,7 @@ If that raises, the message says which invariant (I1–I5) broke. This is the
 fastest way to find the exact step at which an edit to `order_book.py` breaks
 the synchronisation rules.
 
-### 5. Reading the debug log
+### Reading the debug log
 
 With `-vv` (or `--log-level DEBUG`) the engine's `edumatcher.engine.order_book`
 logger narrates matching without a debugger:
@@ -2467,7 +2471,7 @@ logger narrates matching without a debugger:
 | `trailing stop ratchet` / `trailing stop triggered` | `_check_trailing_stops` |
 | `cancel order_id=...`, `amend order_id=... priority_reset=` | `cancel_order`, `amend_order` |
 
-### 6. Experiments to try
+### Experiments to try
 
 1. **Price improvement.** Rest an ask at 100.00, send a BUY LIMIT at 101.00 and
    confirm the trade prints at 100.00.
@@ -2483,9 +2487,9 @@ logger narrates matching without a debugger:
    `_compact_heaps` rebuilds the heap.
 6. **FOK and hidden quantity.** Rest an ICEBERG 1000/100 and send a FOK BUY 500.
    `_ask_qty` shows only 100, yet the FOK fills — step through
-   `_fok_available_qty` to see why.
+   `fillable_quantity` to see why.
 
-### 7. Gotchas while debugging
+### Gotchas while debugging
 
 - `len(book._bids)` includes dead entries; use `len(book._entry_index)` or
   `book_stats()`.
@@ -2517,7 +2521,7 @@ All in `src/edumatcher/engine/order_book.py` unless stated otherwise:
 | Amends and priority | `amend_order`; the crossing-amend re-match in `Engine._handle_amend` (`engine/main.py`) |
 | Stops | `_add_stop`, `_stop_is_triggered`, `_trigger_stop_now`, `_check_stops`, the cascade loop in `run_stops` |
 | Trailing stops | `_add_trailing_stop`, `_check_trailing_stops`; initial trigger in `Engine._handle_new_order` |
-| FOK | `_match_fok`, `_fok_available_qty` |
+| FOK | `_match_fok`, `fillable_quantity` |
 | Auctions | `engine/auction.py`: `compute_equilibrium`, `execute_uncross`; `Engine._run_uncross` |
 | The engine side | `engine/main.py`: `_book`, `_handle_new_order`, `_publish_dispatch`, `_flush_snapshots` |
 | What "correct" means | `tests/engine_invariants.py`, `tests/test_book_invariants_random_ops.py`, `tests/reference_matcher.py` (a deliberately naive matcher written from the documentation, used as an oracle) |

@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import time
+import types
 from typing import Any
 from pathlib import Path
 from unittest.mock import Mock
@@ -698,13 +699,16 @@ def test_clear_requires_confirmation_and_warns_about_live_processes(
     monkeypatch.setattr(emo_cli, "DATA_DIR", tmp_path)
     monkeypatch.setattr(emo_cli, "STATE_PATHS", (state_file,))
     monkeypatch.setattr(emo_cli, "NON_STATE_PATHS", (log_file,))
-    monkeypatch.setattr(emo_cli, "_running_pm_pids", lambda: [10, 20])
+    monkeypatch.setattr(
+        emo_cli, "_running_pm_pids", lambda: ["pm-engine (pid 10)", "pm-stats (pid 20)"]
+    )
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
     assert emo_cli.clear_data(scope=scope, assume_yes=False) == 1
     assert state_file.exists() and log_file.exists()
     captured = capsys.readouterr()
     assert "2 pm-* process(es)" in captured.out
+    assert "pm-engine (pid 10), pm-stats (pid 20)" in captured.out
     assert "Refusing to clear without --yes" in captured.err
 
 
@@ -966,16 +970,56 @@ def test_running_process_detection_is_best_effort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        emo_cli, "pgrep_pids", Mock(side_effect=RuntimeError("ps failed"))
+        "edumatcher.emo.cli.psutil.process_iter",
+        Mock(side_effect=RuntimeError("ps failed")),
     )
     assert emo_cli._running_pm_pids() == []
 
 
-def test_running_process_detection_ignores_itself(
+@pytest.mark.parametrize(
+    "cmdline, expected",
+    [
+        (["/venv/bin/python", "/venv/bin/pm-engine", "--verbose"], True),
+        (["/venv/bin/pm-engine"], True),
+        (["python3.14", "/x/bin/pm-api-gwy", "--instance", "desk"], True),
+        # "pm-" anywhere else in a command line is not a pm-* program
+        (["bash", "-c", "pm-opctl-cli stop; pm-opctl-cli clear --state"], False),
+        (["node", "/usr/lib/node_modules/npm/bin/npm-cli.js", "start"], False),
+        (["vim", "pm-notes.txt"], False),
+        (["python3", "-m", "pytest", "tests/test_pm-x.py"], False),
+        ([], False),
+    ],
+)
+def test_a_pm_program_is_recognised_by_its_program_not_its_arguments(
+    cmdline: list[str], expected: bool
+) -> None:
+    assert emo_cli._is_pm_program(cmdline) is expected
+
+
+def test_running_process_detection_ignores_itself_and_its_ancestors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(emo_cli, "pgrep_pids", lambda program: [os.getpid(), 42])
-    assert emo_cli._running_pm_pids() == [42]
+    """The shell (or `timeout`, or a parent pm-opctl-cli) that started this
+    command is not a process that could write to the data directory."""
+    procs = [
+        (100, ["bash", "-c", "pm-opctl-cli stop; pm-opctl-cli clear"]),  # parent
+        (101, ["python3", "/venv/bin/pm-opctl-cli", "clear"]),  # this process
+        (7, ["python3", "/venv/bin/pm-engine", "--verbose"]),
+        (8, ["node", "/usr/lib/node_modules/npm/bin/npm-cli.js"]),
+        (9, ["/venv/bin/pm-log-srv"]),
+    ]
+    me = Mock(pid=101)
+    me.parents.return_value = [Mock(pid=100), Mock(pid=1)]
+    monkeypatch.setattr("edumatcher.emo.cli.psutil.Process", lambda: me)
+    monkeypatch.setattr(
+        "edumatcher.emo.cli.psutil.process_iter",
+        lambda _attrs: [
+            types.SimpleNamespace(info={"pid": pid, "cmdline": cmd})
+            for pid, cmd in procs
+        ],
+    )
+
+    assert emo_cli._running_pm_pids() == ["pm-engine (pid 7)", "pm-log-srv (pid 9)"]
 
 
 @pytest.mark.parametrize(

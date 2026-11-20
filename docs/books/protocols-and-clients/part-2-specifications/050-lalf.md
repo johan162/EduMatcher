@@ -127,7 +127,7 @@ assume for its own constrained field values (symbols, prices, enums).
 
 ```text
 HELLO|CLIENT=pm-api-gwy|PID=48213|HOST=trader-laptop|PROTO=LALF1
-LOG|SEQ=1042|TS=2026-07-28T14:32:07.511Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=57
+LOG|SEQ=1042|TS=2026-07-28T14:32:07.511Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=60
 slow client detected on channel DEPTH, symbol AAPL, dropping
 ```
 
@@ -259,7 +259,7 @@ length-prefixed message body.
 | `LEN` | Yes | int | Byte length of the UTF-8 payload following this header line's `\n` |
 
 ```text
-LOG|SEQ=1042|TS=2026-07-28T14:32:07.511Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=57
+LOG|SEQ=1042|TS=2026-07-28T14:32:07.511Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=60
 slow client detected on channel DEPTH, symbol AAPL, dropping
 ```
 

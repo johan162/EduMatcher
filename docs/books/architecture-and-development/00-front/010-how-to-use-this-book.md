@@ -15,7 +15,7 @@ through the code, the development workflow, verification, and releases.
 
 | Part | What you learn |
 |---|---|
-| **I. Architecture** | Why the system is a set of processes on a message bus, how they are connected, and a guided tour of the whole design |
+| **I. Architecture** | Why the system is a set of processes on a message bus, how they are connected, the design decisions and data flows behind the message architecture — buffers, shutdown and resilience included — a guided tour of the whole design, and the formats of its data files |
 | **II. Inside the engine** | The order book's data structures and matching algorithm, and one order's path through the engine, step by step |
 | **III. Developing** | Setting up, the development loop, deterministic verification, message generation, containers and networks, and ideas for extensions |
 | **IV. Releasing** | How a release is produced and published |
@@ -23,7 +23,10 @@ through the code, the development workflow, verification, and releases.
 ## Where to start
 
 - **To understand the design:** [Architecture](../part-1-architecture/010-architecture-overview.md),
-  then [Order Flow Through the Engine](../part-2-inside-the-engine/020-order-flow-end-to-end.md).
+  then [The Message Architecture](../part-1-architecture/015-message-architecture.md)
+  and [Order Flow Through the Engine](../part-2-inside-the-engine/020-order-flow-end-to-end.md).
+- **Before changing a socket, a topic, a message or a shutdown path:**
+  [The Message Architecture](../part-1-architecture/015-message-architecture.md).
 - **To make a change:** [Development Practice](../part-4-developing/010-development-practice.md)
   and [The Development Loop](../part-4-developing/020-development-workflow.md),
   then the chapters for the area you are changing.

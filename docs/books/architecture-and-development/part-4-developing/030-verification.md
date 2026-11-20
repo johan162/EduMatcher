@@ -252,20 +252,22 @@ authoritative input.
 
 ```
 [GEN] Generating and paper-trading 1000 line(s) …
-[GEN] Wrote 56 MM orders  → data/verify/mm_orders.fix
-[GEN] Wrote engine config    → data/verify/verify_engine_config.yaml
-[GEN] Wrote 1000 test lines  → data/verify/test_orders.fix
-      769 new, 238 amend, 49 cancel → 879 trades
-  AAPL    bids=12 levels  asks=14 levels  last=150.22
-  AMAZ    bids=8 levels  asks=17 levels  last=180.30
-  MSFT    bids=16 levels  asks=13 levels  last=418.83
-  GOOG    bids=9 levels  asks=25 levels  last=160.07
-[GEN] Saved paper result     → data/verify/paper_result.json
+[GEN] Wrote 56 MM orders  → /path/to/checkout/data/verify/mm_orders.fix
+[GEN] Wrote engine config    → /path/to/checkout/data/verify/verify_engine_config.yaml
+[GEN] Wrote 1000 test lines  → /path/to/checkout/data/verify/test_orders.fix
+      770 new, 233 amend, 53 cancel → 825 trades
+  AAPL    bids=15 levels  asks=20 levels  last=150.02
+  AMAZ    bids=16 levels  asks=19 levels  last=180.03
+  MSFT    bids=26 levels  asks=3 levels  last=422.2
+  GOOG    bids=10 levels  asks=23 levels  last=160.16
+[GEN] Saved paper result     → /path/to/checkout/data/verify/paper_result.json
 [GEN] Done — run replay_to_engine.py to get the engine result.
 ```
 
-(Real numbers for `--seed 42 --count 1000`, reproduced exactly on every run
-with that seed.) There is no "skipped" count any more — the four `#` comment
+(Real numbers for `--seed 42 --count 1000`, measured 2026-11-20 and reproduced
+byte for byte by a second run. They change only when the generator or the
+reference matcher changes. The files go to `data/verify/` under the repository
+root, wherever you run the script from — not to the engine's data directory.) There is no "skipped" count any more — the four `#` comment
 header lines in `mm_orders.fix` are silently skipped while building the MM
 book, and `replay_to_engine.py`'s own parse-error counter (below) is what
 surfaces them later.
@@ -358,18 +360,25 @@ the engine running with no competing resting orders — a "rej" line for
 
 ```
 [REPLAY] Gateway VERIFY01 authenticated.
-[REPLAY] … 500 lines sent (500 acc, 0 rej)
-[REPLAY] … 1000 lines sent (1000 acc, 0 rej)
-[REPLAY] Sent 1056 lines in 0.59s  (1056 accepted, 0 rejected, 4 parse errors)
+[REPLAY] … 500 lines sent (480 acc, 20 rej)
+[REPLAY] … 1000 lines sent (960 acc, 40 rej)
+[REPLAY] Sent 1056 lines in 0.51s  (1011 accepted, 45 rejected, 4 parse errors)
 [REPLAY] Pausing 0.5s for engine to drain …
 [REPLAY] Requesting book snapshots …
-  AAPL    bids=12 levels  asks=14 levels  last=150.22
-  AMAZ    bids=8 levels  asks=17 levels  last=180.3
-  MSFT    bids=16 levels  asks=13 levels  last=418.83
-  GOOG    bids=9 levels  asks=25 levels  last=160.07
-[REPLAY] Saved engine result → data/verify/engine_result.json
+  AAPL    bids=15 levels  asks=20 levels  last=150.02
+  AMAZ    bids=16 levels  asks=19 levels  last=180.03
+  MSFT    bids=26 levels  asks=3 levels  last=422.2
+  GOOG    bids=10 levels  asks=23 levels  last=160.16
+[REPLAY] Saved engine result → /path/to/checkout/data/verify/engine_result.json
 [REPLAY] Done — run compare_results.py to verify.
 ```
+
+Rejections are expected and are not failures. Nearly all are `FOK` orders
+the book cannot fill completely: the engine answers those with a single
+`accepted=false` ACK (`INSUFFICIENT_LIQUIDITY`), and the reference matcher
+rejects the same orders, so the books still agree. Replaying the `NEW` lines of
+this dataset through the reference matcher alone gives 44 rejected FOKs. The
+verdict comes from comparing the books, never from the reject count.
 
 Progress prints every 500 lines (not every 100), and the "4 parse errors" here
 are the same four `#` comment lines in `mm_orders.fix` seen in Tool 1 — this
@@ -433,10 +442,16 @@ A passing run (real output, same `--seed 42 --count 1000` dataset as the Tool
 
 ```
 ── AAPL ──────────────────────────────────
-  ✓  PASS  — 12 bid level(s), 14 ask level(s), last=150.22
+  ✓  PASS  — 15 bid level(s), 20 ask level(s), last=150.02
 
 ── AMAZ ──────────────────────────────────
-  ✓  PASS  — 8 bid level(s), 17 ask level(s), last=180.3
+  ✓  PASS  — 16 bid level(s), 19 ask level(s), last=180.03
+
+── MSFT ──────────────────────────────────
+  ✓  PASS  — 26 bid level(s), 3 ask level(s), last=422.2
+
+── GOOG ──────────────────────────────────
+  ✓  PASS  — 10 bid level(s), 23 ask level(s), last=160.16
 
 ═══  RESULT: PASS  ═══
 ```
@@ -688,47 +703,49 @@ Key decisions:
 ```
 
 Expected end-to-end output for a passing run (real, `--seed 42`, default
-`--count 10000` — elapsed time measured directly at ~10.6 s total, so the
-"~10 s on a laptop" estimate above still holds even though the default line
-count is ten times what it used to be):
+`--count 10000` — elapsed time measured at about 22 s in total on the
+development machine, 2026-11-20; the progress lines are abridged):
 
 ```
 ━━━  STEP 1 — Generate verification dataset (seed=42, count=10000)  ━━━
 [GEN] Generating and paper-trading 10000 line(s) …
-[GEN] Wrote 56 MM orders  → data/verify/mm_orders.fix
-[GEN] Wrote engine config    → data/verify/verify_engine_config.yaml
-[GEN] Wrote 10000 test lines  → data/verify/test_orders.fix
-      7106 new, 2380 amend, 570 cancel → 9020 trades
-  AAPL    bids=56 levels  asks=65 levels  last=150.37
-  AMAZ    bids=77 levels  asks=55 levels  last=179.92
-  MSFT    bids=102 levels  asks=81 levels  last=419.92
-  GOOG    bids=69 levels  asks=73 levels  last=160.21
-[GEN] Saved paper result     → data/verify/paper_result.json
+[GEN] Wrote 56 MM orders  → /path/to/checkout/data/verify/mm_orders.fix
+[GEN] Wrote engine config    → /path/to/checkout/data/verify/verify_engine_config.yaml
+[GEN] Wrote 10000 test lines  → /path/to/checkout/data/verify/test_orders.fix
+      7102 new, 2374 amend, 580 cancel → 8828 trades
+  AAPL    bids=72 levels  asks=62 levels  last=149.8
+  AMAZ    bids=62 levels  asks=66 levels  last=179.86
+  MSFT    bids=81 levels  asks=84 levels  last=420.22
+  GOOG    bids=71 levels  asks=53 levels  last=160.4
+[GEN] Saved paper result     → /path/to/checkout/data/verify/paper_result.json
 [GEN] Done — run replay_to_engine.py to get the engine result.
 
 ━━━  STEP 2 — Start matching engine  ━━━
 [VERIFY] Engine data directory: /path/to/checkout/src/data
 [VERIFY] Deploying verify_engine_config.yaml …
 [VERIFY] Starting engine …
-[VERIFY] Waiting for engine to bind (2 s) …
+[VERIFY] Waiting for engine to bind …
 [VERIFY] Engine PID=84231 is running.
 
 ━━━  STEP 3 — Replay orders to engine  ━━━
 [REPLAY] Gateway VERIFY01 authenticated.
-[REPLAY] … 500 lines sent (500 acc, 0 rej)
+[REPLAY] … 500 lines sent (486 acc, 14 rej)
 ...
-[REPLAY] Sent 10056 lines in 5.94s  (10056 accepted, 0 rejected, 4 parse errors)
+[REPLAY] … 10000 lines sent (9581 acc, 419 rej)
+[REPLAY] Sent 10056 lines in 5.80s  (9636 accepted, 420 rejected, 4 parse errors)
 [REPLAY] Pausing 0.5s for engine to drain …
-[REPLAY] Saved engine result → data/verify/engine_result.json
+[REPLAY] Requesting book snapshots …
+...
+[REPLAY] Saved engine result → /path/to/checkout/data/verify/engine_result.json
 
 ━━━  STEP 4 — Shut down engine  ━━━
 [VERIFY] Sending SIGINT to engine …
 
 ━━━  STEP 5 — Compare paper vs engine  ━━━
-  ✓  PASS  — 56 bid level(s), 65 ask level(s), last=150.37
-  ✓  PASS  — 77 bid level(s), 55 ask level(s), last=179.92
-  ✓  PASS  — 102 bid level(s), 81 ask level(s), last=419.92
-  ✓  PASS  — 69 bid level(s), 73 ask level(s), last=160.21
+  ✓  PASS  — 72 bid level(s), 62 ask level(s), last=149.8
+  ✓  PASS  — 62 bid level(s), 66 ask level(s), last=179.86
+  ✓  PASS  — 81 bid level(s), 84 ask level(s), last=420.22
+  ✓  PASS  — 71 bid level(s), 53 ask level(s), last=160.4
 
 ═══  RESULT: PASS  ═══
 

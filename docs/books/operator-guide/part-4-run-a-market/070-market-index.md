@@ -113,12 +113,18 @@ symbols:
   AAPL:
     tick_decimals: 2
     outstanding_shares: 15000000000
+    last_buy_price: 190.00
+    last_sell_price: 190.00
   MSFT:
     tick_decimals: 2
     outstanding_shares: 7400000000
+    last_buy_price: 410.00
+    last_sell_price: 410.00
   TSLA:
     tick_decimals: 2
     outstanding_shares: 3200000000
+    last_buy_price: 250.00
+    last_sell_price: 250.00
 
 participants:
   - id: TRADER01
@@ -156,6 +162,9 @@ Constraints:
 - `id` must be alphanumeric, and `id` values must be unique
 - `constituents` must be a non-empty list with no duplicates
 - Every constituent symbol must appear in `symbols:` with `outstanding_shares` set
+- Every constituent needs a reference price (`last_buy_price` and/or
+  `last_sell_price`): `pm-index` computes the initial divisor from it and
+  refuses to start without one (verifier check C008)
 - Relative `history_file` / `state_file` paths (including a leading `data/`) are
   resolved inside the data directory (`EDUMATCHER_DATA_DIR`); absolute paths are used as given
 

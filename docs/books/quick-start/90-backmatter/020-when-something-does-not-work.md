@@ -10,7 +10,7 @@ first three.
 | Is everything running? | `./edumatcher.sh status` | `pm-opctl-cli list` |
 | What did the exchange say when it started? | `./edumatcher.sh logs` | the log files under `<data directory>/emo/` (the directory itself is in `pm-opctl-cli show`) |
 | Which configuration is actually deployed? | `./edumatcher.sh shell pm-config-show` | `pm-config-show` |
-| What is each process doing? | Log Operator Console at <http://localhost:8091> | `pm-log-cli` |
+| What is each process doing? | Log Operator Console at <http://localhost:8091> | `pm-log-cli tail` |
 | Am I looking at the exchange I think I am? | `./edumatcher.sh mounts` | `pm-setup --show` |
 | Which ports are published? | `./edumatcher.sh urls` | — |
 
@@ -29,8 +29,9 @@ The usual causes are:
 - *Permission denied on the Docker socket* (Linux). Your user must be allowed
   to use Docker (see Docker's "post-installation steps for Linux"), or use
   Podman, which needs no special rights.
-- *A port is already in use.* The exchange publishes 8080, 8081 and 8090–8096
-  on your computer. Stop whatever else uses them, or change a browser
+- *A port is already in use.* The exchange publishes 8080, 8081, 8090–8096
+  and the gateway ports 5560, 5565, 5570, 5580, 5590 and 5600 on your
+  computer. Stop whatever else uses them, or change a browser
   application's port in `.env` (for example `TERMINAL_GUI_PORT=8190`) and run
   `./edumatcher.sh restart`; `./edumatcher.sh urls` prints the addresses in
   use. Another running EduMatcher installation counts too (see *Two
@@ -49,7 +50,10 @@ key, with no spaces, and use the key of the participant you mean.
 
 **The console says *Gateway already connected*.** A participant ID can be
 connected once at a time. Another console, or a Trading GUI login, is using
-it. Close that one, or use another participant such as `TRADER02`.
+it. Close that one, or use another participant such as `TRADER02`. A
+console logs out when you type `EXIT`, close its window or kill it; only one
+that crashed keeps the ID, and the message then says within how many seconds
+(at most 15) the engine frees it.
 
 **My orders disappeared.** When a trader disconnects (typing `EXIT`, or
 closing the console window) the exchange cancels that trader's resting orders
@@ -76,8 +80,10 @@ Viewer) to see the best bid and ask.
 
 **My order traded immediately, before the other trader did anything.** The
 book already had liquidity: a market maker's seeded quote, or the
-market-maker bot of the container's `mm-demo` profile. Use an `-nomm`
-configuration and the `default` profile, as in
+market-maker bot of the container's `mm-demo` profile, or orders saved from
+an earlier run (the engine restores the same day's resting orders at start,
+even after you switch configuration). Use an `-nomm` configuration and the
+`default` profile, as in
 [Your First Trade](../part-1-see-it-run/030-your-first-trade.md), to start
 from an empty book.
 
@@ -117,4 +123,5 @@ The [FAQ](010-faq.md) answers the next layer of questions, and the Operator's
 Guide has a full troubleshooting section in
 [Running the Exchange](../../operator-guide/part-3-run/010-running-the-exchange.md).
 If something in this guide does not work as written, that is a documentation
-bug — please report it on GitHub.
+bug — please report it on GitHub, at
+<https://github.com/johan162/EduMatcher/issues>.

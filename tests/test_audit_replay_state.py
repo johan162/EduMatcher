@@ -16,7 +16,7 @@ which corridor.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
@@ -32,6 +32,7 @@ from edumatcher.audit.replay.anomalies import (
     RUN_SEQ_CHANGE,
 )
 from edumatcher.audit.replay.facts import to_fact
+from edumatcher.models.generated.system import RecoveryItemOutcome
 from edumatcher.audit.replay.state import (
     HALT_SOURCE_ADMIN,
     HALT_SOURCE_BREAKER,
@@ -586,6 +587,25 @@ class TestTheRunModel:
             )
         )
         assert model.run.recovery_failures == [ORDER]
+
+    @pytest.mark.parametrize(
+        "outcome",
+        ["RESTORED", "DISCARDED_STALE_DAY", "DISCARDED_UNCONFIGURED", "QUOTE_REMNANT"],
+    )
+    def test_only_a_failed_recovery_item_is_a_failure(self, outcome: str) -> None:
+        """A discarded order is the restore working as intended (its day
+        ended, or the configuration no longer allows it), not a failure. The
+        check used to name an outcome "DISCARDED" that the schema does not
+        have."""
+        assert outcome in get_args(RecoveryItemOutcome)
+        model = StateModel()
+        model.apply(
+            fact(
+                "system.recovery_item",
+                {"entity_id": ORDER, "kind": "ORDER", "outcome": outcome},
+            )
+        )
+        assert model.run.recovery_failures == []
 
     def test_a_restart_clears_the_previous_runs_recovery(self) -> None:
         model = StateModel()

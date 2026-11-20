@@ -460,11 +460,10 @@ it immediately after `WELCOME` rather than depending on the handshake field.
 
 #### `REF` — per-symbol display precision
 
-`REF` answers "how many decimal places does this instrument quote in?", which
-a client otherwise has no way to discover. The only other source is
-`GET /api/symbols` on the API gateway, which requires a *trading* credential —
-something a market data consumer has no business holding — so before this field
-existed every CALF client had to assume the default of `2` and was quietly
+`REF` answers "how many decimal places does this instrument quote in?". The
+only other source is `GET /api/v1/reference/symbols` on the API gateway, which
+needs an API key and an HTTP client beside the CALF connection — so before this
+field existed every CALF client assumed the default of `2` and was quietly
 wrong about any instrument configured otherwise.
 
 ```text
@@ -1041,6 +1040,12 @@ CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_AL
 CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|SRC=CB
 ```
 
+The first example is an automatic threshold-breach halt (all detail fields
+present); the second is an ADMIN exchange-wide halt (`trigger`/`reference`/
+`resume` all omitted, matching the engine's `None` values for that path);
+the third is the resume that follows the first halt (`STATUS=ACTIVE`, only
+`SRC` retained).
+
 An ACE sequence — halt, one extension, then a reopen inside the widened
 corridor:
 
@@ -1056,12 +1061,6 @@ corridor boundary rather than at the equilibrium:
 ```text
 CB|CH=CB|SYM=AAPL|SEQ=9|TS=2026-07-20T16:05:00.010Z|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00
 ```
-
-The first example is an automatic threshold-breach halt (all detail fields
-present); the second is an ADMIN exchange-wide halt (`trigger`/`reference`/
-`resume` all omitted, matching the engine's `None` values for that path);
-the third is the resume that follows the first halt (`STATUS=ACTIVE`, only
-`SRC` retained).
 
 `SYM=*` is invalid for `SUB|CH=CB` — see "Subscription rules" above.
 
@@ -1363,9 +1362,9 @@ All supported CALF `1.0.0` configuration fields are listed below.
 
 | Field | Type / allowed range | Default | Description |
 |---|---|---|---|
-| `market_data_gateway.enabled` | Boolean (`true`/`false`) | `true` (recommended when CALF is used) | Enables/disables the CALF gateway process configuration. |
-| `market_data_gateway.name` | Non-empty string | Implementation-defined | Gateway instance name advertised in `WELCOME|GW=...`. |
-| `market_data_gateway.bind_address` | IP/host bind string | `0.0.0.0` (common) | Local interface address to bind for incoming TCP clients. |
+| `market_data_gateway.enabled` | Boolean (`true`/`false`) | `true` | Enables/disables the CALF gateway process configuration. |
+| `market_data_gateway.name` | Non-empty string | `md-gwy01` | Gateway instance name advertised in `WELCOME|GW=...`. |
+| `market_data_gateway.bind_address` | IP/host bind string | `0.0.0.0` | Local interface address to bind for incoming TCP clients; `EDUMATCHER_GATEWAY_BIND_HOST` overrides it. |
 | `market_data_gateway.port` | Integer, `1..65535` | `5570` | TCP listen port for CALF clients. |
 | `market_data_gateway.heartbeat_interval_sec` | Integer, `> 0` | `1` | Interval used to emit `HB` when no outbound market-data line was sent. |
 | `market_data_gateway.idle_timeout_sec` | Integer, `> 0` | `5` | Maximum silent period (no inbound and no outbound traffic) before disconnect. |
@@ -1438,8 +1437,8 @@ market_data_gateway:
   let `CB`'s richer detail leak into `STATE`'s field set, and do not let a
   `CB` normaliser failure suppress the `STATE` emission (or vice versa);
   both should be independent `_emit_stream_event` calls from the same handler.
-- Carry the halt's cause on a single wire key, `SRC`, in `CB` —
-  do not propagate the internal inconsistency to clients.
+- Carry the halt's cause on a single wire key, `SRC` (`CB` or `ADMIN`), in
+  `CB`.
 - Track sequence numbers independently per `(CH,SYM)` stream; never use a single
   global counter.
 - Treat `RESUME` as single-stream only and validate `CH`, `SYM`, and
@@ -1496,7 +1495,8 @@ If you are implementing a CALF client, the most important protocol truths are:
 
 - [Market Data Feed (CALF)](../../operator-guide/part-5-gateways/030-calf-gateway.md) — operational guide and client examples
 - [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — circuit-breaker engine behavior behind the `CB` channel
-- [Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md) — auction uncross mechanics behind the `AUCTION` channel
+- [Session Scheduling and Auctions](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md) — auction uncross mechanics behind the `AUCTION` channel
+- [Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md) — the index levels behind the `INDEX` channel
 
 **Reference Manual:**
 

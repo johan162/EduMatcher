@@ -40,23 +40,27 @@ The current parser recognizes these top-level keys:
 | `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
 The nested sections below document every field currently parsed under these
-top-level keys. Unknown keys in a mapping are generally ignored by the loader,
-but they should not be relied on for runtime behavior — `pm-config-show -a`
-lists any it finds, which is the cheapest way to catch a mistyped section name.
+top-level keys. An unknown key, at any depth, is a `pm-cverifier` error
+(`S121`), so `pm-config-deploy` refuses the file and a mistyped key never
+reaches a running process. `pm-config-show -a` also lists unrecognised
+top-level keys of the file it shows.
 
 ## Which Process Reads What
 
-`engine_config.yaml` is one shared ref-data file, but no single process reads
-all of it. Each auxiliary gateway or service opens the file independently at
-its own startup, ignores every top-level key it doesn't recognize, and parses
-only the section(s) it owns. `pm-engine` is the only process that reads most
-of the file — the gateway-specific blocks (`market_data_gateway`,
+`engine_config.yaml` is one shared ref-data file, but no single process uses
+all of it. `pm-config-deploy` validates the whole file and runs each section's
+loader once, writing the resolved result to
+`<DATA_DIR>/ref_data/engine_config.json`; every process then reads only its own
+section(s) of that compiled file at startup. `pm-engine` is the only process
+that uses most of it — the gateway-specific blocks (`market_data_gateway`,
 `balf_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server`,
-`alf_gateway`, `api_gateways`) are never touched by the engine itself.
+`alf_gateway`, `api_gateways`) are never touched by the engine itself. The
+loader modules in the table below are the ones `pm-config-deploy` runs for each
+section.
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
-| `pm-engine` | `engine/config_loader.py` | `symbols`, `participants`, `participant_defaults`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `require_mm_seed_quotes`, `auction_indicative_interval_sec`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `participants`, `participant_defaults`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `require_mm_seed_quotes`, `auction_indicative_interval_sec`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `locale`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
 | `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `participants` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
 | `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `participants` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
@@ -78,12 +82,13 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 
 Two practical consequences follow from this split:
 
-- A typo in, say, `balf_gateway` will not be caught by `pm-engine` at all —
-  only `pm-balf-gwy` (or `pm-cverifier`) will reject it. Run `pm-cverifier`
-  before starting a full stack to catch cross-section mistakes early.
+- A mistake in any section, say `balf_gateway`, is caught when the file is
+  deployed, not when the process that owns the section first starts:
+  `pm-config-deploy` refuses a file `pm-cverifier` reports an error for.
 - Each gateway process can be restarted independently with a changed config
-  section (for example, bumping `market_data_gateway.depth_levels`) without
-  restarting `pm-engine`, since the engine never reads that section.
+  section (for example, bumping `market_data_gateway.depth_levels`): redeploy
+  the file, then restart that gateway only. `pm-engine` never reads that
+  section, so it need not restart.
 
 ## Configuring `pm-alf-gwy`
 
@@ -438,12 +443,17 @@ engine reply waits are applied. In the current implementation:
 - `credentials_file` names a YAML list of credentials, relative to the file that names it, in place of an inline `credentials` (not both)
 - `rate_limit` applies per API key to write endpoints only
 - `timeouts.engine_reply_sec` and `timeouts.wait_ack_sec` control request/reply and `?wait=ack` waits
+- `engine_pull_addr`, `engine_pub_addr`, `index_pull_addr` and `index_pub_addr`
+  are the ZeroMQ endpoints of the engine (`5555`/`5556` on
+  `EDUMATCHER_ENGINE_HOST`) and of `pm-index` (`5559`/`5558` on
+  `EDUMATCHER_INDEX_BIND_HOST`); they are not validated and normally left unset
 
 If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--api-gateway`. By default it generates one
-credential per configured ALF gateway. Add `--api-gateway-readonly-key` for a
-dashboard-style key with `gateway_id: null`, or pass explicit `--api-key`
-entries when you need known token values.
+credential per configured ALF gateway plus a dashboard-style read-only key with
+`gateway_id: null` (`--no-api-gateway-readonly-key` leaves that out). Pass
+explicit `--api-key` entries when you need known token values, or
+`--api-keys-for` to write the keys to a separate `api_keys.yaml`.
 
 When more than one named API gateway is configured, start each process with its
 entry name, for example `pm-api-gwy --instance desk`.
@@ -602,8 +612,19 @@ If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--log-server` and the associated
 `--log-server-*` options — see "Log server options" and "Log server LALF-PS
 options" in
-[Generate Configs with pm-config-gen](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#generate-configs-with-pm-config-gen)
-above.
+[Generate Configs with pm-config-gen](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#generate-configs-with-pm-config-gen).
+
+### `log_server.client` — read by every other process
+
+The optional `client` mapping inside `log_server` is not read by `pm-log-srv`
+itself but by every other `pm-*` process, to configure how it ships its own
+log records to the server.
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `connect_timeout_sec` | `0.5` | TCP connect timeout for each attempt to reach the log server |
+| `failover_timeout_sec` | `30.0` | How long a process keeps retrying a dropped log-server connection before it switches, permanently for that process, to a local log file. The `--log-failover-timeout` flag overrides it |
+| `failover_dir` | `<data dir>/logs` | Directory for the local failover log files; `~` expanded |
 
 
 ## Configuring `pm-monitor`

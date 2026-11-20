@@ -136,7 +136,10 @@ class TestA2QueryEngineState:
     def test_returns_state_from_reply(self) -> None:
         fake_push = MagicMock()
         fake_sub = replying_sub(
-            fake_push, make_session_status_msg("SCHEDULER", "CONTINUOUS", True)
+            fake_push,
+            make_session_status_msg(
+                "SCHEDULER", "CONTINUOUS", "2024-01-09T06:00:00.000Z", True
+            ),
         )
         result = _query_engine_state(fake_push, fake_sub, "SCHEDULER", timeout_ms=200)
         assert result is SessionState.CONTINUOUS
@@ -175,7 +178,10 @@ class TestA2ClosedLoopCatchUp:
         mock_dt.now.return_value = datetime(2024, 1, 9, 12, 0, 0)
         fake_push = MagicMock()
         fake_sub = replying_sub(
-            fake_push, make_session_status_msg("SCHEDULER", "CONTINUOUS", True)
+            fake_push,
+            make_session_status_msg(
+                "SCHEDULER", "CONTINUOUS", "2024-01-09T06:00:00.000Z", True
+            ),
         )
 
         # No catch-up transitions are expected (the engine already reports
@@ -207,7 +213,9 @@ class TestA2ClosedLoopCatchUp:
         fake_push = MagicMock()
         fake_sub = replying_sub(
             fake_push,
-            make_session_status_msg("SCHEDULER", "PRE_OPEN", True),
+            make_session_status_msg(
+                "SCHEDULER", "PRE_OPEN", "2024-01-09T06:00:00.000Z", True
+            ),
             make_session_state_msg("OPENING_AUCTION", prev_state="PRE_OPEN"),
             make_session_state_msg("CONTINUOUS", prev_state="OPENING_AUCTION"),
         )

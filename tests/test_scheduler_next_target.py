@@ -141,10 +141,14 @@ def test_a_mid_day_start_announces_the_next_step_it_waits_for(
         return 0
 
     confirm.poll.side_effect = empty_poll
-    query = MagicMock(return_value=SessionState.CONTINUOUS)
+    query = MagicMock(
+        return_value=sched._EngineStatus(
+            SessionState.CONTINUOUS, "2026-11-06T08:30:00.000Z"  # 09:30 today
+        )
+    )
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(sched, "_query_engine_state", query)
+        mp.setattr(sched, "_query_engine_status", query)
         sched._run_scheduled(MagicMock(), WEEKDAYS_ONLY, confirm_sock=confirm)
 
     assert events[0] == (
@@ -160,10 +164,14 @@ def test_a_daily_start_after_the_close_announces_the_next_open(
 ) -> None:
     events = run_at("2026-11-06T18:00")
     started = time.time()
-    query = MagicMock(return_value=SessionState.CLOSED)
+    query = MagicMock(
+        return_value=sched._EngineStatus(
+            SessionState.CLOSED, "2026-11-06T15:05:00.000Z"  # 16:05 today
+        )
+    )
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(sched, "_query_engine_state", query)
+        mp.setattr(sched, "_query_engine_status", query)
         sched._run_forever(MagicMock(), WEEKDAYS_ONLY, MagicMock(), _until(events, 1))
 
     assert events == [("announce", "PRE_OPEN", MONDAY_OPEN, started)]

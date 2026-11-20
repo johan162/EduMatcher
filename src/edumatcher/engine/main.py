@@ -65,6 +65,7 @@ import hashlib
 import json
 import platform
 import logging
+import math
 import random
 import signal
 import sys
@@ -84,6 +85,7 @@ from edumatcher.config import (
     BOOK_STATS_FILE,
     RUN_SEQ_FILE,
     ENGINE_CONFIG_FILE,
+    COMPILED_CONFIG_FILE,
     DATA_DIR,
 )
 from edumatcher.engine.auction import (
@@ -589,6 +591,12 @@ _MAX_WIRE_NOTE_LEN = 256
 _MAX_WIRE_CB_LEVEL_LEN = 32
 
 
+def _utc_now_iso() -> str:
+    """Now as UTC ISO-8601 with milliseconds, the form ``next.at`` uses."""
+    now = datetime.now(timezone.utc)
+    return now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
     """Normalise an identifier arriving from the wire, bounded and upper-cased.
 
@@ -760,6 +768,10 @@ class Engine:
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
+        # When the engine entered _session_state: reported on
+        # system.session_status so a scheduler can tell a state left over
+        # from an earlier day from the same state entered today (L042).
+        self._session_state_since: str = _utc_now_iso()
         # Set by run(); unit tests that call handlers directly never have one.
         self._gc_policy: GcPolicy | None = None
         # The next scheduled transition, as told by whoever drove the last
@@ -820,8 +832,10 @@ class Engine:
                 if self._sessions_enabled:
                     # Start CLOSED and wait for scheduler transitions.
                     self._session_state = SessionState.CLOSED
+                # The deployed engine reads the artifact, not the YAML beside it.
+                source = COMPILED_CONFIG_FILE if engine_config is not None else path
                 log.info(
-                    f"Loaded config from {path}  "
+                    f"Loaded config from {source}  "
                     f"({len(self._allowed_symbols)} symbol(s): "
                     f"{', '.join(sorted(self._allowed_symbols))}; "
                     f"{len(self._allowed_participants)} gateway id(s))"
@@ -1721,11 +1735,50 @@ class Engine:
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3.
         restored_quote_legs: list[Order] = []
         restored_oco_legs: dict[tuple[str, str], list[Order]] = {}
+        discarded_unconfigured_count = 0
+        # A seed quote is the configuration's order, not its market maker's:
+        # restored under a configuration that declares no seed for its
+        # (gateway, symbol), it would otherwise rest on as a stray quote.
+        configured_seeds = (
+            {
+                (seed.gateway_id, sym)
+                for sym, sym_cfg in self._engine_config.symbols.items()
+                for seed in sym_cfg.market_maker_quotes
+            }
+            if self._engine_config
+            else None
+        )
         for order in orders:
-            # Skip GTC orders for symbols no longer in config
+            unconfigured = ""
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
-                log.info(
-                    f"Skipping GTC order {order.id[:8]} for removed symbol {order.symbol}"
+                unconfigured = f"symbol {order.symbol} is not configured"
+            elif (
+                self._allowed_participants is not None
+                and order.combo_parent_id is None  # a combo leg follows its combo
+                and order.gateway_id not in self._allowed_participants
+            ):
+                unconfigured = f"participant {order.gateway_id} is not configured"
+            elif (
+                configured_seeds is not None
+                and order.is_seed
+                and order.origin == OrderOrigin.QUOTE
+                and (order.gateway_id, order.symbol) not in configured_seeds
+            ):
+                unconfigured = (
+                    f"no seed quote for {order.gateway_id} on {order.symbol} "
+                    f"is configured"
+                )
+            if unconfigured:
+                log.info(f"Discarding resting order {order.id[:8]}: {unconfigured}")
+                discarded_unconfigured_count += 1
+                self.pub_sock.send_multipart(
+                    make_recovery_item_msg(
+                        order.id,
+                        "ORDER",
+                        "DISCARDED_UNCONFIGURED",
+                        symbol=order.symbol,
+                        detail=unconfigured,
+                    )
                 )
                 continue
             # A TIF=DAY order only survives a restart within the same
@@ -1919,6 +1972,7 @@ class Engine:
             make_startup_recovery_msg(
                 restored_orders=restored_count,
                 discarded_stale_day_orders=discarded_stale_day_count,
+                discarded_unconfigured_orders=discarded_unconfigured_count,
                 failed_orders=failed_restore_count,
                 quote_remnants_restored=quote_remnant_count,
                 rebuilt_quotes=rebuilt_quote_count,
@@ -1997,9 +2051,9 @@ class Engine:
                     "QTY_OUT_OF_RANGE",
                     "ICEBERG visible_qty must not exceed quantity",
                 )
-        # G12: pre-trade order-size and notional caps. Configured per risk
-        # level with a per-symbol override; an unconfigured symbol has no cap.
-        # A priceless order (MARKET, IOC) has no known notional, so only the
+        # G12: pre-trade order-size and notional caps. Configured per symbol
+        # only; an unconfigured symbol has no cap. A priceless order (MARKET,
+        # an IOC sent without a price) has no known notional, so only the
         # quantity cap can apply to it.
         limits = self._order_limits.get(order.symbol)
         if limits is not None:
@@ -2666,6 +2720,7 @@ class Engine:
             make_session_status_msg(
                 gateway_id,
                 self._session_state.value,
+                self._session_state_since,
                 self._sessions_enabled,
                 next_state=self._next_session_state,
                 next_at=self._next_session_at,
@@ -2937,11 +2992,19 @@ class Engine:
             # session, so either one dropping would run the disconnect
             # behaviour (CANCEL_ALL) against the other's orders.
             self.metrics.count(self.metrics.auth_rejects, gateway_id)
+            # The holder may be a console that died without logging out:
+            # say how soon its silence frees the ID.
+            silent = time.monotonic() - session.last_heartbeat
+            limit = _HEARTBEAT_MISSED_LIMIT * session.heartbeat_interval_sec
+            freed_in = max(1, math.ceil(limit - silent))
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(
                     gateway_id,
                     accepted=False,
-                    reason=f"Gateway already connected: {gateway_id}",
+                    reason=(
+                        f"Gateway already connected: {gateway_id} — if that "
+                        f"session is gone, the ID is freed within {freed_in} s"
+                    ),
                 )
             )
             log.info(f"REFUSED gateway connect (already connected): {gateway_id}")
@@ -6383,6 +6446,7 @@ class Engine:
 
         # --- Apply the transition ---
         self._session_state = to_state
+        self._session_state_since = _utc_now_iso()
         if to_state == SessionState.CONTINUOUS and self._gc_policy is not None:
             self._gc_policy.arm_freeze()
 
@@ -6647,10 +6711,16 @@ class Engine:
                 sub_trades, sub_events = book.run_stops(now_ns())
                 self._publish_dispatch(sub_trades, sub_events)
 
+                eq_price = (
+                    from_ticks(result.eq_price, symbol)
+                    if result.eq_price is not None
+                    else None
+                )
                 log.info(
                     f"UNCROSS {symbol}: {len(trades)} trade(s) "
-                    f"@ {result.eq_price}, qty={result.eq_qty}, "
-                    f"surplus={result.surplus} ({result.imbalance_side})"
+                    f"@ {eq_price}, qty={result.eq_qty}, "
+                    f"surplus={result.surplus} "
+                    f"({result.imbalance_side or 'balanced'})"
                 )
             else:
                 log.info(f"UNCROSS {symbol}: no crossable interest")

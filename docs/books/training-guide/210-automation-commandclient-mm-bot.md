@@ -66,10 +66,12 @@ PY
 Expected:
 
 ```
-auth: {'gateway_id': 'GW_ADMIN', 'accepted': True, 'reason': '', 'description': ''}
+auth: {'gateway_id': 'GW_ADMIN', 'accepted': True, 'reason': '', 'description': 'Exchange operator'}
 symbols: ['AAPL', 'MSFT', 'TSLA']
-session: {'state': 'CONTINUOUS', 'sessions_enabled': True}
+session: {'state': 'CONTINUOUS', 'sessions_enabled': True, 'last_trade_id': '000003-000000001'}
 ```
+
+(`last_trade_id` is the ID of the engine's latest trade, so yours differs.)
 
 :material-checkbox-blank-outline: **Checkpoint:** you can connect, read symbols, and read session status programmatically.
 

@@ -1,9 +1,10 @@
 """
 engine/order_limits.py — Pre-trade order-size and notional caps.
 
-Two independent caps, both optional, both configured the way a collar is
-(``risk_controls.levels.<L>.order_limits`` with a
-``symbols.<S>.order_limits`` override merged over it, per key):
+Two independent caps, both optional, configured per symbol only
+(``symbols.<S>.order_limits``). Unlike a collar there is no risk-level form:
+the right cap depends on the instrument's price and trade size, so the loader
+rejects ``risk_controls.levels.<L>.order_limits`` (cverifier ``S117``):
 
 ``max_order_qty``
   Largest quantity a single order may carry. Catches the fat-finger that
@@ -19,10 +20,10 @@ An absent cap is not enforced. That is the same rule an absent ``collar``
 follows, and it is deliberate: a limit that lives in code rather than in
 the config file is not auditable as a requirement.
 
-MARKET and IOC orders carry no price on the wire, so their notional is
-unknown at validation time and ``max_order_value`` is skipped for them —
-the same reason those order types already bypass the collar's price
-bands. ``max_order_qty`` still applies to them.
+An order with no price — a MARKET order, or an IOC sent without one — has
+no known notional at validation time, so ``max_order_value`` is skipped for
+it, as the collar's price bands are. A priced IOC is checked at its limit.
+``max_order_qty`` applies to every order.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ def validate_order_limits(
     ----------
     quantity : Order quantity in shares.
     price    : Order price in *display money*, or ``None`` when the order
-               carries no price (MARKET, IOC), which skips the notional
+               carries no price (MARKET, unpriced IOC), which skips the notional
                check.
     limits   : The symbol's effective caps.
 

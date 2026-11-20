@@ -39,7 +39,7 @@ There are two ways in. Both give you the same exchange.
 |---|---|---|
 | You need | Podman or Docker, with Compose | Python 3.14 and `pipx` |
 | Time to a running exchange | one command | a few commands |
-| Browser applications | six, ready to use | not included |
+| Browser applications | seven, ready to use | optional, as containers (see below) |
 | Where `pm-*` commands run | inside the container, after `./edumatcher.sh shell` | in your own terminal |
 | Your data lives in | `~/.edumatcher/data` | `~/.local/share/edumatcher` |
 | Best for | seeing the whole system; classes and demos | learning the processes one by one |
@@ -65,8 +65,8 @@ cd ~/.edumatcher
 prefer to read it first, open the URL in a browser, or download it with
 `curl -fsSLO <the same URL>`, look through it and run `bash install.sh`.)
 
-The installer downloads the latest release into `~/.edumatcher`, pulls seven
-container images (the exchange plus six browser applications) and starts
+The installer downloads the latest release into `~/.edumatcher`, pulls eight
+container images (the exchange plus seven browser applications) and starts
 them. The first start takes a few minutes; later starts take seconds. When it
 finishes it prints the addresses of the browser applications.
 
@@ -95,6 +95,7 @@ Open these addresses on the same computer:
 | <http://localhost:8091> | **Log Operator Console** | The operational log of every process |
 | <http://localhost:8095> | **Operator Dashboard** | Every process HEALTHY and the exchange OPERATIONAL |
 | <http://localhost:8092> | **Configuration GUI** | A form-based editor for exchange configurations |
+| <http://localhost:8096> | **Clearing GUI** | A login screen for positions, P&L and settlement |
 | <http://localhost:8080/docs> | **REST API documentation** | The interactive Swagger page of the API gateway |
 
 Then confirm that the exchange itself is healthy:
@@ -241,11 +242,36 @@ The deployed configuration is inside it, at `ref_data/engine_config.json`.
     ```bash
     export EDUMATCHER_DATA_DIR="$HOME/.edumatcher/data"
     ```
+
 The Reference Manual's
 [Environment variables](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#environment-variables)
 section explains exactly how the directory is chosen, and the Operator's Guide
 chapter [Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md)
 lists every file in it.
+
+## Removing EduMatcher
+
+Nothing is installed outside the places above, so removing it is short.
+
+**Containers.** In `~/.edumatcher`, remove the containers and the data, then
+the folder itself:
+
+```bash
+./edumatcher.sh uninstall --data
+cd ~ && rm -rf ~/.edumatcher
+```
+
+The downloaded images stay in Podman's or Docker's image store; `podman image
+prune -a` (or `docker image prune -a`) removes every image no container uses.
+
+**Python package.** Stop the exchange, uninstall the package and delete the
+data directory:
+
+```bash
+pm-opctl-cli stop
+pipx uninstall edumatcher
+rm -rf ~/.local/share/edumatcher
+```
 
 ## Where to go next
 

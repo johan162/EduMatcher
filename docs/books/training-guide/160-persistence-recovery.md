@@ -29,6 +29,10 @@ files include:
 - `gtc_orders.json` — resting `GTC` orders (any age) **and** resting `DAY`
   orders from the current business day, including MM quote legs. Written on
   every checkpoint and at clean shutdown; read back at the next startup.
+- `book_stats.json` — each symbol's reference and last-trade prices, and any
+  halt in force. An operator's `HALT_SYM` survives a restart (the engine logs
+  `Restored the operator halt on <SYM>`); a circuit-breaker halt is ended
+  instead.
 - `stats.db` — SQLite database written by `pm-stats`.
 - `audit.log` — event log if `pm-audit` writes to disk.
 

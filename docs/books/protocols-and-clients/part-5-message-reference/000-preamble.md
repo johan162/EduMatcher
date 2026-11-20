@@ -70,9 +70,8 @@ The YAML definitions in `spec/messages/*.yaml` are the canonical message
 contracts. `pm-msgen generate` produces the Python bindings, applicable C
 artifacts, and the generated sections of this reference; `pm-msgen check`
 fails when any generated output diverges from its specification. Message
-producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
-so the generated bindings remain readable alongside the wire format they
-enforce.
+producers and consumers still exchange ordinary JSON over ZeroMQ, so the
+generated bindings remain readable alongside the wire format they enforce.
 
 ### What ZeroMQ requires of a message
 
@@ -80,7 +79,9 @@ ZeroMQ does not impose a message format.  It sees messages as one or more
 opaque **frames** — byte arrays that are sent and received atomically as a
 group.  It is up to the application to define what those bytes mean.
 
-EduMatcher uses exactly **two frames** for every message:
+Every EduMatcher message starts with these **two frames** (the main bus adds
+a third, the envelope — see [Message structure](#message-structure); the
+drop-copy socket sends the two alone):
 
 ```
 frame[0]  →  topic string, UTF-8 encoded
@@ -255,8 +256,11 @@ tear down the live session.
 **Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
 **Published by:** Every process that holds an ID (`pm-admin`, `pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
 
-Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
-immediately after the connect is accepted. It is one-way: the engine does not
+Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`) by bots and
+gateways, and every 5 seconds (`INTERACTIVE_HEARTBEAT_INTERVAL_SEC`) by the
+interactive consoles `pm-alf-console` and `pm-admin`, so a closed console window
+frees its ID within seconds; the first beat follows immediately after the
+connect is accepted. It is one-way: the engine does not
 reply. The payload carries the sender's own `interval_sec`, so the engine needs
 no per-client setting. After **3 consecutive missed beats** the engine
 disconnects the session exactly as if `system.gateway_disconnect` had arrived,
@@ -295,7 +299,7 @@ Sent by a gateway to submit a new order for matching.
 | `ts_ns` | integer | Client-supplied submission time, Unix epoch **nanoseconds**. **Not** what the book uses for time priority — see `arrival_seq` — so a back-dated value cannot jump the queue |
 | `arrival_seq` | integer \| absent | Engine-assigned monotonic arrival sequence, and the actual time-priority key. `0` on submission, meaning unassigned |
 | `status` | string | Initial status, always `"NEW"` |
-| `price_ticks` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, ICEBERG); `null` for MARKET, which has none |
+| `price_ticks` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, IOC, ICEBERG); `null` for MARKET, STOP and TRAILING_STOP, which have none |
 | `stop_price_ticks` | integer (ticks) \| null | Trigger price **in ticks** (STOP, STOP_LIMIT, TRAILING_STOP) |
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
@@ -326,9 +330,9 @@ Sent by a gateway to submit a new order for matching.
 | `STOP` | — | Required | — | — | Triggers a market order when stop price touched |
 | `STOP_LIMIT` | Required | Required | — | — | Triggers a limit order when stop price touched |
 | `FOK` | Required | — | — | — | Fill fully immediately or cancel entirely |
-| `IOC` | Optional | — | — | — | Fill as much as possible immediately, cancel remainder |
+| `IOC` | Required | — | — | — | Fill as much as possible immediately, cancel remainder |
 | `ICEBERG` | Required | — | Required | — | Shows only `visible_qty`; replenishes from hidden reserve |
-| `TRAILING_STOP` | — | — | — | Required | Stop price follows best opposite-side price by `trail_offset_ticks` |
+| `TRAILING_STOP` | — | Optional | — | Required | Stop price follows the last trade price by `trail_offset_ticks`; without `stop_price_ticks` it starts from the last trade |
 
 
 
@@ -437,7 +441,7 @@ Published when the quote's lifecycle state changes (e.g. a fill inactivates the 
 | `ACTIVE` | Quote successfully placed on the book (both legs resting) |
 | `INACTIVE_BID_FILLED` | Bid leg filled; ask leg auto-cancelled |
 | `INACTIVE_ASK_FILLED` | Ask leg filled; bid leg auto-cancelled |
-| `CANCELLED` | Quote removed (explicit cancel, kill switch, or halt) |
+| `CANCELLED` | Quote removed (explicit cancel, replacement by a new quote, kill switch, halt, disconnect, or expiry at the close) |
 
 ### `quote.cancel`
 
@@ -478,7 +482,7 @@ stream), `SYMBOLS` (ask which instruments exist), `PING`, and `EXIT`. Gateway re
 types above, periodic `HB` heartbeats, and `ERR` on protocol/subscription
 violations.
 
-Two behaviours are easy to get wrong from the table alone:
+Four behaviours are easy to get wrong from the table alone:
 
 - **`MD` is a delta, and an empty value is meaningful.** Only changed fields
   are sent; an omitted field means *unchanged*. An explicitly empty `BID=` or

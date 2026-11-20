@@ -64,16 +64,27 @@ risk limits, combos, an index — and the Configuration GUI at
 <http://localhost:8092> does the same job with forms.
 
 !!! tip "On the container route"
-    The commands in this chapter run inside the exchange, so write the file
-    there and copy it out, or run `pm-config-gen` on your own machine if you
-    also have the Python package. The simplest container-only way is to start
-    from the configuration that is already running:
+    `pm-config-gen` lives inside the exchange, but you want the file in
+    `~/.edumatcher` on your own computer. Run it through
+    `./edumatcher.sh shell` with the same options, but leave out `--output`:
+    the YAML is then printed, and `>` saves it on your side.
 
     ```bash
-    ./edumatcher.sh shell cat /data/ref_data/engine_config.yaml > my_exchange.yaml
+    cd ~/.edumatcher
+    ./edumatcher.sh shell pm-config-gen \
+        --symbols AAPL MSFT TSLA NOKIA \
+        --participants TRADER01:TRADER TRADER02:TRADER OPS01:ADMIN MM01:MARKET_MAKER \
+        --seed-mm-mid-range 20:200 \
+        --seed-last-prices-from-mm \
+        --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 \
+        --api-gateway-instance dashboards::8081 \
+        --api-gateway-readonly-key \
+        --market-data-gateway --market-data-enabled \
+        > my_exchange.yaml
     ```
 
-    and edit that file.
+    The verifier then needs to see the file inside the exchange, so on this
+    route the check of Step 2 is part of Step 3.
 
 ## Step 2 — Check it
 

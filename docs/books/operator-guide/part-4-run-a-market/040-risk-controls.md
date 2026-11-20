@@ -347,9 +347,9 @@ never silently reduced to fit.
 ### Which orders are checked
 
 `max_order_qty` applies to **every** order type. `max_order_value` needs a
-price, so it is skipped for **MARKET** and **IOC** orders, which carry none on
-the wire — the same orders the collar's price bands already skip, for the same
-reason.
+price, so it is skipped for orders that carry none: **MARKET** orders, and an
+**IOC** sent without `PRICE=`. A priced IOC (its price is the sweep limit) is
+checked like any limit order — the same split the collar's price bands make.
 
 Both caps are re-checked on `order.amend`, against the amended quantity and
 price. Without that, the control would be trivially bypassed by entering a

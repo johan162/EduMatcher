@@ -103,12 +103,19 @@ See [P&L & Clearing — VWAP Average Cost](../part-5-positions-and-results/010-p
 
 ### My GTC orders didn't reload after restart. Why?
 
-GTC orders are written to `data/gtc_orders.json` **on engine shutdown** (when
-you press Ctrl-C or the scheduler sends a CLOSED transition). If the engine was
-killed forcefully (`kill -9` or a crash), the file was not written.
+The engine saves every resting GTC and DAY order to `gtc_orders.json` in the
+data directory every few seconds while it runs, and once more when it shuts
+down. After a crash or `kill -9` the file is therefore at most a few seconds
+old: an order placed, filled or cancelled in those last seconds may be
+missing or restored in its earlier state.
 
-**Fix:** Check whether `data/gtc_orders.json` exists and has recent content.
-If the engine was killed mid-session, the file may be stale or missing.
+A DAY order is restored only on the business day it was placed; after the
+date has changed it is discarded at startup. Only GTC orders carry over to
+the next day.
+
+**Fix:** Check that `gtc_orders.json` exists in the data directory
+(`pm-opctl-cli show` prints it) and has recent content, and that the engine
+was started with the same data directory as before.
 
 
 ---

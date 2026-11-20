@@ -38,7 +38,7 @@
     what to take away. Timings quoted from the design notes are marked as such.
 
 
-## 1. Why this chapter exists
+## Why this chapter exists
 
 EduMatcher is a teaching exchange written in Python. That is a deliberate
 choice: a student can read the whole matching path in an afternoon. It also
@@ -54,7 +54,7 @@ This chapter collects them in one place, explains the mechanism behind each,
 and — just as important — says which common "optimisations" were tried and
 rejected.
 
-### 1.1 What "fast" means here
+### What "fast" means here
 
 Three different quantities get called "performance", and they are improved by
 different techniques:
@@ -71,7 +71,7 @@ completion. That has a consequence that drives the rest of this chapter:
 A 60 ms garbage collection is invisible in throughput (it is rare) and
 disastrous in tail latency (every order queued behind it waits 60 ms).
 
-### 1.2 The five rules
+### The five rules
 
 These are the rules the project applies; the rest of the chapter is their
 consequences.
@@ -94,7 +94,7 @@ consequences.
    comment does not go stale when the number changes.
 
 
-## 2. Where the time goes
+## Where the time goes
 
 Before optimising, look at the budget. The two legs of an order, measured on
 the development machine (`docs-design/EduMatcher-Perf-Analysis.md` §6), are:
@@ -107,7 +107,7 @@ flowchart LR
 ```
 
 *Figure 1 — The in-process budget for one order is about 39 µs (it was 54 µs
-before the gateway-leg work of §4). The engine leg is the smaller half.*
+before the gateway-leg work of [Cheaper construction and conversion](#cheaper-construction-and-conversion)). The engine leg is the smaller half.*
 
 The first finding of that study is worth stating plainly: the benchmark that
 the team had been using timed *only the engine leg*, while the untimed
@@ -145,9 +145,9 @@ are individually small, and why the project insists each one be measured.
     before trusting a number from only one half of it.
 
 
-## 3. Data representation
+## Data representation
 
-### 3.1 Integer ticks, not floats
+### Integer ticks, not floats
 
 All prices inside the engine are **integer ticks** (a price of `100.10` with
 two decimals is `10010`). Conversion to display money happens only at the
@@ -159,7 +159,7 @@ edge (`from_ticks`). The reasons are correctness first and speed second:
   compares keys on every push and pop.
 - Small integers (−5 to 256) are cached by the interpreter; larger ones are
   cheap, immutable and — importantly for GC — **not tracked by the cyclic
-  collector** (see §9.1).
+  collector** (see [What CPython's collector actually does](#what-cpythons-collector-actually-does)).
 
 ```python
 # order_book.py — a bid's heap key: the *negated* price makes Python's
@@ -167,7 +167,7 @@ edge (`from_ticks`). The reasons are correctness first and speed second:
 key = (-order.price_ticks, order.arrival_seq)
 ```
 
-### 3.2 `__slots__`: what it does, and what it buys
+### `__slots__`: what it does, and what it buys
 
 A normal Python object stores its attributes in a per-instance dictionary.
 A class that declares `__slots__` stores them in a fixed array of
@@ -256,7 +256,7 @@ classes. Re-measured here, on an 18-field dataclass:
   arguments inside its methods misbehaves. The engine's slotted dataclasses
   do not use it.
 
-### 3.3 Frozen messages
+### Frozen messages
 
 The generated message records (`models/generated/`) are
 `@dataclass(frozen=True, slots=True)`. Frozen is not a performance feature —
@@ -265,12 +265,12 @@ relies on. It is included here because the combination shows the intended
 default: **generated value objects are small, immutable and slotted**.
 
 
-## 4. Cheaper construction and conversion
+## Cheaper construction and conversion
 
 Constructing an object from a decoded JSON dictionary happens once per
 inbound message, so its cost is paid at the full order rate.
 
-### 4.1 Bypass the generated `__init__`
+### Bypass the generated `__init__`
 
 `Order.from_dict` writes the slots directly instead of calling the
 dataclass-generated `__init__` with 19 keyword arguments:
@@ -303,7 +303,7 @@ against a parameter name. The price of the shortcut is that `from_dict` must
 be kept in step with the field list by hand, so a round-trip test of
 `to_dict` and `from_dict` is what keeps it honest.
 
-### 4.2 Enum lookup tables
+### Enum lookup tables
 
 `Side("BUY")` looks like a dictionary lookup but is not: `Enum.__call__`
 walks the machinery that resolves a value to a member. A prebuilt dictionary
@@ -337,7 +337,7 @@ the wire.
     (persistence, snapshots), and the proof of byte-identity was only done
     for the two fill-loop sites.
 
-### 4.3 Unchecked builders, with a safety net
+### Unchecked builders, with a safety net
 
 Messages are built by functions generated from the YAML specification (see
 [Message Generation](../part-4-developing/040-message-generation.md)). Each
@@ -382,7 +382,7 @@ and must fail when the guarantee changes.
     lesson: **a measured cost accepted on purpose is documented, with its
     reasoning and a guard test**, so nobody "optimises" it back.
 
-### 4.4 Cheap ids
+### Cheap ids
 
 Order ids were `str(uuid.uuid4())` (1 218 ns here) and are now
 `os.urandom(16).hex()` (**170 ns**, 7× faster). The entropy is identical —
@@ -395,13 +395,13 @@ run sequence in every producer to survive a restart, and the saving does not
 justify that machinery.
 
 
-## 5. Serialisation and publication
+## Serialisation and publication
 
 Every order crosses the process boundary as JSON, and the engine publishes
 two to four frames per order. Serialisation is the biggest *macro* cost, so
 it is where the cheapest large win was.
 
-### 5.1 `orjson`
+### `orjson`
 
 ```python
 # models/message.py
@@ -425,10 +425,10 @@ A 12-key order payload, measured here:
 `orjson.dumps` returns `bytes`, which is what ZeroMQ wants, so the extra
 `.encode()` step disappears as well. With two to four encodes per aggressive
 order, this single swap saves several microseconds — more than every
-micro-optimisation in §4 combined, which is the "macro before micro" rule in
+micro-optimisation in [Cheaper construction and conversion](#cheaper-construction-and-conversion) combined, which is the "macro before micro" rule in
 numbers.
 
-### 5.2 Pre-encoded and cached topics
+### Pre-encoded and cached topics
 
 ZeroMQ topics are `bytes`. Static topics are encoded once at import (the
 generated binding for `trade.executed` does this), and per-gateway topics such
@@ -446,7 +446,7 @@ This replaces an f-string build plus an `encode()` on every message with one
 dictionary lookup. The cache grows with the number of *gateways*, which is
 small and bounded by configuration.
 
-### 5.3 One timestamp per order
+### One timestamp per order
 
 `now_ns()` guarantees strictly increasing nanosecond stamps and takes a lock
 to do so, so calling it repeatedly costs real time (a clock read plus a
@@ -458,9 +458,9 @@ Since finding H1, *time priority* is decided by `arrival_seq`, never by a
 timestamp, so sharing a stamp cannot change who is first.
 
 
-## 6. Algorithms and indexes
+## Algorithms and indexes
 
-### 6.1 Heaps and the price-level index
+### Heaps and the price-level index
 
 Each side of a book is a binary heap keyed by `(±price, arrival_seq)`, so the
 best order is always `heap[0]` and push/pop cost O(log n). Alongside the
@@ -480,7 +480,7 @@ heaps only. The price of the indexes is that **every mutation must update all
 of them together**; the order-book chapter lists which functions must be
 touched as a set.
 
-### 6.2 Lazy deletion
+### Lazy deletion
 
 A heap cannot cheaply remove an element from the middle. The book therefore
 never removes; it *marks*:
@@ -546,12 +546,12 @@ point is the scale. A cancel is a very frequent operation in a real market
 (most orders are cancelled), so it must not depend on book depth.
 
 
-## 7. Interpreter-level micro-optimisations
+## Interpreter-level micro-optimisations
 
 These are the ones the project applies *last*, and only inside functions the
 profile has already named.
 
-### 7.1 Bind hot attributes to locals
+### Bind hot attributes to locals
 
 Inside the sweep loop the aggressor's `side`, `smp_action` and `gateway_id`
 never change, so they are read once:
@@ -571,7 +571,7 @@ That is why the rule in the notes is "over N price levels this saves 0.2–0.8
 µs per aggressive order" — real, but only inside a loop, and only where a
 profile asks for it.
 
-### 7.2 Constants built once
+### Constants built once
 
 ```python
 # engine/main.py
@@ -581,7 +581,7 @@ _ENDED_STATUSES = frozenset({OrderStatus.FILLED, OrderStatus.CANCELLED, OrderSta
 A set literal inside a function is rebuilt on every call. A module-level
 `frozenset` is built once and gives the same O(1) membership test.
 
-### 7.3 Counters, not events
+### Counters, not events
 
 ```python
 # engine/main.py — the trade hot path
@@ -596,7 +596,7 @@ Mapping ids to display labels, summing, and computing rates happen later, when
 the health beacon is built. This is the general shape of instrumentation here:
 **the hot path increments a number; something else interprets it.**
 
-### 7.4 What was tried and left alone
+### What was tried and left alone
 
 Equally instructive is the list of rejected ideas, each with its reason:
 
@@ -607,12 +607,12 @@ Equally instructive is the list of rejected ideas, each with its reason:
 | A `__class__` type test instead of the coercion call in the generated builder | Measured **slower** |
 | Coerce only numeric fields in the unchecked builder | Halves the overhead but weakens its byte-identity guarantee to typed call sites |
 | Per-gateway counter for order ids | 208 ns does not justify a durable run sequence in five producers |
-| Pooling `Order` objects | See §10 |
+| Pooling `Order` objects | See ["Can we pool objects, like in Java?"](#can-we-pool-objects-like-in-java) |
 
 The 1 % rule exists to make this table longer, not shorter.
 
 
-## 8. Work that does not belong on the message path
+## Work that does not belong on the message path
 
 The cheapest operation is the one the order does not wait for. The run loop
 therefore separates *handling a message* from *maintenance between
@@ -637,7 +637,7 @@ flowchart TB
 
 *Figure 4 — Hot path (solid) versus the work done around it (dotted).*
 
-### 8.1 Throttled and batched publication
+### Throttled and batched publication
 
 Book snapshots are the clearest case. A market can trade thousands of times a
 second; a dashboard cannot use more than a handful of snapshots. The engine
@@ -663,7 +663,7 @@ one. The same idea applies to persistence: the resting book is checkpointed
 every `_PERSIST_INTERVAL_SEC` (5 s), so an abrupt exit loses at most five
 seconds of changes without every order paying for a disk write.
 
-### 8.2 Sampled instrumentation and preallocated rings
+### Sampled instrumentation and preallocated rings
 
 Measuring the engine must not slow the engine. Reading the clock costs about
 52 ns, and recording a duration touches several lists. Doing that for every
@@ -739,12 +739,12 @@ trade (`monitor/rates.py`). Rolling windows there hold at most 60 buckets
 whatever the beacon rate, so memory is fixed per figure.
 
 
-## 9. Garbage collection
+## Garbage collection
 
 This is the technique that matters most for tail latency, and the one most
 unlike anything in a language with a tracing collector.
 
-### 9.1 What CPython's collector actually does
+### What CPython's collector actually does
 
 CPython manages memory with two mechanisms:
 
@@ -806,7 +806,7 @@ This is the reason the dashboard's engine-latency row shows both
 `gc_pause_us_max`. The metrics are collected through `gc.callbacks`, which
 the interpreter calls at the start and end of each collection.
 
-### 9.2 The policy: keep the collector off the message path
+### The policy: keep the collector off the message path
 
 Because the collector rarely frees anything here, the right strategy is not
 to tune it but to **stop it from scanning the long-lived book during trading**.
@@ -863,7 +863,7 @@ The effect of freezing, measured here with 200 000 live objects: a full
 collection that took **24.6 ms** takes **0.000 ms** after `gc.freeze()`,
 because there is nothing left in the scanned generations.
 
-### 9.3 Why the freeze waits for the open
+### Why the freeze waits for the open
 
 Freezing at start-up would be useless: at that moment the book is empty, and
 everything that will be large later is allocated *after* the freeze, in the
@@ -891,7 +891,7 @@ engine is so busy that no idle tick ever occurs, the freeze runs 60 seconds
 after it was due, as a single full collection at a moment the policy
 chose rather than the allocator.
 
-### 9.4 What this costs
+### What this costs
 
 - **Cycles among frozen objects are never reclaimed.** A reference cycle that
   becomes unreachable *after* it was frozen stays in memory for the life of
@@ -914,7 +914,7 @@ chose rather than the allocator.
     to re-enable it.
 
 
-## 10. "Can we pool objects, like in Java?"
+## "Can we pool objects, like in Java?"
 
 In Java, allocation is cheap but collection pauses are not, so high-frequency
 code preallocates objects and recycles them. The instinct is natural; in
@@ -924,29 +924,29 @@ CPython it mostly does not transfer.
 |---|---|
 | Avoid `new` cost | Small objects come from **pymalloc**, an arena allocator that already recycles freed blocks; there is usually no `malloc` call. Free lists exist for ints, floats, tuples and frames. A Python-level pool would sit on top of a pool |
 | Avoid GC from short-lived garbage | Short-lived objects are freed by **reference counting** the instant they die; the cyclic collector never sees them |
-| Reset cost is small | Resetting every field of a recycled `Order` is as much work as `__new__` plus slot writes (§4.1: ~500 ns), and the pooled object still carries GC tracking |
+| Reset cost is small | Resetting every field of a recycled `Order` is as much work as `__new__` plus slot writes ([Bypass the generated `__init__`](#bypass-the-generated-__init__): ~500 ns), and the pooled object still carries GC tracking |
 | Reuse is safe | A recycled `Order` that something still references silently shows another order's data — a correctness hazard that matters in a matching engine |
 
 What plays the role of pooling here instead:
 
 - **Preallocated, fixed-size structures** where it is safe and useful: the
-  latency and GC rings (§8.2), `deque(maxlen=…)` for histories (the
+  latency and GC rings ([Sampled instrumentation and preallocated rings](#sampled-instrumentation-and-preallocated-rings)), `deque(maxlen=…)` for histories (the
   pm-monitor RSS history), so a hot structure never grows.
-- **Fewer tracked objects**: slots (§3.2), plain ints in rings, tuples of
+- **Fewer tracked objects**: slots ([`__slots__`: what it does, and what it buys](#__slots__-what-it-does-and-what-it-buys)), plain ints in rings, tuples of
   ints for keys. What the collector does not track, it does not scan.
-- **Keeping the collector away** from what is long-lived (§9).
+- **Keeping the collector away** from what is long-lived ([Garbage collection](#garbage-collection)).
 - **A compiled core** — a C/Rust extension for the book — is the only route
   to Java-style control over allocation. It is a large architectural step and
   would cost the readability that is this project's purpose; nothing in the
   current measurements calls for it.
 
 
-## 11. Measuring honestly
+## Measuring honestly
 
 Every technique above depends on a trustworthy number. The project has been
 bitten by untrustworthy ones.
 
-### 11.1 The bimodal benchmark
+### The bimodal benchmark
 
 The `make test-perf` throughput figure once ranged between **12 361 and 35 377
 orders per second** across three consecutive runs on one machine, one commit
@@ -967,7 +967,7 @@ spread is as big as the difference, you have measured nothing.
 | Single run | Noise mistaken for signal | Medians over many iterations, spread reported |
 | Cold caches | First runs slower | Warm up before timing |
 
-### 11.2 Production measurements
+### Production measurements
 
 The engine publishes its own latency in the health beacon:
 
@@ -986,7 +986,7 @@ Order entry is reported separately from other topics. Early dashboards mixed
 them, and a 2 % share of expensive book-snapshot requests (about 2.2 ms each)
 pulled the mixed p99 to 2.2 ms while the order p99 was ~130 µs.
 
-### 11.3 The host matters too
+### The host matters too
 
 A single-threaded asyncio process is only as fast as the core it gets. Running
 a large `pytest -n` on the same host as a live simulation produced CPU
@@ -1047,7 +1047,7 @@ rest are the same pattern: `timeit` the statement, divide by the iteration
 count).
 
 
-## 12. A checklist before touching a hot path
+## A checklist before touching a hot path
 
 Use this before adding code to `_handle_new_order`, `OrderBook._sweep`,
 `_publish_*` or anything else per-message:
@@ -1082,9 +1082,9 @@ flowchart TD
 7. Is the measured gain recorded where the next reader will look?
 
 
-## 13. Exercises
+## Exercises
 
-1. **Measure slots yourself.** Using the script in §11, add a class with 40
+1. **Measure slots yourself.** Using the script in [Measuring honestly](#measuring-honestly), add a class with 40
    fields and compare memory per instance for plain and slotted versions.
    Does the saving grow with field count?
 2. **Find the break-even.** In `_compact_heaps`, change `_COMPACT_FACTOR` from
@@ -1099,10 +1099,10 @@ flowchart TD
    `tracemalloc`. What does this tell you about cycles in frozen data?
 5. **Find the next 1 %.** Profile `_handle_new_order` with `cProfile`
    (mock socket discarding frames). Pick the first entry above 1 % that is
-   not already discussed here and propose a change. Apply the checklist of §12
+   not already discussed here and propose a change. Apply the checklist of [A checklist before touching a hot path](#a-checklist-before-touching-a-hot-path)
    to your proposal before writing code.
 
-## 14. Where to look next
+## Where to look next
 
 | Topic | Location |
 |---|---|

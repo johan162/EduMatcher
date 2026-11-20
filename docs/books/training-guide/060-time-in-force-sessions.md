@@ -88,8 +88,8 @@ console, which does:
 ```
 
 Run it after each transition, or watch the audit trail in another terminal for
-the `session.state` events. The audit logger prints in batches (at least every
-10 seconds), so a line can appear a few seconds after the transition. It also
+the `session.state` events (`--terminal` prints each event as it arrives;
+only the writes to `audit.log` are batched). The audit logger also
 prints order-book checkpoints at every phase change, so filter for the lines
 you want:
 
@@ -98,8 +98,8 @@ pm-audit --terminal | grep '\[session.state\]'
 ```
 
 ```
-[2026-10-31T11:40:59.5+00:00] [session.state] [seq=3 eseq=40 msg=… cause=… chain=…] {"state": "OPENING_AUCTION", "prev_state": "PRE_OPEN"}
-[2026-10-31T11:41:01.5+00:00] [session.state] [seq=4 eseq=52 msg=… cause=… chain=…] {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION"}
+[2026-10-31T11:40:59.5+00:00] [session.state] [seq=3 eseq=40 msg=… cause=… chain=…] {"state": "OPENING_AUCTION", "prev_state": "PRE_OPEN", "command_id": "cmd-…"}
+[2026-10-31T11:41:01.5+00:00] [session.state] [seq=4 eseq=52 msg=… cause=… chain=…] {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION", "command_id": "cmd-…"}
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you see at least one session state transition.

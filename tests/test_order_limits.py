@@ -331,6 +331,15 @@ class TestNewOrderEnforcement:
         )
         assert _last_ack(pub)["accepted"] is True
 
+    def test_a_priced_ioc_faces_the_notional_cap(self, engine) -> None:
+        eng, pub = engine
+        eng._handle_new_order(
+            _order_dict(order_type=OrderType.IOC, qty=1000, price=15000)
+        )
+        msg = _last_ack(pub)
+        assert msg["accepted"] is False
+        assert msg["reject_code"] == "MAX_ORDER_VALUE"
+
     def test_market_order_still_faces_the_qty_cap(self, engine) -> None:
         eng, pub = engine
         eng._handle_new_order(

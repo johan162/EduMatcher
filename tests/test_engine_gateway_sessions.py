@@ -172,4 +172,24 @@ def test_a_configured_id_already_connected_is_still_refused(
     engine._handle_gateway_connect({"gateway_id": "GW01"})
     acks = msgs(pub, "system.gateway_auth.GW01")
     assert [a["accepted"] for a in acks] == [True, False]
-    assert acks[1]["reason"] == "Gateway already connected: GW01"
+    assert acks[1]["reason"] == (
+        f"Gateway already connected: GW01 — if that session is gone, "
+        f"the ID is freed within {DEADLINE} s"
+    )
+
+
+def test_the_refusal_says_when_a_silent_id_is_freed(monkeypatch, tmp_path) -> None:
+    """A person whose console died sees how long to wait, counted from the
+    session's last beat at its own interval."""
+    engine, pub, clock = setup(monkeypatch, tmp_path)
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+    clock.now += 30
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+    engine._handle_gateway_heartbeat({"gateway_id": "GW01", "interval_sec": 5})
+    clock.now += 2.5
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+    reasons = [a["reason"] for a in msgs(pub, "system.gateway_auth.GW01")[1:]]
+    assert [r.rsplit("within ", 1)[1] for r in reasons] == [
+        f"{DEADLINE - 30} s",
+        "13 s",
+    ]

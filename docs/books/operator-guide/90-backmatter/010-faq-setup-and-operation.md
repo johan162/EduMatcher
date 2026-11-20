@@ -30,10 +30,13 @@ market_maker_quotes:
     seed_once: false    # inject on every startup
 ```
 
-To force a day-1 re-injection without changing the config:
+To force a re-injection without changing the config, remove the restored
+quote. The seed check looks at the quotes restored from `gtc_orders.json`, so
+stop the engine and delete that file — note that this discards **every**
+participant's resting orders, not just the market maker's quote:
 
 ```bash
-rm data/book_stats.json    # or $EDUMATCHER_DATA_DIR/book_stats.json
+rm "$EDUMATCHER_DATA_DIR/gtc_orders.json"    # with the engine stopped
 ```
 
 
@@ -63,9 +66,10 @@ every event in the system.
 
 ## Participants
 
-### Why is my order rejected with "Gateway not authenticated"?
+### Why is my login refused with "Gateway not configured"?
 
-Your gateway ID is not in the engine's allowlist. Gateway IDs must be
+Your gateway ID is not in the engine's allowlist (the full reply is
+`Gateway not configured: GW01`). Gateway IDs must be
 pre-configured in `engine_config.yaml` under `participants`:
 
 ```yaml

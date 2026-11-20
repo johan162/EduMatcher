@@ -93,3 +93,23 @@ def test_the_startup_book_messages_carry_the_restored_last_prices(
     books = [p for t, p in all_msgs(pub) if t == f"book.{SYMBOL}"]
     assert books
     assert {(b["last_price"], b["last_buy_price"]) for b in books} == {(99.0, 99.0)}
+
+
+def test_the_load_line_names_the_artifact_it_read(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A deployed engine reads engine_config.json; the log must not name the
+    YAML copy beside it."""
+    artifact = tmp_path / "deployed" / "engine_config.json"
+    compiled = deploy(resolve_example("s1-basic"), artifact)
+    text = artifact.read_text(encoding="utf-8")
+    _files(monkeypatch, tmp_path)
+    make_engine(monkeypatch, tmp_path)
+    monkeypatch.setattr(engine_main, "COMPILED_CONFIG_FILE", artifact)
+    monkeypatch.setattr(
+        engine_main, "_deployed_config", lambda: (compiled.engine, text)
+    )
+    with caplog.at_level("INFO", logger="edumatcher.engine.main"):
+        engine_main.Engine(config_path=None)
+    (line,) = [r.getMessage() for r in caplog.records if "Loaded config" in r.getMessage()]  # fmt: skip
+    assert line.startswith(f"Loaded config from {artifact}  ")

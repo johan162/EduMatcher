@@ -467,7 +467,7 @@ cmd_share() {
             warn "The gateways have no password — only do this on a network you control."
             echo "Apply it with: ./edumatcher.sh restart"
             echo "Students open: http://${ip}:${dash_port:-8095}"
-            echo "If they cannot connect, open the ports in the host firewall (8090-8095/tcp)."
+            echo "If they cannot connect, open the ports in the host firewall (8090-8096/tcp)."
             ;;
         off)
             set_env BIND_ADDR 127.0.0.1

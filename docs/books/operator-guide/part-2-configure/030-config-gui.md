@@ -131,6 +131,13 @@ are covered under [Deployment and operations](#deployment-and-operations).
 
 ### Option 2 — A pre-built image artifact
 
+Every release publishes the image on GHCR, so a host with network access needs
+no archive at all:
+
+```bash
+podman run -d --name config-gui -p 8092:8092 ghcr.io/johan162/edumatcher-config-gui:latest
+```
+
 For a host without a repository clone — or to ship a ready-to-run image — the
 distributable artifact is a self-contained OCI image archive built with
 `make cdist`:
@@ -1198,7 +1205,7 @@ up your shell's proxy variables automatically:
 | `NPM_STRICT_SSL` | Set to `false` **only** as a last resort for TLS interception when you cannot install the CA |
 
 ```bash
-export HTTPS_PROXY=http://proxy.corp.example:8092
+export HTTPS_PROXY=http://proxy.corp.example:3128
 export NPM_REGISTRY=https://artifactory.corp.example/api/npm/npm-remote/
 docker compose up --build
 ```

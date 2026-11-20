@@ -114,13 +114,10 @@ Payloads are serialized with `orjson` when it is installed (the normal case);
 | `symbol`             | str    | Instrument ticker                                                    |
 | `fill_qty`           | int    | Executed quantity                                                    |
 | `fill_price`         | float  | Display money, not ticks                                             |
-| `liquidity_flag`     | str    | `"TAKER"` for the aggressor, `"MAKER"` for the resting side          |
+| `liquidity_flag`     | str    | `"TAKER"` for the aggressor, `"MAKER"` for the resting side, `"AUCTION"` for both sides of an auction uncross |
 
-The field set is fixed, not open. It used to be described as "event-specific
-data merged into the top-level object", because `DropCopyPublisher.publish`
-took a `payload` dict — but the single producer has always sent these five
-keys, and since phase 6.1d the publisher takes them as named arguments and
-the spec declares them. A second event type is a spec change, not a new key.
+The field set is fixed, not open: every field above is declared in the message
+spec, and a second event type would be a spec change, not a new key.
 
 ### `order.fill` event
 
@@ -147,17 +144,18 @@ a matched MAKER/TAKER pair, not the whole trade.
 !!! note "Price units and fields"
     `fill_price` is published as a display-price float, not as raw integer
     ticks. `liquidity_flag` is derived from the trade's aggressor side
-    (`"TAKER"` for the aggressor, `"MAKER"` for the resting side). The
+    (`"TAKER"` for the aggressor, `"MAKER"` for the resting side, `"AUCTION"`
+    for both sides of an uncross, which has no aggressor). The
     payload does not include `remaining_qty`, `side`, or `leaves_qty`.
 
-  ### Trade correlation
+### Trade correlation
 
-  `trade_ids` connects a private fill to the public `trade.executed` tape.
-  Drop-copy events are emitted once per execution, so the list currently has one
-  durable trade ID. An aggressive order that sweeps several price levels instead
-  receives one coalesced private `order.fill` with all of those IDs in execution
-  order; concatenating its corresponding drop-copy `trade_ids` produces the same
-  list. Consumers should treat this as a list, not a scalar.
+`trade_ids` connects a private fill to the public `trade.executed` tape.
+Drop-copy events are emitted once per execution, so the list currently has one
+durable trade ID. An aggressive order that sweeps several price levels instead
+receives one coalesced private `order.fill` with all of those IDs in execution
+order; concatenating its corresponding drop-copy `trade_ids` produces the same
+list. Consumers should treat this as a list, not a scalar.
 
 This is fed from the engine's single trade-publication path (`engine/main.py`,
 `_publish_trade`), so it covers every fill-producing flow — new orders,

@@ -262,6 +262,7 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     "outcome": {
         "RESTORED": "was restored",
         "DISCARDED_STALE_DAY": "was discarded as a stale day order",
+        "DISCARDED_UNCONFIGURED": "was discarded as no longer configured",
         "FAILED": "failed to restore",
         "QUOTE_REMNANT": "was restored as a quote remnant",
         # engine.trace AON_PREFLIGHT

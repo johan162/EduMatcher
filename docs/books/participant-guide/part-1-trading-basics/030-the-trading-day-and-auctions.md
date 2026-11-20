@@ -45,7 +45,7 @@ This structure exists because:
 
 | Phase | Orders accepted? | Matching? | Special order types |
 |-------|-----------------|-----------|---------------------|
-| `PRE_OPEN` | Yes | No | LIMIT, STOP, STOP_LIMIT, ICEBERG |
+| `PRE_OPEN` | Yes | No | LIMIT, ICEBERG, STOP, STOP_LIMIT, TRAILING_STOP |
 | `OPENING_AUCTION` | Yes | No | + `TIF=ATO` (At-The-Open) |
 | `CONTINUOUS` | Yes | Yes | All types including MARKET, FOK, IOC |
 | `CLOSING_AUCTION` | Yes | No | + `TIF=ATC` (At-The-Close) |
@@ -94,8 +94,9 @@ schedule:
     closing_auction_end:   "16:05"
 ```
 
-All values are `HH:MM` in the **local time of the machine running the
-scheduler**.
+All values are `HH:MM` in the exchange's session timezone,
+`locale.session_timezone` in the configuration (default `Europe/Stockholm`) —
+not the timezone of the machine the scheduler runs on.
 
 | Key | Phase triggered | Default (as `weekdays:`) |
 |-----|----------------|---------|
@@ -226,7 +227,7 @@ to CONTINUOUS.
 ## Phase 3 — CONTINUOUS
 
 This is the main trading session. Every new order is immediately swept against
-resting liquidity. All ten order types are valid here.
+resting liquidity. All eight order types, and COMBO and OCO, are valid here.
 
 **Price-time priority is in full effect.** See [The Order Book](020-the-order-book.md)
 for a detailed explanation.
@@ -277,16 +278,23 @@ The uncross algorithm runs and produces the official closing price.
 
 ## Phase 5 — CLOSED
 
-The market is closed. All incoming orders are rejected:
+The market is closed. All incoming orders are rejected; in the trader
+console:
 
 ```
-[GW01] order.ack: accepted=false reason="Market is CLOSED"
+[16:05:12.031] REJECTED  c67d537068afd247bdff53dea6ba2989 code=MARKET_CLOSED  Market is closed
 ```
 
-When the engine shuts down it:
-1. Serialises all resting **GTC** (Good-Till-Cancelled) orders to `data/gtc_orders.json`.
-2. Publishes `order.expired` for all resting **DAY** orders (they are discarded at close).
-3. Publishes `system.eod` to all subscribers.
+On the transition to `CLOSED` the engine expires every resting **DAY**
+order (`EXPIRED <id>  (Trading day ended)`) and every unfilled **ATC** order
+(`Closing auction ended`). **GTC** (Good-Till-Cancelled) orders keep resting.
+
+Stopping the engine is a separate event, not the close. When the engine shuts
+down it saves every resting GTC and DAY order to `gtc_orders.json` in the data
+directory (it also writes that file every few seconds while it runs) and
+publishes `system.eod` to all subscribers. On the next start it restores them;
+a DAY order is kept only if the business day has not changed since it was
+placed.
 
 
 
@@ -295,7 +303,7 @@ When the engine shuts down it:
 | Order TIF | At CONTINUOUS start | At CLOSED |
 |-----------|--------------------|-----------| 
 | `DAY` | Keeps resting | Expired and discarded |
-| `GTC` | Keeps resting | Persisted to file, reloaded next day |
+| `GTC` | Keeps resting | Keeps resting into the next day (saved and restored across an engine restart) |
 | `ATO` | **Expired** if unfilled at OPENING_AUCTION end | — |
 | `ATC` | — | **Expired** if unfilled at CLOSING_AUCTION end |
 
@@ -303,18 +311,28 @@ When the engine shuts down it:
 
 ## Triggering phase transitions in EduMatcher
 
-In production, a scheduler process drives phase transitions automatically:
+In production, the scheduler process drives phase transitions automatically
+from the `schedule` block:
 
 ```bash
-poetry run pm-scheduler --now
+pm-scheduler --daily
 ```
 
-`--now` starts immediately in PRE_OPEN and progresses through all phases.
-Transition times are configurable in `engine_config.yaml`.
+For testing, `--now` closes the engine first if it is not `CLOSED`, then
+fires every transition of the day in quick succession, `--delay` seconds
+apart (default 3):
 
-You can also trigger transitions manually from the admin console during development:
+```bash
+pm-scheduler --now
+```
+
+You can also trigger transitions by hand from the admin console,
+`pm-admin --id <ADMIN gateway>` (a participant with `role: ADMIN`). From
+`CLOSED` the day starts with `PRE_OPEN`; the engine refuses a transition out
+of order:
 
 ```
+SESSION|STATE=PRE_OPEN
 SESSION|STATE=OPENING_AUCTION
 SESSION|STATE=CONTINUOUS
 SESSION|STATE=CLOSING_AUCTION
@@ -327,7 +345,7 @@ SESSION|STATE=CLOSED
 
 | Time | Phase | Event |
 |------|-------|-------|
-| 06:00 | PRE_OPEN | Engine starts; GTC orders reload from file |
+| 06:00 | PRE_OPEN | Pre-open begins; GTC orders from earlier days are still on the book |
 | 06:00–08:00 | PRE_OPEN | Participants submit limit orders; book fills but no trades |
 | 08:00 | → OPENING_AUCTION | ATO orders now accepted |
 | 08:00–09:30 | OPENING_AUCTION | Book accumulates; price discovery happening |
@@ -335,7 +353,7 @@ SESSION|STATE=CLOSED
 | 09:30–15:50 | CONTINUOUS | Live matching; all order types active; stops triggering |
 | 15:50 | → CLOSING_AUCTION | ATC orders now accepted; new MARKETs rejected |
 | 15:50–16:00 | CLOSING_AUCTION | Final accumulation |
-| 16:00 | → CLOSED | **Uncross at closing price**; ATC orders expired; GTC orders saved; DAY orders expired |
+| 16:00 | → CLOSED | **Uncross at closing price**; ATC orders expired; DAY orders expired; GTC orders carry over |
 
 
 

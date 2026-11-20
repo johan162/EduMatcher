@@ -179,8 +179,9 @@ kept verbatim under `fields` so nothing is lost relative to the raw line:
 Typical uses:
 
 ```bash
-# Only circuit-breaker events, as they happen
-pm-calf-spy --channels CB --format json | jq 'select(.fields.STATUS == "HALTED")'
+# Only circuit-breaker events, as they happen (CB needs named symbols: it
+# refuses the default '*')
+pm-calf-spy --channels CB --symbols AAPL,MSFT --format json | jq 'select(.fields.STATUS == "HALTED")'
 
 # Capture the first 50 trades to a file for later analysis
 pm-calf-spy --channels TRADE --symbols '*' --format json --count 50 > trades.jsonl

@@ -274,7 +274,9 @@ class TestTheTopicParameterProjection:
         "frames",
         [
             M.make_symbols_msg("GW1", []),
-            M.make_session_status_msg("GW1", "CONTINUOUS", True),
+            M.make_session_status_msg(
+                "GW1", "CONTINUOUS", "2024-01-09T06:00:00.000Z", True
+            ),
             M.make_session_schedule_msg("GW1", False, None),
             M.make_reference_reload_ack_msg("GW1", "c1", True, config_version="v"),
         ],

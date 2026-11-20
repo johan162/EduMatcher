@@ -71,6 +71,8 @@ services:
       CORS_ORIGIN: "*"
       CALF_HOST: "edumatcher"
       CALF_PORT: "5570"
+      # The s300-sim example's index (CALF cannot list the indexes).
+      INDEX_IDS: "${INDEX_IDS:-EDU50}"
       # The read-only credential of the s300-sim example ('dashboards', 8081).
       API_GATEWAY_URL: "http://edumatcher:8081"
       PM_TERMINAL_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-9vaho7}"

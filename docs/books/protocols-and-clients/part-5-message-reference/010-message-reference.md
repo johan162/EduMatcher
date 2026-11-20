@@ -81,9 +81,8 @@ The YAML definitions in `spec/messages/*.yaml` are the canonical message
 contracts. `pm-msgen generate` produces the Python bindings, applicable C
 artifacts, and the generated sections of this reference; `pm-msgen check`
 fails when any generated output diverges from its specification. Message
-producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
-so the generated bindings remain readable alongside the wire format they
-enforce.
+producers and consumers still exchange ordinary JSON over ZeroMQ, so the
+generated bindings remain readable alongside the wire format they enforce.
 
 ### What ZeroMQ requires of a message
 
@@ -91,7 +90,9 @@ ZeroMQ does not impose a message format.  It sees messages as one or more
 opaque **frames** — byte arrays that are sent and received atomically as a
 group.  It is up to the application to define what those bytes mean.
 
-EduMatcher uses exactly **two frames** for every message:
+Every EduMatcher message starts with these **two frames** (the main bus adds
+a third, the envelope — see [Message structure](#message-structure); the
+drop-copy socket sends the two alone):
 
 ```
 frame[0]  →  topic string, UTF-8 encoded
@@ -266,8 +267,11 @@ tear down the live session.
 **Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
 **Published by:** Every process that holds an ID (`pm-admin`, `pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
 
-Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
-immediately after the connect is accepted. It is one-way: the engine does not
+Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`) by bots and
+gateways, and every 5 seconds (`INTERACTIVE_HEARTBEAT_INTERVAL_SEC`) by the
+interactive consoles `pm-alf-console` and `pm-admin`, so a closed console window
+frees its ID within seconds; the first beat follows immediately after the
+connect is accepted. It is one-way: the engine does not
 reply. The payload carries the sender's own `interval_sec`, so the engine needs
 no per-client setting. After **3 consecutive missed beats** the engine
 disconnects the session exactly as if `system.gateway_disconnect` had arrived,
@@ -306,7 +310,7 @@ Sent by a gateway to submit a new order for matching.
 | `ts_ns` | integer | Client-supplied submission time, Unix epoch **nanoseconds**. **Not** what the book uses for time priority — see `arrival_seq` — so a back-dated value cannot jump the queue |
 | `arrival_seq` | integer \| absent | Engine-assigned monotonic arrival sequence, and the actual time-priority key. `0` on submission, meaning unassigned |
 | `status` | string | Initial status, always `"NEW"` |
-| `price_ticks` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, ICEBERG); `null` for MARKET, which has none |
+| `price_ticks` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, IOC, ICEBERG); `null` for MARKET, STOP and TRAILING_STOP, which have none |
 | `stop_price_ticks` | integer (ticks) \| null | Trigger price **in ticks** (STOP, STOP_LIMIT, TRAILING_STOP) |
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
@@ -337,9 +341,9 @@ Sent by a gateway to submit a new order for matching.
 | `STOP` | — | Required | — | — | Triggers a market order when stop price touched |
 | `STOP_LIMIT` | Required | Required | — | — | Triggers a limit order when stop price touched |
 | `FOK` | Required | — | — | — | Fill fully immediately or cancel entirely |
-| `IOC` | Optional | — | — | — | Fill as much as possible immediately, cancel remainder |
+| `IOC` | Required | — | — | — | Fill as much as possible immediately, cancel remainder |
 | `ICEBERG` | Required | — | Required | — | Shows only `visible_qty`; replenishes from hidden reserve |
-| `TRAILING_STOP` | — | — | — | Required | Stop price follows best opposite-side price by `trail_offset_ticks` |
+| `TRAILING_STOP` | — | Optional | — | Required | Stop price follows the last trade price by `trail_offset_ticks`; without `stop_price_ticks` it starts from the last trade |
 
 
 
@@ -448,7 +452,7 @@ Published when the quote's lifecycle state changes (e.g. a fill inactivates the 
 | `ACTIVE` | Quote successfully placed on the book (both legs resting) |
 | `INACTIVE_BID_FILLED` | Bid leg filled; ask leg auto-cancelled |
 | `INACTIVE_ASK_FILLED` | Ask leg filled; bid leg auto-cancelled |
-| `CANCELLED` | Quote removed (explicit cancel, kill switch, or halt) |
+| `CANCELLED` | Quote removed (explicit cancel, replacement by a new quote, kill switch, halt, disconnect, or expiry at the close) |
 
 ### `quote.cancel`
 
@@ -489,7 +493,7 @@ stream), `SYMBOLS` (ask which instruments exist), `PING`, and `EXIT`. Gateway re
 types above, periodic `HB` heartbeats, and `ERR` on protocol/subscription
 violations.
 
-Two behaviours are easy to get wrong from the table alone:
+Four behaviours are easy to get wrong from the table alone:
 
 - **`MD` is a delta, and an empty value is meaningful.** Only changed fields
   are sent; an omitted field means *unchanged*. An explicitly empty `BID=` or
@@ -4417,6 +4421,7 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
 |---|---|---|---|---|
 | `restored_orders` | `int` | required | ge 0, unit `dimensionless` | GTC/same-day-DAY orders successfully restored to their book. |
 | `discarded_stale_day_orders` | `int` | required | ge 0, unit `dimensionless` | TIF=DAY orders discarded because the business day rolled over. |
+| `discarded_unconfigured_orders` | `int` | required | ge 0, unit `dimensionless` | Orders the deployed configuration no longer allows: their symbol or participant is not configured, or they are a seed quote whose market maker and symbol have no seed in it (a seed belongs to the configuration that declared it). |
 | `failed_orders` | `int` | required | ge 0, unit `dimensionless` | Persisted orders that raised during restore and were skipped. |
 | `quote_remnants_restored` | `int` | required | ge 0, unit `dimensionless` | Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex. |
 | `rebuilt_quotes` | `int` | required | ge 0, unit `dimensionless` | Active QuoteIndex entries rebuilt from both-legs-restored quotes. |
@@ -4437,13 +4442,13 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
 
 **Since:** 1.2
 
-Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s order and combo counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
+Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s order and combo counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + discarded_unconfigured_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY, DISCARDED_UNCONFIGURED or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `entity_id` | `string` | required | max_len 64 | The order id (ORDER) or combo id (COMBO) this line is about. |
 | `kind` | enum: `ORDER`, `COMBO` | required | — | What restore_gtc() was processing. |
-| `outcome` | enum: `RESTORED`, `DISCARDED_STALE_DAY`, `FAILED`, `QUOTE_REMNANT` | required | — | RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no combo failure path to report yet. |
+| `outcome` | enum: `RESTORED`, `DISCARDED_STALE_DAY`, `DISCARDED_UNCONFIGURED`, `FAILED`, `QUOTE_REMNANT` | required | — | RESTORED/DISCARDED_STALE_DAY/DISCARDED_UNCONFIGURED/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. DISCARDED_UNCONFIGURED is an order the deployed configuration no longer allows (see `startup_recovery.discarded_unconfigured_orders`). QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no combo failure path to report yet. |
 | `symbol` | `string` | omitted when unset | max_len 16 | The instrument, for an ORDER-kind line. Null for COMBO, which may span more than one symbol across its legs and has none of its own. |
 | `detail` | `string` | omitted when empty | max_len 512 | Free text, when there is something worth saying beyond kind and outcome — the exception message for a FAILED order, in particular. |
 
@@ -4674,6 +4679,7 @@ Engine to caller: the current session state, on request. The polled answer to th
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
 | `state` | `string` | required | max_len 32 | Same values as `session.state.state`. |
+| `state_since` | `string` | required | max_len 32 | UTC instant the engine entered `state` -- its last accepted transition, else its start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets a caller tell a state left over from an earlier day, such as a `CONTINUOUS` whose close never came, from the same state entered today. |
 | `sessions_enabled` | `bool` | required | — | False when the deployment runs continuously with no session schedule at all, which makes `state` advisory. |
 | `next` | [`NextTransition`](#nexttransition) | omitted when unset | — | The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one. |
 | `last_trade_id` | `string` | `null` when unset | max_len 32 | The id of the last trade this engine run has made so far, null before its first: what `system.eod` will name if the run ends now. |

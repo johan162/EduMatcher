@@ -38,6 +38,7 @@ RecoveryItemKind = Literal["ORDER", "COMBO"]
 RecoveryItemOutcome = Literal[
     "RESTORED",
     "DISCARDED_STALE_DAY",
+    "DISCARDED_UNCONFIGURED",
     "FAILED",
     "QUOTE_REMNANT",
 ]
@@ -863,6 +864,12 @@ class StartupRecovery(BaseModel):
     """GTC/same-day-DAY orders successfully restored to their book."""
     discarded_stale_day_orders: int = Field(ge=0)
     """TIF=DAY orders discarded because the business day rolled over."""
+    discarded_unconfigured_orders: int = Field(ge=0)
+    """Orders the deployed configuration no longer allows: their symbol or
+    participant is not configured, or they are a seed quote whose market maker and
+    symbol have no seed in it (a seed belongs to the configuration that declared
+    it).
+    """
     failed_orders: int = Field(ge=0)
     """Persisted orders that raised during restore and were skipped."""
     quote_remnants_restored: int = Field(ge=0)
@@ -890,10 +897,10 @@ class RecoveryItem(BaseModel):
     ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-
     trail.md). Published once per entity, before the single summary
     `startup_recovery` broadcast, so the counts there are the cross-check:
-    `restored_orders + discarded_stale_day_orders + failed_orders` must equal the
-    number of ORDER-kind recovery_item lines whose outcome is RESTORED,
-    DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal
-    the number of COMBO-kind lines.
+    `restored_orders + discarded_stale_day_orders + discarded_unconfigured_orders
+    + failed_orders` must equal the number of ORDER-kind recovery_item lines whose
+    outcome is RESTORED, DISCARDED_STALE_DAY, DISCARDED_UNCONFIGURED or FAILED
+    respectively, and `restored_combos` must equal the number of COMBO-kind lines.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -903,8 +910,10 @@ class RecoveryItem(BaseModel):
     kind: RecoveryItemKind
     """What restore_gtc() was processing."""
     outcome: RecoveryItemOutcome
-    """RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-
-    combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a
+    """RESTORED/DISCARDED_STALE_DAY/DISCARDED_UNCONFIGURED/FAILED come from the main
+    GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity.
+    DISCARDED_UNCONFIGURED is an order the deployed configuration no longer allows
+    (see `startup_recovery.discarded_unconfigured_orders`). QUOTE_REMNANT is a
     second, additional line for a RESTORED quote-origin order whose sibling leg
     did not come back — see the example_note above. COMBO-kind lines are always
     RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no
@@ -1091,6 +1100,12 @@ class SessionStatus(BaseModel):
 
     state: str = Field(max_length=32)
     """Same values as `session.state.state`."""
+    state_since: str = Field(max_length=32)
+    """UTC instant the engine entered `state` -- its last accepted transition, else
+    its start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets a caller tell a state left
+    over from an earlier day, such as a `CONTINUOUS` whose close never came, from
+    the same state entered today.
+    """
     sessions_enabled: bool
     """False when the deployment runs continuously with no session schedule at all,
     which makes `state` advisory.

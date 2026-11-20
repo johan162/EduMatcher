@@ -13,7 +13,7 @@ configuration of your own, author it wherever you like and install it with
 
 Which example gets installed is controlled by ``--config`` and resolved the
 same way ``pm-config-deploy --example`` resolves it — see
-``edumatcher.config_deploy.resolve_example`` for the shorthand-to-path
+``edumatcher.examples.resolve_example`` for the shorthand-to-path
 mapping (e.g. ``s3-basic`` ->
 ``docs/examples/ref_data/s3-basic-setup/engine_config.yaml``). When
 ``--config`` is omitted, ``s10-basic`` is installed.
@@ -41,8 +41,10 @@ import os
 import sys
 from pathlib import Path
 
-from edumatcher.config import data_dir_preference
-from edumatcher.config_deploy import resolve_example
+# Neither import touches edumatcher.config, which would resolve -- and warn
+# about -- the data directory this command has not created yet.
+from edumatcher.data_dir import data_dir_preference
+from edumatcher.examples import resolve_example
 
 DEFAULT_EXAMPLE_CONFIG = "s10-basic"
 
@@ -152,6 +154,9 @@ def main() -> None:
         else:
             # Deploy straight from the bundled example: deploy() installs the
             # YAML and the example's market_sim.yaml beside the artifact.
+            # config_deploy imports edumatcher.config, which resolves the data
+            # directory: make it this one, which exists now.
+            os.environ["EDUMATCHER_DATA_DIR"] = str(data_dir)
             from edumatcher.config_deploy import CompileError, deploy
 
             try:

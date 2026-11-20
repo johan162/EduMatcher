@@ -216,6 +216,32 @@ def test_show_lists_one_dates_rows_with_per_symbol_detail(
     assert "B" in out and "A " not in out.splitlines()[-1]
 
 
+def test_show_prints_per_symbol_detail_to_the_cent_like_the_statements(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The ledger keeps the unrounded split; ``show`` printed it raw, float
+    noise and all (``DDOG=-3743.83000000000132``)."""
+    import sqlite3
+
+    cli(data, "run", "--date", "2026-07-01")
+    capsys.readouterr()
+    conn = sqlite3.connect(data / "eod.db")
+    conn.execute(
+        "UPDATE eod_settlement SET detail_json = ? WHERE account = 'A'",
+        (json.dumps({"DDOG": "-3743.83000000000132", "DE": "12.5"}),),
+    )
+    conn.commit()
+    conn.close()
+    assert cli(data, "show", "--date", "2026-07-01", "--gateway", "a") == 0
+    assert "DDOG=-3743.83 DE=12.50" in capsys.readouterr().out
+    assert (
+        cli(data, "--format", "json", "show", "--date", "2026-07-01", "--gateway", "a")
+        == 0
+    )
+    (row,) = json.loads(capsys.readouterr().out)
+    assert row["detail"] == {"DDOG": "-3743.83", "DE": "12.50"}
+
+
 def test_show_steps_prints_full_messages(
     data: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

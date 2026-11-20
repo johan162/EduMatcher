@@ -80,7 +80,8 @@ market.
 version of the impact.
 
 **`s300-sim`** — The bundled example the simulation runs: 300 shares,
-`AI001`–`AI100`, `MM01`, `TRADER01`–`TRADER10`, `OPS01`.
+`AI001`–`AI100`, `MM01`, `TRADER01`–`TRADER10`, `OPS01`, and the `EDU50`
+index of its 50 largest companies.
 
 **Swarm** — `pm-ai-swarm`: the process that runs many AI traders, in one or
 more worker processes.

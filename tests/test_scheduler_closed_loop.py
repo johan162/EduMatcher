@@ -9,10 +9,12 @@ transitions it applied.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 
 import pytest
 
+from edumatcher.engine import main as engine_main
 from edumatcher.engine.config_loader import DaySchedule, ScheduleConfig
 from edumatcher.models.session import SessionState
 from edumatcher.scheduler import main as sched
@@ -176,6 +178,68 @@ def test_no_confirm_mid_day_start_still_catches_up(
     )
 
     assert bridge.transitions() == ["PRE_OPEN", "OPENING_AUCTION", "CONTINUOUS"]
+
+
+# --- L042: a state left over from an earlier day is closed first ----------
+
+
+def test_the_engine_reports_when_it_entered_its_state(
+    ref: EngineRef, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def status() -> sched._EngineStatus | None:
+        return sched._query_engine_status(EngineBridge(ref), EngineSub(ref))  # type: ignore[arg-type]
+
+    booted = status()
+    assert booted is not None and booted.state == SessionState.CLOSED
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z", booted.since)
+
+    monkeypatch.setattr(engine_main, "_utc_now_iso", lambda: "2026-11-17T08:00:00.000Z")
+    ref.drive("PRE_OPEN")
+    monkeypatch.setattr(engine_main, "_utc_now_iso", lambda: "2026-11-17T09:00:00.000Z")
+    ref.drive("CLOSING_AUCTION")  # rejected: the engine stays where it was
+
+    assert status() == sched._EngineStatus(
+        SessionState.PRE_OPEN, "2026-11-17T08:00:00.000Z"
+    )
+
+
+@pytest.mark.parametrize(
+    ("entered", "expected"),
+    [
+        # CONTINUOUS since Monday: Monday is closed, then Tuesday replayed.
+        ("2026-11-16T09:30", ["CLOSED", "PRE_OPEN", "OPENING_AUCTION", "CONTINUOUS"]),
+        # CONTINUOUS since 09:30 today: already where the schedule says.
+        ("2026-11-17T09:30", []),
+    ],
+)
+def test_a_continuous_left_over_from_yesterday_is_closed_first(
+    ref: EngineRef,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    entered: str,
+    expected: list[str],
+) -> None:
+    ref.drive("PRE_OPEN", "OPENING_AUCTION", "CONTINUOUS")
+    _at(monkeypatch, "2026-11-17T11:00")  # a Tuesday
+    # The engine stamps wall time: the instant the schedule clock maps
+    # ``entered`` to.
+    since = sched._to_utc_iso(datetime.fromisoformat(entered))
+    ref.engine._session_state_since = since
+    bridge = EngineBridge(ref)
+
+    with caplog.at_level(logging.INFO, logger=sched.log.name):
+        sched._run_scheduled(
+            bridge,  # type: ignore[arg-type]
+            CFG,
+            confirm_sock=EngineSub(ref),  # type: ignore[arg-type]
+            is_running=lambda: len(bridge.applied) < len(expected),  # before 16:00
+        )
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert f"Engine reports current state: CONTINUOUS (since {since})" in messages
+    assert any("from an earlier day" in m for m in messages) is bool(expected)
+    assert bridge.transitions() == expected
+    assert ref.state == "CONTINUOUS"
 
 
 @pytest.mark.parametrize("n_past", range(len(DAY) + 1))

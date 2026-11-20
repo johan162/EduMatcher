@@ -27,6 +27,7 @@ from edumatcher.ai_trader.swarm_config import load_swarm_config
 from edumatcher.market_sim.config import load_sim_config
 from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG, main as setup_main
 import edumatcher.config_deploy as config_deploy
+import edumatcher.examples as examples_mod
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -269,7 +270,7 @@ class TestExamples:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         site_packages = tmp_path / "site-packages"
-        package_file = site_packages / "edumatcher" / "config_deploy.py"
+        package_file = site_packages / "edumatcher" / "examples.py"
         package_file.parent.mkdir(parents=True)
         examples = site_packages / "docs" / "examples"
         config = examples / "ref_data" / "s150-nominal-setup" / "engine_config.yaml"
@@ -282,9 +283,10 @@ class TestExamples:
         news.write_text(
             "version: 1\nsteps: [{inject: {market: true}}]\n", encoding="utf-8"
         )
-        monkeypatch.setattr(config_deploy, "__file__", str(package_file))
+        monkeypatch.setattr(examples_mod, "__file__", str(package_file))
 
         assert config_deploy.resolve_example("s150-nominal") == config
+        # The books tell learners to ask config_deploy, not edumatcher.examples.
         examples = config_deploy.examples_root().parent
         assert examples / "ref_data" / "s150-nominal-setup" / "swarm.yaml" == swarm
         assert examples / "news" / "chip-race.yaml" == news

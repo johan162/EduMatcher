@@ -33,9 +33,9 @@ each one means in an EduMatcher deployment.
 
 | Term | In general | In EduMatcher |
 |---|---|---|
-| **Image** | A read-only template: a file system plus a default command | Seven of them: `edumatcher` (the whole exchange), `edumatcher-ai-sim` (the same exchange preset to trade by itself) and one per web GUI |
+| **Image** | A read-only template: a file system plus a default command | Nine of them: `edumatcher` (the whole exchange), `edumatcher-ai-sim` (the same exchange preset to trade by itself) and one per web GUI |
 | **Container** | A running instance of an image, with its own processes, network interface and writable layer | Up to eight run at once: the exchange container and seven GUI containers |
-| **Compose file** | A YAML file that describes several containers and how they connect, so you start them with one command instead of six | `compose.yaml` and its overlays. Several files can be combined, each adding to the last |
+| **Compose file** | A YAML file that describes several containers and how they connect, so you start them with one command instead of one at a time | `compose.yaml` and its overlays. Several files can be combined, each adding to the last |
 | **Bind mount** and **named volume** | Two ways to give a container storage that outlives it. A bind mount is a directory on your disk; a named volume is storage the container engine manages for you | Everything the exchange produces lives in a bind mount (`./data`), so you can see it. The GUIs keep small private state in named volumes |
 | **Published port** | A port on your machine forwarded to a port in a container | How *you* — your browser, `curl`, a protocol client — reach the system. The containers do not use them to reach each other |
 
@@ -117,13 +117,14 @@ seven GUIs in one file.
 | `compose.yaml` | The exchange and all seven GUIs, from GHCR images |
 | `compose.zmq.yaml` | Overlay: publish the ZeroMQ bus (`EM_ZMQ=1` in `.env`) |
 | `compose.ai-sim.yaml` | The AI-trader simulation, from GHCR images (`install.sh --sim`) |
-| `.env.example` / `.env.sim.example` | The default settings for the exchange and for the simulation |
+| `compose.guis.yaml` | The seven GUIs alone, pointed at a pipx exchange on the host (`install.sh --guis`) |
+| `.env.example` / `.env.sim.example` / `.env.guis.example` | The default settings for the exchange, the simulation and the GUI-only install |
 | `README.md` | Usage notes for a released install |
 
 
 ## The images
 
-### Eight images, one backend Dockerfile
+### Nine images, one backend Dockerfile
 
 | Image | Built from | Listens on (in the container) | Contains |
 |---|---|---|---|
@@ -140,7 +141,7 @@ seven GUIs in one file.
 Locally built images are tagged `edumatcher:local` (from `IMAGE_NAME` and
 `IMAGE_TAG` in `.env`) and `edumatcher-<app>:latest`. Released images are
 `ghcr.io/johan162/<image>:<version>`, with `latest` following the newest
-release. One version tag pins all eight images to the same release.
+release. One version tag pins every image to the same release.
 
 ### Why the whole exchange is one container
 
@@ -421,7 +422,7 @@ flowchart LR
     BASE["compose.yaml\nthe exchange container"] --> M(("merged\nconfiguration"))
     ZMQ["compose.zmq.yaml\n+ bus ports, + 2 env vars"] -.->|"ZMQ=1"| M
     SSH["compose.ssh.yaml\n+ sshd, + key mount, + port 22"] -.->|"SSH=1"| M
-    GUIS["compose.guis.yaml\n+ 5 GUI services"] -.->|"make up-all"| M
+    GUIS["compose.guis.yaml\n+ 6 GUI services"] -.->|"make up-all"| M
     CFG["compose.config-gui.yaml\n+ config-gui service"] -.->|"CONFIG_GUI=1"| M
     M --> RUN["podman-compose / docker compose\nup -d"]
 ```
@@ -516,7 +517,7 @@ Environment passed into the container:
 
 ### `compose.zmq.yaml` — the raw message bus
 
-Adds seven ports and two environment variables to the `edumatcher` service, so
+Adds eight ports and two environment variables to the `edumatcher` service, so
 tools on your machine (`pm-calf-spy`, `pm-dc-spy`, `pm-index-cli`, your own
 ZeroMQ clients) can attach to the bus directly.
 
@@ -524,7 +525,7 @@ ZeroMQ clients) can attach to the bus directly.
 |---|---|---|
 | `EDUMATCHER_ENGINE_BIND_HOST` | `0.0.0.0` | The engine binds its bus to `127.0.0.1` by default; publishing the port alone would forward to nothing |
 | `EDUMATCHER_INDEX_BIND_HOST` | `0.0.0.0` | Same for `pm-index` |
-| ports | 5555–5559, 5601, 5602 | The engine's, the index's and the log server's ZeroMQ sockets |
+| ports | 5555–5559, 5601, 5602, 5611 | The engine's, the index's and the log server's ZeroMQ sockets, and `pm-monitor`'s health snapshot feed |
 
 !!! warning "The bus has no authentication"
     Anything that can reach 5555 can submit orders as if it were a gateway.
@@ -544,9 +545,9 @@ generated once and kept in `data/ssh-hostkeys/`, so recreating the container
 does not trigger a "host key changed" warning. No key material is ever built
 into the image.
 
-### `compose.guis.yaml` — the four connected web GUIs
+### `compose.guis.yaml` — the six connected web GUIs
 
-Adds four services in the **same compose project** as the exchange. That is
+Adds six services in the **same compose project** as the exchange. That is
 the important part: being in one project puts them on one private network,
 where the exchange answers to the hostname `edumatcher`.
 
@@ -561,6 +562,7 @@ flowchart LR
         TR["trader-gui\n:8093"]
         B["book-gui\n:8094"]
         D["dash-gui\n:8095"]
+        CL["clearing-gui\n:8096"]
         E["edumatcher"]
     end
     BR -->|"8090"| T
@@ -568,11 +570,13 @@ flowchart LR
     BR -->|"8093"| TR
     BR -->|"8094"| B
     BR -->|"8095"| D
+    BR -->|"8096"| CL
     T -->|"edumatcher:5570 market data\nedumatcher:8081 history\nedumatcher:5600 own logs"| E
     L -->|"edumatcher:5601 / 5602\nlive log stream\nedumatcher:5570 session phase"| E
     TR -->|"edumatcher:8080\nREST + WebSocket"| E
     B -->|"edumatcher:8081\nmarket data + history\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
     D -->|"edumatcher:5611\nhealth snapshots\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
+    CL -->|"edumatcher:8080\nREST"| E
     L -.->|"reads log.db from\n./data, read-only"| DATA[("./data")]
     D -.->|"reads metrics.db and the\nconfiguration, read-only"| DATA
 ```
@@ -584,6 +588,7 @@ flowchart LR
 | `trader-gui` | `pm-api-gwy` desk (8080); AI sim: admin monitor socket to `monitor` (8082) | `API_PROXY_TARGET`, `API_ADMIN_MONITOR_TARGET` | none |
 | `book-gui` | `pm-api-gwy` dashboards (8081), `pm-md-gwy` (CALF, 5570), `pm-log-srv` (5600) | `API_GATEWAY_URL`, `PM_BOOK_API_KEY`, `CALF_HOST`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | named volume `book-gui-logs` |
 | `dash-gui` | `pm-monitor` (5611 PUB), `pm-md-gwy` (CALF, 5570), `pm-api-gwy` dashboards (8081), `pm-log-srv` (5600) | `MONITOR_HOST`/`MONITOR_PUB_PORT`, `CALF_HOST`, `API_GATEWAY_URL`, `PM_DASH_API_KEY`, `METRICS_DB_PATH`, `CONFIG_ARTIFACT_PATH`, `LOG_GUI_URL`/`BOOK_GUI_URL`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | `./data` read-only at `/backend-data`; named volume `dash-gui-logs` |
+| `clearing-gui` | `pm-api-gwy` desk (8080); clearing and EOD data are read by `pm-api-gwy`, not by the GUI | `API_PROXY_TARGET` | none |
 
 Every GUI also gets `HOST=0.0.0.0` (listen on the container's interface),
 `PORT` (its own port) and `CORS_ORIGIN`. `depends_on: edumatcher` only
@@ -620,6 +625,7 @@ flowchart LR
         DG["edumatcher-sim-dash-gui"]
         L["edumatcher-sim-log-gui"]
         TR["edumatcher-sim-trader-gui"]
+        CL["edumatcher-sim-clearing-gui"]
     end
     D[("./data-sim")] --- E
     D -. "read-only" .- L
@@ -629,6 +635,7 @@ flowchart LR
     B --> E
     L --> E
     TR --> E
+    CL --> E
 ```
 
 Its differences from the plain exchange:
@@ -640,7 +647,7 @@ Its differences from the plain exchange:
 | data | `./data-sim` | Its own data directory, so it never touches the exchange's `./data` |
 | `stop_grace_period` | `60s` | 100 AI traders and the market model take longer to stop |
 | read-only key | `PM_READONLY_API_KEY`, default `key-readonly-9vaho7` | Fixed, because the configuration is fixed: no two-phase start needed |
-| GUIs | four (no config-gui) | Nothing to configure in a preset simulation |
+| GUIs | six (no config-gui) | Nothing to configure in a preset simulation |
 
 It publishes **the same host ports** as the exchange stack, so only one of the
 two can run at a time. Running the simulation is covered in the AI Traders
@@ -672,7 +679,7 @@ What a project named `edumatcher` creates:
 | Object | Name | Created by |
 |---|---|---|
 | Network | `edumatcher_default` | Compose, for every project |
-| Containers | `edumatcher`, `edumatcher-terminal-gui`, `edumatcher-log-gui`, `edumatcher-trader-gui`, `edumatcher-book-gui`, `edumatcher-dash-gui`, `edumatcher-config-gui` | `container_name:` in the files |
+| Containers | `edumatcher`, `edumatcher-terminal-gui`, `edumatcher-log-gui`, `edumatcher-trader-gui`, `edumatcher-book-gui`, `edumatcher-dash-gui`, `edumatcher-clearing-gui`, `edumatcher-config-gui` | `container_name:` in the files |
 | Named volumes | `edumatcher_log-gui-acks`, `edumatcher_terminal-gui-logs`, `edumatcher_book-gui-logs`, `edumatcher_dash-gui-logs` | `volumes:` at the bottom of the GUI files |
 | Pod (Podman only) | `pod_edumatcher` | `podman-compose` |
 
@@ -706,6 +713,7 @@ flowchart TB
         TR["trader-gui"]
         B["book-gui"]
         DG["dash-gui"]
+        CL["clearing-gui"]
         C["config-gui"]
     end
     LO -->|"port forwarding"| net
@@ -714,6 +722,7 @@ flowchart TB
     TR --- E
     B --- E
     DG --- E
+    CL --- E
 ```
 
 Each container has its own network namespace and its own `127.0.0.1`. A
@@ -931,7 +940,7 @@ in
 
 `EM_STACK=sim` (which tells `edumatcher.sh` to drive `compose.ai-sim.yaml`),
 `EM_VERSION`, `GHCR_OWNER`, `EM_SPEED`, `EM_START`, `EM_CONFIG_FILE`, `TZ`,
-`BIND_ADDR`, `EDUMATCHER_GATEWAY_BIND_HOST`, `PM_READONLY_API_KEY` and the four
+`BIND_ADDR`, `EDUMATCHER_GATEWAY_BIND_HOST`, `PM_READONLY_API_KEY` and the six
 GUI ports.
 
 ### Variables only `entrypoint.sh` reads
@@ -1125,7 +1134,7 @@ podman build -t edumatcher-terminal-gui:latest \
 
 The names compose expects are `edumatcher-terminal-gui`,
 `edumatcher-log-gui`, `edumatcher-config-gui`, `edumatcher-trader-gui`,
-`edumatcher-book-gui` and `edumatcher-dash-gui`, each with the tag `latest`. From
+`edumatcher-book-gui`, `edumatcher-dash-gui` and `edumatcher-clearing-gui`, each with the tag `latest`. From
 `deployment/docker`, `podman-compose -f compose.yaml -f compose.guis.yaml -f
 compose.config-gui.yaml build terminal-gui` does the same. This is what
 `make build-guis GUI=terminal-gui` runs.

@@ -149,7 +149,7 @@ Where to read more:
 - Formal wire protocol reference: [Appendix - RALF Protocol](../part-2-specifications/040-ralf.md)
 
 
-## LALF (Log ALF)
+## LALF (Logging ALF)
 
 LALF is the protocol `pm-log-srv` speaks to collect operational log lines from
 every other `pm-*` process, and to distribute them live to log viewers. It

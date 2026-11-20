@@ -438,6 +438,9 @@ Key/value provenance for the file, written by `pm-stats` on every start.
 | `session_timezone` | The IANA timezone the `date` columns are expressed in. Readers resolve this automatically |
 | `snapshot_interval_sec` | The `--snapshot-interval` in force, so a consumer can tell a sparse series from a coarse one |
 | `recorder` | The process that wrote the file (`pm-stats`) |
+| `keep_order_events_days` | The order-event retention in force (`--keep-order-events-days`, else `--keep-days`; `0.0` = keep all) |
+| `human_gateways` | The `--human-gateways` patterns, comma-separated; empty when none |
+| `keep_human_order_events_days` | The retention for those gateways' order events (`--keep-human-order-events-days`) |
 
 The schema version lives in `PRAGMA user_version` rather than in this table, so
 it can be checked before any query is attempted.
@@ -664,10 +667,12 @@ Append-only order lifecycle history captured from private engine topics. This ta
 | `fill_qty`        | INTEGER | Executed quantity for fill events                                                                                    |
 | `trade_ids`       | TEXT    | FILL only: JSON array of the trade ids the fill executed — one fill can aggregate several trades                    |
 | `reason`          | TEXT    | Rejection, cancel, expire, or status reason when provided                                                            |
+| `reject_code`     | TEXT    | The engine's machine-readable rejection class (e.g. `MAX_ORDER_QTY`) on a `*_REJECT` event; null otherwise         |
 | `client_tag`      | TEXT    | Client-supplied order correlation tag when present                                                                   |
 | `combo_parent_id` | TEXT    | Parent combo identifier for combo child events                                                                       |
 | `oco_group_id`    | TEXT    | OCO group identifier for linked order events                                                                         |
 | `priority_reset`  | INTEGER | `1` when an amend reset queue priority, `0` when it did not, null when not applicable                                |
+| `msg_id`          | TEXT    | The audit message id the row records, joining it to its audit line                                                   |
 
 **Use case**: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.
 
@@ -925,8 +930,7 @@ Two limits worth knowing:
   received and cannot be recovered — ZeroMQ PUB/SUB has no replay. The rollup
   is consistent with what was recorded, not necessarily with what traded.
 - For an index, `update_count` is rebuilt as the number of retained
-  `index_level_snapshots` rows, which can be marginally lower than the number
-  of updates originally received if any shared a millisecond.
+  `index_level_snapshots` rows for the day.
 
 ### One recorder per database
 
@@ -937,7 +941,7 @@ figures that describe neither process — so a second one refuses to start:
 
 ```console
 $ pm-stats --db data/stats.db
-<timestamp> ERROR edumatcher.stats.main - fatal startup error: another pm-stats process is already recording to data/stats.db (lock held on data/stats.db.lock). Two recorders on one database overwrite each other's daily rollups — use a different --db.
+<timestamp> CRITICAL edumatcher.stats.main - fatal startup error: another pm-stats process is already recording to /home/you/.local/share/edumatcher/stats.db (lock held on /home/you/.local/share/edumatcher/stats.db.lock). Two recorders on one database overwrite each other's daily rollups — use a different --db.
 $ echo $?
 1
 ```
@@ -1375,12 +1379,13 @@ Checks performed:
   Database integrity/read-write: yes
 
 Database stats:
-  path: data/stats.db
+  path: /home/you/.local/share/edumatcher/stats.db
   size: 412.3MB
   trade_log rows: 1843022
   order_events rows: 5210334
   price_snapshots rows: 96120
   daily_stats rows: 1240
+  feed_gaps rows: 0
   feed_gaps rows: 0
 ```
 

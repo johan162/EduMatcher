@@ -320,7 +320,7 @@ Example:
 
 ```text
 [MM01]> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q1
-[09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e2 ask=be2170fd
+[09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e20b3f4d8e9a1c55d0e6f2b713 ask=be2170fd4c8e41a7b0d93e5f12a6c048
 [09:30:00.102] QUOTE ACTIVE  Q1
 ```
 
@@ -406,13 +406,13 @@ answer the only question that usually matters.
 
 ```text
 [MM01]> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q123
-[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e2 ask=be2170fd
+[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e20b3f4d8e9a1c55d0e6f2b713 ask=be2170fd4c8e41a7b0d93e5f12a6c048
 [09:30:00.102] QUOTE ACTIVE  Q123
 
 [MM01]> QLEGS|SYM=AAPL
-# shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
+# shows BUY leg 7c4a91e20b3f4d8e9a1c55d0e6f2b713 and SELL leg be2170fd4c8e41a7b0d93e5f12a6c048 as active, Filled?=NO
 
-[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
+[09:31:02.417] FILL      7c4a91e20b3f4d8e9a1c55d0e6f2b713  qty=100 @209.80  remaining=400  [PARTIAL]
 
 [MM01]> QLEGS|SYM=AAPL|SHOW=ALL
 # BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
@@ -545,7 +545,7 @@ line, in addition to (not instead of) the usual `FILL` line driven by
 [GW01]> DC|STATE=ON
 DC ON
 ...
-[09:31:02.417] DC_FILL   7c4a91e2  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
+[09:31:02.417] DC_FILL   7c4a91e20b3f4d8e9a1c55d0e6f2b713  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
 ```
 
 Disabled by default; start with `--drop-copy` to enable automatically on
@@ -615,12 +615,12 @@ per-order value and the gateway default interact.
 
 | Type          | Required fields                                | Optional                            |
 |---------------|-------------------------------------------------|--------------------------------------|
-| MARKET        | SYM, SIDE, QTY                                 | SMP                                 |
+| MARKET        | SYM, SIDE, QTY                                 | TIF, SMP                            |
 | LIMIT         | SYM, SIDE, QTY, PRICE                          | TIF, SMP                            |
 | STOP          | SYM, SIDE, QTY, STOP                           | TIF, SMP                            |
 | STOP_LIMIT    | SYM, SIDE, QTY, STOP, PRICE                    | TIF, SMP                            |
-| FOK           | SYM, SIDE, QTY, PRICE                          | SMP                                 |
-| IOC           | SYM, SIDE, QTY, PRICE                          | SMP                                 |
+| FOK           | SYM, SIDE, QTY, PRICE                          | TIF, SMP                            |
+| IOC           | SYM, SIDE, QTY, PRICE                          | TIF, SMP                            |
 | ICEBERG       | SYM, SIDE, QTY, PRICE, VISIBLE (must be < QTY) | TIF, SMP                            |
 | TRAILING_STOP | SYM, SIDE, QTY, TRAIL                          | STOP (initial stop price), TIF, SMP |
 
@@ -644,8 +644,9 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 | `LEG<i>.SYM`       | Yes      | Symbol for leg *i* (0-indexed)                   |
 | `LEG<i>.SIDE`      | Yes      | BUY or SELL                                      |
 | `LEG<i>.QTY`       | Yes      | Quantity                                         |
-| `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT, FOK, STOP_LIMIT, ICEBERG leg types) |
-| `LEG<i>.TYPE`      | No       | Order type (default LIMIT)                       |
+| `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT, FOK, IOC and STOP_LIMIT legs; refused on MARKET and STOP legs) |
+| `LEG<i>.STOP`      | Yes*     | Stop price (*required for STOP and STOP_LIMIT legs; refused on the others) |
+| `LEG<i>.TYPE`      | No       | `LIMIT` (default), `MARKET`, `STOP`, `STOP_LIMIT`, `FOK` or `IOC`; an `ICEBERG` or `TRAILING_STOP` leg is refused |
 | `SMP=<action>`     | No       | Self-match prevention, applied to every leg; same values as `NEW`'s `SMP`. If omitted, falls back to the gateway's configured `participants[].smp_action` (else `NONE`) — see [Configuration — Participant Fields](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#participant-fields) |
 
 #### Examples
@@ -710,8 +711,8 @@ NEW|TYPE=OCO|OCO_ID=<label>|SYM=<symbol>|QTY=<qty>[|TIF=<DAY|GTC>]
 | `TIF`        | No                 | `DAY` or `GTC`; defaults to `DAY`              |
 | `LEG1_SIDE`  | Yes                | `BUY` or `SELL`                                |
 | `LEG1_TYPE`  | Yes                | Order type for leg 1                           |
-| `LEG1_PRICE` | Conditional        | Required for `LIMIT`, `IOC`, `FOK` legs (a `STOP_LIMIT` leg only requires `LEG1_STOP`, not `LEG1_PRICE`) |
-| `LEG1_STOP`  | Conditional        | Required for `STOP`, `STOP_LIMIT` legs         |
+| `LEG1_PRICE` | Conditional        | Required for `LIMIT`, `IOC`, `FOK` and `STOP_LIMIT` legs; refused on `MARKET`, `STOP` and `TRAILING_STOP` legs |
+| `LEG1_STOP`  | Conditional        | Required for `STOP`, `STOP_LIMIT` legs; optional initial stop on a `TRAILING_STOP` leg |
 | `LEG1_TRAIL` | Conditional        | Required for `TRAILING_STOP` legs              |
 | `LEG2_*`     | Same rules as LEG1 | Second leg fields                              |
 
@@ -738,9 +739,9 @@ sequenceDiagram
 
     Note over ENG: Time passes — AAPL trades at 148.00
     ENG-->>GW: order.fill.GW  {order_id: "abc..", fill_qty: 100, status: "FILLED"}
-    ENG-->>GW: oco.cancelled.GW {oco_id: "BRACKET-001", cancelled_order_id: "def..", reason: "OCO sibling filled"}
+    ENG-->>GW: oco.cancelled.GW {oco_id: "BRACKET-001", cancelled_order_id: "def..", reason: "OCO sibling abc12345 reached FILLED"}
     Note over GW: [FILL] abc...  qty=100 @148.00 [FILLED]
-    Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling filled
+    Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling abc12345 reached FILLED
 ```
 
 
@@ -868,7 +869,8 @@ average cost):
 ```
 
 A gateway with no open positions prints `<gateway_id>: flat (no open
-positions).` instead of an empty table.
+positions).` instead of an empty table, or `<gateway_id> (not connected):
+flat (no open positions).` when that gateway is not logged on.
 
 **How it works:**
 
@@ -1020,7 +1022,7 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill                                          |
 | `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]`  | Full fill                                             |
 | `AMENDED  <id>  price=151.00 qty=100 remaining=100`   | Amendment confirmed                                   |
-| `CANCELLED  <id>`                                     | Cancel confirmed                                      |
+| `CANCELLED  <id>  [reason=<reason>] [rtag=<request-tag>]` | Order cancelled. `reason` names an engine-initiated cancel (`INSUFFICIENT_LIQUIDITY` for a MARKET/IOC remainder, `KILL_SWITCH`, `QUOTE_LEG_FILLED`, `QUOTE_REPLACED`, …); `rtag` echoes your own `CANCEL`'s `RTAG` |
 | `TRIGGERED  <id>  @148.00  → LIMIT`                   | A `STOP_LIMIT` reached its stop price and now rests as a `LIMIT` order (a `STOP` or `TRAILING_STOP` becomes `MARKET`); `ORDERS` shows the new type |
 | `EXPIRED  <id>  (Trading day ended)`                  | A DAY order expired at the end of the trading day; an ATO or ATC order shows `(Opening auction ended)` / `(Closing auction ended)`, and the engine's own reason when it sends one |
 
@@ -1060,8 +1062,9 @@ A line that fails in a way the console did not foresee prints `Command failed:
 | Message                                                  | Meaning                                                                    |
 |------------------------------------------------------------|-------------------------------------------------------------------------------|
 | `QUOTE ACK  <quote_id>  bid=<order-id> ask=<order-id>` | Both quote legs accepted and posted to the book; full leg order IDs       |
-| `QUOTE REJ  <quote_id>  <reason>`                        | Quote rejected (e.g. "Quote requires bid_price < ask_price", missing gateway role) |
+| `QUOTE REJ  <quote_id>  <reason>`                        | Quote rejected by the engine (e.g. missing `MARKET_MAKER` role, obligation breached). A `BID` not below `ASK` is refused locally first, with `QUOTE requires BID < ASK` |
 | `QUOTE <status>  <quote_id>  [reason]`                   | Quote lifecycle update — status is `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED` |
+| `QUOTE CXL OK <symbol>  legs cancelled=<n>`              | Your `QUOTE_CANCEL` was carried out (`QUOTE CXL REJ <symbol>  <code> <reason>` if refused) |
 
 ### OCO Events
 
@@ -1069,7 +1072,8 @@ A line that fails in a way the console did not foresee prints `Command failed:
 |------------------------------------------------------------|----------------------------------------------------------------------------------|
 | `OCO ACK  <oco_id>  legs=<leg1-id>/<leg2-id>`           | Both legs linked; full order IDs of the two legs                                  |
 | `OCO REJ  <oco_id>  <reason>`                           | OCO rejected (invalid legs, symbol mismatch, etc.)                                |
-| `OCO CANCEL  <oco_id>  sibling=<order-id>  <reason>`    | Engine auto-cancelled the sibling leg after the other leg filled or was cancelled |
+| `OCO CANCEL  <oco_id>  sibling=<order-id>  <reason>`    | Engine auto-cancelled the sibling leg after the other leg filled or was cancelled; the reason reads `OCO sibling <id> reached <STATUS>` |
+| `OCO CXL OK <oco_id>  legs cancelled=<n>`               | Your `CANCEL\|OCO_ID=` was carried out (`OCO CXL REJ …` if refused) |
 
 ### Combo Events
 
@@ -1077,10 +1081,11 @@ A line that fails in a way the console did not foresee prints `Command failed:
 |---------------------------------------------------|-----------------------------------------------------------|
 | `COMBO ACK  <combo_id>  combo accepted`       | Combo validated, child orders posted to books           |
 | `COMBO REJ  <combo_id>  <reason>`             | Combo failed validation (e.g. "Duplicate symbols in combo legs") |
-| `COMBO STATUS  <combo_id>  PARTIALLY_MATCHED` | At least one leg has filled                             |
-| `COMBO STATUS  <combo_id>  MATCHED`           | All legs fully filled                                   |
-| `COMBO STATUS  <combo_id>  FAILED  <reason>`  | A leg was cancelled/expired; siblings cascade-cancelled |
-| `COMBO STATUS  <combo_id>  CANCELLED`         | User-initiated cancel completed                         |
+| `COMBO PARTIALLY_MATCHED  <combo_id>`         | At least one leg has filled                             |
+| `COMBO MATCHED  <combo_id>`                   | All legs fully filled                                   |
+| `COMBO FAILED  <combo_id>  <reason>`          | A leg was cancelled/expired; siblings cascade-cancelled |
+| `COMBO CANCELLED  <combo_id>`                 | User-initiated cancel completed                         |
+| `COMBO CXL OK <combo_id>  legs cancelled=<n>` | Your `CANCEL\|COMBO_ID=` was carried out (`COMBO CXL REJ …` if refused) |
 
 ### Risk Events
 
@@ -1125,21 +1130,21 @@ $ poetry run pm-alf-console --id TRADER01
 # confirms AAPL/MSFT active
 
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
-[09:30:00.100] ACK  7c4a91e2  order accepted
+[09:30:00.100] ACK  7c4a91e20b3f4d8e9a1c55d0e6f2b713  order accepted
 
 [TRADER01]> ORDERS
 # copy the full 32-character order ID from the table if you plan to amend/cancel
 
-[TRADER01]> AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
-[09:30:01.500] AMENDED  7c4a91e2  price=150.10 qty=100 remaining=100 (priority reset) rtag=AMD-001
+[TRADER01]> AMEND|ID=7c4a91e20b3f4d8e9a1c55d0e6f2b713|PRICE=150.10|RTAG=AMD-001
+[09:30:01.500] AMENDED  7c4a91e20b3f4d8e9a1c55d0e6f2b713  price=150.10 qty=100 remaining=100 (priority reset) rtag=AMD-001
 
-[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
+[09:30:02.200] FILL  7c4a91e20b3f4d8e9a1c55d0e6f2b713  qty=40 @150.10  remaining=60  [PARTIAL]
 
 [TRADER01]> POS
 # exposure now reflects partial fill
 
-[TRADER01]> CANCEL|ID=7c4a91e2-...
-[09:30:03.000] CANCELLED  7c4a91e2
+[TRADER01]> CANCEL|ID=7c4a91e20b3f4d8e9a1c55d0e6f2b713
+[09:30:03.000] CANCELLED  7c4a91e20b3f4d8e9a1c55d0e6f2b713
 
 [TRADER01]> EXIT
 ```

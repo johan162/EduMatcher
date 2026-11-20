@@ -406,7 +406,13 @@ not be connected. On your own gateway it is the self-service
 pm-admin-cli --id GW_ADMIN kick --gw TRADER01
 pm-admin-cli --id GW_ADMIN kick --gw TRADER01 --reason "Compliance hold"
 ```
-No ack is published.  Exit code is always 0 if the engine is reachable.
+
+```
+KICK  sent disconnect for TRADER01
+```
+
+No ack is published, so the line only confirms that the request was sent.
+Exit code is always 0 if the engine is reachable.
 Verify with `orders --gw TRADER01`.
 
 | Flag            | Required | Description                              |
@@ -864,11 +870,14 @@ pm-index-cli --config engine_config.yaml indices
 ```
 
 ```
-id     | description              | history_file                            | state_file                           | constituents
--------+--------------------------+-----------------------------------------+--------------------------------------+----------------
-EDU100 | EduMatcher broad index   | data/indexes/EDU100_history.jsonl       | data/indexes/EDU100_state.json       | AAPL,MSFT,TSLA
-TECH2  | Technology pair          | data/indexes/TECH2_history.jsonl        | data/indexes/TECH2_state.json        | AAPL,MSFT
+id     | description            | history_file                                             | state_file                                            | constituents
+-------+------------------------+----------------------------------------------------------+-------------------------------------------------------+---------------
+EDU100 | EduMatcher broad index | /home/you/.local/share/edumatcher/indexes/EDU100_history.jsonl | /home/you/.local/share/edumatcher/indexes/EDU100_state.json | AAPL,MSFT,TSLA
+TECH2  | Technology pair        | /home/you/.local/share/edumatcher/indexes/TECH2_history.jsonl  | /home/you/.local/share/edumatcher/indexes/TECH2_state.json  | AAPL,MSFT
 ```
+
+The paths are shown resolved: a relative `data/indexes/...` in the
+configuration lands under the data directory.
 
 **Without a config file (direct path):**
 
@@ -1087,6 +1096,8 @@ sockets are closed on exit.
 | `gw_id`      | *(required)*           | Gateway ID to authenticate as — must be configured in `engine_config.yaml` |
 | `push_addr`  | `tcp://127.0.0.1:5555` | Engine PULL socket address                                                 |
 | `pub_addr`   | `tcp://127.0.0.1:5556` | Engine PUB socket address                                                  |
+| `index_pull_addr` | `tcp://127.0.0.1:5559` | `pm-index` PULL socket address, used by the `index_*` methods        |
+| `index_pub_addr`  | `tcp://127.0.0.1:5558` | `pm-index` PUB socket address, used by the `index_*` methods         |
 | `timeout_ms` | `3000`                 | Milliseconds to wait for an ack before raising `CommandTimeoutError`       |
 
 ### Usage example
@@ -1141,7 +1152,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
-| `force_uncross(symbol)`         | symbol                        | **ADMIN**        | `risk.force_uncross`              | `risk.force_uncross_ack.{GW}`              |
+| `force_uncross(symbol, price?, dry_run?, note?)` | symbol; optional price, dry-run flag, note | **ADMIN** | `risk.force_uncross`              | `risk.force_uncross_ack.{GW}`              |
 | `kill_switch_gateway(target, note?, symbol?, quotes_only?)` | target GW ID; optional note, symbol, quotes-only | **ADMIN** | `risk.kill_switch_gateway` | `risk.kill_switch_gateway_ack.{GW}` |
 | `kill_switch_global(note?)`     | optional note                 | **ADMIN**        | `risk.kill_switch_global`         | `risk.kill_switch_global_ack.{GW}`         |
 | `reference_reload()`            | —                             | **ADMIN**        | `system.reference_reload`         | `system.reference_reload_ack.{GW}`         |
@@ -1191,12 +1202,13 @@ print(f"Halted {result['halted_symbols']} symbols, cancelled {result['cancelled_
 ```
 
 The engine sets every known symbol to `HALTED` with `halt_source = ADMIN`.
-No timer is set — the halt is permanent until `resume_all()` is called or the
-session transitions to `CLOSED`.
+No timer is set, and the close does not lift it either: the halt stays until
+`resume_all()` (or a per-symbol resume) is called, and shows as halted the next
+trading day.
 
 While halted:
 
-- MARKET / FOK / IOC orders are rejected with `SYMBOL_HALTED`.
+- MARKET / FOK / IOC orders are rejected with `INSTRUMENT_HALTED`.
 - LIMIT / ICEBERG orders are accepted and rest without matching.
 - Quote submission is rejected.
 

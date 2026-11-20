@@ -330,6 +330,7 @@ must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 | **pm-calf-spy**  | `pm-calf-spy [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only CALF protocol spy — connects to `pm-md-gwy` and prints every line it sends | Optional |
 | **pm-ralf-spy**  | `pm-ralf-spy --role ROLE [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only RALF protocol spy — connects to `pm-ralf-gwy` and prints every line it sends | Optional |
 | **pm-dc-spy**    | `pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human\|json]` | Read-only drop-copy spy — connects to the engine's drop-copy `PUB` socket (:5557) and prints every fill event | Optional |
+| **pm-sim-forensics** | `pm-sim-forensics [--data DIR] [--out DIR]` | Cross-checks a stopped simulation run's records and writes a findings report | Optional |
 
 
 ## Port Reference
@@ -358,7 +359,7 @@ process's own `config.py`.
 | `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
 | `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
 | `pm-dc-gwy` | connects out to `5557` | `5590` | DC1 over TCP | Relays the engine's `5557` drop-copy feed as DC1 text lines to plain-TCP clients that don't speak ZeroMQ. |
-| `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (code default; example configs may assign additional instances other ports, e.g. `8081`) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
+| `pm-api-gwy` | connects out to `5555`, `5556`, and `pm-index`'s `5558`, `5559` | `8080` (code default; example configs may assign additional instances other ports, e.g. `8081`) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
 | `pm-index` | `5558` PUB (bind) · `5559` PULL (bind) · `5564` REP (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL/REP) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests; `5564` only answers `pm-index-cli health` pings (`EDUMATCHER_INDEX_BIND_HOST`, `EDUMATCHER_INDEX_HEALTH_PORT`). No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
@@ -997,12 +998,12 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 
 | Subcommand | Default limit | Purpose | Key filters |
 |---|---:|---|---|
-| `events`   | 100  | Search log entries by topic, gateway, symbol, and time range | `--topic`, `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--reverse` |
+| `events`   | 100  | Search log entries by topic, gateway, symbol, and time range | `--topic`, `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--reverse`, `-f`/`--follow`, `--interval SEC` |
 | `orders`   | 100  | Order lifecycle events for specific order IDs or filters     | `--id` (repeatable), `--gateway`, `--symbol`, `--date`, `--from`, `--to`  |
 | `trades`   | 100  | Trade executions                                             | `--symbol`, `--gateway`, `--buy-gateway`, `--sell-gateway`, `--min-price`, `--max-price`, `--min-qty`, `--date`, `--from`, `--to`, `--reverse` |
 | `topics`   | —    | List topics present in logs with event counts                | `--date`, `--from`, `--to`, `--prefix`, `--sort` (count\|alpha)            |
 | `gateways` | —    | Gateway activity summary                                     | `--date`, `--from`, `--to`, `--min-events`                                 |
-| `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
+| `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`, `-f`/`--follow`, `--interval SEC` |
 | `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
 | `index`    | —    | Build the optional SQLite index from scratch, or add to it   | `--output PATH`, `--incremental`, `--days N`, `--from`, `--to`             |
 | `archive`  | —    | Compress closed days' parts into one verified `audit-D.log.zst` per day | `--date D` or `--pending`, `--level N` (default 9), `--keep-days N` |
@@ -1017,7 +1018,8 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 
 `--from`/`--to` are inclusive; a bare date, and a time without an offset, are
 UTC, and a bare date in `--to` means the end of that day. `events`/`timeline
---follow` first print the newest `--limit` matching entries, like `tail -f`.
+--follow` first print the newest `--limit` matching entries, like `tail -f`,
+then poll for new ones every `--interval` seconds (default `1.0`).
 
 
 
@@ -1047,6 +1049,8 @@ pm-audit-replay anomalies --severity warn
 | `anomalies` | Every finding, worst first, with the `story` command to run next | `--severity {error,warn,info}` (a floor; default `info`) |
 | `stats` | Link confidence and envelope coverage over the window | — |
 | `index` | Build or refresh the episode index | `--stats` |
+| `rerun` | Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did | — |
+| `queue` | Follow one resting order, or one price level, through the queue (observes the re-run) | `--order ID` (order view), or `--price P` with the global `--symbol` and optional `--side {BUY,SELL}` (level view); `--anonymise` names other gateways A, B, C and hides iceberg reserve |
 
 **Global options** (accepted before or after the command):
 
@@ -1075,7 +1079,9 @@ pm-audit-replay anomalies --severity warn
 | `--version` | — | Print version and exit |
 
 **Exit codes:** `0` success; `1` nothing to narrate, or no audit log at the
-given path; `2` argument error.
+given path (`rerun`: a difference; `queue`: order not in the trail); `2`
+argument error; `3` `rerun`/`queue`: the trail cannot be re-run (it does not
+begin at an engine start with an empty book, or has a proven hole).
 
 See [Audit Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md) for how causality is
 recovered, what each anomaly means and worked examples.
@@ -1096,10 +1102,10 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 |---|---|---|
 | `--datapath` | data dir from `EDUMATCHER_DATA_DIR` | Data directory or explicit `.db` path |
 | `--db-name` | `clearing.db` | SQLite filename when `--datapath` is a directory |
-| `--flush-size` | `100` | Flush immediately when buffered trades reaches N |
-| `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
+| `--flush-size` | `100` | Flush immediately when buffered trades reaches N (`1`–`100`) |
+| `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty (at least `0.1`) |
 | `--print-every` | `0` | Print a P&L table of every position every N trades (`0` disables, the default) |
-| `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup and at every close of the market (`0` disables pruning) |
+| `--retention-days` | `90` | Delete `trade_events` rows and close snapshots older than N days on startup and at every close of the market; the newest close snapshot is kept (`0` disables pruning) |
 | `--sql-trace` | off | Log executed SQLite SQL statements from the clearing writer connection |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
@@ -1109,20 +1115,19 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
 | `--version` | — | Print version and exit |
 
-`pm-clearing-cli` global options include `--raw-output` to disable display
-normalization and print raw tick-unit values for price-derived fields.
-
 **Expected runtime input arguments:**
 
 None.
 
-On startup, `pm-clearing` applies schema migrations and prunes `trade_events`
-older than the retention window (default: 90 days). Writes are batched into
-single SQLite transactions to update:
+On startup, `pm-clearing` prunes `trade_events` and close snapshots older
+than the retention window (default: 90 days). Writes are batched into single
+SQLite transactions to update:
 
 - `trade_events`
 - `gateway_symbol_positions`
 - `gateway_daily_summary`
+- `position_close_snapshot` (at each session close)
+- `session_events` and `gateway_sessions`
 
 `trade.executed.tick_decimals` is persisted so downstream output can normalize
 price-derived values for table/JSON/CSV rendering.
@@ -1133,6 +1138,7 @@ price-derived values for table/JSON/CSV rendering.
 |------------------|----------------------------------------------------|
 | `trade.executed` | Every matched trade pair (including `tick_decimals`) — drives P&L calculations |
 | `system.eod` | End-of-day marks and the session-close `session_events` row |
+| `session.state` | Session-phase transitions, recorded as `PHASE` rows in `session_events` |
 | `system.gateway_auth.` | Gateway connect (accepted) — opens a `gateway_sessions` row |
 | `system.gateway_bye.` | Gateway disconnect — closes the matching `gateway_sessions` row |
 
@@ -1176,11 +1182,14 @@ which also pings the running `pm-clearing` on port `5563`.
 | `exposure` | 1000 | Net/gross notional exposure and P&L | `--gateway`, `--symbol`, `--sort` |
 | `symbols` | 1000 | Symbol-level totals and open exposure snapshot | `--date`, `--from`, `--to`, `--sort` |
 | `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
+| `snapshots` | 10000 | Position snapshots taken at each session close — the basis for settlement | `--gateway`, `--symbol`, `--date`, `--from`, `--to` |
 | `health` | n/a | Check the `pm-clearing` process and ping its health socket; `--extended` adds the clearing DB integrity and read/write check, and `--extended -v` the row counts, flush metadata and journal mode | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `1` otherwise) |
 | `reconcile` | n/a | Compares raw `trade_events` vs daily summary (both buy and sell sides; also reports summary-only keys) | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `sessions` | — | Gateway connection and disconnection history | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` (default 500) |
 | `eod`      | 100 | End-of-day sentinel events written by `pm-clearing` on `system.eod` | `--from`, `--to`, `--limit` |
-| `prune` | n/a | Deletes old `trade_events` rows by retention window | `--days`, `--dry-run` |
+| `gaps` | 500 | Trade-feed gaps: trades `pm-clearing` never received, so never booked | `--from`, `--to` |
+| `rebuild` | n/a | Replays `pm-audit`'s `trade.executed` lines into a **new** database (the live one is only read), copies the close snapshots over and lists every gateway/symbol position that differs. The audit trail must reach back to the ledger's first trading day. Exit `0` no difference, `3` differences listed, `1` refused | `--from-audit DATA_DIR` and `--output PATH` (must not exist), both required |
+| `prune` | n/a | Deletes `trade_events` rows and close snapshots older than the retention window (default 90 days; the newest close snapshot is kept). The file keeps its size; SQLite reuses the freed pages | `--days`, `--dry-run` |
 
 `daily` rows are per gateway, while `symbols` sums both counterparties'
 participant-side activity. A single 800-share trade therefore contributes 800
@@ -1475,14 +1484,14 @@ prints output, and exits.
 
 | Subcommand         | Purpose                                                | Typical filters                                                   |
 |--------------------|---------------------------------------------------------|---------------------------------------------------------------------|
-| `daily`            | Daily OHLCV summary from `daily_stats`                 | `--date`, `--symbol`, `--limit`, `--after`, `--wide`                |
+| `daily`            | Daily OHLCV summary from `daily_stats`                 | `--date` or `--from-date`/`--to-date` (inclusive range), `--symbol`, `--limit`, `--after`, `--wide` |
 | `snapshots`        | Intraday snapshots from `price_snapshots`               | `--symbol` (required), `--date`, `--from`, `--to`, `--limit`, `--after` |
 | `trades`           | Trade history from `trade_log`                          | `--symbol`, `--date`, `--from`, `--to`, `--limit`, `--after`        |
 | `order-events`     | Private order lifecycle events from the order_events table | `--gateway` (required), `--symbol`, `--event-type`, `--date`, `--from`, `--to`, `--limit` (default 500), `--after` |
 | `order-lifecycle`  | All events for a single order ID                           | `--gateway` (required), `--order-id` (required)                    |
 | `symbols`          | Discover symbols available in stats data                | `--date`                                                            |
 | `dates`            | Discover trading dates available in `daily_stats`        | `--symbol`                                                          |
-| `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date`, `--index-id`, `--limit`, `--after`, `--wide`              |
+| `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date` or `--from-date`/`--to-date` (inclusive range), `--index-id`, `--limit`, `--after`, `--wide` |
 | `index-snapshots`  | Every recorded index level tick from `index_level_snapshots` | `--index-id` (required), `--date`, `--from`, `--to`, `--limit`, `--after` |
 | `index-ids`        | Discover index IDs with recorded data                   | `--date`                                                            |
 | `instruments`      | Show instrument reference data (tick scale per symbol)  | `--symbol`                                                          |
@@ -1607,6 +1616,7 @@ pm-eod [--datapath DIR] [--format table|json|csv] [--no-header] run \
   [--log-keep-days N] [--backup-keep-days N] [--backup-skip NAME ...]
 pm-eod [--datapath DIR] [--format table|json|csv] status [-q] [--limit N]
 pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [--gateway GW_ID] [--check]
+pm-eod [--datapath DIR] [--format table|json|csv] show --date YYYY-MM-DD [--gateway GW_ID] [--steps]
 ```
 
 **Global options** (must come *before* the subcommand):
@@ -1614,7 +1624,7 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 | Flag | Default | Description |
 |---|---|---|
 | `--datapath DIR` | the configured data directory | Data directory holding `clearing.db`, `eod.db`, `ref_data/roster.yaml` and the output folders |
-| `--format` | `table` | Output format for `status` and `balances`: `table`, `json` or `csv` |
+| `--format` | `table` | Output format for `status`, `balances` and `show`: `table`, `json` or `csv` |
 | `--no-header` | off | Omit the header row (table and csv) |
 | `--version` | — | Print version and exit |
 
@@ -1645,6 +1655,11 @@ printed but not recorded, so an `ok` day stays `ok`.
 **`balances` options:** `--date` shows balances as of that date; `--gateway`
 filters to one trader (case-insensitive); `--check` verifies that every settled
 date sums to exactly zero and exits 1 if one does not.
+
+**`show` options:** `--date` (required) picks the settled date and prints each
+account's amount with its per-symbol split; `--gateway` filters to one trader;
+`--steps` prints that date's run steps with their full messages instead of the
+amounts.
 
 **Exit codes of `run`:** `0` clean · `1` the gate, the settlement or the report
 failed · `2` usage error (nothing was done) · `3` settled and reported, but a
@@ -2004,8 +2019,9 @@ pm-market-sim --status --id ADMIN_ID [--top N]
 
 **Expected runtime input arguments:**
 
-None. It reads `market_sim.yaml` from the deployed configuration directory
-and keeps its state in `<DATA_DIR>/market_sim_state.json`.
+None. It reads `market_sim.yaml` from the deployed configuration directory,
+keeps its state in `<DATA_DIR>/market_sim_state.json` and records every
+headline and value jump in `<DATA_DIR>/market_sim_news.db`.
 
 ## pm-news — News Desk
 
@@ -2020,6 +2036,7 @@ pm-news --id ADMIN_ID confirm NEWS_ID
 pm-news --id ADMIN_ID retract NEWS_ID
 pm-news --id ADMIN_ID play scenario.yaml
 pm-news list [--duration SECONDS]
+pm-news past [--limit N] [--date YYYY-MM-DD]
 ```
 
 | Subcommand | Does |
@@ -2029,10 +2046,48 @@ pm-news list [--duration SECONDS]
 | `retract` | Retract a rumour: nothing moves |
 | `play` | Run a timed scenario YAML |
 | `list` | Print headlines as they are published; `--duration 0` (default) until Ctrl+C |
+| `past` | Print headlines already published, newest first, from `<DATA_DIR>/market_sim_news.db`; needs no running process and no `--id`. `--limit` (default `20`) caps the count, `--date` picks one session date |
 
 **Expected runtime input arguments:**
 
 None.
+
+## pm-sim-forensics — Simulation Run Checker
+
+Checks a finished simulation run's records against each other. A long
+AI-trader run is a randomized test without assertions; `pm-stats`,
+`pm-clearing`, `pm-audit`, `pm-monitor` and the gateways each record the
+engine's output independently, and every check is an oracle over those
+records — a balance that must hold, two stores that must agree, a matching
+rule the trades must obey. Run it on a **stopped** run's data directory.
+
+```bash
+pm-sim-forensics [--data DIR] [--out DIR] [--check ID ...] [--slow] [options]
+pm-sim-forensics --list
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--data` | `EDUMATCHER_DATA_DIR` | The run's data directory |
+| `--out` | `forensics/` beside the data directory | Where `report.md` and `findings.json` are written |
+| `--check` | every check | Run only this check; repeat for several. A check named here runs even if it is slow |
+| `--samples` | `10` | Sample rows kept per check |
+| `--slow` | off | Also run the slow checks (several engine re-runs) |
+| `--jobs` | one per CPU | Worker processes; `1` runs every check in this process |
+| `-q` / `--quiet` | off | No progress lines on stderr |
+| `--list` | — | Print every check (ID, oracle family, title) and exit |
+| `--version` | — | Print version and exit |
+
+Each check ends `PASS`, `FAIL` (with sample rows), `INFO` (statistical
+checks: a count, not a verdict), `SKIPPED` (its data is absent) or `ERROR`
+(the check itself broke). `make forensics DATA=<dir> OUT=<dir> [SLOW=1]` wraps
+the command in a source checkout.
+
+**Exit codes:** `0` no check failed; `1` at least one `FAIL` or `ERROR` —
+that is the finding, see `report.md`; `2` usage error (unknown check ID,
+`--data` not a directory).
 
 ## pm-compdb-cli — Company Database CLI
 
@@ -2054,7 +2109,7 @@ pm-compdb-cli add|update SYMBOL FIELD=VALUE...
 | `init` | Build the database of the 300 bundled companies; `--force` replaces an existing one |
 | `columns` | List the columns, their types and what each holds |
 | `show SYMBOL...` | Everything about one or more companies |
-| `list` | List companies: `-c` comma-separated columns or `all`; `-w COLUMN OP VALUE` with `OP` one of `=` `!=` `<` `<=` `>` `>=` `~` (contains, any case), repeat to narrow; `-s` sort column, `--desc`; `-n` at most N rows |
+| `list` | List companies: `-c`/`--columns` comma-separated columns or `all` (default `symbol,name,sector,industry,market_cap_musd,pe_ratio`); `-w`/`--where COLUMN OP VALUE` with `OP` one of `=` `!=` `<` `<=` `>` `>=` `~` (contains, any case), repeat to narrow; `-s`/`--sort` sort column, `--desc`; `-n`/`--limit` at most N rows |
 | `add SYMBOL FIELD=VALUE...` | Add a company; `name`, `sector` and `industry` are required |
 | `import FILE...` | Add the companies of YAML files (a mapping of `SYMBOL:` to fields, the format of the bundled ones); all or nothing |
 | `update SYMBOL FIELD=VALUE...` | Change fields; an empty value clears one |
@@ -2877,11 +2932,12 @@ dropping it as an idle client.
 | `--role` | `AUDIT` | `HELLO\|ROLE=` to authenticate as: `CLEARING`, `DROP_COPY`, or `AUDIT` |
 | `--channels` | `*` | Comma-separated channels; `*` = every channel `--role` is entitled to |
 | `--symbols` | `*` | Comma-separated symbols; `*` = every symbol |
-| `--lastseq` | `0` | Requests replay on connect via `HELLO\|LASTSEQ=N` (`0` = no replay) |
+| `--lastseq` | `0` | Requests replay on connect via `HELLO\|LASTSEQ=N`; the `SUB` that follows is answered with the events after it (`0` = no replay) |
+| `--epoch` | none | The `WELCOME\|EPOCH` of the gateway run `--lastseq` came from; required with a non-zero `--lastseq`. A checkpoint from another run is answered with `ERR\|CODE=REPLAY_MISS` and a `SNAP` baseline |
 | `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
-| `--raw` | off | Print raw protocol bytes instead of decoded fields |
+| `--raw` | off | Also echo the raw wire line under each formatted line (human format only) |
 | `--no-color` | off | Disable ANSI colour in output |
 | `--show-heartbeats` | off | Include `HB` heartbeat lines in output (hidden by default) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
@@ -3626,7 +3682,7 @@ Each flag below enables a top-level YAML section for the corresponding gateway p
 | `--market-data-gateway` | `market_data_gateway:` for `pm-md-gwy` | `--market-data-name`, `--market-data-bind-address`, `--market-data-port`, `--market-data-heartbeat-interval-sec`, `--market-data-idle-timeout-sec`, `--market-data-replay-window-sec`, `--market-data-max-connections`, `--market-data-max-symbols-per-client`, `--market-data-max-client-queue`, `--market-data-depth-levels`, `--market-data-enabled` / `--market-data-disabled` |
 | `--alf-gateway` | `alf_gateway:` for `pm-alf-gwy` | `--alf-enabled`, `--alf-disabled`, `--alf-name`, `--alf-bind-address`, `--alf-port`, `--alf-heartbeat-interval-sec`, `--alf-handshake-timeout-sec`, `--alf-idle-timeout-sec`, `--alf-max-connections`, `--alf-max-client-queue`, `--alf-max-commands-per-second`, `--alf-max-errors-before-disconnect`, `--alf-error-window-sec` |
 | `--balf-gateway` | `balf_gateway:` for `pm-balf-gwy` | `--balf-name`, `--balf-bind-address`, `--balf-port`, `--balf-heartbeat-interval-sec`, `--balf-heartbeat-timeout-sec`, `--balf-idle-timeout-sec`, `--balf-auth-timeout-sec`, `--balf-max-connections`, `--balf-max-client-queue`, `--balf-max-messages-per-second`, `--balf-max-errors-before-disconnect`, `--balf-error-window-sec`, `--balf-duplicate-session-policy` |
-| `--api-gateway` | `api_gateways:` for `pm-api-gwy` | `--api-gateway-name`, `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` (repeatable), `--api-gateway-host`, `--api-gateway-port`, `--api-gateway-log-level`, `--api-gateway-stats-db`, `--api-gateway-swagger-enabled` / `--api-gateway-swagger-disabled`, `--api-gateway-enabled` / `--api-gateway-disabled`, `--api-gateway-rate-limit-writes-per-second`, `--api-gateway-rate-limit-burst`, `--api-gateway-engine-auth-sec`, `--api-gateway-engine-reply-sec`, `--api-gateway-wait-ack-sec`, `--api-gateway-order-retention-sec`; credential flags: `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` (repeatable), `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys`, `--api-gateway-readonly-key` |
+| `--api-gateway` | `api_gateways:` for `pm-api-gwy` | `--api-gateway-name`, `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` (repeatable), `--api-gateway-host`, `--api-gateway-port`, `--api-gateway-log-level`, `--api-gateway-stats-db`, `--api-gateway-swagger-enabled` / `--api-gateway-swagger-disabled`, `--api-gateway-enabled` / `--api-gateway-disabled`, `--api-gateway-rate-limit-writes-per-second`, `--api-gateway-rate-limit-burst`, `--api-gateway-engine-auth-sec`, `--api-gateway-engine-reply-sec`, `--api-gateway-wait-ack-sec`, `--api-gateway-order-retention-sec`; credential flags: `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` (repeatable), `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys`, `--api-gateway-readonly-key` / `--no-api-gateway-readonly-key` (a read-only key for the dashboards is generated by default), `--api-keys-for GW_ID [...]` (writes one key per listed participant to `api_keys.yaml` beside `--output` and points the gateway at it with `credentials_file`; keys derive from `--seed`, or a fixed default seed, so pass your own `--seed` outside a classroom) |
 | `--dc-gateway` | `dc_gateway:` for `pm-dc-gwy` | `--dc-name`, `--dc-bind-address`, `--dc-port`, `--dc-heartbeat-interval-sec`, `--dc-idle-timeout-sec`, `--dc-max-connections`, `--dc-max-client-queue` |
 | `--log-server` | `log_server:` for `pm-log-srv` | `--log-server-enabled`/`-disabled`, `--log-server-name`, `-bind-address`, `-port`, `-db-path`, `-retention-days`, `-max-message-bytes`, `-max-client-queue`, `-write-batch-size`, `-write-batch-interval-ms`, `-heartbeat-interval-sec`, `-pubsub-enabled`/`-disabled`, `-pub-port`, `-pull-port`, `-lease-sec`, `-max-lease-sec`, `-max-subscribers`, `-notify-interval-ms`, `-backfill-chunk-rows`, `-max-backfill-minutes`, `-max-backfill-rows`, `-max-pending-rows`, `-pub-sndhwm` (each prefixed `--log-server`) |
 | `--monitor` | `monitor:` for `pm-monitor` and every health beacon, with every field | `--monitor-enabled`/`-disabled`, `--monitor-bind-address`, `--monitor-host`, `--monitor-pull-port`, `--monitor-pub-port`, `--monitor-beacon-interval-sec`, `--monitor-hung-after-sec`, `--monitor-silent-after-beacons`, `--monitor-book-metrics-interval-sec`, `--monitor-raw-hours`, `--monitor-minute-days`, `--monitor-threshold RULE:WARN:CRIT` (repeatable; rules `host_cpu_pct`, `host_mem_pct`, `disk_free_pct` (warn *above* crit), `engine_handle_p99_us`, `reject_pct_5m`, `rss_growth_pct_1h`, `heap_bloat_ratio`) |
@@ -3680,6 +3736,7 @@ Each `--index-*` flag takes one value per index: give it at most once per `ID`, 
 | Flag | Default | Description |
 |---|---|---|
 | `--output FILE` | stdout | Output YAML file path |
+| `--split` | off | Write the symbols and the participants to `symbols.yaml` and `participants.yaml` beside `--output`, and list them under `include:` in the main file |
 | `--force` | off | Overwrite existing output file |
 | `--dry-run` | off | Print generated YAML; do not write file |
 | `--comment-default-config-fields` | off | Add a commented-out header with every optional section (engine settings, gateways, `api_gateways`, `log_server`, `monitor`, `indices`, `schedule`) at its default values, ready to uncomment |
@@ -3833,7 +3890,7 @@ pm-opctl-cli clear (--state | --all) [--yes]
 **Profiles:**
 
 A *profile* is a named list of processes to run together, defined in
-`<DATA_DIR>/emo-config.yaml`. Four profiles are built in and used as-is until
+`<DATA_DIR>/emo-config.yaml`. Six profiles are built in and used as-is until
 that file exists:
 
 | Profile   | Contents                                                                                       |
@@ -3843,7 +3900,7 @@ that file exists:
 | `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, the BALF gateway, and the index calculation process (`pm-index`) |
 | `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
 | `ai-swarm` | The `default` set, `mm-demo`'s market-maker bot with `--anchor-sim 0.3` (quoting around the true values; an unanchored passive maker pins prices), `pm-market-sim --verbose` (the market model and its news) and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000 --verbose`: twenty AI traders (`AI001`–`AI020`, every built-in preset in equal shares, each on every symbol) in one worker process. Needs a config that registers them and ships a `market_sim.yaml`, such as the `s150` examples or `s300-load` |
-| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 120 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7` and `pm-clearing --print-every 0 --retention-days 7`. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
+| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 120 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7` and `pm-clearing --print-every 0 --retention-days 7`, plus a third API gateway instance, `monitor` on `8082`, for the admin monitor feed. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
 
 Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
 once that file exists its profiles replace the built-ins entirely (a missing
@@ -3860,7 +3917,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 | `kill` | — | — | Emergency stop: `pkill -15 -f -i -l pm-` — signals every process whose command line contains `pm-`, including ones this tool did not start |
 | `init` | — | — | Write the built-in profiles to `<DATA_DIR>/emo-config.yaml`; refuses to overwrite an existing file |
 | `show` | — | `--json` | Print version, resolved data directory, and deployed config paths — same info as `pm-config-deploy --show` |
-| `clear` | — | `--state` (engine/session state only) or `--all` (also logs and audit trail), `--yes` (skip prompt) | Delete persisted data under the data directory; `ref_data/` (configuration) is never touched |
+| `clear` | — | `--state` (the exchange's working state: GTC orders and combos, book statistics, `stats.db`, `clearing.db`, index state) or `--all` (also the audit trail and its index, `log.db`, `metrics.db`, fallback logs, the PID directory, and `pm-eod`'s `eod.db`, `settlement/` and `backup/`), `--yes` (skip prompt) | Delete persisted data under the data directory; `ref_data/` (configuration) is never touched |
 
 Exactly one of `--state`/`--all` must be given to `clear`.
 
@@ -4081,7 +4138,7 @@ dropping it as an idle client.
 | `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
-| `--raw` | off | Print raw protocol bytes instead of decoded fields |
+| `--raw` | off | Also echo the raw wire line under each formatted line (human format only) |
 | `--no-color` | off | Disable ANSI colour in output |
 | `--show-heartbeats` | off | Include `HB` heartbeat lines in output (hidden by default) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
@@ -4103,12 +4160,12 @@ database (`log.db`), the same "dedicated collector + SQLite + read-only
 query CLI" shape `pm-stats`/`pm-audit` already use for market data and
 trading events, applied here to operational `logging`-module output.
 
-!!! note "Phased rollout"
-    `pm-log-srv`/`pm-log-cli` are fully implemented and usable today. Wiring
-    every existing `pm-*` process's own logging into a LALF client that
-    auto-detects a running `pm-log-srv` at startup is a follow-up phase and
-    has not yet been rolled out — until then, `--log-level`/`-v`/`-q` still
-    control each process's own stdout logging as before.
+Every other long-running `pm-*` process sends its own log records here by
+default (`--log-target server`): it probes for a running `pm-log-srv` for
+up to 3 s at startup and logs to stdout if none answers; once attached, it
+falls back to a local log file when the server has been unreachable for
+`--log-failover-timeout` seconds. `--log-level`/`-v`/`-q`
+set the level whichever target is used.
 
 ```
 pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
@@ -4146,8 +4203,10 @@ pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
 ```
 
 Subcommands: `tail`, `query`, `processes`, `stats`, `diagnose` (rule-based
-troubleshooting heuristics with concrete recommendations), and `prune`
-(manual retention maintenance).
+troubleshooting heuristics with concrete recommendations), `prune`
+(manual retention maintenance), `explain SEQ` (one row with its log-ledger
+explanation and suggested actions) and `ledger` (browse and check the log
+ledger).
 
 See [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) for the full operational guide
 — starting the server, every `pm-log-cli` subcommand, and a workflow

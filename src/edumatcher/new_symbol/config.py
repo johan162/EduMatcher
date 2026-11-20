@@ -7,7 +7,7 @@ from pathlib import Path
 
 from edumatcher.config import COMPILED_CONFIG_FILE, ENGINE_CONFIG_FILE
 from edumatcher.config_artifact import config_digest, load_compiled_config
-from edumatcher.config_deploy import examples_root
+from edumatcher.examples import examples_root
 from edumatcher.config_include import load_config_mapping
 
 

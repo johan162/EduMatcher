@@ -26,10 +26,21 @@ def _snapshot(gateway_id: str, positions: list[dict[str, Any]]):
     return decode(make_position_snapshot_msg(gateway_id, positions))
 
 
-def _rendered_positions(gw: Any) -> str:
-    with console.capture() as capture:
-        print_positions(gw._positions, gw._last_prices)
+def _rendered(positions: dict[str, dict[str, Any]], last: dict[str, float]) -> str:
+    """The table text, wide enough that no column is cropped whatever the
+    terminal running the tests."""
+    width = console.width
+    console.width = 200
+    try:
+        with console.capture() as capture:
+            print_positions(positions, last)
+    finally:
+        console.width = width
     return Text.from_ansi(capture.get()).plain
+
+
+def _rendered_positions(gw: Any) -> str:
+    return _rendered(gw._positions, gw._last_prices)
 
 
 # ---------------------------------------------------------------------------
@@ -170,3 +181,29 @@ def test_gap_requests_own_position(
     pushed = h.pushed()
     requests = [p for t, p in pushed if t == "system.position_request"]
     assert [p["gateway_id"] for p in requests] == ["TRADER01"]
+
+
+# ---------------------------------------------------------------------------
+# Quick Start review 2026-11: no negative zero
+# ---------------------------------------------------------------------------
+
+
+def test_a_short_position_at_its_cost_shows_plus_zero() -> None:
+    """(150.00 - 150.00) * -100 is -0.0, which formatted as "-0.00"."""
+    text = _rendered(
+        {"AAPL": {"net_qty": -100, "avg_cost": 150.0, "realized_pnl": -0.0}},
+        {"AAPL": 150.0},
+    )
+    assert "-0.00" not in text
+    assert text.count("+0.00") == 2
+
+
+def test_a_float_residue_below_a_cent_shows_plus_zero() -> None:
+    text = _rendered(
+        {
+            "AAPL": {"net_qty": 3, "avg_cost": 0.1 + 0.2, "realized_pnl": -1e-12},
+            "MSFT": {"net_qty": 0, "avg_cost": 0.0, "realized_pnl": -0.004},
+        },
+        {"AAPL": 0.3},
+    )
+    assert "-0.00" not in text

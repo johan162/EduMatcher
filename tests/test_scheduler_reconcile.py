@@ -23,6 +23,8 @@ from edumatcher.models.message import (
 from edumatcher.models.session import SessionState
 from edumatcher.scheduler import main as sched
 from edumatcher.scheduler.main import (
+    _EngineStatus,
+    _left_over,
     _plan_catch_up,
     _route,
     _run_scheduled,
@@ -124,7 +126,9 @@ def test_run_scheduled_closes_a_stale_engine_first(
     push = MagicMock()
     sub = replying_sub(
         push,
-        make_session_status_msg("SCHEDULER", "CONTINUOUS", True),
+        make_session_status_msg(
+            "SCHEDULER", "CONTINUOUS", "2024-01-09T06:00:00.000Z", True
+        ),
         make_session_state_msg("CLOSED", prev_state="CONTINUOUS"),
     )
     calls = {"n": 0}
@@ -137,6 +141,92 @@ def test_run_scheduled_closes_a_stale_engine_first(
 
     sent = [decode(c.args[0]) for c in push.send_multipart.call_args_list]
     assert [p["to_state"] for t, p in sent if t == "session.transition"] == ["CLOSED"]
+
+
+# L042: a state entered on an earlier day is closed first, even when today's
+# schedule has already passed through it.
+
+
+@pytest.mark.parametrize(
+    ("n_past", "engine", "states"),
+    [
+        # 11:00: yesterday's CONTINUOUS is closed, then today is replayed.
+        (3, S.CONTINUOUS, ["CLOSED", "PRE_OPEN", "OPENING_AUCTION", "CONTINUOUS"]),
+        # 09:10, still in yesterday's closing auction.
+        (1, S.CLOSING_AUCTION, ["CLOSED", "PRE_OPEN"]),
+        # 08:00: yesterday's PRE_OPEN can only close through CONTINUOUS.
+        (0, S.PRE_OPEN, ["CONTINUOUS", "CLOSED"]),
+        # 17:00: today's session is over; only yesterday is closed.
+        (5, S.CONTINUOUS, ["CLOSED"]),
+    ],
+)
+def test_a_left_over_state_is_closed_before_today_is_planned(
+    n_past: int, engine: SessionState, states: list[str]
+) -> None:
+    past, upcoming = _split(n_past)
+    steps, rest = _plan_catch_up(past, upcoming, engine, left_over=True)
+    assert [s.state for s in steps] == states
+    assert rest == upcoming
+
+
+def test_a_left_over_flag_without_a_known_state_plans_from_closed() -> None:
+    past, upcoming = _split(3)
+    steps, _ = _plan_catch_up(past, upcoming, None, left_over=True)
+    assert [s.state for s in steps] == ["PRE_OPEN", "OPENING_AUCTION", "CONTINUOUS"]
+
+
+@pytest.mark.parametrize(
+    ("state", "since", "left_over"),
+    [
+        # Europe/Stockholm midnight of 2024-01-09 is 2024-01-08T23:00Z.
+        (S.CONTINUOUS, "2024-01-08T22:59:59.999Z", True),
+        (S.CONTINUOUS, "2024-01-08T23:00:00.000Z", False),
+        (S.CONTINUOUS, "2024-01-09T08:30:00.000Z", False),
+        (S.CLOSED, "2024-01-01T16:05:00.000Z", False),  # every day starts CLOSED
+    ],
+)
+def test_left_over_is_a_non_closed_state_entered_before_the_day(
+    state: SessionState, since: str, left_over: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        sched, "_clock", sched._Clock(session_timezone="Europe/Stockholm")
+    )
+    assert _left_over(_EngineStatus(state, since), date(2024, 1, 9)) is left_over
+
+
+@patch("edumatcher.scheduler.main.time.sleep")
+@patch("edumatcher.scheduler.main.datetime")
+def test_run_scheduled_closes_yesterdays_continuous_then_replays_today(
+    mock_dt: MagicMock, _sleep: MagicMock
+) -> None:
+    # 11:00 on a Tuesday; the engine has been CONTINUOUS since Monday.
+    mock_dt.now.return_value = datetime(2024, 1, 9, 11, 0)
+    push = MagicMock()
+    sub = replying_sub(
+        push,
+        make_session_status_msg(
+            "SCHEDULER", "CONTINUOUS", "2024-01-08T09:30:00.000Z", True
+        ),
+        make_session_state_msg("CLOSED", prev_state="CONTINUOUS"),
+        make_session_state_msg("PRE_OPEN", prev_state="CLOSED"),
+        make_session_state_msg("OPENING_AUCTION", prev_state="PRE_OPEN"),
+        make_session_state_msg("CONTINUOUS", prev_state="OPENING_AUCTION"),
+    )
+    calls = {"n": 0}
+
+    def is_running() -> bool:
+        calls["n"] += 1
+        return calls["n"] <= 4  # stop after the four catch-up steps
+
+    _run_scheduled(push, _CFG, confirm_sock=sub, is_running=is_running)
+
+    sent = [decode(c.args[0]) for c in push.send_multipart.call_args_list]
+    assert [p["to_state"] for t, p in sent if t == "session.transition"] == [
+        "CLOSED",
+        "PRE_OPEN",
+        "OPENING_AUCTION",
+        "CONTINUOUS",
+    ]
 
 
 def test_time_today_is_anchored_to_the_given_day() -> None:

@@ -6,6 +6,10 @@ Writes to assets/:
   implied-routes-by-gen.png     routes from $ to December, generations 0-3
   implied-cancel-ripple.png     books one cancelled order can affect, by depth
   implied-route-wall.png        cumulative route count per generation (log scale)
+  implied-edge-rules.png        the four kinds of edge: outright/spread, bid/ask
+  implied-relaxation.png        one Bellman-Ford relaxation step
+  implied-bellman-ford-rounds.png  the cheapest-March search, one panel per round
+  implied-crossed-cycle.png     a cycle of resting orders, uncrossed and crossed
 
 Used in src/02-orders-and-matching/14-multi-layer-implied-orders-and-the-combinatorial-wall.md.
 Builds SVGs and renders them to PNG with headless Google Chrome.
@@ -183,6 +187,180 @@ def wall() -> tuple[str, int, int]:
     return svg(w, h, body), w, h
 
 
+GREEN, MUTED = "#2f855a", "#4a5568"
+
+
+def arrow(x1: float, y1: float, x2: float, y2: float, colour: str, width: float,
+          bend: float = 0, gap: float = 40, opacity: float = 1) -> str:
+    """Arrow from node centre (x1, y1) to node centre (x2, y2), stopping `gap` short of each
+    end; `bend` > 0 curves it to the left of the direction of travel."""
+    d = math.hypot(x2 - x1, y2 - y1)
+    ux, uy = (x2 - x1) / d, (y2 - y1) / d
+    sx, sy, ex, ey = x1 + ux * gap, y1 + uy * gap, x2 - ux * (gap + 6), y2 - uy * (gap + 6)
+    cx, cy = (sx + ex) / 2 + uy * bend, (sy + ey) / 2 - ux * bend
+    return (f'<path d="M {sx:.1f} {sy:.1f} Q {cx:.1f} {cy:.1f} {ex:.1f} {ey:.1f}" fill="none" '
+            f'stroke="{colour}" stroke-opacity="{opacity:.2f}" stroke-width="{width}" '
+            f'marker-end="url(#arrow-{colour[1:]})"/>')
+
+
+def node(x: float, y: float, name: str, r: int = 38, size: int = 22) -> list[str]:
+    fill = DARK if name == CASH else BLUE
+    return [f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="white" stroke-width="3"/>',
+            text(x, y + size * 0.36, name, size, "bold", "white")]
+
+
+def tag(x: float, y: float, s: str, colour: str, size: int = 22, weight: str = "bold") -> list[str]:
+    """A label on a white backing box, so it stays readable on top of lines."""
+    w = len(s) * size * 0.56 + 16
+    return [f'<rect x="{x - w / 2:.1f}" y="{y - size * 0.9:.1f}" width="{w:.1f}" height="{size * 1.3:.1f}" '
+            f'rx="6" fill="white" stroke="{colour}" stroke-width="2"/>',
+            text(x, y, s, size, weight, colour)]
+
+
+def svg_arrows(w: int, h: int, body: list[str]) -> str:
+    defs = "".join(f'<marker id="arrow-{c[1:]}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" '
+                   f'markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="{c}"/></marker>'
+                   for c in (DARK, ORANGE, GREY, GREEN, RED, BLUE))
+    return "\n".join([f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+                      f"<defs>{defs}</defs>", f'<rect width="{w}" height="{h}" fill="white"/>', *body, "</svg>"])
+
+
+def edge_rules() -> tuple[str, int, int]:
+    """The four kinds of edge, drawn between Jan, Feb and $."""
+    w, h = 1200, 720
+    pos = {"Jan": (300, 170), "Feb": (900, 170), CASH: (600, 560)}
+    body: list[str] = []
+    for (a, b, colour, l1, l2, lx, ly) in [
+        ("Jan", CASH, GREEN, "Jan bid 74.40", "weight +74.40", 620, 400),
+        (CASH, "Jan", RED, "Jan ask 75.00", "weight −75.00", 230, 420),
+        ("Jan", "Feb", GREEN, "Jan/Feb spread bid −2.00", "weight −2.00", 600, 70),
+        ("Feb", "Jan", RED, "Jan/Feb spread ask −1.80", "weight +1.80", 650, 260),
+    ]:
+        body.append(arrow(*pos[a], *pos[b], colour, 4, bend=70))
+        body.append(text(lx, ly, l1, 22, "bold", colour))
+        body.append(text(lx, ly + 28, l2, 20, fill=MUTED))
+    body.append(f'<line x1="{pos["Feb"][0]}" y1="{pos["Feb"][1]}" x2="{pos[CASH][0]}" y2="{pos[CASH][1]}" '
+                f'stroke="{GREY}" stroke-width="2" stroke-dasharray="6 6"/>')
+    body.append(text(860, 420, "(Feb outright book:", 18, fill=MUTED))
+    body.append(text(860, 444, "same rules)", 18, fill=MUTED))
+    for n, (x, y) in pos.items():
+        body += node(x, y, n, 46, 26)
+    body.append(text(600, 660, "Every arrow runs FROM what the order buys TO what it gives up.", 24, "bold"))
+    body.append(text(600, 694, "Green = a bid (the order buys the first-named instrument); red = an ask.", 20, fill=MUTED))
+    return svg_arrows(w, h, body), w, h
+
+
+def relaxation() -> tuple[str, int, int]:
+    """One relaxation step: can going via u improve the best known cost of v?"""
+    w, h = 1200, 470
+    ux, vx, y = 230, 700, 200
+    body = [arrow(ux, y, vx, y, ORANGE, 5, gap=56)]
+    body += tag((ux + vx) / 2, y - 22, "edge cost 0.60", ORANGE, 20)
+    body.append(text((ux + vx) / 2, y + 40, "Jan/Feb spread bid −2.00 turns", 18, fill=MUTED))
+    body.append(text((ux + vx) / 2, y + 62, "one January lot into one February lot", 18, fill=MUTED))
+    body += node(ux, y, "Jan", 50, 26) + node(vx, y, "Feb", 50, 26)
+    body += tag(ux, y - 80, "best: 70.00", DARK, 20)
+    body += tag(vx, y - 80, "best so far: 70.70", DARK, 20)
+    tx = 840
+    body.append(text(tx, 150, "Is 70.00 + 0.60 &lt; 70.70 ?", 24, "bold", anchor="start"))
+    body.append(text(tx, 186, "70.60 &lt; 70.70: yes.", 22, anchor="start"))
+    body.append(text(tx, 230, "So: Feb's best = 70.60,", 22, "bold", GREEN, anchor="start"))
+    body.append(text(tx, 262, "reached via Jan.", 22, "bold", GREEN, anchor="start"))
+    body.append(f'<line x1="40" y1="330" x2="{w - 40}" y2="330" stroke="{GREY}" stroke-width="1"/>')
+    body.append(text(600, 378, "Relaxing an edge u → v:  if best(u) + cost(u → v) &lt; best(v),", 24, "bold"))
+    body.append(text(600, 414, "set best(v) to the smaller value and remember that it came from u.", 24, "bold"))
+    body.append(text(600, 450, "Bellman–Ford does nothing else: it relaxes every edge, round after round.", 20, fill=MUTED))
+    return svg_arrows(w, h, body), w, h
+
+
+BF_EDGES = [(CASH, "Jan", 70.00), (CASH, "Feb", 70.70), (CASH, "Mar", 71.20),
+            ("Jan", "Feb", 0.60), ("Feb", "Mar", 0.45), ("Jan", "Mar", 1.10)]
+
+
+def bellman_ford_rounds() -> tuple[str, int, int]:
+    """The step-by-step search for the cheapest March lot, one panel per round."""
+    w, h = 1200, 1180
+    best: dict[str, float] = {CASH: 0.0}
+    via: dict[str, str] = {}
+    panels = []
+    for k in range(1, 5):
+        prev, changed = dict(best), {}
+        for a, b, c in BF_EDGES:
+            if a in prev and prev[a] + c < best.get(b, math.inf) - 1e-9:
+                best[b], via[b] = prev[a] + c, a
+                changed[b] = a
+        panels.append((k, dict(best), changed, dict(via)))
+    subtitles = {1: "at most 1 order: generation 0", 2: "at most 2 orders: generation ≤ 1",
+                 3: "at most 3 orders: generation ≤ 2", 4: "no change: stop"}
+    body: list[str] = []
+    for i, (k, b, changed, v) in enumerate(panels):
+        ox, oy = 600 * (i % 2), 560 * (i // 2)
+        pos = {CASH: (ox + 300, oy + 420), "Jan": (ox + 110, oy + 230), "Feb": (ox + 300, oy + 230),
+               "Mar": (ox + 490, oy + 230)}
+        final = k == 4
+        route = {("Feb", "Mar"), ("Jan", "Feb"), (CASH, "Jan")} if final else set()
+        for a, bb, c in BF_EDGES:
+            hot = changed.get(bb) == a
+            colour, width = (DARK, 6) if (a, bb) in route else (ORANGE, 6) if hot else (GREY, 2.5)
+            bend = 150 if (a, bb) == ("Jan", "Mar") else 0
+            body.append(arrow(*pos[a], *pos[bb], colour, width, bend=bend, gap=36))
+            (x1, y1), (x2, y2) = pos[a], pos[bb]
+            lx, ly = (x1 + x2) / 2, (y1 + y2) / 2 - 10
+            if bend:
+                ly -= 80
+            elif a == CASH:  # beside the spoke, not on it
+                lx, ly = (x1 + x2) / 2 + (-40 if bb == "Jan" else 40), (y1 + y2) / 2 + 20
+            body.append(text(lx, ly, f"{c:.2f}", 17, "bold", DARK if colour != GREY else MUTED))
+        for n, (x, y) in pos.items():
+            body += node(x, y, n, 32, 20)
+            if n == CASH:
+                body.append(text(x, y + 56, "start: cost 0", 17, fill=MUTED))
+                continue
+            if n not in b:
+                body += tag(x, y - 52, "—", GREY, 18)
+            else:
+                body += tag(x, y - 52, f"{b[n]:.2f}", ORANGE if n in changed else DARK, 18)
+        body.append(text(ox + 300, oy + 50, f"Round {k}", 28, "bold"))
+        body.append(text(ox + 300, oy + 82, subtitles[k], 20, fill=MUTED))
+        if k == 2:
+            body.append(text(ox + 490, oy + 300, "Mar candidates:", 15, fill=MUTED))
+            body.append(text(ox + 490, oy + 320, "71.20 · 71.15 · 71.10", 15, fill=MUTED))
+        if final:
+            body.append(text(ox + 300, oy + 510, "Best March ask 71.05 via $ → Jan → Feb → Mar", 19, "bold"))
+    body.append(f'<line x1="600" y1="20" x2="600" y2="1100" stroke="{GREY}" stroke-width="1"/>')
+    body.append(f'<line x1="20" y1="560" x2="1180" y2="560" stroke="{GREY}" stroke-width="1"/>')
+    body.append(text(600, 1145, "Boxes: cheapest known cost to get long each month. Orange: improved this round, "
+                     "and the edge that improved it.", 19, fill=MUTED))
+    return svg_arrows(w, h, body), w, h
+
+
+def crossed_cycle() -> tuple[str, int, int]:
+    """A cycle of three resting orders: uncrossed (weight < 0) and crossed (weight >= 0)."""
+    w, h = 1200, 640
+    body: list[str] = []
+    for i, (feb_bid, colour, verdict, note) in enumerate([
+        (76.93, GREEN, "Sum −0.02 &lt; 0: not crossed", "Feb bid 76.93 is below the implied ask 76.95"),
+        (76.97, RED, "Sum +0.02 ≥ 0: crossed", "the three orders can trade with each other"),
+    ]):
+        ox = 600 * i
+        pos = {CASH: (ox + 300, 470), "Jan": (ox + 120, 200), "Feb": (ox + 480, 200)}
+        for a, b, wt, label, lx, ly in [
+            (CASH, "Jan", -74.95, "Jan ask 74.95", ox + 115, 360),
+            ("Jan", "Feb", -2.00, "spread bid −2.00", ox + 300, 120),
+            ("Feb", CASH, feb_bid, f"Feb bid {feb_bid:.2f}", ox + 485, 360),
+        ]:
+            body.append(arrow(*pos[a], *pos[b], colour, 4.5, bend=45, gap=42))
+            body.append(text(lx, ly, label, 19, "bold", colour))
+            body.append(text(lx, ly + 26, f"weight {wt:+.2f}".replace("-", "−"), 18, fill=MUTED))
+        for n, (x, y) in pos.items():
+            body += node(x, y, n, 40, 24)
+        body.append(text(ox + 300, 50, f"With a February bid at {feb_bid:.2f}", 24, "bold"))
+        body.append(text(ox + 300, 560, verdict, 23, "bold", colour))
+        body.append(text(ox + 300, 592, note, 18, fill=MUTED))
+    body.append(f'<line x1="600" y1="20" x2="600" y2="620" stroke="{GREY}" stroke-width="1"/>')
+    return svg_arrows(w, h, body), w, h
+
+
 def render(chrome: str, name: str, built: tuple[str, int, int], tmp: Path) -> None:
     content, w, h = built
     src = tmp / f"{name}.svg"
@@ -201,7 +379,10 @@ def main() -> None:
     args = ap.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
         for name, fn in [("implied-hub-78-edges", hub), ("implied-routes-by-gen", routes_by_gen),
-                         ("implied-cancel-ripple", ripple), ("implied-route-wall", wall)]:
+                         ("implied-cancel-ripple", ripple), ("implied-route-wall", wall),
+                         ("implied-edge-rules", edge_rules), ("implied-relaxation", relaxation),
+                         ("implied-bellman-ford-rounds", bellman_ford_rounds),
+                         ("implied-crossed-cycle", crossed_cycle)]:
             render(args.chrome, name, fn(), Path(tmp))
 
 

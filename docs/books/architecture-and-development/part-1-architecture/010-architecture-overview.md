@@ -116,44 +116,11 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
 
 ## ZMQ Topology
 
-```mermaid
-graph TD
-    ALF["pm-alf-console\nALF"]
-    APIGW["pm-api-gwy"]
-    MMBOT["pm-mm-bot"]
-    SCH["pm-scheduler"]
+![Every EduMatcher process, the buses it binds or connects to, and the boundary between the trusted host and the network.](../../../assets/architecture/arch-system-overview.png){ width="100%" }
 
-    subgraph Engine["Matching Engine — sole binder"]
-        PULL["PULL :5555\norder commands"]
-        PUB56["PUB :5556\nmarket events"]
-        PUB57["PUB :5557\ndrop-copy"]
-    end
-
-    GW_R["pm-alf-console\nprivate events"]
-    APIR["pm-api-gwy\nWebSocket bridge"]
-    OPS["pm-stats · pm-clearing · pm-audit"]
-    UI["pm-viewer · pm-board · pm-ticker · pm-orders"]
-    IDX["pm-index"]
-    MD["pm-md-gwy\nCALF TCP bridge"]
-    PT["pm-ralf-gwy\nRALF TCP bridge"]
-    DCC["Risk / compliance consumers"]
-
-    subgraph IndexBus["Index bus  (pm-index binds)"]
-        IPUB["PUB :5558\nindex events"]
-        IPULL["PULL :5559\nindex commands"]
-    end
-
-    ExtMD["External market-data clients"]
-    ExtPT["External post-trade clients"]
-
-    ALF & APIGW & MMBOT & SCH -->|PUSH| PULL
-    PUB56 -->|SUB| GW_R & APIR & OPS & UI & IDX & MD & PT
-    PUB57 -->|SUB| DCC
-    IDX -->|binds| IPUB & IPULL
-    ALF & APIGW -.->|"SUB / PUSH"| IndexBus
-    MD -->|"CALF / TCP"| ExtMD
-    PT -->|"RALF / TCP"| ExtPT
-```
+The design decisions behind this picture, every data flow through it, the
+buffer sizes, the shutdown order and how failures are detected are the
+subject of [The Message Architecture](015-message-architecture.md).
 
 
 
@@ -173,7 +140,7 @@ One frame rather than one per field, because ZeroMQ charges per frame.
 
 **Why the envelope is not in the payload.** Keeping it in frames means the hot
 publish path never decodes and re-encodes a message to stamp it, and the same
-three fields do not have to be declared on each of the 121 message types in
+three fields do not have to be declared on each of the 136 message types in
 `spec/messages/` — and re-declared on every type added later. `decode()` reads
 only frames 0 and 1, so a consumer that does not care is unaffected.
 
@@ -233,121 +200,240 @@ instead.
 topic and the payload:
 
 ```
-[2026-09-11T09:31:02.121+00:00] [order.ack.TRADER01] [seq=7 msg=01J… cause=01J… chain=01J…] {"order_id": "..."}
+[2026-09-11T09:31:02.121+00:00] [order.ack.TRADER01] [seq=7 eseq=4711 msg=01J… cause=01J… chain=01J…] {"order_id": "..."}
 ```
 
 The section is optional, so lines archived before it existed still parse.
 
-### Commands — GW / operator → Engine (PUSH :5555)
+### Every topic, by family
 
-| Topic | Description |
-|-------|-------------|
-| `order.new` | Submit a new order |
-| `order.cancel` | Cancel a resting order |
-| `order.amend` | Amend the price and/or quantity of a resting order |
-| `order.combo` | Submit a multi-leg combo order |
-| `order.combo_cancel` | Cancel a combo and all its child legs |
-| `order.oco` | Link two resting orders into an OCO pair |
-| `order.oco_cancel` | Cancel both legs of an OCO pair |
-| `quote.new` | Submit or replace a two-sided market-maker quote |
-| `quote.cancel` | Cancel the active quote for a symbol |
-| `risk.kill_switch` | Cancel all resting orders and quotes for a gateway |
-| `risk.symbol_halt` | Operator halt of a single symbol |
-| `risk.symbol_resume` | Resume a previously halted symbol |
-| `risk.cancel_symbol` | Cancel all resting orders across all gateways on one symbol |
-| `risk.circuit_breaker_halt_all` | Administrative global halt |
-| `risk.circuit_breaker_resume_all` | Administrative global resume |
-| `system.gateway_connect` | Authenticate a gateway ID on startup |
-| `system.gateway_disconnect` | Graceful disconnect notice from a gateway |
-| `system.symbols_request` | Request the list of configured symbols |
-| `book.snapshot_request` | Request an immediate book snapshot for a symbol |
-| `order.orders_request` | Request the current resting order list for a gateway |
-| `system.quote_bootstrap_request` | Request active quote state for a gateway |
-| `system.quote_legs_request` | Request quote leg snapshot (QLEGS) |
-| `system.session_state_request` | Request current session state |
-| `system.gateways_request` | Request the list of configured gateways and connection status |
-| `system.volume_request` | Request cumulative traded volume for all symbols |
-| `system.halt_status_request` | Request a snapshot of all currently halted symbols |
-| `system.position_request` | Request per-symbol position snapshot for a gateway |
-| `session.transition` | Request a session-phase change (sent by pm-scheduler) |
+The tables below list every topic in `spec/messages/` (134 topics; the two
+BALF-only frames have none). A topic with a `{parameter}` is private to the
+gateway, subscription or recipient it names, or is per-symbol market data
+(`{symbol}`); one without is a broadcast or a command. Commands from
+gateways and ADMIN tools go to the owning process's PULL socket; everything
+that process sends goes out on its PUB socket. The
+[message reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md)
+gives every field.
 
-### Private replies — Engine → GW (PUB :5556, personalised prefix)
+#### Orders
 
-| Topic | Description |
-|-------|-------------|
-| `order.ack.{GW_ID}` | Order accepted or rejected |
-| `order.fill.{GW_ID}` | Partial or full fill notification |
-| `order.cancelled.{GW_ID}` | Cancel confirmed or SMP-forced cancellation |
-| `order.amended.{GW_ID}` | Amendment confirmed |
-| `order.expired.{GW_ID}` | DAY / ATO / ATC order expired at phase change or shutdown |
-| `order.orders.{GW_ID}` | Response to `order.orders_request`: full resting order list |
-| `combo.ack.{GW_ID}` | Combo order accepted or rejected |
-| `combo.status.{GW_ID}` | Combo lifecycle state change |
-| `oco.ack.{GW_ID}` | OCO link accepted |
-| `oco.cancelled.{GW_ID}` | Sibling leg cancelled after other leg filled or was cancelled |
-| `quote.ack.{GW_ID}` | Quote accepted or rejected |
-| `quote.status.{GW_ID}` | Quote lifecycle state change |
-| `risk.kill_switch_ack.{GW_ID}` | Kill-switch execution confirmed |
-| `system.gateway_auth.{GW_ID}` | Authentication accepted or rejected |
-| `system.symbols.{GW_ID}` | Response to `system.symbols_request` |
-| `system.quote_bootstrap.{GW_ID}` | Active quote bootstrap state |
-| `system.quote_legs.{GW_ID}` | Quote leg snapshot response |
-| `system.session_status.{GW_ID}` | Current session state and enforcement flag |
-| `system.gateways.{GW_ID}` | Configured gateways and connection status |
-| `system.volume.{GW_ID}` | Cumulative traded volume per symbol |
-| `system.halt_status.{GW_ID}` | Currently halted symbols snapshot |
-| `system.position.{GW_ID}` | Per-symbol position snapshot (net qty, avg cost) |
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `order.ack.{gateway_id}` | pm-engine | Acknowledge acceptance or rejection of a new order, addressed to the gateway that submitted it. |
+| `order.fill.{gateway_id}` | pm-engine | Private fill notification for one order, addressed to the gateway that owns it. |
+| `order.cancelled.{gateway_id}` | pm-engine | Confirm that a resting order has been cancelled. |
+| `order.expired.{gateway_id}` | pm-engine | An order has expired because its time-in-force window ended. |
+| `order.triggered.{gateway_id}` | pm-engine | The trade that reached its trigger, and what the order became. |
+| `engine.trace.{symbol}` | pm-engine | What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. |
+| `order.amended.{gateway_id}` | pm-engine | Confirm an accepted amendment and report the resulting order. |
+| `order.new` | gateways | Submit a new order to the matching engine. |
+| `order.cancel` | gateways | Request cancellation of one resting order by id. |
+| `order.amend` | gateways | Request a price and/or quantity change to a resting order. |
+| `order.combo_cancel` | gateways | Cancel a combo order and all of its resting child legs. |
+| `order.combo` | gateways | Two or more orders on different instruments that the engine posts together and tracks as one aggregate. |
+| `order.oco` | gateways | Two orders on the same instrument, of which a fill on either cancels the other. |
+| `order.oco_cancel` | gateways | Cancel an OCO pair and both of its legs. |
+| `order.orders_request` | ADMIN tools, pm-api-gwy, gateways | The resting (unfilled, non-cancelled) orders a gateway currently has on the books, across all symbols. |
+| `order.orders.{gateway_id}` | pm-engine | The gateway's resting orders in display units, one OrderDisplay record each, connected or not; `status` says which. |
+| `order.price_level_orders_request` | ADMIN tools | Every resting order for one symbol, across every gateway, optionally narrowed to a single price level. |
+| `order.price_level_orders.{gateway_id}` | pm-engine | Per-order detail (not just the aggregate {price, qty, count} book.* already carries) for every resting order matching the request — every gateway, ordered by price then by arrival_seq within a price level so time priority is visible. |
 
-### Broadcasts — Engine → all subscribers (PUB :5556)
+#### Quotes
 
-| Topic | Description |
-|-------|-------------|
-| `session.state` | Session phase changed; every subscriber reacts accordingly |
-| `auction.result.{SYMBOL}` | Auction uncross result: equilibrium price, quantity, imbalance |
-| `trade.executed` | A trade was matched; consumed by clearing, stats, RALF, viewers |
-| `book.{SYMBOL}` | Full order-book snapshot. **Throttled**, not per-event: after a state change the snapshot is published on the next engine poll tick, and at most once per `snapshot_interval_sec` (default 0.5 s) per symbol. On-demand `book.snapshot_request` replies are immediate. See [Configuration choices that impact performance](#configuration-choices-that-impact-performance). |
-| `depth.{SYMBOL}` | Depth-of-market statistics (bid/ask imbalance, cost-to-move) published on the **same throttled tick** as `book.{SYMBOL}`. |
-| `circuit_breaker.halt.{SYMBOL}` | Symbol halted by the circuit breaker |
-| `circuit_breaker.resume.{SYMBOL}` | Symbol resumed after a circuit-breaker halt |
-| `system.eod` | End-of-day shutdown broadcast; signals all subscribers to flush and stop |
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `quote.new` | gateways | Submit or replace a two-sided quote on one instrument. |
+| `quote.cancel` | ADMIN tools, pm-api-gwy, gateways | Pull the active quote on one symbol. |
+| `quote.ack.{gateway_id}` | pm-engine | The quote was accepted or rejected. |
+| `quote.status.{gateway_id}` | pm-engine | The quote left the book, and why. |
+| `quote.cancel_ack.{gateway_id}` | pm-engine | The outcome of a quote.cancel. |
 
-### Drop-copy feed — Engine → compliance consumers (PUB :5557)
+#### Combos and OCO pairs
 
-| Topic | Description |
-|-------|-------------|
-| `drop_copy.event.{GW_ID}` | Sequenced fill event with nanosecond timestamp, one per filled order leg |
-| `drop_copy.replay.{CLIENT_ID}` | Replayed historical fill events in response to a replay request |
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `combo.ack.{gateway_id}` | pm-engine | A combo submission was accepted or rejected. |
+| `combo.status.{gateway_id}` | pm-engine | A combo moved to a new lifecycle state. |
+| `oco.ack.{gateway_id}` | pm-engine | An OCO pair was accepted or rejected. |
+| `oco.cancelled.{gateway_id}` | pm-engine | One leg of an OCO pair was cancelled because the other was actioned. |
+| `oco.cancel_ack.{gateway_id}` | pm-engine | The outcome of an order.oco_cancel. |
+| `combo.cancel_ack.{gateway_id}` | pm-engine | The outcome of an order.combo_cancel. |
 
-### Index bus — pm-index ↔ clients (PUB :5558 / PULL :5559)
+#### Risk controls
 
-`pm-index` is its own process with its own dedicated sockets at ports :5558 and :5559.
-It subscribes to the engine PUB at :5556 and publishes index events independently.
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `risk.kill_switch` | ADMIN tools, pm-api-gwy, gateways | Cancel a gateway's open risk-bearing exposure. |
+| `risk.kill_switch_ack.{gateway_id}` | pm-engine | What the kill switch cancelled. |
+| `risk.kill_switch_gateway` | pm-api-gwy | Cancel every order and quote belonging to one named participant. |
+| `risk.kill_switch_gateway_ack.{gateway_id}` | pm-engine | What the gateway-targeted kill switch cancelled. |
+| `risk.kill_switch_global` | pm-api-gwy | Cancel every resting order and quote, for every gateway. |
+| `risk.kill_switch_global_ack.{gateway_id}` | pm-engine | What the market-wide kill switch cancelled. |
+| `risk.band.{symbol}` | pm-engine | Published once per collared symbol at startup (a reference reload leaves collars as they are). |
+| `risk.symbol_halt` | ADMIN tools, pm-api-gwy | Halt trading on one instrument. |
+| `risk.symbol_halt_ack.{gateway_id}` | pm-engine | The per-symbol halt's outcome. |
+| `risk.symbol_resume` | ADMIN tools, pm-api-gwy | Resume trading on one halted instrument. |
+| `risk.symbol_resume_ack.{gateway_id}` | pm-engine | The per-symbol resume's outcome. |
+| `risk.cancel_symbol` | ADMIN tools, pm-api-gwy | Cancel every resting order for one instrument, across every gateway. |
+| `risk.cancel_symbol_ack.{gateway_id}` | pm-engine | What the symbol-wide mass cancel removed. |
+| `risk.force_uncross` | ADMIN tools | Force one symbol to uncross now, optionally asserting the print price, and clear any halt in the same step. |
+| `risk.force_uncross_ack.{gateway_id}` | pm-engine | The outcome of a force-uncross. |
+| `risk.circuit_breaker_halt_all` | ADMIN tools | Halt trading on every known symbol. |
+| `risk.circuit_breaker_halt_all_ack.{gateway_id}` | pm-engine | How wide the market-wide halt reached. |
+| `risk.circuit_breaker_resume_all` | ADMIN tools | Resume every symbol halted by the market-wide halt. |
+| `risk.circuit_breaker_resume_all_ack.{gateway_id}` | pm-engine | How many symbols came back. |
 
-| Topic | Direction | Description |
-|-------|-----------|-------------|
-| `index.update` | pm-index → all | Current index level, OHLC, and session state — also consumed live by pm-stats for level/EOD history |
-| `index.history_request` | GW → pm-index | Query structural/audit history (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) by time range — not level/EOD data, which lives in pm-stats' SQLite tables |
-| `index.history.{GW_ID}` | pm-index → GW | Structural/audit history query response |
-| `index.corp_action` | GW → pm-index | Apply a corporate action to an index constituent |
-| `index.corp_action_ack.{GW_ID}` | pm-index → GW | Corporate action acknowledgement |
-| `index.constituent_change` | GW → pm-index | Add or remove an index constituent |
-| `index.constituent_change_ack.{GW_ID}` | pm-index → GW | Constituent-change acknowledgement |
+#### Circuit breakers
 
-### Market-model bus — pm-market-sim ↔ clients (PUB :5553 / PULL :5554)
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `circuit_breaker.halt.{symbol}` | pm-engine | One symbol has stopped trading. |
+| `circuit_breaker.extend.{symbol}` | pm-engine | The call phase ended with the indicative price outside the corridor, so the symbol stays halted, the corridor widens by one rung and a fresh call phase begins. |
+| `circuit_breaker.resume.{symbol}` | pm-engine | The symbol is trading again. |
 
-`pm-market-sim` binds its own pair of sockets, on loopback by default
-(`EDUMATCHER_SIM_BIND_HOST`). It follows the engine's session from :5556 and
-publishes the market model: true values for the AI traders, ADMIN and
-`pm-mm-bot --anchor-sim`, and headlines for everyone. See
-[The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md).
+#### Session
 
-| Topic | Direction | Description |
-|-------|-----------|-------------|
-| `sim.value` | pm-market-sim → all | Every symbol's true value, once per step during continuous trading |
-| `sim.state` | pm-market-sim → all | Heartbeat: `RUNNING` or `PAUSED`, the session, the step |
-| `news.event` | pm-market-sim → all | One headline, or a rumour confirmed or retracted |
-| `sim.command` | ADMIN → pm-market-sim | Status request; inject, confirm or retract news (`pm-news`) |
-| `sim.command_ack.{GW_ID}` | pm-market-sim → ADMIN | Command acknowledgement |
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `session.state` | pm-engine | Broadcast the engine's current session state to every subscriber. |
+| `session.transition` | pm-scheduler | Request a state change. |
+| `session.next` | pm-scheduler | Announce the next transition without performing one. |
+| `session.transition_ack.{gateway_id}` | pm-engine | The outcome of a transition request. |
+
+#### Auctions
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `auction.indicative.{symbol}` | pm-engine | Where one symbol would uncross if the call phase ended now. |
+| `auction.result.{symbol}` | pm-engine | One symbol's uncross has completed. |
+
+#### Books and depth
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `book.{symbol}` | pm-engine | Broadcast an aggregated view of one instrument's order book, on a timer. |
+| `book.snapshot_request` | pm-stats, gateways, pm-index | Ask the engine to publish one symbol's book immediately. |
+| `depth.{symbol}` | pm-engine | How much size sits nearby, which way it leans, and what it costs to move. |
+
+#### Trades
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `trade.executed` | pm-engine | Public print of a completed match. |
+
+#### System: sessions, queries, recovery, diagnostics
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `system.gateway_connect` | ADMIN tools, pm-api-gwy, gateways | Authenticate this participant. |
+| `system.gateway_auth.{gateway_id}` | pm-engine | A participant's connection was accepted or rejected. |
+| `system.gateway_reject` | pm-api-gwy, gateways | A gateway refused a participant's request itself, before the engine saw it (recorded for the audit trail). |
+| `system.gateway_disconnect` | ADMIN tools, pm-api-gwy, gateways | The participant is leaving cleanly. |
+| `system.gateway_heartbeat` | pm-api-gwy, gateways | This participant's process is still alive. |
+| `system.gateway_bye.{gateway_id}` | pm-engine | A participant has disconnected. |
+| `system.eod` | pm-engine | The closing book of every instrument. |
+| `system.book_checkpoint.{symbol}` | pm-engine | Every resting order in priority order with its hidden quantity, every armed stop with its current trigger, the last prices. |
+| `system.startup` | pm-engine | The first message of every engine start, before the restore: which engine, which configuration and which persisted state this run began from. |
+| `system.startup_recovery` | pm-engine | Once per start, right after `_restore_gtc()` and before the config-seed step runs: how much of the previous session's resting state came back. |
+| `system.recovery_item` | pm-engine | One restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). |
+| `system.quote_seed_skipped` | pm-engine | A configured seed quote the engine did not inject at startup because `seed_once` is set and the gateway already has an active quote in that symbol, restored from the persisted orders. |
+| `system.diagnostic` | pm-engine | An internal failure or anomaly that the engine absorbed and kept running past, so trading was not interrupted but the event still happened and a post-mortem needs to see it. |
+| `system.symbols_request` | ADMIN tools, pm-api-gwy, gateways, pm-stats | Which instruments are tradable, and on what terms for the asking gateway. |
+| `system.symbols.{gateway_id}` | pm-engine | The tradable instruments, with the tick scale and this caller's market-making terms for each. |
+| `system.reference_request` | pm-api-gwy | The compiled reference-data bundle. |
+| `system.reference.{gateway_id}` | pm-engine | Every piece of static venue configuration in one round trip -- tick scales, risk levels, circuit-breaker ladders, index definitions and the calendar -- with a hash that changes when any of it does. |
+| `system.reference_reload` | pm-api-gwy | Re-read static reference data from disk. |
+| `system.reference_reload_ack.{gateway_id}` | pm-engine | The reload verdict, and the new configuration hash when it took. |
+| `system.session_state_request` | ADMIN tools, pm-api-gwy, gateways, pm-scheduler | The current session state, without advancing it. |
+| `system.session_status.{gateway_id}` | pm-engine | The current session state, on request. |
+| `system.session_schedule_request` | ADMIN tools, pm-api-gwy | The configured session schedule. |
+| `system.session_schedule.{gateway_id}` | pm-engine | The trading day's clock as configured. |
+| `system.halt_status_request` | pm-api-gwy | Which instruments are halted now. |
+| `system.halt_status.{gateway_id}` | pm-engine | Every currently-halted instrument, with the breaker state behind it where a breaker is what halted it. |
+| `system.position_request` | gateways | The asking gateway's per-symbol positions. |
+| `system.position_snapshot.{gateway_id}` | pm-engine | Per-symbol net position and average cost, for the asking gateway only. |
+| `system.quote_bootstrap_request` | ADMIN tools, pm-api-gwy, gateways | The quotes the asking gateway already has resting. |
+| `system.quote_bootstrap.{gateway_id}` | pm-engine | The active quotes it already holds. |
+| `system.quote_legs_request` | pm-api-gwy, gateways | The per-leg detail behind this gateway's quotes, live and recently removed. |
+| `system.quote_legs.{gateway_id}` | pm-engine | Live quote legs, recently-removed quotes, or both. |
+| `system.risk_state_request` | pm-api-gwy | The live collar and circuit-breaker state of every symbol that has either configured, halted or not. |
+| `system.risk_state.{gateway_id}` | pm-engine | Live risk state per symbol. |
+| `system.gateways_request` | ADMIN tools, pm-api-gwy | Which participants exist, and who is on. |
+| `system.gateways.{gateway_id}` | pm-engine | Every configured participant with its role and current connection status. |
+| `system.volume_request` | ADMIN tools | How much has traded today. |
+| `system.volume.{gateway_id}` | pm-engine | Traded quantity, notional and trade count, per instrument and exchange-wide. |
+
+#### Admin monitor
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `admin.action.{gateway_id}` | pm-engine | One admin-gated command ran, who ran it, what it acted on, and whether it was accepted. |
+
+#### Drop copy (PUB :5557)
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `drop_copy.event.{gateway_id}` | pm-engine | To a participant's clearing broker, prime broker or in-house risk system: one execution, as it happens. |
+| `drop_copy.replay.{recipient_id}` | pm-engine | Buffered events re-published on request, so a participant that reconnects mid-session can close its sequence gap. |
+
+#### Index bus (pm-index, PUB :5558 / PULL :5559)
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `index.update` | pm-index | The current level of one index, published on every constituent trade subject to a rate limit, and forced on a structural change or at end of day. |
+| `index.history_request` | ADMIN tools, pm-api-gwy, gateways | Replay the structural audit log. |
+| `index.history.{gateway_id}` | pm-index | The matching audit records. |
+| `index.corp_action` | ADMIN tools | Apply a corporate action. |
+| `index.constituent_change` | ADMIN tools | Add or delist a constituent. |
+| `index.rebalance` | pm-api-gwy | Set shares outstanding for several constituents in one batch. |
+| `index.corp_action_ack.{gateway_id}` | pm-index | The corporate action's outcome. |
+| `index.constituent_change_ack.{gateway_id}` | pm-index | The constituent change's outcome. |
+| `index.rebalance_ack.{gateway_id}` | pm-index | The batch's outcome. |
+| `index.error.{gateway_id}` | pm-index | The request could not be routed to an index at all. |
+
+#### Market-model bus (pm-market-sim, PUB :5553 / PULL :5554)
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `sim.value` | pm-market-sim | Every symbol's true value after one model step. |
+| `sim.state` | pm-market-sim | Whether the model is stepping and how far it has got. |
+| `sim.command` | ADMIN tools | One instructor command: status, or inject, confirm or retract news. |
+| `sim.command_ack.{gateway_id}` | pm-market-sim | The outcome of one command. |
+
+#### News (pm-market-sim, PUB :5553)
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `news.event` | pm-market-sim | One headline, or a change in what an earlier one is known to be (a rumour confirmed or retracted). |
+
+#### Health bus (pm-monitor, PULL :5610 / PUB :5611)
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `health.beacon` | every long-running process | The process's own memory, CPU, threads and file descriptors, how long ago its main loop last completed an iteration, and its application counters and gauges. |
+| `health.snapshot` | pm-monitor | Everything the dashboard shows live, already derived. |
+| `health.event` | pm-monitor | An engine lifecycle event (connect, disconnect, diagnostic, session transition, halt) or one pm-monitor generated itself (a process changed health state, a threshold was breached or cleared). |
+
+#### Log subscriptions (pm-log-srv, LALF-PS :5601 / :5602)
+
+| Topic | Sent by | What it carries |
+|---|---|---|
+| `log.subscribe` | log clients | Open or replace a leased stream. |
+| `log.renew` | log clients | Lease keepalive. |
+| `log.unsubscribe` | log clients | Close a subscription immediately rather than letting it lapse. |
+| `log.backfill_request` | log clients | Replay the last N minutes of history for one subscription. |
+| `log.status_request` | log clients | Ask for subscription and server diagnostics. |
+| `log.subscribe_ack.{sub_id}` | pm-log-srv | Confirm a subscription and echo the terms the server chose. |
+| `log.renew_ack.{sub_id}` | pm-log-srv | Confirm a keepalive and say how long the lease now has. |
+| `log.unsubscribe_ack.{sub_id}` | pm-log-srv | Confirm a close, or say there was nothing to close. |
+| `log.status.{sub_id}` | pm-log-srv | Server and subscription diagnostics, on request. |
+| `log.backfill.{sub_id}` | pm-log-srv | One chunk of replayed history for a subscription. |
+| `log.event.{sub_id}` | pm-log-srv | A batch of live rows for a STREAM subscription. |
+| `log.notify.{sub_id}` | pm-log-srv | How much happened, without the rows. |
+| `log.lease_expired.{sub_id}` | pm-log-srv | The subscription was reaped for want of a renew. |
+| `log.error.{sub_id}` | pm-log-srv | A control request was rejected, with a machine-readable code. |
+| `log.server_state` | pm-log-srv | Periodic server heartbeat and configuration, broadcast to everyone rather than addressed - it is how a viewer finds the server at all. |
 
 
 
@@ -356,7 +442,10 @@ publishes the market model: true values for the AI traders, ADMIN and
 | Process | ZMQ Sockets | Binds/Connects | Role |
 |---------|------------|----------------|------|
 | pm-engine | PULL :5555, PUB :5556, PUB :5557 | **Binds** all three | Matching, session state, combo/OCO/quote tracking, drop-copy |
-| pm-alf-console (ALF) | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | Interactive order entry; ALF line protocol; index data display |
+| pm-alf-console (ALF) | PUSH→:5555, SUB→:5556, SUB→:5557, SUB→:5558, PUSH→:5559 | Connects | Interactive order entry; ALF line protocol; drop-copy and index display |
+| pm-admin | PUSH→:5555, SUB→:5556, PUSH→:5559, PUSH→:5554 | Connects | Operator console: halts, kill switches, sessions, index and news commands |
+| pm-alf-gwy (ALF) | PUSH→:5555, SUB→:5556, SUB→:5557; TCP :5565 | **Binds** TCP :5565; connects→:5555, :5556, :5557 | ALF text order entry for remote clients; authenticates sessions |
+| pm-balf-gwy (BALF) | PUSH→:5555, SUB→:5556; TCP :5560 | **Binds** TCP :5560; connects→:5555, :5556 | BALF binary order entry for remote clients; authenticates sessions |
 | pm-api-gwy | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | REST and WebSocket order gateway for programmatic clients |
 | pm-mm-bot | PUSH→:5555, SUB→:5556 | Connects | Automated market-maker; manages two-sided quotes |
 | pm-scheduler | PUSH→:5555 | Connects | Drives session phase transitions on a time schedule |
@@ -370,8 +459,10 @@ publishes the market model: true values for the AI traders, ADMIN and
 | pm-index | PULL :5559, PUB :5558, REP :5564, SUB→:5556 | **Binds** :5558, :5559 and :5564 (health); connects→:5556 | Index calculation, OHLC, corporate actions |
 | pm-market-sim | PUB :5553, PULL :5554, PUSH→:5555, SUB→:5556 | **Binds** :5553 and :5554; connects→:5555, :5556 | Market model: true values and news |
 | pm-ai-trader / pm-ai-swarm | SUB→:5556, SUB→:5553, PUSH→:5555; ALF TCP to pm-alf-gwy | Connects | AI traders; orders go through `pm-alf-gwy`, only read requests to :5555 |
-| pm-md-gwy (CALF) | SUB→:5556, SUB→:5558 | Connects | Translates engine events to CALF TCP for external market-data subscribers |
-| pm-ralf-gwy (RALF) | SUB→:5556 | Connects | Translates trade events to RALF TCP for external post-trade / clearing parties |
+| pm-md-gwy (CALF) | SUB→:5556, SUB→:5558, PUSH→:5555; TCP :5570 | **Binds** TCP :5570; connects→:5555, :5556, :5558 | Translates engine and index events to CALF TCP for external market-data subscribers, with replay |
+| pm-ralf-gwy (RALF) | SUB→:5556; TCP :5580 | **Binds** TCP :5580; connects→:5556 | Translates trade events to RALF TCP for external post-trade / clearing parties, with replay |
+| pm-dc-gwy (DC1) | SUB→:5557; TCP :5590 | **Binds** TCP :5590; connects→:5557 | Relays the drop-copy feed to external compliance consumers over DC1, with replay |
+| pm-log-srv (LALF) | TCP :5600, PUB :5601, PULL :5602 | **Binds** all three | Central log: takes every process's log records, keeps `log.db`, serves the log GUI and `pm-log-cli` |
 | pm-monitor | PULL :5610, PUB :5611, SUB→:5556 | **Binds** :5610 and :5611; connects→:5556 | Health collector: judges every process from its beacon, computes rates and thresholds, keeps `metrics.db`, publishes `health.snapshot`/`health.event` |
 
 Every long-running process above (not the interactive viewers and consoles)
@@ -413,14 +504,22 @@ emitted on the poll tick, at most once per `snapshot_interval_sec` per symbol (s
 [Configuration choices that impact performance](#configuration-choices-that-impact-performance)).
 Protocol bridges (`pm-md-gwy`/CALF) re-publish these to external TCP subscribers.
 
-**3. Post-trade & drop-copy.** `trade.executed` feeds `pm-clearing` (P&L),
-`pm-stats` (OHLCV), and `pm-audit` (full log) on `:5556`; the sequenced per-fill
-drop-copy feed on `:5557` feeds compliance consumers and `pm-ralf-gwy` (RALF).
+**3. Post-trade & drop-copy.** `trade.executed` on `:5556` feeds `pm-clearing`
+(P&L), `pm-stats` (OHLCV), `pm-audit` (full log) and `pm-ralf-gwy`, which serves
+RALF trade reports to external post-trade parties. The sequenced per-fill
+drop-copy feed on `:5557` feeds `pm-dc-gwy` (DC1, for external compliance
+consumers) and the consoles and ALF sessions that ask for it.
 
 **4. Index sub-bus.** `pm-index` is a *second-tier publisher*: it subscribes to the
 engine's `:5556`, recomputes index levels, and publishes `index.update` on its own
-bus (`:5558`), accepting commands on `:5559`. It and `pm-market-sim` (`:5553`,
-`:5554`) are the only processes besides the engine that bind ZeroMQ sockets.
+bus (`:5558`), accepting commands on `:5559`. `pm-market-sim` (`:5553`/`:5554`)
+does the same for the market model, `pm-monitor` (`:5610`/`:5611`) for health
+and `pm-log-srv` (`:5601`/`:5602`) for log subscriptions; the recorders and
+`pm-index` also bind loopback REP sockets (`:5561`–`:5564`) that answer health
+pings. Every other socket in the system connects.
+
+All of these flows are described in prose, with the reasons behind them, in
+[The Message Architecture](015-message-architecture.md#how-data-flows-through-the-exchange).
 
 Where each of these ends up on disk is covered in
 [Persistence & crash recovery](#persistence-crash-recovery); how they behave when a
@@ -433,40 +532,47 @@ consumer can't keep up is covered in
 
 ### The Engine as the Sole Binder
 
-The engine is the only process that binds sockets (:5555, :5556, :5557).  Every
-other process connects to the engine.  This has three practical consequences:
+The engine is the only process that binds its sockets (:5555, :5556, :5557).
+Every other process connects to the engine.  This has three practical consequences:
 
-- **Start the engine first.** A gateway that connects before the engine is started
-  will block on send until the engine comes up (ZMQ queues outgoing messages).
+- **Start order does not matter to ZeroMQ, but sends fail until the engine is
+  up.** A connect succeeds before the peer binds and completes when it does. A
+  PUSH socket is made with `IMMEDIATE=1` and `SNDTIMEO=0`, so a command sent
+  while no engine is connected is not queued: the send raises `zmq.Again` at
+  once, and a gateway answers its client `ENGINE_UNAVAILABLE`. `pm-opctl-cli`
+  starts the engine first so that nobody sees that.
 - **Adding a new subscriber requires no engine change.** Any process can connect
   to :5556 and subscribe to the topics it needs.  The engine has no knowledge of
   who is listening.
 - **Restart isolation.** Any subscriber can crash and restart without disturbing
   the engine or other subscribers.  It simply reconnects and resumes.
 
-`pm-index` and `pm-market-sim` are the exceptions: each binds its own pair of
-sockets (:5558/:5559 and :5553/:5554) because it is a second-tier publisher, not
-a consumer of the engine.
+`pm-index` and `pm-market-sim` bind buses of their own (:5558/:5559 and
+:5553/:5554) because they publish something the engine does not; `pm-monitor`
+and `pm-log-srv` do the same for health and logs.
 
 ### Two Tiers of Gateways
 
 EduMatcher has two distinct gateway roles:
 
-**Order-entry gateways** (`pm-alf-console`, `pm-api-gwy`, `pm-mm-bot`) connect
-directly to the engine over ZMQ PUSH/PULL.  They authenticate via
-`system.gateway_connect` and receive personalised events on their subscribed
-`order.*`, `quote.*`, and `system.*` topics.  These processes are internal to the
-exchange operator.
+**Order-entry gateways** connect directly to the engine over ZMQ PUSH/PULL,
+log each participant on with `system.gateway_connect`, and receive personalised
+events on their subscribed `order.*`, `quote.*` and `system.*` topics. The
+network-facing ones — `pm-alf-gwy` (ALF), `pm-balf-gwy` (BALF) and `pm-api-gwy`
+(REST/WebSocket) — authenticate remote clients against the `participants`
+allowlist and its keys. `pm-alf-console`, `pm-admin` and `pm-mm-bot` run on the
+exchange host and talk to the engine directly.
 
-**Protocol bridges** (`pm-md-gwy`, `pm-ralf-gwy`) subscribe to the engine PUB
-socket and translate engine events into an external TCP line protocol for
-third-party consumers:
+**Protocol bridges** (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`) subscribe to an
+engine PUB socket and translate engine events into an external TCP line
+protocol for third-party consumers:
 
 - `pm-md-gwy` (CALF) — real-time order book and trade data for market-data
   subscribers, with session management, subscription filtering, and gap-recovery
   replay
 - `pm-ralf-gwy` (RALF) — post-trade execution events for external clearing,
   drop-copy, and audit parties over authenticated TCP sessions
+- `pm-dc-gwy` (DC1) — the per-fill drop-copy feed from `:5557`, with replay
 
 ### Bus Segmentation by Function
 
@@ -479,6 +585,10 @@ Separating traffic onto distinct ports serves both operational and compliance ne
 | :5557 | PUB | Drop-copy — sequenced fill feed for compliance consumers |
 | :5558 | PUB | Index events — separate bus owned by `pm-index` |
 | :5559 | PULL | Index commands — received only by `pm-index` |
+| :5553 / :5554 | PUB / PULL | Market model — owned by `pm-market-sim` |
+| :5610 / :5611 | PULL / PUB | Health beacons in, health snapshots out — owned by `pm-monitor` |
+| :5600 · :5601 / :5602 | TCP · PUB / PULL | Log records in (LALF); log subscriptions out (LALF-PS) — owned by `pm-log-srv` |
+| :5561–:5564 | REP | Loopback health pings for pm-stats, pm-audit, pm-clearing and pm-index |
 
 The drop-copy feed on :5557 deliberately isolates the compliance feed from the full
 market event stream.  Each fill event carries a monotonic sequence number and a
@@ -582,7 +692,7 @@ Reading this table:
 - A LIMIT BUY at 150.10 would *not* cross the spread (best ask is 150.25 > 150.10),
   so it would rest on the bid side at a new level between 150.00 and 150.25.
 - Within the 150.00 bid level, 3 separate orders are resting.  The order with the
-  earliest timestamp fills first when a sell aggressor arrives.
+  order the book admitted first fills first when a sell aggressor arrives.
 
 The "Qty" column shows **total visible quantity** at that level.  Iceberg orders
 only contribute their `visible_qty` (the current peak); the hidden reserve is
@@ -592,26 +702,33 @@ not shown.
 
 ```
 OrderBook (per symbol)
-├── _bids        max-heap  [(-price, timestamp, order), ...]
-├── _asks        min-heap  [( price, timestamp, order), ...]
-├── _buy_stops   min-heap  [( stop_price, timestamp, order), ...]
-├── _sell_stops   max-heap  [(-stop_price, timestamp, order), ...]
+├── _bids        max-heap  [(-price, arrival_seq, order), ...]
+├── _asks        min-heap  [( price, arrival_seq, order), ...]
+├── _buy_stops   min-heap  [( stop_price, arrival_seq, order), ...]
+├── _sell_stops  max-heap  [(-stop_price, arrival_seq, order), ...]
 ├── _order_index  dict[order_id → Order]   (all resting orders)
 └── _entry_index  dict[order_id → HeapEntry] (bid/ask heap entries)
 ```
 
-**Price-time priority**: within the same price level, earlier-submitted orders are filled first.
+**Price-time priority**: within the same price level, the order the book admitted first (lowest `arrival_seq`) is filled first — never a client-supplied timestamp.
 Lazy deletion is used — heap entries are marked invalid on cancel/fill and skipped on next access.
 
 
 
 ## Thread Model
 
-Each process is **single-process, single-thread** for the main logic, with one optional background
-thread for ZMQ receiving in interactive processes (gateway, viewer, orders, clearing).
+Each process runs its main logic on **one thread**. Two kinds of helper thread
+exist beside it:
 
-The engine runs a single-threaded event loop using `zmq.Poller` with a 200 ms timeout,
-making it safe from concurrent modification without locks.
+- every long-running process has a `HealthReporter` thread that samples the
+  process and PUSHes its health beacon, so a hung main loop still reports;
+- the interactive consoles read the bus on a listener thread and send
+  heartbeats from another, while the main thread runs the prompt; pm-audit
+  receives on a thread of its own.
+
+The engine itself runs a single-threaded event loop around `zmq.Poller` with a
+200 ms timeout, so no engine state is ever touched by two threads and no lock
+is needed. See [One turn of the run loop](015-message-architecture.md#making-zeromq-fast).
 
 
 
@@ -624,16 +741,16 @@ used by the matching engine.
 
 ### Order Book Organization
 
-Each symbol gets its own `OrderBook` instance.  Internally it maintains **eight primary data structures** organized for fast price-time-priority matching:
+Each symbol gets its own `OrderBook` instance.  Its **eight primary data structures** are shown below; the book also keeps a trailing-stop list, a per-gateway index (`_orders_by_gateway`) and a waiting room for triggered stops — see [The Order Book: Deep Dive](../part-2-inside-the-engine/010-order-book-deep-dive.md) for all of them:
 
 ```
 OrderBook("AAPL")
 │
-├── _bids          max-heap  [HeapEntry(-price, timestamp, order), ...]
-├── _asks          min-heap  [HeapEntry( price, timestamp, order), ...]
+├── _bids          max-heap  [HeapEntry(-price, arrival_seq, order), ...]
+├── _asks          min-heap  [HeapEntry( price, arrival_seq, order), ...]
 │
-├── _buy_stops     min-heap  [(stop_price, timestamp, order), ...]
-├── _sell_stops    max-heap  [(-stop_price, timestamp, order), ...]
+├── _buy_stops     min-heap  [(stop_price, arrival_seq, order), ...]
+├── _sell_stops    max-heap  [(-stop_price, arrival_seq, order), ...]
 │
 ├── _bid_qty       dict[int, int]      price_ticks → total visible resting qty
 ├── _ask_qty       dict[int, int]      price_ticks → total visible resting qty
@@ -648,14 +765,15 @@ Since we always match against the best available price, a heap is the natural ch
 **Bids use negated prices** so that `heapq` (a min-heap) pops the *highest* bid first:
 
 ```python
-# Bid key:  (-price, timestamp)  →  highest price wins, ties broken by earliest time
-# Ask key:  ( price, timestamp)  →  lowest  price wins, ties broken by earliest time
+# Bid key:  (-price, arrival_seq)  →  highest price wins, ties broken by earliest arrival
+# Ask key:  ( price, arrival_seq)  →  lowest  price wins, ties broken by earliest arrival
 ```
 
 **Price-level quantity indexes** (`_bid_qty`, `_ask_qty`) are auxiliary `dict[price, int]`
-maps that track the aggregate visible quantity at each price level.  They enable O(p)
-FOK pre-checks (where p = number of distinct price levels) instead of walking every
-heap entry.
+maps that track the aggregate *visible* quantity at each price level.  They make
+best bid/ask and depth statistics cheap (O(p), p = distinct price levels). They are
+not used for the FOK pre-check: they leave out an iceberg's hidden reserve, so
+`fillable_quantity` walks the live resting orders instead (O(n log n)).
 
 
 
@@ -666,7 +784,7 @@ Each heap entry is a wrapper object:
 ```python
 @dataclass
 class HeapEntry:
-    key:   tuple       # (-price, ts) for bids; (price, ts) for asks
+    key:   tuple       # (-price, arrival_seq) for bids; (price, arrival_seq) for asks
     order: Order
     valid: bool = True # set False on cancel/fill → "tombstone"
 ```
@@ -748,14 +866,17 @@ incoming order
       │
       ├─ LIMIT   ──→ SWEEP(price=order.price) → REST unfilled portion on own side
       │
-      ├─ FOK     ──→ PRE-CHECK available qty via _bid_qty/_ask_qty
-      │                 if insufficient → REJECT immediately
+      ├─ FOK     ──→ PRE-CHECK fillable_quantity (walks resting orders:
+      │                 hidden iceberg qty counts, SMP-skipped orders do not)
+      │                 if insufficient → REJECT (or CANCEL on self-match)
       │                 else → SWEEP(price=order.price)
       │
       ├─ ICEBERG ──→ SWEEP visible slice → replenish peak from hidden qty → REST
       │
-      └─ STOP / STOP_LIMIT ──→ add to stop heap → no immediate match
-                                 triggers later when last_trade_price crosses stop_price
+      └─ STOP / STOP_LIMIT / TRAILING_STOP
+                 ──→ already breached by last_trade_price? → trigger now
+                     else arm in a stop heap (trailing: a list)
+                     → triggers later when last_trade_price crosses stop_price
 ```
 
 
@@ -776,7 +897,7 @@ function APPLY_FILL(aggressor, passive, fill_qty, fill_price):
     5. Deduct fill_qty from price-level qty index (_bid_qty / _ask_qty)
     6. If passive is ICEBERG and displayed_qty exhausted:
        → replenish displayed_qty from hidden remainder
-       → update timestamp (loses time priority — back of queue)
+       → assign a fresh arrival_seq (loses time priority — back of queue)
        → re-insert into heap with fresh key
 ```
 
@@ -787,8 +908,8 @@ function APPLY_FILL(aggressor, passive, fill_qty, fill_price):
 Stop orders live in **separate heaps**, sorted by trigger price:
 
 ```
-_buy_stops:  min-heap by ( stop_price, timestamp) — triggers when price RISES to/above
-_sell_stops: max-heap by (-stop_price, timestamp) — triggers when price FALLS to/below
+_buy_stops:  min-heap by ( stop_price, arrival_seq) — triggers when price RISES to/above
+_sell_stops: max-heap by (-stop_price, arrival_seq) — triggers when price FALLS to/below
 ```
 
 After every trade, `_check_stops()` peeks at both heaps:
@@ -811,9 +932,13 @@ function CHECK_STOPS(last_trade_price):
         convert STOP → MARKET (or STOP_LIMIT → LIMIT)
         triggered.append(order)
 
-    // Re-process each triggered order through the book
-    for order in triggered:
-        process(order)  → may produce additional trades → may trigger more stops (recursion)
+    // Re-process each triggered order through the book (run_stops): an explicit
+    // FIFO work queue, not recursion, so a long cascade cannot hit the
+    // recursion limit
+    pending = triggered
+    while pending:
+        order = pending.pop(0)
+        process(order, cascade=False)  → may trade → new triggers appended to pending
 ```
 
 
@@ -825,11 +950,13 @@ When a LIMIT order does not fully cross the spread, its remainder is placed on t
 ```
 function REST(order):
     if BUY:
-        key = (-order.price, order.timestamp)   # negated → max-heap behavior
+        order.arrival_seq = next_seq()          # the book's own counter
+        key = (-order.price, order.arrival_seq)  # negated → max-heap behavior
         heappush(_bids, HeapEntry(key, order))
         _bid_qty[order.price] += order.remaining_qty
     else:
-        key = (order.price, order.timestamp)
+        order.arrival_seq = next_seq()
+        key = (order.price, order.arrival_seq)
         heappush(_asks, HeapEntry(key, order))
         _ask_qty[order.price] += order.remaining_qty
 
@@ -864,7 +991,7 @@ No heap restructuring needed — lazy deletion handles cleanup on next `_peek()`
 | Match one level | O(log n) | Pop from heap |
 | Full sweep (k fills) | O(k log n) | k = number of resting orders matched |
 | Cancel | O(1) | Tombstone + dict lookup |
-| FOK pre-check | O(p) | p = distinct price levels (via qty index) |
+| FOK pre-check | O(n log n) | sorted walk of the live resting orders (hidden iceberg quantity counts) |
 | Stop trigger check | O(k log s) | k triggered stops out of s total |
 | Snapshot (book image) | O(n) | Walk all valid entries |
 | Order lookup by ID | O(1) | `_order_index` dict |
@@ -894,7 +1021,7 @@ ComboOrder
 ├── combo_type         AON
 ├── tif                DAY | GTC
 ├── legs               list[ComboLeg]        (2–10 entries)
-├── status             PENDING | PARTIALLY_MATCHED | MATCHED | FAILED | CANCELLED
+├── status             PENDING | PARTIALLY_MATCHED | MATCHED | FAILED | CANCELLED | REJECTED
 ├── child_order_ids    list[str]             (parallel to legs by index)
 ├── leg_fill_qty       dict[leg_index → int] (filled qty per leg)
 └── leg_statuses       dict[leg_index → str] (OrderStatus.value per leg)
@@ -904,14 +1031,19 @@ ComboOrder
 
 ```mermaid
 stateDiagram-v2
+    [*] --> REJECTED : validation fails at entry
     [*] --> PENDING
-    PENDING --> PARTIALLY_MATCHED : first leg fills
-    PENDING --> CANCELLED : user cancel → cascade-cancel all legs
+    PENDING --> PARTIALLY_MATCHED : a leg trades
+    PENDING --> MATCHED : every leg fills at once
     PARTIALLY_MATCHED --> MATCHED : all legs filled
-    PARTIALLY_MATCHED --> FAILED : any leg cancelled/expired → cascade-cancel siblings
+    PENDING --> FAILED : a leg cancelled, expired or rejected → cascade-cancel siblings
+    PARTIALLY_MATCHED --> FAILED : a leg cancelled, expired or rejected → cascade-cancel siblings
+    PENDING --> CANCELLED : user cancel → cascade-cancel all legs
+    PARTIALLY_MATCHED --> CANCELLED : user cancel → cascade-cancel resting legs
     MATCHED --> [*]
     CANCELLED --> [*]
     FAILED --> [*]
+    REJECTED --> [*]
 ```
 
 #### Combo Entry Algorithm
@@ -963,7 +1095,7 @@ function CHECK_COMBO_AFTER_CHILD_EVENT(child_order):
     combo.leg_statuses[idx] = child_order.status
     combo.leg_fill_qty[idx] = filled amount
 
-    if child_order.status in (CANCELLED, EXPIRED):
+    if child_order.status in (CANCELLED, EXPIRED, REJECTED):
         CASCADE_CANCEL(combo, FAILED)                O(L)
         return
 
@@ -1075,7 +1207,7 @@ stateDiagram-v2
 
 | Phase | Matching? | Accepts | Rejects |
 |-------|-----------|---------|---------|
-| PRE_OPEN | No | LIMIT, STOP, STOP_LIMIT, ICEBERG | MARKET, FOK, IOC, ATO, ATC |
+| PRE_OPEN | No | LIMIT, STOP, STOP_LIMIT, ICEBERG, TRAILING_STOP | MARKET, FOK, IOC, ATO, ATC |
 | OPENING_AUCTION | No | Same as PRE_OPEN + ATO | MARKET, FOK, IOC, ATC |
 | CONTINUOUS | Yes | All types | ATO, ATC |
 | CLOSING_AUCTION | No | Same as PRE_OPEN + ATC | MARKET, FOK, IOC, ATO |
@@ -1105,6 +1237,8 @@ function HANDLE_SESSION_TRANSITION(to_state):
         expire all ATO orders → publish order.expired
     if prev_state == CLOSING_AUCTION:
         expire all ATC orders → publish order.expired
+    if current_state == CLOSED:
+        expire all DAY orders → publish order.expired
 
     publish session.state { state, prev_state }
 ```
@@ -1152,7 +1286,9 @@ function UNCROSS(book):
         // match best bid against best ask, fill_price = best_price
         best_bid = PEEK(bids)
         best_ask = PEEK(asks)
-        fill_qty = min(best_bid.remaining, best_ask.remaining, remaining)
+        // an iceberg fills at most its shown slice per pass, then refills
+        // at the back of its level, as in continuous matching
+        fill_qty = min(shown(best_bid), shown(best_ask))
         APPLY_FILL(best_bid, best_ask, fill_qty, best_price)
         remaining -= fill_qty
 
@@ -1177,7 +1313,7 @@ no auction ends with a crossed book.
 | Operation | Complexity | Notes |
 |-----------|-----------|-------|
 | Collect candidates | O(n) | Scan all resting orders |
-| Evaluate all candidates | O(p × n) | p prices × n cumulative sums (optimizable to O(n) with prefix sums) |
+| Evaluate all candidates | O(p log p) | cumulative curves over the sorted price levels; with SMP or OCO in play, candidate prices may also need a dry-run walk of the live orders |
 | Execute fills | O(k log n) | k fills at equilibrium price |
 
 Where p = distinct price levels, n = total resting orders, k = orders matched.
@@ -1217,31 +1353,36 @@ The engine processes messages sequentially in a single thread:
 
 ```
 function RUN():
-    restore_gtc()          // reload GTC orders + combos from disk
-    load_config()          // seed stats, inject MM orders
+    run_seq = load_and_bump_run_seq()   // trade ids stay unique across restarts
+    startup(run_seq)       // reload orders, combos, book stats; seed config
+    install SIGINT/SIGTERM handlers that only clear _running
 
-    loop:
+    while _running:
         poll PULL socket (200 ms timeout)
 
         if message available:
-            topic, payload = decode(message)
-            dispatch:
-                "order.new"              → _handle_new_order(payload)
-                "order.cancel"           → _handle_cancel(payload)
-                "order.combo"            → _handle_combo_order(payload)
-                "order.combo_cancel"     → _handle_combo_cancel(payload)
-                "session.transition"     → _handle_session_transition(payload)
-                "system.gateway_connect" → _handle_gateway_connect(payload)
-                "system.symbols_request" → _handle_symbols_request(payload)
-                "book.snapshot_request"  → _handle_snapshot_request(payload)
-                "order.orders_request"   → _handle_orders_request(payload)
+            frames = recv()                      // guarded: an undecodable
+            topic, payload = decode(frames)      // message is counted, not fatal
+            cause = decode_push_envelope(frames)
+            recorded = echo_command(topic, frames)   // audit trail first
+            set_cause(cause if recorded else None)
+            try:
+                dispatch(topic, payload)         // _handle_new_order, _handle_cancel,
+                                                 // _handle_session_transition, ...
+            finally:
+                clear_cause()
 
-        flush_snapshots()  // publish throttled book images for dirty symbols
+        if idle or 10 ms since the last pass:
+            run_maintenance()   // snapshots, breaker timers, 5 s checkpoint,
+                                // auction indicatives, silent gateways, metrics
+        gc_policy.tick(idle)
 
-        if shutdown requested:
-            _shutdown()    // save GTC, expire DAY, save combos, publish EOD
-            break
+    _shutdown()   // save orders + combos + book stats, publish checkpoints
+                  // and system.eod, close sockets
 ```
+
+The real loop is `Engine.run`; [The Message Architecture](015-message-architecture.md#making-zeromq-fast)
+draws one turn of it.
 
 No locks, no shared memory, no race conditions.  The sequential dispatch guarantees
 that combo status transitions and cascade-cancels are atomic from the system's
@@ -1252,14 +1393,15 @@ perspective.
 ## Persistence & Crash Recovery
 
 The engine holds the authoritative order book **in memory**. Durability is provided
-by two independent tiers: engine **state files** written at shutdown and reloaded at
-startup, and subscriber **data stores** written continuously during the session.
+by two independent tiers: engine **state files**, checkpointed every 5 seconds
+while the engine runs and again at shutdown, and reloaded at startup; and
+subscriber **data stores**, written continuously during the session.
 
 | File / store | Written by | Cadence | Survives restart? | Purpose |
 |---|---|---|---|---|
-| `gtc_orders.json` | engine | clean shutdown | reloaded at startup | resting GTC orders (price-time priority preserved) |
-| `gtc_combos.json` | engine | clean shutdown | reloaded at startup | resting GTC combo parents + child links |
-| `book_stats.json` | engine | clean shutdown | reloaded at startup | last buy/sell price per symbol; reseeds collar & circuit-breaker references at the next open; each breaker's reference window (`cb_window`), taken back by a same-day restart |
+| `gtc_orders.json` | engine | every 5 s · shutdown | reloaded at startup | resting GTC and DAY orders (queue priority preserved; a DAY order whose business day has passed is dropped at startup) |
+| `gtc_combos.json` | engine | every 5 s · shutdown | reloaded at startup | live combo parents and their child links |
+| `book_stats.json` | engine | every 5 s · shutdown | reloaded at startup | last buy/sell price per symbol; reseeds collar & circuit-breaker references at the next open; each breaker's reference window (`cb_window`), taken back by a same-day restart |
 | `stats.db` (SQLite) | pm-stats | per trade · snapshot every 15 min · EOD · every index.update tick | accumulates | OHLCV, intraday snapshots, trade log, index level snapshots & daily OHLC |
 | `clearing.db` (SQLite) | pm-clearing | per trade · connect/disconnect · EOD | accumulates | positions, VWAP, realised/unrealised P&L |
 | `audit.log` | pm-audit | continuous (rotating) | accumulates | full chronological event trail |
@@ -1275,21 +1417,23 @@ recovery and clean consumer flush possible:
 ```mermaid
 sequenceDiagram
     autonumber
-    participant OP as Operator (Ctrl-C / SIGINT)
+    participant OP as Operator (pm-opctl-cli stop / Ctrl-C)
     participant ENG as Engine
     participant DISK as State files
     participant SUB as Subscribers
-    OP->>ENG: SIGINT
-    ENG->>DISK: serialise resting GTC orders + combos
-    ENG->>DISK: write book_stats.json (last prices, seed flags)
-    ENG-->>SUB: PUB order.expired for all DAY/ATO/ATC orders
-    ENG-->>SUB: PUB system.eod (flush-and-stop signal)
-    ENG->>ENG: close sockets
-    Note over SUB: stats/clearing/audit flush their stores and exit
+    OP->>ENG: SIGTERM / SIGINT (handler only clears _running)
+    Note over ENG: the message being handled finishes
+    ENG->>DISK: save resting GTC and DAY orders, combos (atomic write, fsync)
+    ENG->>DISK: save book_stats.json (last prices, breaker windows, halts)
+    ENG-->>SUB: PUB system.book_checkpoint.<SYM> for every book
+    ENG-->>SUB: PUB system.eod (the engine's last message)
+    ENG->>ENG: close PULL, PUB and drop copy, stop health reporter
+    Note over SUB: still running, pm-opctl stops them in the next wave.<br/>On their own SIGTERM they drain, commit and exit
 ```
 
-At startup the engine reloads `gtc_orders.json` / `gtc_combos.json`, restoring each
-order **with its original timestamp** so queue priority is unchanged, and reseeds
+At startup the engine reloads `gtc_orders.json` / `gtc_combos.json`, restoring the orders
+of each symbol **in their saved `arrival_seq` order** so queue priority is
+unchanged, and reseeds
 each symbol's collar and circuit-breaker reference from `book_stats.json` — on
 the same business day the breaker takes back its whole reference window (the
 trades its reference averages), so a restart halts where an uninterrupted
@@ -1300,81 +1444,71 @@ inserted with `INSERT OR IGNORE` on trade id, so a replayed or duplicated event 
 harmless; the drop-copy feed carries a monotonic sequence number and CALF carries a
 per-`(channel,symbol)` sequence so consumers can detect and replay gaps.
 
-**What is *not* durable.** Messages in flight in ZMQ queues are lost on a hard kill
-(only a clean SIGINT runs the sequence above). DAY orders are intentionally dropped
-at shutdown. Trade IDs are a per-session monotonic counter that **resets to 1** on
-restart (`models/trade.py`), so trade-id uniqueness is *within a session only* —
-merging logs across sessions requires a session prefix. A `SIGKILL` skips GTC
-serialisation entirely, losing the resting book.
+**What is *not* durable.** Messages in flight in ZeroMQ queues are lost on a
+hard kill, and messages still queued for a stalled subscriber are lost even on a
+clean stop (see [What ZeroMQ does with unsent messages at exit](015-message-architecture.md#what-zeromq-does-with-unsent-messages-at-exit)).
+A `SIGKILL` skips the shutdown sequence, so the book comes back from the last
+periodic checkpoint: up to 5 seconds of changes are lost. A process restart is
+not a day boundary — DAY orders are saved and restored, and dropped only when
+their business day has passed. Trade ids are `{run_seq:06d}-{n:09d}`: the run
+sequence is persisted (`engine_run_seq.json` in the data directory) and bumped at every
+start, so trade ids stay unique across restarts.
 
 
 
 ## Failure Modes & Fault Tolerance
 
 The system's resilience is dominated by two facts: there is **one** engine (a single
-point of failure by design), and the internal bus uses **ZeroMQ default flow
-control**, which behaves very differently for the two socket patterns.
+point of failure by design), and the two ZeroMQ patterns on the bus behave very
+differently when a queue is full. The full treatment — every buffer and its size,
+the stop order, and how each failure is detected — is in
+[The Message Architecture](015-message-architecture.md); this is the summary.
 
-### Back-pressure: PUSH blocks, PUB drops
+### Back-pressure: PUSH fails fast, PUB drops
 
 ```mermaid
 flowchart TD
     A[Producer wants to send] --> B{Socket type}
-    B -->|PUSH → PULL :5555| C{Receiver queue full\nat high-water mark?}
-    C -->|no| C2[send immediately]
-    C -->|yes| D[PUSH blocks the sender\n→ natural back-pressure]
-    B -->|PUB → SUB :5556/:5557/:5558| E{Subscriber queue full\nat high-water mark?}
+    B -->|PUSH → PULL :5555| C{Engine connected and\npipe below SNDHWM 1000?}
+    C -->|yes| C2[queued for the engine]
+    C -->|no| D[send raises zmq.Again at once\n→ client gets ENGINE_UNAVAILABLE]
+    B -->|PUB → SUB :5556/:5557/:5558| E{Subscriber's queue full?}
     E -->|no| E2[deliver a copy]
-    E -->|yes| F[PUB DROPS the message\nfor that slow subscriber — silently]
+    E -->|yes| F[PUB drops the message\nfor that subscriber only — silently]
 ```
 
-- **Order entry (PUSH/PULL, :5555):** if the engine falls behind, a gateway's PUSH
-  **blocks** until space frees up. This is benign back-pressure — order submitters
-  slow down; nothing is lost.
-- **Event fan-out (PUB/SUB, :5556/:5557/:5558):** if any subscriber can't drain fast
-  enough, ZeroMQ **discards** messages for *that* subscriber once its high-water mark
-  is reached. The loss is **silent** — there is no error, no gap signal from ZMQ
-  itself.
+- **Commands (PUSH/PULL, :5555):** every PUSH socket is made with
+  `SNDTIMEO=0`, `IMMEDIATE=1` and `SNDHWM=1000` (`messaging/bus.py`). A send that
+  cannot be queued fails at once and the gateway refuses the request with
+  `ENGINE_UNAVAILABLE`. No gateway's event loop ever blocks on the engine.
+- **Events (PUB/SUB):** the publisher never waits. A subscriber whose queue is
+  full loses messages, and only that subscriber. ZeroMQ reports nothing; the
+  per-topic `seq` and socket-wide `eseq` in each message's trailing frame are
+  what reveal the hole.
 
-`messaging/bus.py` creates sockets with **default** options — no explicit
-`SNDHWM`/`RCVHWM`, `LINGER`, or `CONFLATE` are set. So the effective HWM is ZeroMQ's
-default (~1000 messages per socket).
-
-!!! warning "Silent loss to internal stateful consumers — recommended change"
-    This default-drop behaviour was **inherited, not deliberately chosen**. It is
-    acceptable for viewers (which only ever need the *latest* book) but is a real
-    correctness risk for the **stateful internal consumers that have no replay path**
-    — `pm-clearing` (P&L), `pm-stats` (OHLCV), and `pm-audit` (the compliance log).
-    Under sustained back-pressure these can miss `trade.executed` events and silently
-    diverge, with no gap to detect.
-
-    Recommended, in order:
-
-    1. **Make it explicit and observable.** Set generous `RCVHWM` on the internal SUB
-       consumers and monitor ZeroMQ's drop counters; a silent gap should become a
-       visible alarm.
-    2. **Protect the stateful consumers.** For `pm-clearing`/`pm-audit`, prefer a
-       larger queue plus a slow-consumer alarm, or consume via the sequenced feeds
-       (drop-copy / RALF) that support replay, rather than the best-effort `:5556`
-       broadcast.
-    3. **Conflate the viewers.** `pm-viewer`/`pm-board` only need current state —
-       `zmq.CONFLATE` (keep only the newest message) removes them as a back-pressure
-       source entirely.
-
-    Reliable, replay-backed delivery already exists on the **external** edges (CALF
-    `replay_window_sec`, RALF `replay_retention_sec`, drop-copy's 10k in-memory
-    buffer); the gap is on the internal broadcast bus.
+The stateful consumers that must not lose messages raise their receive
+high-water mark well above ZeroMQ's default of 1000: 200 000 for pm-audit, the
+ALF and BALF gateways and the trader console, 100 000 for pm-clearing,
+pm-stats and the market-data, RALF and drop-copy gateways. *Measured:* a
+subscriber that did not read during a 100 000-message burst received 14 000
+with the default and all 100 000 with 200 000. Each consumer counts the gaps it
+sees (pm-stats writes them to `feed_gaps`; the gateways report `*.bus_gaps` in
+their health beacons), and an operator can rebuild clearing from the audit trail.
+Replay itself exists only at the external edges: CALF `replay_window_sec`, RALF
+`replay_retention_sec`, and drop copy's 10 000-record buffer.
 
 ### Other failure modes
 
 | Trigger | Effect | Mitigation / current behaviour |
 |---------|--------|--------------------------------|
-| Slow / stalled subscriber | PUB drops its messages at HWM (silent) | see recommendation above; external feeds replay |
-| Engine crash (hard) | whole exchange down; in-flight + DAY orders + resting book lost (no GTC flush) | single-writer SPOF by design; no HA. Clean SIGINT preserves GTC |
-| Engine restart (clean) | DAY orders expire; GTC/combos restored; trade-id counter resets to 1; subscribers reconnect automatically | ordered shutdown + startup reload |
-| Subscriber crash | isolated — engine and other consumers unaffected | reconnects and resumes; may have a gap (replay if supported) |
-| Gateway disconnect | per-gateway `disconnect_behaviour` (`CANCEL_QUOTES_ONLY` default / `CANCEL_ALL` / `LEAVE_ALL`) | configured per gateway |
-| Wall-clock regression | none — priority tie-break stays strictly increasing | `now_ns()` monotonic guarantee |
+| Slow / stalled subscriber | PUB drops its messages past its HWM (silent) | deep `RCVHWM` on recorders and gateways; gaps counted from `seq`/`eseq`; external feeds replay |
+| Engine crash (hard) | whole exchange down; in-flight messages lost; book changes since the last checkpoint lost (at most 5 s) | single-writer SPOF by design; no HA. The book is checkpointed every 5 s |
+| Engine restart (clean) | resting GTC and DAY orders, combos, halts and breaker windows restored; a DAY order whose business day has passed is dropped; trade ids continue under a new run sequence; gateways close their sessions on `system.startup_recovery` so clients log on again | ordered shutdown + startup reload |
+| Subscriber crash | isolated — engine and other consumers unaffected | reconnects and resumes; misses what was published meanwhile (pm-clearing warm-starts from `clearing.db` and can rebuild from the audit trail) |
+| Gateway disconnect | per-gateway `disconnect_behaviour` (`CANCEL_QUOTES_ONLY` default / `CANCEL_ALL` / `LEAVE_ALL`) | configured per gateway; a silent gateway is disconnected after three missed heartbeats |
+| Malformed message on :5555 | counted and discarded; `system.diagnostic` published | the receive is guarded; the loop continues |
+| Handler raises | the requester gets an `INTERNAL_ERROR` reject where a reply is possible | the dispatch is guarded; the cause is cleared in a `finally` |
+| Wall-clock regression | none — event timestamps stay strictly increasing; queue priority never depended on them | `now_ns()` monotonic guarantee; `arrival_seq` |
 | Drop-copy port (:5557) in use | engine logs a warning and runs **without** the drop-copy feed | deliberate: a port conflict must not stop matching |
 | Long auction uncross | blocks all message processing until it finishes | acceptable for teaching; single-thread trade-off |
 
@@ -1383,16 +1517,12 @@ default (~1000 messages per socket).
 ## Performance Optimizations
 
 A sequence of pure-Python changes (no C extensions, no Cython, no multiprocessing)
-raised single-thread throughput by roughly **2.8×**. This section explains each
-technique and *why* it works.
-
-!!! warning "Throughput is strongly CPU-architecture dependent"
-    The headline "after" figure of **~160,000 orders/second** is measured on
-    **ARM (Apple Silicon)**. The identical code on a typical **Intel x86** desktop
-    reaches roughly **~80,000 orders/second** — about half. The "before" baseline
-    (~57,000/s) and the latency table below are ARM figures. Treat all absolute
-    numbers as *illustrative of the relative gains*, not as a portable benchmark;
-    see [Why ARM and Intel differ so much](#why-arm-and-intel-differ-so-much).
+cut the cost of handling an order on the engine's hot path. This section explains
+each technique and *why* it works. The nanosecond figures are per-call costs of the
+individual operations, measured when each technique was introduced; they show
+what each one saves, not the engine's throughput. The engine's current measured
+cost per order, and how to measure it honestly, are in
+[Performance Engineering](../part-2-inside-the-engine/030-performance-engineering.md).
 
 
 ### How to read the numbers
@@ -1528,31 +1658,34 @@ parameter, making the code slightly harder to read and test.
 
 ###  Monotonic integer trade IDs (replacing `uuid4()`)
 
-**What it does:**  Generates trade IDs as sequential integers (`1`, `2`, `3`, ...)
-instead of random UUIDs.
+**What it does:**  Generates trade ids from a counter instead of random UUIDs:
+`{run_seq:06d}-{n:09d}`, for example `000042-000000017`, where `run_seq` is the
+engine-run sequence and `n` counts trades within the run.
 
 **Why it's faster:**  `uuid.uuid4()` reads from `/dev/urandom` (a kernel call) and
 then formats 128 random bits into a hyphenated string — total cost ~1.5 µs.
 `next(counter)` is a pure-Python operation costing ~30 ns.
 
 ```python
-import itertools
-
+# models/trade.py (trimmed)
 _trade_counter = itertools.count(1)
 
 @classmethod
 def create(cls, ...):
-    return cls(id=str(next(_trade_counter)), ...)
+    trade_seq = next(_trade_counter)
+    trade_id = f"{_run_seq:06d}-{trade_seq:09d}"
+    ...
 ```
 
-> Trade IDs only need to be unique within a single engine session, not globally,
-> so a monotonic counter is safe here.
+The run sequence is read from `engine_run_seq.json` and bumped by
+`load_and_bump_run_seq()` at every engine start, before any trade can be made
+(`Trade.create` raises if it has not been set). So ids stay unique across
+restarts, and sort in the order the trades happened.
 
-**Drawbacks:**  IDs are no longer globally unique — if you restart the engine,
-counter resets to 1 and old trade IDs may collide with new ones.  This makes it
-unsafe to merge trade logs from multiple sessions without adding a session prefix.
-Also, sequential IDs leak information (e.g. competitors can estimate your trade
-volume by observing the ID gap between two of their fills).
+**Drawbacks:**  Sequential ids leak information — a participant can estimate the
+market's trade count by comparing the ids of two of its own fills. And the
+uniqueness now depends on the run-sequence file: restoring an old data
+directory over a newer one would reuse run numbers.
 
 
 
@@ -1759,42 +1892,12 @@ always fully initialized, which can confuse static analysis tools like mypy.
 | 9 | Local var caching | ~200–800 ns | Sweep loop |
 | 10 | `__new__` deserialization | ~400 ns | `Order.from_dict()` |
 
-**Result:**
-
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Throughput | 57,000 TPS | 160,000 TPS | **+180%** |
-| Median latency | 23.5 µs | 8.5 µs | **−64%** |
-| P90 latency | 25.7 µs | 10.0 µs | **−61%** |
-
 All of these improvements are **pure Python** — no C extensions, no multi-threading,
 no unsafe hacks.  The key insight is that in a tight loop, small costs (100 ns here,
-200 ns there) compound rapidly.  At ~160,000 orders/second (ARM), each order has a
-budget of only **6.25 µs** — every nanosecond matters. On Intel x86 the budget is
-roughly double (~12.5 µs at ~80,000/s), because the per-order work is the same but
-each interpreter step is slower (below).
-
-### Why ARM and Intel differ so much
-
-The **same code** runs ~2× faster on Apple Silicon (ARM) than on a typical Intel
-x86 desktop. This is a property of the *workload* — a CPython bytecode interpreter
-doing pointer-chasing and small-object allocation — meeting two very different
-microarchitectures. The dominant hypotheses (in rough order of expected impact;
-confirming the split requires profiling, e.g. `perf stat` on each host):
-
-| Factor | Why it favours Apple Silicon |
-|--------|------------------------------|
-| **Interpreter dispatch** | CPython's eval loop is a giant computed-goto over bytecodes — a torrent of hard-to-predict indirect branches. Apple's very wide decode and large branch-prediction resources swallow this better than mainstream x86 desktop parts. |
-| **Memory latency & cache** | Refcounting and dict/attribute lookups are latency-bound pointer chases. Apple Silicon's on-package unified memory and large L1/L2 (and huge SLC) cut the average miss cost that this workload pays constantly. |
-| **Single-thread IPC / clocks** | The engine is single-threaded, so only 1-core performance matters. High-IPC M-series cores at competitive clocks beat many Intel desktop cores on this specific scalar, branchy, allocation-heavy code. |
-| **Refcount write traffic** | Every `INCREF`/`DECREF` is a small write; Apple's store buffering and cache bandwidth absorb the churn with less stall. |
-| **Native library codegen** | `orjson` (Rust) and the Python build itself may be compiled with better-tuned codegen / SIMD paths on `arm64` than the x86 wheels in use. |
-
-Two caveats. First, "Intel" and "ARM" are not monolithic: a recent high-clock
-Xeon/Core will close much of the gap versus an older desktop part, and the numbers
-here compare the specific machines used. Second, the *relative* speedups of the ten
-techniques above are stable across both architectures — only the absolute TPS moves.
-If you publish throughput figures, always state the CPU.
+200 ns there) compound rapidly: an order's whole trip through the engine is measured
+in tens of microseconds, so a saving of one microsecond per order is a few percent.
+Absolute figures depend heavily on the CPU and the Python version; if you publish
+one, state both.
 
 ## Configuration Choices That Impact Performance
 
@@ -1811,7 +1914,7 @@ market-data throttle.
 | `market_data_gateway.replay_window_sec` · `post_trade_gateway.replay_retention_sec` | CALF / RALF | `30` · `86400` | Replay reach vs replay-buffer memory. |
 | `*.heartbeat_interval_sec` · `*.idle_timeout_sec` | all gateways | varies | Idle-traffic volume vs dead-peer detection latency. |
 | `*.max_commands_per_second` · `*.max_messages_per_second` · `api rate_limit` | ALF / BALF / API | `100` · `100` · `10` | Ingress throttles that protect the single-threaded engine from a runaway client. |
-| ZeroMQ high-water marks | `messaging/bus.py` | **unset (ZMQ default ≈1000)** | Governs when PUB silently drops to slow subscribers and when PUSH blocks — see [Failure modes](#failure-modes-fault-tolerance). Not currently tunable via config. |
+| ZeroMQ high-water marks | `messaging/bus.py` and each consumer | PUSH `SNDHWM` 1000 (fail fast); recorder and gateway `RCVHWM` 100 000–200 000; PUB default 1000 per subscriber | Decide how large a burst a consumer survives before PUB drops for it. Constants in code, not configuration — see [Buffer sizes](015-message-architecture.md#buffer-sizes-and-why-they-are-what-they-are). |
 
 Rule of thumb: to reduce load, **raise `snapshot_interval_sec`** first (it scales
 across every consumer at once); to reduce latency for a specific external consumer,
@@ -1832,9 +1935,10 @@ tune that gateway's own knobs rather than the global throttle.
 `now_ns()` (`models/clock.py`), which wraps `time.time_ns()` and enforces a
 **strictly increasing** sequence: if the raw clock returns a value less than or
 equal to the last one (a duplicate, or a backwards wall-clock step), `now_ns()`
-returns `last + 1` instead. This matters because the timestamp is the **tie-breaker
-in price-time priority** — two orders at the same price must never compare equal,
-or heap ordering (and therefore queue fairness) becomes undefined. The guarantee is
+returns `last + 1` instead. Queue priority does not depend on it — the book
+breaks ties at one price with its own `arrival_seq` counter, so a client-supplied
+or back-dated timestamp can never jump the queue — but every event timestamp
+the engine publishes does, and those must never go backwards. The guarantee is
 lock-protected for every caller, including the engine's single-threaded order
 loop: the lock's cost is small and is a deliberate trade-off, not one the hot
 path bypasses, because a wall-clock regression (an NTP step, for example) must

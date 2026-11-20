@@ -94,11 +94,13 @@ shares. `pm-index` also needs a reference price for every constituent, and
 `pm-config-gen` only writes one by seeding it from a market maker's midpoint:
 hence the `MM01:MARKET_MAKER` participant and the `--seed-mm-mid-range` /
 `--seed-last-prices-from-mm` flags. `--no-mm-seed-quotes` keeps the book empty
-at startup.
+at startup. `AMZN` is configured but left out of the index: Exercise 7 adds
+it, and `pm-index` only accepts a constituent the exchange is configured to
+trade.
 
 ```bash
 pm-config-gen \
-  --symbols AAPL MSFT TSLA \
+  --symbols AAPL MSFT TSLA AMZN \
   --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
@@ -175,7 +177,7 @@ cat "$EDUMATCHER_DATA_DIR/indexes/EDU100_history.jsonl"
 ```
 
 ```json
-{"type": "INIT", "ts_ns": ..., "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
+{"type":"INIT","ts_ns":...,"index_id":"EDU100","level":1000.0,"base_value":1000.0,"divisor":8187542000.0,"constituents":["AAPL","MSFT","TSLA"]}
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-index` running, INIT record visible in history file.
@@ -406,9 +408,11 @@ the history instead (the `ADD OK` reply also prints the new divisor):
 pm-index-cli --config engine_config.yaml events --index EDU100 --type ADD_CONSTITUENT
 ```
 
-AMZN is not traded on this venue, so its price stays at the reference price
-you gave until an engine feed for it exists; it contributes to the cap at
-`195.00`. (`delist` needs no price.)
+Nobody trades AMZN in this chapter, so its price stays at the reference price
+you gave until it trades; it contributes to the cap at `195.00`. (`delist`
+needs no price.) A symbol the exchange is not configured to trade is refused
+(`REJECTED  AMZN is not a configured symbol`), so a typo cannot become a
+constituent that never moves — which is why Exercise 1 configured AMZN.
 
 ### Remove TSLA from the index
 
@@ -458,10 +462,10 @@ pm-stats-cli index-snapshots --index-id EDU100 --limit 50
 Sample table output:
 
 ```
-ts                  | index_id | level   | aggregate_cap       | divisor      | session_state | day_open | day_high | day_low
---------------------+----------+---------+---------------------+--------------+----------------+----------+----------+---------
-2026-06-25T10:00:01 | EDU100   | 1000.00 | 7007100000000.00    | 7007100000.0 | PRE_OPEN       |          |          |
-2026-06-25T10:01:23 | EDU100   | 1034.82 | 7251000000000.00    | 7007100000.0 | CONTINUOUS     | 1000.00  | 1034.82  | 1000.00
+ts                            | index_id | level            | aggregate_cap | divisor    | session_state | day_open        | day_high         | day_low
+------------------------------+----------+------------------+---------------+------------+---------------+-----------------+------------------+----------------
+2026-06-25T10:00:38.798+00:00 | EDU100   | 1001.8320516707  | 8202542000000 | 8187542000 | CONTINUOUS    | 1001.8320516707 | 1001.8320516707  | 1001.8320516707
+2026-06-25T10:00:40.511+00:00 | EDU100   | 1002.73586382824 | 8209942000000 | 8187542000 | CONTINUOUS    | 1001.8320516707 | 1002.73586382824 | 1001.8320516707
 ...
 ```
 
@@ -483,9 +487,9 @@ pm-stats-cli index-daily --index-id EDU100
 ```
 
 ```
-date       | index_id | open_level | high_level | low_level | close_level | update_count
------------+----------+------------+------------+-----------+-------------+--------------
-2026-06-25 | EDU100   | 1000.00    | 1052.10    | 987.40    | 1041.55     | 312
+date       | index_id | open_level      | high_level       | low_level       | close_level     | close_session_state | update_count
+-----------+----------+-----------------+------------------+-----------------+-----------------+---------------------+-------------
+2026-06-25 | EDU100   | 1001.8320516707 | 1002.73586382824 | 1001.8320516707 | 1002.3633466552 | CONTINUOUS          | 7
 ```
 
 Add `--wide` to also show the opening/closing aggregate market cap:
@@ -564,7 +568,7 @@ Configure a second, narrower index alongside `EDU100`:
 
 ```bash
 pm-config-gen \
-  --symbols AAPL MSFT TSLA \
+  --symbols AAPL MSFT TSLA AMZN \
   --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
@@ -611,12 +615,12 @@ first trade right after the restart may only reach `EDU100`), then run
 ```
 
 ```
-[15:52:12.376] EDU100 1001.83 +0.00 +0.00% O=1001.83 H=1001.83 L=1001.83 PRE_OPEN
+[12:02:31.131] TECH2 501.47 +0.00 +0.00% O=501.47 H=501.47 L=501.47 CONTINUOUS
 ```
 
-You see one line, for whichever index published last. `TECH2` is throttled to
-one publish every 2 seconds, so `EDU100` is usually the one shown. `INDEX` is
-not a multi-index listing; use `pm-index-cli indices` to list both indices
+You see one line, for whichever index published last — `TECH2` here, `EDU100`
+just as often (both publish after an MSFT trade, `TECH2` at most every 2
+seconds). `INDEX` is not a multi-index listing; use `pm-index-cli indices` to list both indices
 and `pm-stats-cli index-daily` to verify recorded daily data. On startup,
 `pm-index` requests the engine's current session status and publishes an
 initial update for each configured index, so a restart during `CONTINUOUS`

@@ -30,7 +30,7 @@ should be full of clever tricks. It mostly is not — it is a long, explicit
 checklist, run in a fixed order, each step small enough to hold in your head.
 The complexity is in the *number* of steps, not in any single one of them.
 
-## 1. The moving parts
+## The moving parts
 
 Two ZeroMQ sockets connect every gateway process to the one engine process:
 
@@ -64,7 +64,7 @@ def make_puller(addr: str) -> zmq.Socket[bytes]:
 
 def make_publisher(addr: str) -> "CausalPublisher":
     """PUB socket — broadcasts events, sequenced and causally stamped."""
-    sock = get_context().socket(zmq.PUB)
+    sock = get_context().socket(zmq.PUB, socket_class=BusSocket)
     sock.bind(addr)
     return CausalPublisher(SequencedPublisher(sock))
 ```
@@ -82,7 +82,8 @@ carries it:
 The envelope is metadata, not content, which is why it rides in frames
 instead of in the JSON: the hot publish path never decodes and re-encodes a
 message to stamp it, and the same three fields do not have to be declared on
-each of the 121 message types in `spec/messages/`. Sections 3, 4 and 8 show
+each of the 136 message types in `spec/messages/`. The sections on the gateway,
+the engine's front door and publishing show
 it being written and read; if you only care about the order flow, the one
 thing to know is that `decode()` ignores it entirely.
 
@@ -102,7 +103,7 @@ below is built from. The envelope never changes it; `decode` reads frames 0
 and 1 and stops, so every consumer written before the envelope existed still
 works unmodified.
 
-## 2. The scenario
+## The scenario
 
 `TRADER01`, connected through `pm-alf-gwy`, types:
 
@@ -112,10 +113,10 @@ NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY|TYPE=LIMIT
 
 Session state is `CONTINUOUS`. AAPL's book currently has no resting bids and
 one resting ask at 150.50 for 200 shares. This order does not cross — it
-will rest. Section 7 below re-runs the same order at a price that *does*
+will rest. [Handing the order to the book](#handing-the-order-to-the-book) below re-runs the same order at a price that *does*
 cross, to show a partial fill too.
 
-## 3. From keystroke to the engine's doorstep
+## From keystroke to the engine's doorstep
 
 `pm-alf-gwy` parses the ALF text line, builds an `Order`, and pushes it —
 there is no engine-visible difference between an order that arrived over
@@ -142,7 +143,7 @@ Two things worth pausing on:
 - **`gateway_id` comes from the session, not from the wire fields.** A
   client cannot claim to be a different gateway than the one it
   authenticated as — `_require_gw(session)` raises if the session never
-  completed `HELLO`. This is the fact the ACK routing in Section 6 depends
+  completed `HELLO`. This is the fact the ACK routing in [The ACK — sent before the book ever sees the order](#the-ack-sent-before-the-book-ever-sees-the-order) depends
   on.
 - **Price is already converted to ticks** (`self._ticks(...)`) before the
   order ever leaves the gateway process. The engine never does float
@@ -179,7 +180,7 @@ sequenceDiagram
     GW->>E: PUSH  frames=[order.new, payload, envelope(msg=A, cause=-, chain=A)]
 ```
 
-## 4. The engine's front door
+## The engine's front door
 
 The engine's whole life is one loop: poll the PULL socket, decode, dispatch,
 run maintenance, repeat.
@@ -189,20 +190,28 @@ run maintenance, repeat.
 while self._running:
     socks = dict(poller.poll(timeout=200))          # 200 ms tick
     if self.pull_sock in socks:
-        frames = self.pull_sock.recv_multipart()
-        topic, payload = decode(frames)
-        cause = decode_push_envelope(frames)        # the gateway's msg_id
+        frames = self.pull_sock.recv_multipart()     # receive + decode are
+        topic, payload = decode(frames)              # guarded: a bad message is
+        cause = decode_push_envelope(frames)         # counted, not fatal
 
-        self.pub_sock.set_cause(cause)
+        recorded = self._echo_command(topic, frames)  # into the audit trail first
+        self.pub_sock.set_cause(cause if recorded else None)
         try:
             self._dispatch_pull_message(topic, payload)
         finally:
             self.pub_sock.clear_cause()
-    self._run_maintenance()
+    if idle or 10 ms since the last pass:             # (paraphrased)
+        self._run_maintenance()
 ```
 
-Those three extra lines are the entire causality mechanism on the engine
-side. While a cause is set, **everything** published — the ACK, the fills,
+`_echo_command` re-publishes the command onto the PUB socket before it is
+handled, so the audit trail holds the request ahead of its ACK — and holds it
+even if the engine dies while handling it. A read query (a `*_request` topic)
+is not echoed, so its reply is not attributed to it: a reply citing a message
+nobody recorded would look exactly like one whose cause was lost.
+
+The `set_cause`/`clear_cause` pair is the entire causality mechanism on the
+engine side. While a cause is set, **everything** published — the ACK, the fills,
 the trade print, a cascade of OCO cancels — is attributed to this message
 and inherits its chain, without a single publish site knowing. Three things
 about that are worth understanding rather than skimming:
@@ -254,7 +263,7 @@ Our message matches `TOPIC_ORDER_NEW`, so `_handle_new_order(payload)` runs
 next. Everything from here to "resting or trading" happens inside that one
 method.
 
-## 5. The gauntlet: every check, in order
+## The gauntlet: every check, in order
 
 `_handle_new_order` is a sequence of guard clauses. Each one either rejects
 (sends a NACK and returns) or falls through to the next. Below is the exact
@@ -262,7 +271,9 @@ order, each with the real check.
 
 ```mermaid
 flowchart TD
-    A["order.new received"] --> B{"Gateway connected & allowed?"}
+    A["order.new received"] --> A2{"Payload builds an Order?"}
+    A2 -- "no" --> RA["REJECT: MALFORMED_MESSAGE"]
+    A2 -- "yes" --> B{"Gateway connected & allowed?"}
     B -- "no" --> RB["REJECT: GATEWAY_NOT_CONFIGURED / AUTH_REQUIRED"]
     B -- "yes" --> C{"Symbol in allowlist?"}
     C -- "no" --> RC["REJECT: UNKNOWN_SYMBOL"]
@@ -281,8 +292,10 @@ flowchart TD
     J -- "yes" --> RJ["REJECT: COLLAR_BREACH"]
     J -- "no" --> K{"do_match is False and order is MARKET/FOK/IOC?"}
     K -- "yes" --> RK["REJECT: SESSION_NOT_PERMITTED, cannot rest"]
-    K -- "no" --> L["ACCEPT: send ACK (Section 6)"]
-    L --> M["book.process(order) (Section 7)"]
+    K -- "no" --> K2{"TRAILING_STOP with no stop price and no last trade?"}
+    K2 -- "yes" --> RK2["REJECT: MISSING_FIELD"]
+    K2 -- "no" --> L["ACCEPT: send ACK (see The ACK)"]
+    L --> M["book.process(order) (see Handing the order to the book)"]
 ```
 
 The code, one gate at a time:
@@ -361,9 +374,17 @@ configured band. Assume it passes.
 orders when `do_match` is `False` (auction phase or halted symbol forcing
 LIMIT-only resting). Our order is `LIMIT`, so this is a no-op either way.
 
+**Gate 9 — a trailing stop needs something to trail.** A `TRAILING_STOP` with
+no explicit stop price, on a symbol that has not traded yet, is refused with
+`MISSING_FIELD`. Not our case.
+
+The source numbers these checks `[1]`–`[10]` in comments (the book-creation
+step is `[3]`), and runs one more before them all: a payload that does not
+even build an `Order` is refused with `MALFORMED_MESSAGE`.
+
 Every gate passed. The order is now **accepted**.
 
-## 6. The ACK — sent before the book ever sees the order
+## The ACK — sent before the book ever sees the order
 
 This is the detail most people expect to be complicated and is not: the ACK
 is built and published *before* `book.process()` runs at all (for every
@@ -396,14 +417,14 @@ self.pub_sock.send_multipart([
 
 **How does the engine know which gateway to answer?** It doesn't look
 anything up — `order.gateway_id` is already `"TRADER01"`, carried in the
-payload since Section 3 (`self._require_gw(session)`), and it becomes half
+payload since [From keystroke to the engine's doorstep](#from-keystroke-to-the-engines-doorstep) (`self._require_gw(session)`), and it becomes half
 of the outbound *topic string*: `order.ack.TRADER01`. There is no
 per-connection socket or address to remember on the engine side at all.
 
 **And which submission is it answering?** Note what the snippet above does
 *not* contain: anything about correlation. The `send_multipart` call goes
 through the `CausalPublisher` wrapper, which stamps `causation_id` = the
-submitting message's `msg_id` from the cause Section 4 set. So the ACK
+submitting message's `msg_id` from the cause [The engine's front door](#the-engines-front-door) set. So the ACK
 answers a specific *message*, not merely a gateway — which matters the
 moment a trader has two orders in flight and both acks route to the same
 topic. Before the envelope this had to be inferred by matching `order_id`
@@ -445,7 +466,7 @@ sequenceDiagram
 ```
 
 `pm-alf-gwy` then relays the ACK into the ALF text protocol
-(`_dispatch_response` → `ACK|ORDER_ID=...|ACCEPTED=TRUE`), and `TRADER01`'s
+(`_handle_engine_event` → `ACK|ORDER_ID=...|ACCEPTED=TRUE`), and `TRADER01`'s
 terminal prints it.
 
 One caveat: this ACK means *"the engine accepted the order for
@@ -457,7 +478,7 @@ acceptance first. For our resting `LIMIT` order, this ACK is the only
 acknowledgement it gets; its fate from here is reported via `order.fill` /
 `order.cancelled` / `order.expired`.
 
-## 7. Handing the order to the book
+## Handing the order to the book
 
 ```python
 # engine/main.py — _handle_new_order (trimmed)
@@ -507,10 +528,10 @@ price, fill the smaller of the two remaining quantities, repeat.** No
 special cases beyond price-time priority (best price first, then arrival
 order at a tied price — see the heap key in `_rest` below) and self-match
 prevention (skipped here for brevity — see
-[The First Match](../part-1-architecture/020-guided-tour.md#4-the-first-match-how-two-orders-become-a-trade)
+[The First Match](../part-1-architecture/020-guided-tour.md#the-first-match-how-two-orders-become-a-trade)
 for the full sweep including SMP).
 
-### 7a. Outcome 1 — the order rests (our scenario)
+### Outcome 1 — the order rests (our scenario)
 
 AAPL's best ask is 150.50; our bid is 150.00. `150.50 > 150.00`, so the very
 first price check in `_sweep` breaks the loop immediately — nothing trades.
@@ -544,7 +565,7 @@ first), plus two dict lookups (`_order_index`, `_entry_index`) so a later
 book is now dirty (marked via `self._mark_dirty(order.symbol)`) and will
 appear in the next throttled `book.AAPL` snapshot.
 
-### 7b. Outcome 2 — a crossing order (worked example)
+### Outcome 2 — a crossing order (worked example)
 
 Suppose instead `TRADER01` had bid **150.50 for 50 shares** — at or above
 the resting ask. `_sweep`'s price check now passes (`150.50` is not
@@ -578,10 +599,10 @@ sequenceDiagram
 ```
 
 `trades` now has one `Trade`, `events` has both `Order` objects (the filled
-aggressor and the partially-filled resting order) — Section 8 covers what
+aggressor and the partially-filled resting order) — [Publishing what happened](#publishing-what-happened) covers what
 happens to them next.
 
-## 8. Publishing what happened
+## Publishing what happened
 
 Back in `_handle_new_order`, `trades` and `events` (every order whose status
 just changed) go to `_publish_dispatch`. Every path that matches calls the
@@ -633,10 +654,10 @@ the trade came from a plain NEW order, a quote leg, a combo child, an OCO
 leg, or an auction uncross — one path, four side effects, always in that
 order.
 
-Every one of those messages — the ACK from Section 6, each `order.fill`,
+Every one of those messages — the ACK from [The ACK — sent before the book ever sees the order](#the-ack-sent-before-the-book-ever-sees-the-order), each `order.fill`,
 the `trade.executed` print, the drop-copy relay — carries the same
 `correlation_id`, because all of them are published inside the dispatch
-window Section 4 opened. One aggressive order that sweeps four price levels
+window [The engine's front door](#the-engines-front-door) opened. One aggressive order that sweeps four price levels
 produces a dozen messages across five topics and two gateways, and they are
 one `WHERE correlation_id = ?` away from each other. That is the payoff of
 attributing at the socket rather than at the publish site: the fan-out did
@@ -648,11 +669,11 @@ submission, minutes earlier, is a different chain. Causality here means
 "this message exists because that one was processed", not "these belong to
 the same trader".
 
-If nothing filled (our resting-order scenario from 7a), `events` and
+If nothing filled (our resting-order scenario, Outcome 1), `events` and
 `trades` are both empty — the loop above simply does nothing, and the
-resting order's only trace on the wire so far is the ACK from Section 6.
+resting order's only trace on the wire so far is the ACK from [The ACK — sent before the book ever sees the order](#the-ack-sent-before-the-book-ever-sees-the-order).
 
-## 9. TIF and the lifetime of a resting order
+## TIF and the lifetime of a resting order
 
 Our order rested with `TIF=DAY`. What removes it, and when?
 
@@ -660,7 +681,7 @@ Our order rested with `TIF=DAY`. What removes it, and when?
 stateDiagram-v2
     state "gone, silently (stale restart)" as GONE
     [*] --> NEW : ACK sent, rests on book
-    NEW --> PARTIAL : partial fill (Section 7b)
+    NEW --> PARTIAL : partial fill (Outcome 2)
     NEW --> FILLED : fully filled later
     PARTIAL --> FILLED : remainder fills
     NEW --> CANCELLED : explicit CANCEL (any TIF)
@@ -678,7 +699,7 @@ There are exactly four ways a `TIF=DAY` order stops resting. Two are the
 same for every TIF; two are DAY-specific.
 
 **1 & 2 — fill and explicit cancel.** Nothing DAY-specific here: a fill
-happens the moment a crossing order sweeps it (Section 7b); a cancel happens
+happens the moment a crossing order sweeps it (Outcome 2 above); a cancel happens
 the moment the owning gateway sends `CANCEL` (`Engine._handle_cancel`). Both
 apply identically to `GTC`.
 
@@ -724,8 +745,9 @@ engine ever expires a DAY order on a clock. It rests exactly as long as a
 def _shutdown(self) -> None:
     all_resting = self._resting_gtc_orders()      # TIF in (GTC, DAY)
     save_gtc_orders(all_resting, GTC_ORDERS_FILE)
-    save_book_stats(self.books, BOOK_STATS_FILE)
-    ...
+    save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
+    save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE, halts)
+    ...                                           # then checkpoints + system.eod
 ```
 
 ```python
@@ -735,7 +757,7 @@ gtc = [
     if o.tif in (TIF.GTC, TIF.DAY)
     and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
 ]
-_atomic_write_text(path, json.dumps(gtc, indent=2))
+atomic_write_text(path, json.dumps(gtc, indent=2))   # temp file, fsync, rename
 ```
 
 **A `TIF=DAY` order is persisted to `data/gtc_orders.json` on shutdown,
@@ -750,19 +772,20 @@ is not a day boundary.**
 
 ```python
 # engine/main.py — _restore_gtc (trimmed)
-today = datetime.now().date()
+session_tz = self._session_tz()                       # locale.session_timezone
+today = self._business_date()
+orders.sort(key=lambda o: (o.symbol, o.arrival_seq))  # keep queue order
 for order in orders:                                  # loaded from the JSON file
     if order.tif == TIF.DAY:
-        order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
+        order_day = datetime.fromtimestamp(order.ts_ns / 1e9, session_tz).date()
         if order_day < today:
             log.info(f"Discarding stale TIF=DAY order {order.id[:8]} ...")
             continue                                   # <- never restored, never expired
-    order.status = OrderStatus.NEW
     book.process(order, match=False)                  # rest it, no sweep
 ```
 
-The check is a plain calendar-date comparison against the order's original
-`timestamp`, evaluated **once, at process startup** — not continuously, not
+The check is a calendar-date comparison, in the exchange's session timezone,
+against the order's original `ts_ns`, evaluated **once, at process startup** — not continuously, not
 at midnight, not tied to the scheduler in any way. Two consequences follow
 directly from that:
 
@@ -780,7 +803,7 @@ not even have a single subscriber yet — the order is simply absent from the
 book that gets rebuilt, and absent from the file the next time it is
 re-saved. A gateway reconnecting after a multi-day outage learns about the
 loss only by *absence*: it is not in the `ORDERS` snapshot it requests on
-reconnect, not in `QLEGS` (Section 10 below), and no lifecycle event for it
+reconnect, not in `QLEGS` ([Debugging cheat-sheet](#debugging-cheat-sheet) below), and no lifecycle event for it
 will ever arrive.
 
 ### Summary table
@@ -793,14 +816,14 @@ will ever arrive.
 | Process shutdown (clean or crash) | none — it is persisted, not removed | no | `Engine._shutdown` / `_flush_persistence` |
 | Process restart, order's date has passed | `TIF=DAY` only | no — silently dropped | `Engine._restore_gtc` |
 
-## 10. Debugging cheat-sheet
+## Debugging cheat-sheet
 
 When an order did something you did not expect, these are the places to
 look, roughly in the order you should look at them:
 
 | Question | Where to look |
 |---|---|
-| Was the order rejected, and why? | The `REJECT_CODE`/`reason` on the `ACK` — every reject in Section 5 goes through `Engine._reject`, which always sets both |
+| Was the order rejected, and why? | The `REJECT_CODE`/`reason` on the `ACK` — every reject in [The gauntlet: every check, in order](#the-gauntlet-every-check-in-order) goes through `Engine._reject`, which always sets both |
 | Did the engine even see it? | Engine log at `INFO`: `NEW {id} {symbol} {side} ...` is logged right before `book.process` in `_handle_new_order` |
 | Did it fill, partially or fully? | `order.fill.{gateway_id}` on the wire; `trade.executed` for the public tape; engine log `TRADE {id} {symbol} qty=... @...` |
 | Is it still resting? | `ORDERS` (ALF) / `order.orders_request` — walks `book.resting_orders()` directly, so it can never disagree with the book |
@@ -819,7 +842,7 @@ The envelope turns the awkward part of a post-mortem into two greps:
 ```bash
 # 1. find the submission
 grep 'order.new' data/audit.log | grep 'AAPL' | tail -1
-# ... [order.new] [seq=8812 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV chain=01ARZ3ND...] {...}
+# ... [order.new] [seq=8812 eseq=90311 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV chain=01ARZ3ND...] {...}
 
 # 2. everything it caused, in order — acks, fills, trade prints, cascades,
 #    across every topic and both counterparties
@@ -830,7 +853,7 @@ The lines come back in audit-receipt order. For true publication order, sort
 by the `msg=` id: ULIDs are minted in publish order, so lexicographic order
 is the order the engine did things — across all topics, not just one.
 
-## 11. The whole thing, end to end
+## The whole thing, end to end
 
 ```mermaid
 sequenceDiagram
@@ -844,7 +867,7 @@ sequenceDiagram
     GW->>E: PUSH  order.new  + envelope(msg=A, cause=-, chain=A)
     E->>E: decode() + decode_push_envelope() -> set_cause(A)
     E->>E: _dispatch_pull_message -> _handle_new_order
-    E->>E: gate 1..8 (Section 5) — all pass
+    E->>E: gates 1..9 (the gauntlet) — all pass
     E->>GW: PUB  order.ack.TRADER01  {accepted: true}  + (msg=B, cause=A, chain=A)
     GW->>T: ACK  order accepted
     E->>B: book.process(order, match=True)
@@ -854,19 +877,21 @@ sequenceDiagram
 
     E->>E: clear_cause()  (finally — attribution ends with the dispatch)
 
-    Note over E: ... later, session scheduler fires ...
+    Note over E: ... later, pm-scheduler PUSHes session.transition (msg=S, chain=S) ...
     E->>E: _handle_session_transition(to=CLOSED)
     E->>E: _expire_tif(TIF.DAY) -> book.cancel_order(...)
-    E->>GW: PUB  order.expired.TRADER01  + (msg=Z, cause=-, chain=Z)
+    E->>GW: PUB  order.expired.TRADER01  + (msg=Z, cause=S, chain=S)
     GW->>T: EXPIRED  {order_id}
 ```
 
-Note the last message. The expiry carries **no** `cause`: hours after the
-submission, a session transition removed the order, and nothing the trader
-sent caused it. A new chain starts there, and that is the honest record —
-the alternative, attributing the expiry to the original submission, would
-make an automatic venue action look like a consequence of something the
-trader did.
+Note the last message. The expiry is **not** in the order's chain: hours
+after the submission, a session transition removed the order, and nothing the
+trader sent caused it. Its `cause` is the scheduler's `session.transition`
+command — the message whose handling produced it — and it belongs to that
+command's chain, together with the `session.state` broadcast and every other
+expiry of that close. That is the honest record: attributing the expiry to the
+original submission would make an automatic venue action look like a
+consequence of something the trader did.
 
 Every arrow in that diagram is a function call or a ZMQ message you can grep
 for by name. The messages are two frames of content — topic and payload —

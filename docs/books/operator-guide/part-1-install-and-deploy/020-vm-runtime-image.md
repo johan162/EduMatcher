@@ -21,7 +21,7 @@ where processes are started by hand.
 
 | Script | Role |
 |---|---|
-| `deployment/vm/Makefile` | The everyday interface — `build`, `up`, `shell`, `ssh`, `status`, `restore`, `clean` |
+| `deployment/vm/Makefile` | The everyday interface — `build`, `up`, `down`, `restart`, `shell`, `ssh`, `status`, `health`, `info`, `restore`, `clean` |
 | `deployment/vm/mknode.sh` | Creates and provisions the VM |
 | `deployment/vm/install_edumatcher.sh` | The in-VM installer `mknode.sh` runs |
 | `deployment/vm/curl_setup_vm.sh` | Repository-free entry point; fetches the two scripts above and forwards its arguments |
@@ -30,7 +30,7 @@ where processes are started by hand.
 
 !!! tip "VM or container?"
     Use [`deployment/docker/`](../../architecture-and-development/part-4-developing/050-containers-and-networks.md) when you want the
-    whole system — exchange plus all five web GUIs — running with one command,
+    whole system — exchange plus all seven web GUIs — running with one command,
     or when you are changing code and need a fast rebuild. Use the VM when you
     want a real machine, a snapshot you can roll back to, or a demo that
     survives being handed to somebody else. The VM installs the backend only;
@@ -73,7 +73,7 @@ Without a repository checkout:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh \
-    | bash -s -- --version 0.81.3
+    | bash -s -- --version 0.82.0
 ```
 
 `curl_setup_vm.sh` downloads `mknode.sh` and `install_edumatcher.sh` into a
@@ -198,7 +198,9 @@ stays available:
 make build NAME=ems-026 VERSION=0.26.0
 ```
 
-To reprovision an existing VM in place:
+To reprovision an existing VM in place with the wheel built from your
+checkout (`dist/edumatcher-<version>-py3-none-any.whl`, so run `poetry build`
+first):
 
 ```bash
 ./mkupd.sh --vm-name ems
@@ -219,5 +221,5 @@ it when you want to develop EduMatcher inside a VM rather than run it.
   scripts
 - [Container and Network Setup](../../architecture-and-development/part-4-developing/050-containers-and-networks.md) — the container
   deployment, which runs the same backend plus the web GUIs
-- [Installation](010-installation.md) — all five installation
+- [Installation](010-installation.md) — all six installation
   modes from a user's perspective

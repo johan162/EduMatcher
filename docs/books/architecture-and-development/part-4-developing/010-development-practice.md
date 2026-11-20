@@ -669,7 +669,7 @@ from disk instead of being re-rendered.
 
 ### Why it isn't just a patch to the installed package
 
-`build-tools/` is entirely git-ignored and is wiped and recreated by
+`build-tools/node_modules/` is git-ignored and is wiped and recreated by
 `npm install` on every fresh checkout (see the `$(NODE_MODULES_PATH):` targets
 in the Makefiles). Editing
 `build-tools/node_modules/.bin/mermaid-filter` (a symlink into
@@ -685,7 +685,9 @@ npm-installed binary.
   characters — independent of caption, filename, or which document the
   diagram appears in, so two identical diagrams anywhere share one render.
 - **Cache location**: `build-tools/.mermaid-cache/<hash>.<format>` by
-  default, overridable with `MERMAID_FILTER_CACHE_DIR`. This is deliberately
+  default, overridable with `MERMAID_FILTER_CACHE_DIR`. The cache is committed
+  to the repository, so a fresh checkout builds without rendering a diagram
+  that has not changed; commit the new files a changed diagram produces. This is deliberately
   **not** the per-build `.mermaid-img` directory the Makefiles pass via
   `MERMAID_FILTER_LOC` — that directory is `rm -rf`'d at the start of every
   PDF build, so anything cached there would never survive to be reused.

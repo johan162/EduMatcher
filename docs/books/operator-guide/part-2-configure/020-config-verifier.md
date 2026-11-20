@@ -239,7 +239,7 @@ reporting scripts.
 `symbols.<SYMBOL>.collar` and `symbols.<SYMBOL>.circuit_breaker.levels` are
 inline per-symbol overrides that the engine loader validates just as strictly
 as the top-level `risk_controls.levels.*.collar` and
-`circuit_breaker_defaults.levels` sections (`S030`–`S034`, `S041`–`S042`) —
+`circuit_breaker_defaults.levels` sections (`S030`–`S033`, `S041`–`S042`) —
 these codes cover the per-symbol equivalents. `order_limits` has no level-scope
 equivalent at all: `S114`–`S116` are the only value checks, and `S117` refuses
 the key if it appears on a risk level.

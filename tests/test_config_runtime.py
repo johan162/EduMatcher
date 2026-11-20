@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 
 import edumatcher.config
+from edumatcher import data_dir
 
 
 def _reload_config(
@@ -100,25 +101,18 @@ class TestDataDirResolution:
     ) -> None:
         cfg = _reload_config(monkeypatch, {}, request)
         # In the test environment we ARE in the source tree — src/data is expected
-        assert cfg._IN_SOURCE_TREE is True
+        assert data_dir._IN_SOURCE_TREE is True
         assert cfg.DATA_DIR.name == "data"
         assert cfg.DATA_DIR.parent.name == "src"
 
-    def test_installed_default(
-        self, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
-    ) -> None:
-        """Simulate an installed (site-packages) environment by patching __file__."""
-        cfg_module = _reload_config(monkeypatch, {}, request)
-        # Pretend the package is installed (parent dir is NOT named "src")
-        monkeypatch.setattr(cfg_module, "_IN_SOURCE_TREE", False)
-        monkeypatch.setattr(
-            cfg_module,
-            "DATA_DIR",
+    def test_installed_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An installed (site-packages) package defaults to the XDG location."""
+        monkeypatch.delenv("EDUMATCHER_DATA_DIR", raising=False)
+        monkeypatch.setattr(data_dir, "_IN_SOURCE_TREE", False)
+
+        assert data_dir.data_dir_preference() == (
             Path("~/.local/share/edumatcher").expanduser(),
-        )
-        assert (
-            "edumatcher" in str(cfg_module.DATA_DIR)
-            or cfg_module.DATA_DIR == Path("~/.local/share/edumatcher").expanduser()
+            "installed default",
         )
 
 

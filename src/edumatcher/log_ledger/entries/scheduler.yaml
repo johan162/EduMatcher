@@ -151,6 +151,21 @@
     - "Check that the engine reached the scheduled phase (`pm-monitor-cli status`)."
 
 - logger: edumatcher.scheduler.main
+  template: "engine is still in %s from an earlier day; closing that day first via %s"
+  level: WARNING
+  explanation: >
+    At start-up pm-scheduler found pm-engine in a phase other than CLOSED that
+    it entered before today began: a day whose close never came, usually
+    because pm-scheduler was not running at the closing time. pm-scheduler
+    closes that day first, so its DAY orders expire and its close is archived,
+    and then brings the engine to the phase today's schedule says is current.
+    A phase from before the continuous session can only close through
+    CONTINUOUS, so its book uncrosses on the way.
+  actions:
+    - "Check why the earlier day did not close (pm-scheduler's log rows around its closing time)."
+    - "Run the end-of-day for that day if you use it (`pm-eod run --pending`)."
+
+- logger: edumatcher.scheduler.main
   template: "engine is in %s, not %s as last announced; it restarted, bringing it back to the schedule"
   level: WARNING
   explanation: >

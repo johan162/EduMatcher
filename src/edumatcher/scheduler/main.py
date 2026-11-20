@@ -734,13 +734,25 @@ def _confirm_transition(
     return False
 
 
-def _query_engine_state(
+@dataclass(frozen=True)
+class _EngineStatus:
+    """The engine's session state and the UTC instant it entered it.
+
+    ``since`` stays in its wire form, ``YYYY-MM-DDTHH:MM:SS.mmmZ``: one fixed
+    width in UTC, so string order is time order.
+    """
+
+    state: SessionState
+    since: str
+
+
+def _query_engine_status(
     push_sock: PushSocket,
     sub_sock: zmq.Socket[bytes],
     gateway_id: str = SCHEDULER_GATEWAY_ID,
     timeout_ms: int = QUERY_TIMEOUT_MS,
     on_wake: Callable[[], object] | None = None,
-) -> SessionState | None:
+) -> _EngineStatus | None:
     """Ask the engine for its current session state and wait for the reply.
 
     Sends ``system.session_state_request`` and reads the matching
@@ -767,10 +779,40 @@ def _query_engine_state(
             continue
         if topic == reply_topic:
             try:
-                return SessionState(str(payload.get("state", "")))
+                return _EngineStatus(
+                    SessionState(str(payload.get("state", ""))),
+                    str(payload.get("state_since", "")),
+                )
             except ValueError:
                 return None
     return None
+
+
+def _query_engine_state(
+    push_sock: PushSocket,
+    sub_sock: zmq.Socket[bytes],
+    gateway_id: str = SCHEDULER_GATEWAY_ID,
+    timeout_ms: int = QUERY_TIMEOUT_MS,
+    on_wake: Callable[[], object] | None = None,
+) -> SessionState | None:
+    """:func:`_query_engine_status`, the state alone."""
+    status = _query_engine_status(
+        push_sock, sub_sock, gateway_id, timeout_ms=timeout_ms, on_wake=on_wake
+    )
+    return None if status is None else status.state
+
+
+def _left_over(status: _EngineStatus, day: date) -> bool:
+    """Whether the engine is in a state of a day before ``day`` that never closed.
+
+    CLOSED is every day's start, so only another state counts: one entered
+    before ``day`` began on the schedule clock (L042). Without this test a
+    CONTINUOUS left over from yesterday is on today's path and is taken as
+    today's, and the close -- DAY expiry, archive, counter reset -- never
+    happens.
+    """
+    day_start = _to_utc_iso(_time_today("00:00", day))
+    return status.state != SessionState.CLOSED and status.since < day_start
 
 
 def _catch_up_transitions(
@@ -823,8 +865,13 @@ def _plan_catch_up(
     past: list[tuple[str, str]],
     upcoming: list[tuple[str, str, datetime]],
     engine_state: SessionState | None,
+    left_over: bool = False,
 ) -> tuple[list[_Step], list[tuple[str, str, datetime]]]:
     """Steps that bring the engine to the current phase, and what remains.
+
+    A ``left_over`` state (see :func:`_left_over`) is first closed by the
+    shortest legal route, as that day's close would have, and today is then
+    planned from CLOSED.
 
     An engine that is CLOSED, or in a state today's schedule has already
     passed through, is on the day's path: :func:`_catch_up_transitions`
@@ -839,6 +886,21 @@ def _plan_catch_up(
     * any other state (CONTINUOUS, CLOSING_AUCTION) is driven along the
       shortest legal route to the phase the schedule says is current.
     """
+    if left_over and engine_state is not None:
+        route = _route(engine_state, SessionState.CLOSED)
+        log.warning(
+            "engine is still in %s from an earlier day; closing that day first "
+            "via %s",
+            engine_state.value,
+            " -> ".join(s.value for s in route),
+        )
+        close = [
+            _Step(s.value, _no_wait, label=f"{s.value} (close the earlier day)")
+            for s in route
+        ]
+        steps, upcoming = _plan_catch_up(past, upcoming, SessionState.CLOSED)
+        return close + steps, upcoming
+
     if (
         engine_state is None
         or engine_state == SessionState.CLOSED
@@ -1140,17 +1202,28 @@ def _run_scheduled(
     # A2: recover the engine's current state so catch-up only replays the
     # transitions it still needs, instead of blindly assuming a CLOSED start.
     engine_state: SessionState | None = None
+    left_over = False
     if confirm_sock is not None:
-        engine_state = _query_engine_state(
+        status = _query_engine_status(
             push_sock, confirm_sock, gateway_id, on_wake=running
         )
-        if engine_state is not None:
-            log.info("Engine reports current state: %s", engine_state.value)
+        if status is not None:
+            engine_state = status.state
+            left_over = _left_over(status, today)
+            log.info(
+                "Engine reports current state: %s (since %s)",
+                engine_state.value,
+                status.since,
+            )
         else:
             log.warning("could not determine engine state; assuming a " "CLOSED start")
 
-    def plan(engine_state: SessionState | None) -> list[_Step]:
-        """Catch-up steps from ``engine_state``, then the rest of the day."""
+    def plan(engine_state: SessionState | None, left_over: bool = False) -> list[_Step]:
+        """Catch-up steps from ``engine_state``, then the rest of the day.
+
+        Only the first plan can meet a ``left_over`` state: a resync follows
+        an engine restart, and a restarted engine is in a state of today.
+        """
         # Partition the schedule against a single "now" snapshot.
         now = _clock.now()
         past: list[tuple[str, str]] = []
@@ -1164,7 +1237,7 @@ def _run_scheduled(
             else:
                 upcoming.append((hhmm, state, target))
 
-        steps, upcoming = _plan_catch_up(past, upcoming, engine_state)
+        steps, upcoming = _plan_catch_up(past, upcoming, engine_state, left_over)
         if past and not steps:
             log.info("Engine already at the current phase; no catch-up needed")
         elif steps:
@@ -1200,7 +1273,13 @@ def _run_scheduled(
         else None
     )  # an `after` with no `at` names nothing, like a single-shot close
     if _run_transitions(
-        push_sock, confirm_sock, running, plan(engine_state), after, on_closed, resync
+        push_sock,
+        confirm_sock,
+        running,
+        plan(engine_state, left_over),
+        after,
+        on_closed,
+        resync,
     ):
         log.info("All transitions sent for today.")
 

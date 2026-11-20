@@ -165,6 +165,7 @@ EXCHANGE_INTRO_PDF_DEPS := \
 	$(DOCS_DIR)/template_dark_a4.tex \
 	$(DOCS_DIR)/template_b5.tex \
 	$(DOCS_DIR)/template_dark_b5.tex \
+	$(DOCS_DIR)/latex-glyphs.tex \
 	$(LATEX_TABLES_TEX) \
 	$(LATEX_TABLE_RULES_AWK)
 

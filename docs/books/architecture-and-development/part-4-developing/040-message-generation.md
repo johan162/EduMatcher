@@ -811,7 +811,8 @@ Everything below uses the committed `trade` family. Import from
 from edumatcher.models.generated.trade import make_trade_executed
 
 frames = make_trade_executed(
-    id="42",
+    id="000001-000000042",      # {run_seq:06d}-{n:09d}
+    run_seq=1,
     symbol="ACME",
     buy_order_id="b-1",
     sell_order_id="s-1",
@@ -824,7 +825,7 @@ frames = make_trade_executed(
     tick_decimals=2,
 )
 # [b'trade.executed',
-#  b'{"id":"42","symbol":"ACME",...,"tick_decimals":2}']
+#  b'{"id":"000001-000000042","run_seq":1,"symbol":"ACME",...,"tick_decimals":2}']
 
 publisher.send_multipart(frames)
 ```
@@ -895,7 +896,7 @@ For a parameterised topic the generator emits three helpers, which is what
 removes hand-typed topic strings from subscribers:
 
 ```python
-from edumatcher.models.generated.orders import (   # illustrative
+from edumatcher.models.generated.order import (
     PREFIX_ORDER_ACK,
     match_order_ack,
     topic_order_ack,
@@ -915,8 +916,9 @@ sock.send_multipart(encode(topic_order_ack("GW1"), payload))
 !!! warning "Why a single segment, not a greedy match"
     `match_*` matches a single dot-delimited segment. A greedy `.+` would make
     `order.ack.GW1.extra` match and return `"GW1.extra"` — a subtly wrong
-    gateway id rather than a clean `None`. The generated regex is
-    `^order\.ack\.(?P<gateway_id>[^.]+)$`.
+    gateway id rather than a clean `None`. The generated pattern is
+    `order\.ack\.(?P<gateway_id>[^.]+)`, applied with `fullmatch`, so it is
+    anchored at both ends.
 
 ### Example 5 — runtime field metadata
 
@@ -931,13 +933,17 @@ for field in describe_trade_executed():
     print(f"{field['name']:<16}{field['type']:<8}{unit}")
 
 # id              string
+# run_seq         int      [dimensionless]
 # symbol          string
 # ...
-# price           float   [display_price]
-# quantity        int     [shares]
+# price           float    [display_price]
+# quantity        int      [shares]
 # aggressor_side  enum
-# ts_ns           int     [epoch_nanos]
-# tick_decimals   int     [dimensionless]
+# ts_ns           int      [epoch_nanos]
+# tick_decimals   int      [dimensionless]
+# price_ticks     ticks    [ticks]
+# match_type      enum
+# ...
 ```
 
 ### Example 6 — the hot path

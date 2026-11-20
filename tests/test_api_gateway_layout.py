@@ -169,6 +169,7 @@ class _Engine:
         if topic.startswith("system.session_status."):
             return {
                 "state": "CONTINUOUS",
+                "state_since": "2026-08-29T07:30:00.000Z",
                 "sessions_enabled": True,
                 "next": None,
                 "last_trade_id": None,

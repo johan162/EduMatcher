@@ -39,10 +39,10 @@ bot, or GUI wants to speak BALF, this document is the correct source to follow.
 BALF `1.1.0` adds one server-to-client message, `ORDER_STATUS` (0x22), with
 which a freshly started gateway hands a client back the orders its ID left on
 the book. Every rule this appendix states for `1.0.0` holds in `1.1.0`; the
-header's `version` byte is still `1`. A client MUST skip a frame whose
-`msg_type` it does not know (its size is in the summary table of the version
-it was written for, or it closes the session), so later additions of this
-kind do not break it.
+header's `version` byte is still `1`. A client written for `1.0.0` that meets
+an `ORDER_STATUS` frame MUST skip its 64 bytes; it is only sent to a client
+whose gateway ID had orders resting when `pm-balf-gwy` started. See
+[Frame structure](#frame-structure) for any other unknown `msg_type`.
 
 
 
@@ -102,8 +102,10 @@ There is no length prefix. The receiver reads the header first, looks up the
 expected frame size from the message type, then reads exactly the remaining
 bytes.
 
-If `msg_type` is unknown, the receiver treats the frame as a protocol error and
-should close the connection.
+Because there is no length prefix, a frame whose `msg_type` is not in the
+[summary table](#summary-table) cannot be skipped: the receiver treats it as a
+protocol error and closes the connection. The gateway does exactly that when
+a client sends an unknown `msg_type`.
 
 ### Flag semantics
 
@@ -643,10 +645,20 @@ Path locations:
 
 | Field | Type / allowed range | Default | Description |
 |---|---|---|---|
-| `balf_gateway.bind_address` | IP/host bind string | `0.0.0.0` (common) | Local interface address for BALF TCP listening. |
-| `balf_gateway.port` | Integer, `1..65535` | `5560` | BALF listen port. |
-| `balf_gateway.heartbeat_interval_sec` | Number, `> 0` | `1` | Default heartbeat send interval. |
-| `balf_gateway.heartbeat_timeout_sec` | Number, `> 0` | `5` | Liveness timeout before session is considered dead and closed. |
+| `balf_gateway.enabled` | Boolean | `true` | `false` makes `pm-balf-gwy` exit at start-up |
+| `balf_gateway.name` | String | `balf-gwy01` | Gateway instance name, used in logs |
+| `balf_gateway.bind_address` | IP/host bind string | `0.0.0.0` | Local interface address for BALF TCP listening; `EDUMATCHER_GATEWAY_BIND_HOST` overrides it |
+| `balf_gateway.port` | Integer, `1..65535` | `5560` | BALF listen port |
+| `balf_gateway.heartbeat_interval_sec` | Number, `> 0` | `1` | The gateway sends `HEARTBEAT` after this long without sending anything |
+| `balf_gateway.heartbeat_timeout_sec` | Number, `> 0` | `5` | A session from which nothing arrives for this long is closed |
+| `balf_gateway.idle_timeout_sec` | Number, `> 0` | `30` | Accepted but not used; `heartbeat_timeout_sec` closes idle sessions |
+| `balf_gateway.auth_timeout_sec` | Number, `> 0` | `10` | A connection without a completed `LOGON` after this long is closed |
+| `balf_gateway.max_connections` | Integer, `> 0` | `64` | Concurrent client connections |
+| `balf_gateway.max_client_queue` | Integer, `> 0` | `10000` | Outbound frames queued for a slow client before it is disconnected |
+| `balf_gateway.max_messages_per_second` | Integer, `> 0` | `100` | Per-session rate limit; excess orders get `RC_RATE_LIMITED` |
+| `balf_gateway.max_errors_before_disconnect` | Integer, `> 0` | `10` | Protocol errors within `error_window_sec` before the session is closed |
+| `balf_gateway.error_window_sec` | Number, `> 0` | `60` | Window for `max_errors_before_disconnect` |
+| `balf_gateway.duplicate_session_policy` | `REJECT_NEW` or `EVICT_OLD` | `REJECT_NEW` | What a second `LOGON` for a connected gateway ID does: refused (`LOGON_ACK` code `0x02`), or it replaces the old session |
 
 **Example:**
 

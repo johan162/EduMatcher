@@ -68,29 +68,30 @@ Terms you will encounter throughout this document, defined up front:
 ## Table of Contents
 
 1. [Quick-Reference Glossary](#quick-reference-glossary)
-1. [What Is an Exchange? The One-Sentence Version](#1-what-is-an-exchange-the-one-sentence-version)
-1. [The Limit Order: The Atom of Trading](#2-the-limit-order-the-atom-of-trading)
-1. [The Order Book: A Sorted List of Promises](#3-the-order-book-a-sorted-list-of-promises)
-1. [The First Match: How Two Orders Become a Trade](#4-the-first-match-how-two-orders-become-a-trade)
-1. [Data Structures: Why Heaps?](#5-data-structures-why-heaps)
-1. [The Order Model: Every Field Explained](#6-the-order-model-every-field-explained)
-1. [Beyond Limit Orders: The Full Order Type Taxonomy](#7-beyond-limit-orders-the-full-order-type-taxonomy)
-1. [The Trading Day: Auctions and Continuous Matching](#8-the-trading-day-auctions-and-continuous-matching)
-1. [Complex Orders: Combos and OCO](#9-complex-orders-combos-and-oco)
-1. [Market-Maker Quotes: Two Orders, One Obligation](#10-market-maker-quotes-two-orders-one-obligation)
-1. [The Message Bus: Why ZeroMQ?](#11-the-message-bus-why-zeromq)
-1. [The Full Process Architecture](#12-the-full-process-architecture)
-1. [Optimisations: Speed, Memory, and Latency](#13-optimisations-speed-memory-and-latency)
-1. [Persistence: Surviving a Restart](#14-persistence-surviving-a-restart)
-1. [Clearing and Settlement: Following the Money](#15-clearing-and-settlement-following-the-money)
-1. [What Is Missing: The Gap to Production](#16-what-is-missing-the-gap-to-production)
+1. [What Is an Exchange? The One-Sentence Version](#what-is-an-exchange-the-one-sentence-version)
+1. [The Limit Order: The Atom of Trading](#the-limit-order-the-atom-of-trading)
+1. [The Order Book: A Sorted List of Promises](#the-order-book-a-sorted-list-of-promises)
+1. [The First Match: How Two Orders Become a Trade](#the-first-match-how-two-orders-become-a-trade)
+1. [Data Structures: Why Heaps?](#data-structures-why-heaps)
+1. [The Order Model: Every Field Explained](#the-order-model-every-field-explained)
+1. [Beyond Limit Orders: The Full Order Type Taxonomy](#beyond-limit-orders-the-full-order-type-taxonomy)
+1. [The Trading Day: Auctions and Continuous Matching](#the-trading-day-auctions-and-continuous-matching)
+1. [Complex Orders: Combos and OCO](#complex-orders-combos-and-oco)
+1. [Market-Maker Quotes: Two Orders, One Obligation](#market-maker-quotes-two-orders-one-obligation)
+1. [The Message Bus: Why ZeroMQ?](#the-message-bus-why-zeromq)
+1. [The Full Process Architecture](#the-full-process-architecture)
+1. [Optimisations: Speed, Memory, and Latency](#optimisations-speed-memory-and-latency)
+1. [Persistence: Surviving a Restart](#persistence-surviving-a-restart)
+1. [Clearing and Settlement: Following the Money](#clearing-and-settlement-following-the-money)
+1. [What Is Missing: The Gap to Production](#what-is-missing-the-gap-to-production)
 
 
 
 ## How to Use This Document
 
-Read sections 1–5 in order — they build on each other and the later sections will
-not make sense without them. After Section 5, most sections are self-contained and
+Read the sections from *What Is an Exchange?* to *Data Structures: Why Heaps?*
+in order — they build on each other and the later sections will
+not make sense without them. After [Data Structures: Why Heaps?](#data-structures-why-heaps), most sections are self-contained and
 can be read in any order depending on what you want to understand.
 
 **Recommended reading sequence for the codebase itself:**
@@ -108,7 +109,7 @@ understand the core.
 
 
 
-## 1. What Is an Exchange? The One-Sentence Version
+## What Is an Exchange? The One-Sentence Version
 
 An exchange is a system that takes **buy orders** and **sell orders** from many
 participants, figures out which buyers and sellers agree on a price, and executes
@@ -122,7 +123,7 @@ explicit about what is missing), but it models every core concept faithfully.
 
 
 
-## 2. The Limit Order: The Atom of Trading
+## The Limit Order: The Atom of Trading
 
 A **limit order** is a participant saying: *“I want to buy X shares of AAPL, but
 I will not pay more than $150.00.”* Or the reverse: *“I want to sell X shares but
@@ -134,11 +135,11 @@ The key word is **limit** — the participant places a maximum (for a buy) or mi
 
 In EduMatcher, this translates directly to the `Order` dataclass. The field names
 and types below are the **original**, pre-tick-migration ones — simplest to teach
-the matching logic with — not the current source; Section 6 explains the real
+the matching logic with — not the current source; [The Order Model: Every Field Explained](#the-order-model-every-field-explained) explains the real
 current names (`price_ticks`, `ts_ns`, etc.) once the full field list is in view:
 
 ```python
-# models/order.py (original, pre-migration names — see Section 6)
+# models/order.py (original, pre-migration names — see The Order Model)
 @dataclass(slots=True)
 class Order:
     id:           str          # globally unique identifier
@@ -190,7 +191,7 @@ graph TD
 
 Each attribute access saves roughly 20-40 nanoseconds. With thousands of fills per
 second and 5+ attribute accesses per fill, this compounds to 1-2 microseconds saved
-per order — about 15% of the total per-order budget.
+per order.
 
 Memory savings are also significant: no per-object `__dict__` means each `Order`
 uses roughly 40% less memory. With thousands of resting orders in the book, this
@@ -198,7 +199,7 @@ reduces both memory consumption and garbage collection pressure.
 
 
 
-## 3. The Order Book: A Sorted List of Promises
+## The Order Book: A Sorted List of Promises
 
 The **order book** is the core data structure of an exchange. It holds all resting
 (unfilled) orders, organised by price level, waiting for a counterparty.
@@ -267,6 +268,7 @@ class OrderBook:
         "_order_index",  # dict[order_id → Order] — for O(1) cancel lookup
         "_entry_index",  # dict[order_id → _HeapEntry] — for lazy deletion
         "_orders_by_gateway",  # dict[gateway_id → ordered order_ids] — for per-gateway cancel
+        "_gtc_count",          # resting TIF=GTC orders, kept in step with the gateway index
         "last_trade_price",  # most recent fill price — used by stop trigger checks
         "last_trade_qty",    # quantity of the most recent fill
         "last_buy_price",    # most recent price where the aggressor was a buyer
@@ -279,13 +281,18 @@ class OrderBook:
         "daily_trades",      # cumulative session trade count
         "_has_stops",        # True if the book has any resting stop order — skips the
                              # stop-check call on every fill when no stops are present
+        "on_quote_leg_fill", # engine callback: a quote leg traded (pull its sibling)
+        "on_oco_leg_done",   # engine callback: an OCO leg ended (cancel its sibling)
+        "_triggered",        # stops that fired and wait their turn in the cascade
         "_arrival_seq",      # monotonic arrival sequence — queue priority is keyed on
                              # this, not the client-supplied timestamp
+        "trace",             # shared list of trace records (engine.trace.<SYM>)
+        "last_trade_id",     # the trade that set last_trade_price
     )
 ```
 
 Notice `__slots__` here too — `OrderBook` is accessed on every incoming order.
-With 21 attributes, every slot optimisation multiplies across every order processed.
+With 27 attributes, every slot optimisation multiplies across every order processed.
 
 There is one `OrderBook` instance per symbol. The engine holds them in a dict:
 
@@ -294,14 +301,18 @@ There is one `OrderBook` instance per symbol. The engine holds them in a dict:
 self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
 
 def _book(self, symbol: str) -> OrderBook:
-    if symbol not in self.books:
-        self.books[symbol] = OrderBook(symbol)  # create on first order
+    if symbol not in self.books:  # create on first use
+        book = OrderBook(symbol, recent_trades_maxlen=self.recent_trades_maxlen)
+        book.on_quote_leg_fill = self._on_quote_leg_filled   # see Market-Maker Quotes
+        book.on_oco_leg_done = self._check_oco_after_event
+        book.trace = self._trace
+        self.books[symbol] = book
     return self.books[symbol]
 ```
 
 
 
-## 4. The First Match: How Two Orders Become a Trade
+## The First Match: How Two Orders Become a Trade
 
 Here is the simplest possible matching scenario:
 
@@ -338,7 +349,7 @@ def _match_limit(self, order, trades, events, now):
 ```python
 def _sweep(self, aggressor, opposite_heap, price_limit, trades, events, now):
     # Cache frequently-accessed attributes as locals for speed.
-    # (Section 13 shows the full set of cached locals including _smp_action
+    # (Optimisations shows the full set of cached locals including _smp_action
     # and _gw_id for self-match prevention; this version is simplified.)
     _side = aggressor.side
     _peek = self._peek
@@ -405,7 +416,7 @@ def _apply_fill(self, aggressor, passive, fill_qty, fill_price, trades, events, 
 The result: a `Trade` object is produced and added to the `trades` list. The engine
 will publish this to all subscribers on the message bus. The passive order’s heap
 entry is marked `valid = False` so `_peek` will skip it next time (lazy deletion —
-explained fully in Section 5).
+explained fully in [Data Structures: Why Heaps?](#data-structures-why-heaps)).
 
 ### What Happens to `trades` and `events` After `process()` Returns?
 
@@ -416,20 +427,24 @@ publishes both:
 ```python
 def _handle_new_order(self, payload: dict) -> None:
     ...
+    _pub.send_multipart(_ack_frames)     # the ACK, normally sent BEFORE matching
     trades, events = book.process(order, match=do_match, now=now)
-    self._publish_events(events, book)   # sends fill/cancel acks to gateways
-    self._publish_trades(trades)          # sends trade.executed to all subscribers
-    self._mark_dirty(symbol)             # schedules a book snapshot
+    self._publish_dispatch(trades, events)  # fills, cancels, rejects, then trades
+    self._dirty_symbols.add(order.symbol)   # schedules a book snapshot
 ```
 
-`_publish_events()` iterates the `events` list and sends a private fill notification
-to each affected gateway — the buyer’s gateway and the seller’s gateway each receive
-their own message. These messages are private (topic includes the gateway ID) so only
-the relevant participant sees their own fill.
+`_publish_dispatch()` walks the `events` list once per order (the same order can
+appear several times) and sends each affected gateway its private message — an
+`order.fill` to the buyer's gateway and another to the seller's, an
+`order.cancelled` for a discarded remainder. The topic ends in the gateway ID, so
+only that participant receives it. Then, for each trade, `_publish_trade()`
+broadcasts `trade.executed` to every subscriber, updates both sides' positions,
+feeds the drop copy and checks the circuit breaker. The clearing process, stats
+recorder and audit log all receive the trade.
 
-`_publish_trades()` broadcasts the trade to ALL subscribers on the PUB socket with
-topic `trade.executed`. The clearing process, stats recorder, and audit log all
-receive it.
+The ACK is the one message sent *before* the book sees the order: a FOK, which
+the book may still reject, is the exception and is acknowledged afterwards
+(`_book_may_reject`).
 
 ### The Partial Fill Case
 
@@ -445,7 +460,7 @@ The next buy order that matches $211.00 would fill against those remaining 50 sh
 
 
 
-## 5. Data Structures: Why Heaps?
+## Data Structures: Why Heaps?
 
 ### The Problem
 
@@ -485,7 +500,7 @@ Using a tuple `(price, arrival_seq)` as the key encodes **price-time priority** 
 free: Python compares tuples element-by-element, so same-price orders are broken by
 arrival order automatically. `arrival_seq` is a counter the book increments each
 time it admits an order — deliberately *not* the order's own `timestamp`, which the
-client supplies and could back-date to jump the queue (see Section 6).
+client supplies and could back-date to jump the queue (see [The Order Model: Every Field Explained](#the-order-model-every-field-explained)).
 
 ### The `_HeapEntry` Wrapper
 
@@ -522,15 +537,17 @@ The solution: when an order is cancelled or filled, **do not remove its entry fr
 the heap**. Just set `entry.valid = False`:
 
 ```python
-def cancel_order(self, order_id: str) -> Optional[Order]:
-    order = self._order_index.get(order_id)
-    if order is None:
-        return None
+def cancel_order(self, order_id: str) -> Optional[Order]:   # trimmed
+    order = self._order_index.get(order_id) or self._triggered.get(order_id)
+    if order is None or order.status in _DEAD_STATUSES:
+        return None            # unknown, or already finished
     order.status = OrderStatus.CANCELLED
     entry = self._entry_index.get(order_id)
     if entry:
         entry.valid = False    # O(1) — the entry stays in the heap
-        self._deduct_qty_index(entry.order, ...)
+        if entry.order.order_type not in (OrderType.STOP, OrderType.STOP_LIMIT):
+            self._deduct_qty_index(entry.order, visible_qty)  # stops are not in it
+    self._purge_from_indexes(order)   # out of every id-keyed index
     return order
 ```
 
@@ -557,12 +574,16 @@ only once per entry. In a busy book where orders are frequently cancelled before
 they fill, this approach replaces O(n) remove operations with O(log n) cleanup
 spread across many `_peek` calls.
 
-**What “amortised O(1)” means for `_peek`:** In the *worst* case, a single `_peek`
+**What “amortised” means for `_peek`:** In the *worst* case, a single `_peek`
 call could pop many stale entries before finding a valid one — O(k log n) where k
-is the number of stale entries. But each stale entry is paid for exactly once, by
-the single `_peek` call that removes it. Spread across all `_peek` calls over time,
-the average cost per call is O(1). This is what “amortised O(1)” means: not O(1)
-every time, but O(1) on average over many calls.
+is the number of stale entries. But each stale entry is popped exactly once, by
+the single `_peek` call that removes it, so over time the work is O(log n) per
+entry ever pushed — the same order as the push that created it. Reading the top
+when nothing is stale is O(1). The source states the bound as "amortised
+O(log n)" per dead entry; the table below files it as amortised O(1) per peek
+because that cost is already paid for by the insert. A separate
+`_compact_heaps` rebuilds the heaps when dead entries that never reach the top
+pile up (see the [deep dive](../part-2-inside-the-engine/010-order-book-deep-dive.md#lazy-deletion-and-compaction)).
 
 ### The Dual-Index Pattern
 
@@ -632,72 +653,70 @@ Where n = resting orders, P = distinct price levels (P << n in practice).
 
 
 
-## 6. The Order Model: Every Field Explained
+## The Order Model: Every Field Explained
 
-> **Migration note:** The field names and types shown below (and used in the code
-> examples throughout Sections 2-5 and 13 of this chapter, for simplicity) reflect
-> the **original** codebase before the tick migration. In the current codebase the
-> names changed too, to make the integer tick/nanosecond representation explicit:
-> `price` → `price_ticks`, `stop_price` → `stop_price_ticks`, `trail_offset` →
-> `trail_offset_ticks`, and `timestamp` → `ts_ns`; all four are now `Optional[int]`
-> (or plain `int` for `ts_ns`) instead of `float`. The semantics are unchanged.
-> See `EduMatcher_Tick_Migration_Plan_v6.md` for the full type changes.
+> **Migration note:** The code examples from *The Limit Order* to *Data
+> Structures*, and in *Optimisations*, use the
+> **original**, pre-tick-migration names for simplicity: `price`, `stop_price`,
+> `trail_offset` and `timestamp`. The current names, shown in the listing
+> below, make the integer representation explicit: `price_ticks`,
+> `stop_price_ticks`, `trail_offset_ticks` (`Optional[int]`) and `ts_ns` (`int`).
+> The semantics are unchanged. See `docs-design/EduMatcher-Tick_Migration_Plan.md`
+> for the full type changes.
 
 ```python
+# models/order.py — the current dataclass, grouped by purpose
 @dataclass(slots=True)
 class Order:
     # --- Identity ---
-    id:           str       # UUID — globally unique, set at creation
-    symbol:       str       # "AAPL", "MSFT" — which instrument
+    id:            str            # unique id, set at creation
+    symbol:        str            # "AAPL", "MSFT" — which instrument
 
     # --- Order specification ---
-    side:         Side      # BUY or SELL
-    order_type:   OrderType # LIMIT, MARKET, STOP, STOP_LIMIT, FOK, IOC, ICEBERG, TRAILING_STOP
-    tif:          TIF       # Time-In-Force: DAY, GTC, ATO, ATC
-    quantity:     int       # original total requested
-    remaining_qty: int      # how much is still unfilled
-    price:        Optional[float]  # limit price; None for pure market orders
-    tick_decimals: int      # decimal scale of every price/qty tick field, at the
-                             # time this order was created — stored, not looked up
-                             # live, so a restored order keeps the scale it was
-                             # written with even if the symbol's config changes later
+    side:          Side           # BUY or SELL
+    order_type:    OrderType      # LIMIT, MARKET, STOP, STOP_LIMIT, FOK, IOC, ICEBERG, TRAILING_STOP
+    tif:           TIF            # Time-In-Force: DAY, GTC, ATO, ATC
+    quantity:      int            # original total requested
+    remaining_qty: int            # how much is still unfilled
+    price_ticks:   Optional[int]  # limit price in ticks; None for MARKET and plain STOP
+    tick_decimals: int            # decimal scale of every *_ticks field, stored on the
+                                  # order so a restored order keeps the scale it was
+                                  # written with even if the symbol's config changes
 
     # --- Stop order fields ---
-    stop_price:   Optional[float]  # STOP/STOP_LIMIT/TRAILING_STOP trigger
-    trail_offset: Optional[float]  # TRAILING_STOP: distance from market
+    stop_price_ticks:   Optional[int]  # STOP / STOP_LIMIT / TRAILING_STOP trigger
+    trail_offset_ticks: Optional[int]  # TRAILING_STOP: distance from the last trade
 
     # --- Iceberg fields ---
-    visible_qty:   Optional[int]   # fixed peak size (e.g. 100 of 1000)
-    displayed_qty: Optional[int]   # current visible slice (replenished after fill)
+    visible_qty:   Optional[int]  # fixed peak size (e.g. 100 of 1000)
+    displayed_qty: Optional[int]  # current visible slice (replenished after fill)
 
     # --- Execution context ---
-    gateway_id:   str       # which participant submitted this
-    timestamp:    float     # client-supplied submission time (display/audit only)
-    status:       OrderStatus  # NEW → PARTIAL → FILLED or CANCELLED/REJECTED/EXPIRED
-    arrival_seq:  int       # engine-assigned monotonic arrival sequence — this, not
-                             # the client-supplied timestamp, is what price-time
-                             # priority is actually keyed on (a back-dated payload
-                             # timestamp cannot jump the queue); 0 = unassigned
-    cancel_reason: Optional[str]  # why the *exchange* cancelled this order (SMP, an
-                             # unfillable MARKET/IOC, etc.) — set by OrderBook, not
-                             # the client
-    is_seed:      bool      # True when created by config-driven startup seeding
-                             # (market_maker_quotes/combos) rather than a live
-                             # gateway submission — purely observational
-    client_tag:   Optional[str]  # client-supplied correlation tag, echoed back on
-                             # every lifecycle event; ignored when absent
+    gateway_id:    str            # which participant submitted this
+    ts_ns:         int            # nanosecond timestamp (display/audit only)
+    status:        OrderStatus    # NEW → PARTIAL → FILLED, or CANCELLED / REJECTED / EXPIRED
+    arrival_seq:   int            # engine-assigned arrival sequence — what price-time
+                                  # priority is keyed on (a back-dated ts_ns cannot jump
+                                  # the queue); 0 = not yet on a heap
+    cum_notional_ticks: int       # Σ price_ticks × qty of every fill so far, for the
+                                  # exact average price; engine state, persisted
+    cancel_reason: Optional[str]  # why the *exchange* cancelled it (SMP, an unfillable
+                                  # MARKET/IOC remainder) — set by OrderBook
+    is_seed:       bool           # created by config-driven startup seeding
+    client_tag:    Optional[str]  # client correlation tag, echoed on every event
 
     # --- Self-match prevention ---
-    smp_action:   SmpAction # NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH
+    smp_action:    Optional[SmpAction]  # NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH;
+                                        # resolved by the engine before matching
 
     # --- Complex order group membership ---
     oco_group_id:    Optional[str]  # if part of a One-Cancels-Other pair
     combo_parent_id: Optional[str]  # if a leg of a combo order
     leg_index:       Optional[int]  # position in combo legs list (0-based)
 
-    # --- Quote origin (added in the feature plan) ---
-    origin:   OrderOrigin   # ORDER (default) or QUOTE (created from a market-maker quote)
-    quote_id: Optional[str] # the QuoteEntry ID this leg belongs to; None for regular orders
+    # --- Origin ---
+    origin:   OrderOrigin    # ORDER (default), QUOTE (a market-maker quote leg) or IMPLIED
+    quote_id: Optional[str]  # the QuoteEntry this leg belongs to; None for regular orders
 ```
 
 The four SMP actions represent different business policies for what to do when your
@@ -722,12 +741,14 @@ own order is about to trade against your other order:
 
 ### Time-In-Force (TIF): How Long Does the Order Live?
 
-**DAY** — expires at market close. The most common default. On engine shutdown,
-all DAY orders receive an `order.expired` notification.
+**DAY** — expires at market close: when the session moves to `CLOSED`, every
+resting DAY order receives `order.expired`. A process restart is not a day
+boundary: DAY orders are saved with the book and restored, and dropped at
+startup only if their business day has passed.
 
 **GTC (Good-Till-Cancelled)** — persists until explicitly cancelled or filled.
-Survives engine restarts (saved to `data/gtc_orders.json` on shutdown, restored on
-startup). Institutional participants often use GTC to maintain standing limit orders.
+Survives engine restarts (checkpointed to `gtc_orders.json` every 5 seconds and at
+shutdown, restored on startup). Institutional participants often use GTC to maintain standing limit orders.
 
 **ATO (At-The-Open)** — valid only during the opening auction. The engine rejects
 ATO orders submitted outside `OPENING_AUCTION` state:
@@ -788,12 +809,12 @@ def from_dict(cls, d: dict[str, Any]) -> "Order":
     return o
 ```
 
-The normal dataclass `__init__` with 26 keyword arguments spends ~400ns on argument
+The normal dataclass `__init__` with 27 keyword arguments spends ~400ns on argument
 dispatch alone. Writing slot values directly via `__new__` eliminates this.
 
 
 
-## 7. Beyond Limit Orders: The Full Order Type Taxonomy
+## Beyond Limit Orders: The Full Order Type Taxonomy
 
 ### Market Order
 
@@ -837,15 +858,15 @@ entire order is rejected. No partial fills, no resting.
 ```python
 def _match_fok(self, order, trades, events, now):
     opposite = self._asks if order.side == Side.BUY else self._bids
-    available = self._fok_available_qty(order, opposite)
+    available = self.fillable_quantity(order.side, order.price, ...)
     if available < order.quantity:
-        order.status = OrderStatus.REJECTED
+        order.status = OrderStatus.REJECTED   # CANCELLED if it would self-match
         events.append(order)
         return  # reject entirely — no fills
     self._sweep(order, opposite, price_limit=order.price, ...)
 ```
 
-Note the pre-check (`_fok_available_qty` in the real code; the snippet above is
+Note the pre-check (`fillable_quantity` in the real code; the snippet above is
 simplified). It walks the live resting orders in priority order up to the limit
 price — counting an iceberg's hidden reserve and excluding liquidity that
 self-match prevention would skip — *before* any fills are attempted. The
@@ -1004,14 +1025,14 @@ if passive.remaining_qty > 0 and passive.displayed_qty == 0:
 ```
 
 `_reinsert_iceberg` is the key mechanism, not the timestamp update: it assigns the
-order a **fresh `arrival_seq`** (Section 6 — this, not the timestamp, is what the
+order a **fresh `arrival_seq`** ([The Order Model: Every Field Explained](#the-order-model-every-field-explained) — this, not the timestamp, is what the
 heap key is actually built from) and pushes a new heap entry under that later
 sequence number, correctly losing queue priority to every order already resting at
 that price.
 
 
 
-## 8. The Trading Day: Auctions and Continuous Matching
+## The Trading Day: Auctions and Continuous Matching
 
 Real exchanges do not simply run continuous matching all day. A typical trading day
 looks like this:
@@ -1071,11 +1092,11 @@ Transitions are driven by the `pm-scheduler` process — a completely separate P
 process that sends `session.transition` messages to the engine over ZMQ:
 
 ```python
-# scheduler/main.py
-for hhmm, state in schedule:
-    target = _time_today(hhmm)
-    wait_secs = (target - datetime.now()).total_seconds()
-    time.sleep(wait_secs)
+# scheduler/main.py — the idea, much simplified
+for hhmm, state in todays_schedule():        # in locale.session_timezone
+    wait_until(today_at(hhmm))               # wakes every 0.5 s and re-reads the
+                                             # wall clock, so an NTP or DST step
+                                             # is noticed at once
     push_sock.send_multipart(make_session_transition_msg(state))
 ```
 
@@ -1142,7 +1163,8 @@ Equilibrium price = $211 (maximises volume at 500 lots)
 After uncross: 500 trades happen at $211
 · 500 lots of buy orders at $211+ are filled
 · 500 lots of sell orders at $211 and below are filled
-· Remaining: 200 buy orders still resting (bid surplus)
+· Remaining: 200 lots of sell orders at $211 and below that did not trade
+  (a sell surplus — published as the imbalance), and the bids below $211
 
 Tie-breaking: if two candidate prices produce the same executable volume, the
 algorithm picks whichever has the lower surplus (buy/sell imbalance at that
@@ -1174,9 +1196,9 @@ the same timestamp — reflecting their logical simultaneity.
 
 
 
-## 9. Complex Orders: Combos and OCO
+## Complex Orders: Combos and OCO
 
-Iceberg orders are covered in Section 7. This section covers the two order types
+Iceberg orders are covered in [Beyond Limit Orders: The Full Order Type Taxonomy](#beyond-limit-orders-the-full-order-type-taxonomy). This section covers the two order types
 that link multiple orders together at the engine level.
 
 ### OCO (One-Cancels-Other)
@@ -1226,17 +1248,17 @@ Only one of outcome 2a or 2b ever occurs — whichever fills first cancels its s
 The participant is guaranteed to exit their position at one of the two prices.
 
 ```python
-# engine/main.py
-self._oco_groups:   dict[str, list[str]] = {}  # oco_id → [order_id_1, order_id_2]
-self._order_to_oco: dict[str, str]       = {}  # order_id → oco_id
+# engine/main.py — keyed by (gateway_id, oco_id): two gateways may use the same label
+self._oco_groups:   dict[tuple[str, str], list[str]] = {}  # → [order_id_1, order_id_2]
+self._order_to_oco: dict[str, tuple[str, str]]       = {}  # order_id → (gateway_id, oco_id)
 ```
 
 After either leg reaches a terminal state — not just `FILLED`, but also `CANCELLED` or `REJECTED` — the sibling is cancelled too, so a leg that is cancelled for any other reason (e.g. a risk action) tears down the pair just like a fill would:
 
 ```python
 def _check_oco_after_event(self, order: Order) -> None:
-    oco_id = order.oco_group_id
-    order_ids = self._oco_groups.get(oco_id)
+    oco_key = self._order_to_oco.get(order.id)
+    order_ids = self._oco_groups.get(oco_key)
     sibling_ids = [oid for oid in order_ids if oid != order.id]
     for sibling_id in sibling_ids:
         symbol = self._order_symbol.get(sibling_id)
@@ -1245,7 +1267,7 @@ def _check_oco_after_event(self, order: Order) -> None:
             cancelled = book.cancel_order(sibling_id)
             if cancelled:
                 self.pub_sock.send_multipart(make_oco_cancelled_msg(...))
-    self._oco_groups.pop(oco_id, None)
+    self._oco_groups.pop(oco_key, None)
 ```
 
 ### Combo Orders (Multi-Leg)
@@ -1264,6 +1286,9 @@ class ComboOrder:
     combo_type:      ComboType    # AON
     tif:             TIF
     legs:            list[ComboLeg]
+    timestamp:       int          # ns, when the combo was accepted
+    status:          ComboStatus  # PENDING, PARTIALLY_MATCHED, MATCHED, FAILED, CANCELLED, REJECTED
+    client_tag:      str | None
     child_order_ids: list[str]    # populated after child orders are created
     leg_fill_qty:    dict[int, int]  # leg_index → filled quantity
     leg_statuses:    dict[int, str]  # leg_index → OrderStatus value
@@ -1353,13 +1378,13 @@ legs are evaluated together before any fills are committed.
 
 
 
-## 10. Market-Maker Quotes: Two Orders, One Obligation
+## Market-Maker Quotes: Two Orders, One Obligation
 
 A `QUOTE` is how a market maker posts continuous two-sided liquidity: one message
 carries a bid and an ask together, and replacing it is a single atomic operation
 rather than two independent cancel/new pairs. Underneath, a quote is nothing more
 than two ordinary `LIMIT` orders in the book — same heaps, same price-time
-priority, same matching logic as Section 4. What is different is bookkeeping: the
+priority, same matching logic as [The First Match: How Two Orders Become a Trade](#the-first-match-how-two-orders-become-a-trade). What is different is bookkeeping: the
 engine needs to answer "which two orders belong to this gateway's current quote on
 this symbol?" cheaply, and it needs to keep that answer correct through fills,
 cancels, disconnects, and restarts. This section covers the two indexes that make
@@ -1456,7 +1481,7 @@ funnel that can make an order start or stop resting — insert in `_rest()`,
 `_add_stop()`, `_add_trailing_stop()`; remove in `_purge_from_indexes()` and the
 direct `_order_index` pops in `_check_stops()`/`_check_trailing_stops()` — so it
 follows the same "Dual-Index Pattern" discipline as `_order_index`/`_entry_index`
-from Section 5:
+from [Data Structures: Why Heaps?](#data-structures-why-heaps):
 
 ```python
 # _rest() — plain and quote-leg LIMIT orders
@@ -1467,7 +1492,7 @@ self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 
 ```python
 # _add_stop() / _add_trailing_stop() — STOP, STOP_LIMIT, TRAILING_STOP
-# (a separate insertion funnel from _rest(), see Section 7)
+# (a separate insertion funnel from _rest(), see Beyond Limit Orders)
 self._order_index[order.id] = order
 self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 ```
@@ -1529,7 +1554,7 @@ order in every book — and filtered in Python for a matching `gateway_id`.  On 
 real exchange, walking every resting order across every book on every gateway
 disconnect is not a performance nitpick: with enough symbols and enough resting
 orders, that sweep runs long enough to block the (deliberately single-threaded,
-see Section 12) engine thread for a visible stretch, during which no other
+see [The Full Process Architecture](#the-full-process-architecture)) engine thread for a visible stretch, during which no other
 gateway's orders can be acknowledged, matched, or cancelled either — the kind of
 latency spike a real venue's risk and monitoring would treat as an incident, not
 a shrug. `orders_for_gateway` turns that O(total resting orders) scan into
@@ -1650,14 +1675,14 @@ sequenceDiagram
 
 The stale 400-remainder is never orphaned indefinitely: it is genuinely
 tradeable until the moment the reissue arrives, at which point
-`quote_orders_for_gateway` finds it in O(1) and `_cancel_order_by_id` retires it
+`quote_orders_for_gateway` finds it in O(k) and `_cancel_order_by_id` retires it
 — the same guarantee the design intended, at the complexity the engine's other
 indexes hold themselves to.
 
 ### Restart: Both Indexes Rebuild From the Same Source
 
 Neither index has its own on-disk format. `QuoteIndex` and `_orders_by_gateway`
-are both pure derivations from the persisted `Order` records (Section 13 covers
+are both pure derivations from the persisted `Order` records ([Persistence: Surviving a Restart](#persistence-surviving-a-restart) covers
 GTC persistence in full). On restore, `Engine._restore_gtc` calls
 `book.process(order, match=False)` for every persisted order; whichever funnel
 that order's type reaches — `_rest()` for a resting `LIMIT`, `_add_stop()` for a
@@ -1673,7 +1698,7 @@ than synthesizing a `QuoteEntry` for a quote that is missing half of itself.
 
 
 
-## 11. The Message Bus: Why ZeroMQ?
+## The Message Bus: Why ZeroMQ?
 
 ### The Problem with Direct Function Calls
 
@@ -1704,16 +1729,18 @@ This is the ZeroMQ PUB/SUB pattern:
 
 def make_publisher(addr: str) -> CausalPublisher:
     """PUB socket — engine binds here, broadcasts everything."""
-    sock = get_context().socket(zmq.PUB)
+    sock = get_context().socket(zmq.PUB, socket_class=BusSocket)  # cheaper sends
     sock.bind(addr)
     # "A publisher" means one thing everywhere: sequenced, and causally
     # stamped. Callers that only publish need to know none of it.
     return CausalPublisher(SequencedPublisher(sock))
 
-def make_subscriber(addr: str, *topics: str) -> zmq.Socket[bytes]:
+def make_subscriber(addr: str, *topics: str, rcvhwm: int | None = None) -> zmq.Socket[bytes]:
     """SUB socket — subscriber connects and filters by topic prefix.
     No topics (or an empty string) subscribes to everything."""
     sock = get_context().socket(zmq.SUB)
+    if rcvhwm is not None:              # a deeper queue for recorders; must be
+        sock.setsockopt(zmq.RCVHWM, rcvhwm)   # set before connect() to apply
     sock.connect(addr)
     if not topics:
         sock.setsockopt(zmq.SUBSCRIBE, b"")  # no filter — receive every topic
@@ -1732,25 +1759,34 @@ listening.
 ZeroMQ PUB/SUB filters by message prefix at the network level — subscribers only
 receive messages whose topic matches their subscription prefix. This means:
 
-- The clearing process subscribes to `"trade.executed"` — receives only trades
-- The stats process subscribes to `"trade.executed"` and `"book."` — trades and
-  book snapshots
+- The clearing process subscribes to `"trade.executed"`, `"system.eod"`,
+  `"session.state"` and the gateway log-on/log-off broadcasts
+- The stats process subscribes to trades, book snapshots, `system.eod` and every
+  order lifecycle prefix (`order.ack.`, `order.fill.`, …) for its order-events table
 - The audit process subscribes to `""` (empty prefix) — receives everything
 - A specific gateway subscribes to `"order.fill.GW01"` — only its own fills
 
 ```python
-# clearing/main.py
-self.sub = make_subscriber(ENGINE_PUB_ADDR, "trade.executed")
+# clearing/main.py (trimmed)
+sub = make_subscriber(self._pub_addr, TOPIC_TRADE_EXECUTED, TOPIC_EOD,
+                      TOPIC_SESSION_STATE, PREFIX_GATEWAY_AUTH, PREFIX_GATEWAY_BYE,
+                      rcvhwm=100_000)
 
-# stats/main.py
-self.sub = make_subscriber(ENGINE_PUB_ADDR, "trade.executed", "book.", "system.eod")
+# stats/main.py (trimmed)
+self.sub = make_subscriber(ENGINE_PUB_ADDR, TOPIC_TRADE_EXECUTED, PREFIX_BOOK_SNAPSHOT,
+                           TOPIC_EOD, PREFIX_ORDER_ACK, PREFIX_ORDER_FILL, ...,
+                           rcvhwm=100_000)
 
 # audit/main.py
-self.sub = make_subscriber(ENGINE_PUB_ADDR)  # no topics = subscribe to all
+self.sub = make_subscriber(ENGINE_PUB_ADDR, rcvhwm=200_000)  # no topics = all
 ```
 
-ZeroMQ performs topic matching in the PUB socket’s send path before the bytes even
-hit the network. This means processes that subscribe to only one topic type see zero
+The topic constants come from the generated bindings, so no process types a
+topic string by hand.
+
+Over TCP, ZeroMQ sends each subscriber's prefixes to the publisher, which matches
+topics in its send path and never transmits a message nobody on that connection
+asked for. This means processes that subscribe to only one topic type see zero
 overhead from the thousands of other messages being published per second.
 
 ### PUSH/PULL for Order Submission
@@ -1758,17 +1794,18 @@ overhead from the thousands of other messages being published per second.
 Order submission uses a different ZeroMQ pattern — PUSH/PULL:
 
 ```python
-# engine binds a PULL socket
-ENGINE_PULL_ADDR = "tcp://127.0.0.1:5555"
-self.pull_sock = make_puller(ENGINE_PULL_ADDR)
+# engine binds a PULL socket (host from EDUMATCHER_ENGINE_BIND_HOST, default 127.0.0.1)
+self.pull_sock = make_puller(ENGINE_PULL_BIND_ADDR)    # tcp://127.0.0.1:5555
 
-# each gateway connects a PUSH socket
+# each gateway connects a PUSH socket (host from EDUMATCHER_ENGINE_HOST)
 push_sock = make_pusher(ENGINE_PULL_ADDR)
-push_sock.send_multipart(make_order_new_msg(order.to_dict()))
+push_sock.send_multipart(make_order_new_unchecked_msg(order.to_dict()))
 ```
 
 PUSH/PULL is a pipeline pattern: multiple pushers (gateways) deliver work to one
-puller (engine). ZeroMQ handles buffering and flow control. The engine processes one
+puller (engine), which takes from them in turn. Every PUSH socket is made to fail
+fast (`SNDTIMEO=0`, `IMMEDIATE=1`): if no engine is connected the send raises at
+once instead of queueing, and the gateway tells its client `ENGINE_UNAVAILABLE`. The engine processes one
 message at a time from its single PULL socket — this single-reader property is what
 makes the engine naturally thread-safe without any locks.
 
@@ -1875,9 +1912,11 @@ def decode_envelope(frames: list[bytes]) -> Envelope | None:
 
 `Envelope.from_frame` is strict — three fields, a 26-character ULID first — so
 neither shape can be read as the other. Every consumer that only calls
-`decode()` is unaffected. The cost is on the publish side: minting the ULID
-and formatting the frame make a published message about 4 µs dearer than a
-bare send (6.4 µs against 2.3 µs, measured 2026-11), never a JSON re-encode.
+`decode()` is unaffected. The cost is on the publish side, never a JSON
+re-encode: a stamped publish costs about 4.0 µs against 1.6 µs for a bare
+3-frame send (measured 2026-11-20), and 1.0 µs of the difference is minting the
+ULID. [The Message Architecture — Making ZeroMQ fast](015-message-architecture.md#making-zeromq-fast)
+explains how the cost was brought down.
 
 For JSON serialization, EduMatcher uses `orjson` when available — a C-extension
 library that is ~9-10x faster than the Python standard library `json`:
@@ -1958,7 +1997,7 @@ registry. Just connect and start sending.
 
 
 
-## 12. The Full Process Architecture
+## The Full Process Architecture
 
 EduMatcher is a **multi-process system**. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
@@ -2013,18 +2052,17 @@ everything is sequential. This is not a limitation — it is a deliberate design
 choice:
 
 ```python
-# engine/main.py
+# engine/main.py — Engine.run (trimmed)
 while self._running:
     socks = dict(poller.poll(timeout=200))  # wait up to 200ms for a message
     if self.pull_sock in socks:
         frames = self.pull_sock.recv_multipart()
         topic, payload = decode(frames)
-        if topic == "order.new":
-            self._handle_new_order(payload)
-        elif topic == "order.cancel":
-            self._handle_cancel(payload)
-        # ... etc
-    self._flush_snapshots()  # throttled book snapshot publishing
+        ...                                  # echo the command, set its cause
+        self._dispatch_pull_message(topic, payload)  # an if/elif ladder:
+                                                     # order.new → _handle_new_order, ...
+    if idle or 10 ms since the last pass:
+        self._run_maintenance()  # throttled snapshots, timers, 5 s checkpoint, ...
 ```
 
 Because only one message is processed at a time, there are **no race conditions**.
@@ -2058,21 +2096,24 @@ flowchart TD
     style SEND fill:#eafaf1,stroke:#27ae60
 ```
 
-The gateway has two threads:
+The console (`pm-alf-console`) has three threads:
 
-- **Main thread**: reads commands from stdin (with readline/prompt_toolkit), sends
-  to engine
-- **Subscriber thread**: listens for responses from the engine (acks, fills,
-  cancellations), displays them to the user
+- **Main thread**: reads commands with prompt_toolkit and sends them to the engine
+- **Listener thread**: receives the engine's replies and events (acks, fills,
+  cancellations) and prints them above the prompt
+- **Heartbeat thread**: sends `system.gateway_heartbeat` every 5 seconds, so the
+  engine can tell a closed terminal from a quiet trader
 
-These threads communicate via ZMQ rather than shared memory, keeping them decoupled.
+Each ZeroMQ socket is used by one thread only: ZeroMQ sockets are not
+thread-safe. The network-facing `pm-alf-gwy` does the same job for many
+sessions at once from a single-threaded event loop.
 
 ### Clearing: Tracking Positions and P&L
 
 The real position state lives in a private `_Position` dataclass in
 `clearing/ledger.py` (field names differ — `net_qty`, `mark_price`, etc.); the
 conceptually-equivalent, simplified version below is easier to read fill logic
-against (Section 15 covers the full real VWAP walkthrough):
+against ([Clearing and Settlement: Following the Money](#clearing-and-settlement-following-the-money) covers the full real VWAP walkthrough):
 
 ```python
 # conceptually clearing/ledger.py — simplified field names
@@ -2092,7 +2133,7 @@ class PositionRecord:
 
 The clearing process subscribes to `trade.executed`, updates a P&L ledger for each
 participant on each side of every trade, and batches the updated rows into
-`clearing.db` (SQLite) — never a CSV file; see Section 15 for the history of
+`clearing.db` (SQLite) — never a CSV file; see [Clearing and Settlement: Following the Money](#clearing-and-settlement-following-the-money) for the history of
 the `clearing_report.csv` path this replaced.
 The VWAP cost basis update:
 
@@ -2135,41 +2176,21 @@ is the closest thing to a full audit trail in the system.
 
 
 
-## 13. Optimisations: Speed, Memory, and Latency
+## Optimisations: Speed, Memory, and Latency
 
 This section collects all performance-oriented decisions in one place, explains
 the reasoning, and quantifies the expected impact where possible.
 
-### The Latency Budget
+### Where the Time Goes
 
-Before reading individual optimisations, it helps to understand what we are
-optimising for. At the tested throughput of 57,000 orders/second, each order has
-**~17.5 microseconds** of budget (1 second ÷ 57,000):
-
-```mermaid
-xychart-beta
-    title "Per-order latency budget — ~17,500 ns total at 57,000 orders/sec"
-    x-axis ["ZMQ+decode", "from_dict", "validation", "_sweep", "_apply_fill", "_check_stops", "_publish", "overhead"]
-    y-axis "nanoseconds" 0 --> 6000
-    bar [2500, 1000, 200, 4000, 1200, 100, 3000, 5500]
-```
-
-|Step|Component                                |Cost          |Notes                            |
-|----|-----------------------------------------|--------------|---------------------------------|
-|1   |ZMQ receive + decode JSON                |~2,500 ns     |                                 |
-|2   |`Order.from_dict()`                      |~1,000 ns     |With `__new__` bypass + enum maps|
-|3   |Tick validation + price conversion       |~200 ns       |                                 |
-|4   |`_sweep()` matching loop                 |~4,000 ns     |Varies by fill count             |
-|5   |`Trade.create()` + `_apply_fill()`       |~1,200 ns     |                                 |
-|6   |`_check_stops()`                         |~100 ns       |O(1) when no stops trigger       |
-|7   |`_publish_events()` + `_publish_trades()`|~3,000 ns     |JSON encode + ZMQ send           |
-|8   |Overhead (function calls, misc)          |~5,500 ns     |                                 |
-|    |**Total**                                |**~17,500 ns**|                                 |
-
-Each optimisation in this section attacks one of these buckets. The numbers are
-approximate and vary by hardware, OS scheduler, and fill rate — but the relative
-proportions are stable. JSON serialization and the sweep loop together consume the
-most time; both receive dedicated optimisations below.
+Before reading individual optimisations, it helps to know what they are up
+against. An order's trip through the engine — decode, gates, matching, building
+and publishing its messages — is measured in tens of microseconds, and no single
+function dominates it: the profile is a long list of small costs. The measured
+breakdown, and how to take such a measurement without fooling yourself, is in
+[Performance Engineering — Where the time goes](../part-2-inside-the-engine/030-performance-engineering.md#where-the-time-goes).
+Each technique below removes one of those small costs; the figures quoted are
+per-call costs of the operation involved, not throughput.
 
 ### Architecture: Single Timestamp Per Order
 
@@ -2215,9 +2236,6 @@ attribute access ~30% faster and reducing memory by ~40% per instance. This also
 reduces GC (Garbage Collection) pressure — with fewer and smaller objects allocated
 per order, Python’s garbage collector runs less frequently.
 
-At 57,000 orders/second (the tested throughput), `__slots__` on `Order` alone saves
-roughly 2µs per order from reduced attribute lookup in the sweep loop.
-
 ### Pre-Built Enum Lookup Dicts
 
 ```python
@@ -2239,7 +2257,7 @@ o.side = _SIDE_MAP[d["side"]]
 # ...
 ```
 
-The dataclass-generated `__init__` with 26 keyword arguments spends ~400ns on
+The dataclass-generated `__init__` with 27 keyword arguments spends ~400ns on
 Python’s argument parsing and dispatch machinery. Bypassing it via `__new__` and
 direct slot writes reduces `from_dict` from ~1400ns to ~1000ns — a 29% improvement
 on the deserialization hot path.
@@ -2247,20 +2265,16 @@ on the deserialization hot path.
 ### Pre-Cached ZMQ Topic Bytes
 
 ```python
-# engine/main.py
-self._topic_cache: dict[str, bytes] = {}
-
-# On first order from a gateway, populate all hot topics:
-_tc[_gw]               = f"order.ack.{_gw}".encode()
-_tc[f"fill.{_gw}"]     = f"order.fill.{_gw}".encode()
-_tc[f"cancel.{_gw}"]   = f"order.cancelled.{_gw}".encode()
-
-# On every subsequent order, use the cached bytes:
-self.pub_sock.send_multipart([
-    _tc.get(f"fill.{evt.gateway_id}") or f"order.fill.{evt.gateway_id}".encode(),
-    _dumps({...}),
-])
+# engine/main.py — _handle_new_order
+_tc = self._topic_cache                      # dict[gateway_id, bytes]
+ack_topic = _tc.get(_gw)
+if ack_topic is None:                        # first order from this gateway
+    ack_topic = _tc[_gw] = topic_order_ack(_gw).encode()
 ```
+
+Today only the ACK topic — the one every order pays for — is cached here.
+Fixed topics such as `trade.executed` are pre-encoded once at import by the
+generated bindings (`make_trade_executed_unchecked` holds its topic as bytes).
 
 Building a ZMQ topic bytes object requires an f-string format operation plus
 `.encode()`. Cost: ~100ns per message. With 3-4 messages per order and thousands
@@ -2306,9 +2320,9 @@ Doing this on every fill at high throughput would consume significant CPU on
 serialization alone.
 
 ```python
-SNAPSHOT_INTERVAL = 0.5  # seconds
+SNAPSHOT_INTERVAL = 0.5  # default; engine config may set snapshot_interval_sec
 
-def _flush_snapshots(self) -> None:
+def _flush_snapshots(self) -> None:   # trimmed
     # time.monotonic() here is correct and intentional. We are measuring
     # elapsed wall-clock duration (how many seconds since the last snapshot),
     # NOT generating an event timestamp for price-time priority. For duration
@@ -2318,10 +2332,11 @@ def _flush_snapshots(self) -> None:
     sent: set[str] = set()
     for symbol in self._dirty_symbols:
         last = self._last_snapshot.get(symbol, 0.0)
-        if now - last >= self.SNAPSHOT_INTERVAL:
+        if now - last >= self.snapshot_interval_sec:
             book = self.books.get(symbol)
             if book:
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
+                # ... and depth.<symbol> from book.depth_snapshot()
             self._last_snapshot[symbol] = now
             sent.add(symbol)
     self._dirty_symbols -= sent
@@ -2348,9 +2363,7 @@ def create(cls, ...):
 
 `uuid.uuid4()` calls `/dev/urandom` — a system call costing ~1.5-2µs. Trade IDs
 combine a persisted engine-run sequence with an in-process monotonic counter,
-so they stay durable and sortable without a syscall in the inner loop. At
-57,000 trades per second, avoiding UUID generation saves roughly 86ms per second
-of CPU time on ID generation alone.
+so they stay durable and sortable without a syscall in the inner loop.
 
 ### Local Variable Caching in the Inner Loop
 
@@ -2397,7 +2410,7 @@ trade rates.
 
 For a FOK order that cannot be filled, a naive engine would start filling orders
 (generating events), realise partway through it cannot complete, and need to
-reverse those fills — extremely complex. Instead `_fok_available_qty` computes,
+reverse those fills — extremely complex. Instead `fillable_quantity` computes,
 before any fill, how much the order could really execute against: the live
 resting orders in price-time order up to the limit price, including iceberg
 reserve, minus what self-match prevention would skip. Rejection is therefore
@@ -2406,16 +2419,17 @@ only visible quantity, so it is used for depth and best bid/offer, not for this.
 
 
 
-## 14. Persistence: Surviving a Restart
+## Persistence: Surviving a Restart
 
 When the engine restarts, two categories of state need to be restored:
 
 **GTC and DAY Orders** — resting limit orders with `TIF.GTC` survive trading days,
 as expected. Less obvious: resting `TIF.DAY` orders are serialised too, because a
 process restart is **not itself a day boundary** — only a genuine calendar rollover
-ends a DAY order's validity. On shutdown both are written as a plain JSON array of
-`Order.to_dict()` entries, via a helper that writes to a temp file and renames it
-into place so a crash mid-write can never leave a truncated, unreadable file:
+ends a DAY order's validity. Every 5 seconds while the engine runs, and again
+at shutdown, both are written as a plain JSON array of `Order.to_dict()` entries,
+via a helper that writes to a temp file, fsyncs it and renames it into place, so a
+crash mid-write can never leave a truncated, unreadable file:
 
 ```python
 # engine/persistence.py
@@ -2426,8 +2440,8 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
         if o.tif in (TIF.GTC, TIF.DAY)
         and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
     ]
-    _atomic_write_text(path, json.dumps(gtc, indent=2))  # temp file + rename
-    # → data/gtc_orders.json
+    atomic_write_text(path, json.dumps(gtc, indent=2))  # temp file, fsync, rename
+    # → <DATA_DIR>/gtc_orders.json
 ```
 
 Loading is deliberately fail-soft, not fail-hard: a missing or unparseable file
@@ -2463,40 +2477,45 @@ resting, so it is no longer valid even though the process restart itself didn't 
 it:
 
 ```python
-def _restore_gtc(self) -> None:
+def _restore_gtc(self) -> bool:   # trimmed
+    session_tz = self._session_tz()        # locale.session_timezone
+    today = self._business_date()
     orders = load_gtc_orders(GTC_ORDERS_FILE)
+    orders.sort(key=lambda o: (o.symbol, o.arrival_seq))   # keep queue order
     for order in orders:
         if order.tif == TIF.DAY:
-            order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
+            order_day = datetime.fromtimestamp(order.ts_ns / 1e9, session_tz).date()
             if order_day < today:
                 continue  # stale — business day has rolled over, discard
-        order.status = OrderStatus.NEW  # reset from PARTIAL if needed
         book = self._book(order.symbol)
-        book.process(order)  # re-insert into the heap
+        book.process(order, match=False)   # rest it again, no sweep
         self._order_symbol[order.id] = order.symbol
 ```
 
-The original `ts_ns` is preserved in the serialisation (`Order.to_dict()` includes
-it). This means restored orders maintain their original price-time priority — a
-participant who submitted an order before the restart still gets their earlier
-position in the queue.
+The saved file records each order's `arrival_seq`. Restoring the orders of each
+symbol in that order means a participant who was ahead in a queue before the
+restart is still ahead after it. The calendar check uses the exchange's
+business date in `locale.session_timezone`, not the host's.
 
 **Book Statistics** — the last traded prices per symbol, plus the previous close,
 are persisted so that stop order logic and display have a reference price on
 restart:
 
 ```python
-def save_book_stats(books: dict[str, OrderBook], path: Path) -> None:
+def save_book_stats(books, circuit_breakers, path, halts) -> None:   # trimmed
     stats = {
         symbol: {
-            "last_buy_price":  book.last_buy_price,
-            "last_sell_price": book.last_sell_price,
-            "prev_close":      book.last_trade_price,  # from_ticks()'d for display
+            "last_buy_price":  ...,   # display prices (from_ticks)
+            "last_sell_price": ...,
+            "prev_close":      ...,
+            "cb_window": {...},       # each breaker's reference window, so a
+                                      # same-day restart halts where it would have
+            "halt": {...},            # an operator halt still in force
         }
         for symbol, book in books.items()
     }
-    _atomic_write_text(path, json.dumps(stats, indent=2))
-    # → data/book_stats.json
+    atomic_write_text(path, json.dumps(stats, indent=2))
+    # → <DATA_DIR>/book_stats.json
 ```
 
 **GTC Combos** — multi-leg combo orders whose legs are resting GTC are also
@@ -2505,26 +2524,29 @@ after restart.
 
 ### What Persistence Does NOT Cover
 
-- **Trade history** — the clearing CSV is the trade record, not the engine. The
-  engine has no trade log beyond the in-memory `recent_trades` deque (maxlen=20)
-  per book.
-- **Positions** — clearing maintains positions in-memory. A clearing process
-  restart loses all position state (cleared from the ledger in memory).
+- **Trade history** — the engine keeps no trade log beyond the in-memory
+  `recent_trades` deque (maxlen=20) per book. The records are the recorders':
+  `clearing.db` (`trade_events`), `stats.db` (`trade_log`) and the audit trail.
+- **Positions** — kept by pm-clearing, not the engine. pm-clearing writes them to
+  `clearing.db` as it goes and warm-starts its ledger from there after a
+  restart, so a clearing restart loses nothing it had committed.
+- **Messages in flight** — anything still in a ZeroMQ queue when a process dies
+  (see [The Message Architecture — Stopping cleanly: what happens on SIGTERM](015-message-architecture.md#stopping-cleanly-what-happens-on-sigterm)).
 
 
 
-## 15. Clearing and Settlement: Following the Money
+## Clearing and Settlement: Following the Money
 
 Clearing is the process of ensuring both sides of a trade actually deliver what they
 promised: the buyer delivers money, the seller delivers shares. EduMatcher
 implements a simplified clearing process that tracks positions and P&L.
 
 ```python
-# clearing/main.py
-class ClearingProcess:
-    def __init__(self):
-        # ledger[gateway_id][symbol] → PositionRecord
-        self._ledger: dict[str, dict[str, PositionRecord]] = defaultdict(dict)
+# clearing/ledger.py (trimmed)
+class Ledger:
+    """Positions per (gateway_id, symbol); restored from clearing.db at startup."""
+    def apply_trade(self, trade) -> None: ...     # both sides of every trade
+    def restore(self, rows) -> None: ...          # warm start
 ```
 
 When a trade arrives:
@@ -2606,7 +2628,7 @@ and legal infrastructure.
 
 
 
-## 16. What Is Missing: The Gap to Production
+## What Is Missing: The Gap to Production
 
 EduMatcher is explicitly educational. Here is a complete and honest accounting of
 what would need to be added to make it production-grade. Each item is a
@@ -2626,7 +2648,12 @@ market-data stream supports a client-sent `resume`/`from_seq` control that re-se
 buffered `trades` from its cache (see
 [REST and WebSocket](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)) —
 but that cache is bounded and in-memory, and covers only the trade tail of one
-WebSocket stream, not the engine's internal bus.
+WebSocket stream, not the engine's internal bus. The external TCP feeds have the
+same kind of bounded replay: CALF (`RESUME` within `replay_window_sec`), RALF
+(`LASTSEQ` within `replay_retention_sec`) and the drop copy (a 10 000-record
+ring behind `drop_copy.replay`, relayed by `pm-dc-gwy`). How loss is detected on
+the internal bus is in
+[The Message Architecture — Seeing what was lost](015-message-architecture.md#seeing-what-was-lost).
 
 **What is still missing:** on the core ZMQ bus (the one clearing, stats, and audit
 consume), there is no `replay_request`/response protocol and no persistent message
@@ -2651,24 +2678,17 @@ MISSING (core ZMQ bus only — sequence numbers already exist):
 
 ### Authentication and Authorisation
 
-**What is missing:** Any process can connect to port 5555 and submit orders as any
-`gateway_id`. There is no proof that `GW01` is actually GW01.
+**What exists:** remote clients reach the exchange only through the gateways,
+and the network-facing ones authenticate: `pm-alf-gwy` and `pm-balf-gwy` check
+each session's participant id and key against the `participants` allowlist, and
+`pm-api-gwy` requires an API key. The engine itself checks every
+`system.gateway_connect` against the same allowlist and rejects an unconfigured
+id with `GATEWAY_NOT_CONFIGURED`.
 
-The existing `system.gateway_connect` handshake:
-
-```python
-# engine/main.py — after Phase 2 of the implementation plan
-def _handle_gateway_connect(self, payload):
-    gateway_id = payload.get("gateway_id")
-    self._sessions[gateway_id] = ParticipantSession(
-        gateway_id=gateway_id,
-        role=ParticipantRole.TRADER,   # default unless configured otherwise
-        connected=True,
-    )
-    self.pub_sock.send_multipart(make_gateway_auth_msg(gateway_id, accepted=True))
-```
-
-This accepts any connection that knows the port number. `ParticipantSession` is a
+**What is missing:** the internal bus is not authenticated. Any process that can
+reach port 5555 can submit orders as any configured `gateway_id`; the engine
+trusts what a gateway forwards. That is safe only because the bus binds loopback
+by default, so only processes on the exchange host can reach it. `ParticipantSession` is a
 dataclass that records each connected gateway’s role (`ParticipantRole.TRADER`,
 `ParticipantRole.MARKET_MAKER`, or `ParticipantRole.ADMIN`) and its disconnect
 behaviour (whether to cancel its orders or leave them resting when the gateway
@@ -2742,9 +2762,15 @@ MISSING:
 
 ### Order Replay and Recovery
 
+**What exists:** the engine re-publishes every command onto its PUB socket
+before handling it, so the audit trail records the request even if the engine
+dies before acknowledging it, and it checkpoints the resting book every 5
+seconds.
+
 **What is missing:** If the engine crashes mid-processing (after receiving an order
-but before publishing its ack), that order is silently lost. The gateway never
-receives an ack or rejection — it is left in an unknown state.
+but before publishing its ack), that order is not replayed on restart. The
+gateway never receives an ack or rejection — it is left in an unknown state, and
+the book comes back from a checkpoint up to 5 seconds old.
 
 **What production requires:** A **write-ahead log (WAL)** — before processing any
 order, the engine writes it to a durable log. On restart, the engine replays the log
@@ -2769,23 +2795,28 @@ something is committed to the log, it happened; if it is not in the log, it did 
 
 **What is still missing:**
 
-- **Rate limits**: any gateway can submit an unlimited number of orders per second.
-  A buggy algorithm could overwhelm the engine. Production requires per-gateway
-  message rate enforcement at the gateway level.
-- **Fat finger protection**: "fat finger" is trading slang for accidentally typing
-  the wrong number (e.g. selling 10,000 shares when you meant 100, or pricing at
-  $15.00 when you meant $150.00). Fat finger filters reject orders whose price or
-  quantity deviates wildly from expected ranges. The existing collars partially
-  address this but do not cover maximum order size or notional value checks.
+- **Order-size limits** — `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` reject an order
+  above the configured quantity or notional ("fat finger" protection: typing
+  10,000 when you meant 100).
+- **Rate limits** — at the gateways: ALF and BALF sessions are throttled by a
+  token bucket (`max_commands_per_second`, `max_messages_per_second`) and
+  refused with `RATE_LIMITED`; `pm-api-gwy` has its own `rate_limit`.
+
+**What is still missing:**
+
+- **Engine-side throttling**: the limits live in the gateways. A process on the
+  exchange host that talks to :5555 directly is not rate-limited.
+- **Per-account limits**: EduMatcher has no account layer above the gateway id,
+  so limits cannot be shared across a firm's several connections.
 
 ### High-Precision Timestamps and Clock Synchronisation
 
 **Status in EduMatcher:** Nanosecond integer timestamps via `now_ns()` (from
-`models/clock.py`) are now implemented — see `EduMatcher_Tick_Migration_Plan_v6.md`.
+`models/clock.py`) are now implemented — see `docs-design/EduMatcher-Tick_Migration_Plan.md`.
 `now_ns()` wraps `time.time_ns()` with a guarantee of strictly increasing
 values even when the system clock is adjusted backward. All `Order`, `Trade`, and
 `ComboOrder` timestamps are `int` nanoseconds. The price-time priority heap key is
-actually `(±price_ticks, arrival_seq)` (Section 6) — an engine-assigned monotonic
+actually `(±price_ticks, arrival_seq)` ([The Order Model: Every Field Explained](#the-order-model-every-field-explained)) — an engine-assigned monotonic
 sequence, not the timestamp itself, so a back-dated client timestamp cannot jump
 the queue; both components are integers either way, so comparison is exact.
 
@@ -2804,7 +2835,7 @@ the queue; both components are integers either way, so comparison is exact.
 ### Price Precision
 
 **Status in EduMatcher:** Integer tick-based prices are now implemented — see
-`EduMatcher_Tick_Migration_Plan_v6.md`. All prices inside the engine are stored
+`docs-design/EduMatcher-Tick_Migration_Plan.md`. All prices inside the engine are stored
 as `int` tick counts. For a symbol with `tick_decimals=2` (the default), `$150.30`
 is stored as `15030`. Conversion to/from float happens only at I/O boundaries
 (gateway input and ZMQ output). This eliminates floating-point equality bugs in
@@ -2819,10 +2850,15 @@ The original problem and why it was worth solving:
 False               # should be True — would cause a missed match in old code
 ```
 
+Prices are validated at the boundary: a price that is not a whole number of
+ticks is refused (`models/price.py` raises `TickViolation`) before the order
+reaches the engine.
+
 **What still needs production work:** The tick size per symbol is configured
-statically in `engine_config.yaml`. A production system needs dynamic tick size
-changes (e.g. when a stock splits), per-exchange tick tables, and validation that
-submitted prices are multiples of the tick size before they enter the engine.
+statically in `engine_config.yaml` as a number of decimals, so every tick is a
+power of ten. A production system needs tick tables that vary with the price
+level, and tick-size changes during the life of an instrument (e.g. after a
+split).
 
 ### Network Level: FIX Protocol
 
@@ -2879,17 +2915,17 @@ engineering work for a real exchange.
 |Category            |EduMatcher                                                              |Production                                        |
 |--------------------|------------------------------------------------------------------------|--------------------------------------------------|
 |Message delivery    |Sequenced (gaps detectable), no replay of missed messages              |Sequence numbers, replay, guaranteed delivery     |
-|Authentication      |Gateway ID only, no cryptographic proof                                 |TLS certificates, challenge-response              |
+|Authentication      |Participant keys at the gateways; internal bus unauthenticated (loopback)|TLS certificates, challenge-response              |
 |Authorisation       |Role-based (TRADER/MARKET_MAKER/ADMIN) — no enforcement of symbol restrictions|Fine-grained per-operation, per-symbol permissions|
 |Failover            |None                                                                    |Primary/secondary with automatic failover         |
 |Clock precision     |✅ Integer nanoseconds via `now_ns()`                              |+ PTP synchronisation, hardware wire timestamps   |
 |Price arithmetic    |✅ Integer tick-based, configurable per symbol                           |+ Dynamic tick size changes, exchange tick tables |
 |Order protocol      |Custom text (`NEW|SYM=AAPL|...`)                                        |FIX 4.4 / 5.0                                     |
-|Rate limiting       |None                                                                    |Per-gateway limits enforced at gateway            |
-|Pre-trade risk      |✅ Price collars, circuit breakers, kill switch                           |+ Per-gateway limits, fat finger thresholds       |
+|Rate limiting       |✅ Per-session token bucket at the ALF/BALF gateways; API rate limit     |+ Engine-side and per-account limits              |
+|Pre-trade risk      |✅ Price collars, circuit breakers, kill switches, max order qty/value   |+ Per-account limits, credit checks               |
 |Regulatory reporting|None                                                                    |Real-time trade reporting, audit retention        |
 |Trade persistence   |SQLite (`clearing.db`)                                                  |Durable, replicated, queryable store              |
-|Replay buffer       |None on the core bus (WS trades feed has a bounded in-memory resume)   |Persistent log with configurable retention        |
+|Replay buffer       |None on the core bus; in-memory replay on CALF, RALF, drop copy and the WS trades feed |Persistent log with configurable retention        |
 
 ✅ = implemented in EduMatcher
 

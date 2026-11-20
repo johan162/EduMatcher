@@ -32,7 +32,9 @@ traded.
 
 ## Quick start
 
-With the exchange stopped:
+With the exchange stopped, and running a configuration of your own (see
+[Which file is edited](#which-file-is-edited) when it is still a bundled
+example):
 
 ```bash
 pm-opctl-cli stop
@@ -88,9 +90,18 @@ source, never the artifact.
 | The source is a bundled example (`pm-config-deploy --example …`) | Refused: shipped examples are never edited. Copy it, deploy the copy, then list |
 | Nothing deployed and no `--config` | Refused: there is nothing to list into |
 
-If you set up with `pm-setup`, the deployed source *is*
-`<DATA_DIR>/ref_data/engine_config.yaml`, so the default works without
-`--config`.
+If you set up with `pm-setup`, or with a container install that runs a
+bundled example (`EM_CONFIG`), the deployed source *is* that bundled example,
+so the default refuses. Make the configuration your own first, once:
+
+```bash
+mkdir -p ~/course
+cp "$EDUMATCHER_DATA_DIR/ref_data/engine_config.yaml" ~/course/engine_config.yaml
+pm-config-deploy ~/course/engine_config.yaml
+```
+
+From then on `pm-new-symbol` edits `~/course/engine_config.yaml` and redeploys
+it, without `--config`.
 
 If the source uses `include:`, the symbol is written to the included file that
 supplies the last listed symbol and the main file is left as it is; the command

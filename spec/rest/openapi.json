@@ -5387,6 +5387,7 @@
                 },
                 "example": {
                   "state": "CONTINUOUS",
+                  "state_since": "2026-08-29T07:30:00.000Z",
                   "sessions_enabled": true,
                   "last_trade_id": "000003-000004217",
                   "next": {
@@ -18310,6 +18311,7 @@
                   },
                   "session": {
                     "state": "CONTINUOUS",
+                    "state_since": "2026-08-29T07:30:00.000Z",
                     "sessions_enabled": true,
                     "last_trade_id": "000003-000004217",
                     "next": {
@@ -18746,6 +18748,7 @@
                   },
                   "session": {
                     "state": "CONTINUOUS",
+                    "state_since": "2026-08-29T07:30:00.000Z",
                     "sessions_enabled": true,
                     "last_trade_id": "000003-000004217",
                     "next": {
@@ -19215,6 +19218,7 @@
                   },
                   "session": {
                     "state": "CONTINUOUS",
+                    "state_since": "2026-08-29T07:30:00.000Z",
                     "sessions_enabled": true,
                     "last_trade_id": "000003-000004217",
                     "next": {
@@ -28292,6 +28296,12 @@
             "title": "State",
             "description": "Same values as `session.state.state`."
           },
+          "state_since": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "State Since",
+            "description": "UTC instant the engine entered `state` -- its last accepted transition, else\nits start -- as `YYYY-MM-DDTHH:MM:SS.mmmZ`. Lets a caller tell a state left\nover from an earlier day, such as a `CONTINUOUS` whose close never came, from\nthe same state entered today."
+          },
           "sessions_enabled": {
             "type": "boolean",
             "title": "Sessions Enabled",
@@ -28335,6 +28345,7 @@
         "type": "object",
         "required": [
           "state",
+          "state_since",
           "sessions_enabled",
           "last_trade_id",
           "session_timezone",

@@ -90,7 +90,7 @@ HELP_TEXT = """
 
   [bold]Combo orders (multi-leg):[/bold]
   NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|GTC|LEG_COUNT=<n>|LEG0.SYM=<sym>|LEG0.SIDE=BUY|LEG0.QTY=<n>|LEG0.PRICE=<p>|LEG1.SYM=...[|SMP=<action>][|TAG=<tag>]
-    • Per leg: LEG<i>.SYM= LEG<i>.SIDE= LEG<i>.QTY= [LEG<i>.TYPE=LIMIT (default)|MARKET|STOP|STOP_LIMIT]
+    • Per leg: LEG<i>.SYM= LEG<i>.SIDE= LEG<i>.QTY= [LEG<i>.TYPE=LIMIT (default)|MARKET|STOP|STOP_LIMIT|FOK|IOC]
       [LEG<i>.PRICE=<p>] [LEG<i>.STOP=<p>]
     • 2–10 legs, each on a different symbol
     • Child orders are posted to books and fill independently
@@ -296,6 +296,15 @@ def print_symbols_table(symbols: list[dict[str, Any]]) -> None:
     console.print(t)
 
 
+def _signed_money(value: float) -> str:
+    """A P&L to the cent, signed and coloured. Never "-0.00": a short at its
+    cost is ``0.0 * -100``, which is ``-0.0``, and adding ``0.0`` to the
+    rounded value turns that, or a residue under half a cent, into ``0.0``."""
+    cents = round(value, 2) + 0.0
+    colour = "green" if cents >= 0 else "red"
+    return f"[{colour}]{cents:+.2f}[/{colour}]"
+
+
 def print_positions(
     positions: dict[str, dict[str, Any]],
     last_prices: dict[str, float],
@@ -330,33 +339,26 @@ def print_positions(
         last = last_prices.get(symbol)
         unreal = ""
         if last is not None and avg > 0:
-            upnl = (last - avg) * net
-            colour = "green" if upnl >= 0 else "red"
-            unreal = f"[{colour}]{upnl:+.2f}[/{colour}]"
+            unreal = _signed_money((last - avg) * net)
         last_str = format_price(last, symbol)
-        rpnl = pos["realized_pnl"]
-        rpnl_colour = "green" if rpnl >= 0 else "red"
-
         t.add_row(
             symbol,
             f"{net:+d}",
             format_price(avg, symbol, extra_digits=1),
             last_str,
             unreal or "—",
-            f"[{rpnl_colour}]{rpnl:+.2f}[/{rpnl_colour}]",
+            _signed_money(pos["realized_pnl"]),
         )
 
     for symbol in sorted(flat.keys()):
         pos = flat[symbol]
-        rpnl = pos["realized_pnl"]
-        rpnl_colour = "green" if rpnl >= 0 else "red"
         t.add_row(
             f"[dim]{symbol}[/dim]",
             "0",
             "—",
             "—",
             "—",
-            f"[{rpnl_colour}]{rpnl:+.2f}[/{rpnl_colour}]",
+            _signed_money(pos["realized_pnl"]),
         )
 
     console.print(t)

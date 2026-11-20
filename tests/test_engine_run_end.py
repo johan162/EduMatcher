@@ -28,7 +28,9 @@ def test_the_generated_messages_carry_the_last_trade_id() -> None:
     _, eod = decode(make_eod_msg([], last_trade_id="000003-000000042"))
     assert gen_system.Eod.from_dict(eod).last_trade_id == "000003-000000042"
     _, status = decode(
-        make_session_status_msg("GW01", "CONTINUOUS", True, last_trade_id=None)
+        make_session_status_msg(
+            "GW01", "CONTINUOUS", "2024-01-09T06:00:00.000Z", True, last_trade_id=None
+        )
     )
     assert gen_system.SessionStatus.from_dict(status).last_trade_id is None
 

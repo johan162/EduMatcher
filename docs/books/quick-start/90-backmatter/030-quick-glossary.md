@@ -7,6 +7,7 @@ vocabulary.
 | Term | Meaning |
 |---|---|
 | **Ask** | The lowest price at which someone is currently willing to sell. Also called the *offer*. |
+| **API key** | The secret a browser application or REST client logs in with. Each key belongs to one participant; `pm-config-show -a` lists them. |
 | **Auction** | A phase in which orders are collected and then all matched at once, at one price (the *equilibrium price*). Used to open and close the day. |
 | **Bid** | The highest price at which someone is currently willing to buy. |
 | **Circuit breaker** | A risk control that halts trading in a symbol after a large, fast price move. |
@@ -20,14 +21,17 @@ vocabulary.
 | **Market maker** | A participant whose job is to quote both a bid and an ask, so others can always trade. |
 | **Market order** | An order without a price: trade now at the best prices available. |
 | **Order book** | All resting buy and sell orders for one symbol, best prices first. |
+| **Order ID** | The 32-character hexadecimal ID the engine gives every order, shown in the `ACK` line. `CANCEL` and `AMEND` need it. |
 | **Participant** | A trader, market maker or operator configured to connect, with an ID such as `TRADER01` and a role. |
 | **P&L** | Profit and loss. *Realized* P&L is locked in by closing a position; *unrealized* P&L is what an open position would make at the last price. |
 | **Position** | How many shares a participant holds: positive is *long*, negative is *short*. |
 | **Price-time priority** | The matching rule: better prices first; at the same price, earlier orders first. |
 | **Resting** | An order waiting in the book for someone to trade with it. |
+| **Seed quote** | A market maker's bid and ask that the engine places from the configuration at startup, so a book is not empty. |
 | **Session phase** | Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`. |
 | **Spread** | The gap between the best ask and the best bid. |
 | **Symbol** | A tradeable instrument, such as `AAPL`, with its own order book. |
 | **Tick** | The smallest allowed price step for a symbol, for example 0.01. |
 | **Time in force (TIF)** | How long an order stays active: `DAY`, `GTC` (good till cancelled), or only in an auction (`ATO`, `ATC`). `IOC` and `FOK` are order *types*, not TIF values. |
+| **Uncross** | The end of an auction: all orders that can trade are matched at once, at the one *equilibrium price* that trades the most shares. |
 | **ALF, BALF, CALF, RALF, LALF** | EduMatcher's protocols: text order entry, binary order entry, market data, post-trade data and logging. |

@@ -76,7 +76,7 @@ TAG ?= dev
 GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui \
               edumatcher-book-gui edumatcher-dash-gui edumatcher-clearing-gui
 
-# The same six as compose *service* names, which is what `build` and
+# The same seven as compose *service* names, which is what `build` and
 # `up -d <svc>` take. GUI= selects one for build-guis / up-all BUILD=1.
 GUI_SERVICES := log-gui terminal-gui trader-gui book-gui dash-gui clearing-gui config-gui
 GUI ?=
@@ -607,7 +607,7 @@ config-show: check
 	$(EXEC_TTY) $(CONTAINER_NAME) pm-config-show
 
 # --- Publishing ------------------------------------------------------------
-# Builds the seven images other than edumatcher-ai-sim from this checkout and
+# Builds the eight images other than edumatcher-ai-sim from this checkout and
 # pushes them to GHCR under one tag. Needs GITHUB_USER and GHCR_TOKEN.
 #
 #   make ghcr-push                       -> :dev

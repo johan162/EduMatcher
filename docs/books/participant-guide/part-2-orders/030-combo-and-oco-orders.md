@@ -172,8 +172,8 @@ then.
 
 ### Hedged Entry
 
-Buy a stock and simultaneously place a protective stop on a correlated instrument to
-limit downside.
+Buy a stock and simultaneously sell a correlated instrument, such as an index
+proxy, to limit downside.
 
 ```
 COMBO: BUY 100 MSFT @415.00, SELL 100 SPY @520.00
@@ -468,9 +468,11 @@ quantity (you profit when the price falls below where you sold).
 
 | Scenario              | MSFT     | AAPL     | P&L                   |
 |-----------------------|----------|----------|-----------------------|
-| Both rise             | 420 (+5) | 210 (+2) | +500 + 200 = **+700** |
-| Both fall             | 410 (−5) | 205 (+7) | −500 + 700 = **+200** |
-| MSFT rises, AAPL flat | 420 (+5) | 212 (0)  | +500 + 0 = **+500**   |
+| Both rise             | 430 (+15) | 215 (+3) | +1500 − 300 = **+1200** |
+| Both fall             | 410 (−5)  | 205 (−7) | −500 + 700 = **+200**   |
+| MSFT rises, AAPL flat | 424 (+9)  | 212 (0)  | +900 + 0 = **+900**     |
+
+(Price changes in brackets; each row ends at the ratio 2.0.)
 
 The combo profits regardless of market direction — only the spread matters.
 

@@ -16,9 +16,11 @@ cd "$setup_dir"
 # The sim also gets an API gateway of its own for the admin monitor feed
 # (instance 'monitor', admin id MON01): the feed's fan-out saturated the
 # event loop of 'desk' at the open and dropped events. Empty = none.
+# The sim's outstanding shares follow companies.db, and its 50 largest
+# companies form the EDU50 index; the load test bed has neither.
 case "$(basename "$(pwd)")" in
   s300-load-setup) ai_count=500; market_makers=(MM01 MM02); long_run=()
-    risk=(--no-collars); monitor_admin="" ;;
+    risk=(--no-collars); monitor_admin=""; company_db="" ;;
   # The sim runs with collars and circuit breakers a news-driven move can
   # reach, so the forensics see band rejects, halts and reopening auctions
   # (sim forensics S27).
@@ -27,7 +29,7 @@ case "$(basename "$(pwd)")" in
               --post-trade-replay-retention-sec 900)
     risk=(--static-band 0.20 --dynamic-band 0.03
           --cb-levels L1:0.04:3 L2:0.08:10 L3:0.15 --cb-window-ns 300000000000)
-    monitor_admin=MON01 ;;
+    monitor_admin=MON01; company_db=companies.db ;;
   *) echo "Error: unknown setup directory $(pwd)" >&2; exit 1 ;;
 esac
 
@@ -124,21 +126,19 @@ done
 trader_list=$(IFS=,; echo "${trader_ids[*]}")
 mm_list=$(IFS=,; echo "${market_makers[*]}")
 
-outstanding_args=()
-for index in "${!symbols[@]}"; do
-  outstanding_args+=(--outstanding-shares "${symbols[$index]}:$((500000000 + index * 10000000))")
-done
-
-"${config_gen[@]}" \
+# generate OUTPUT [EXTRA_ARG...]
+generate() {
+  local output="$1"
+  shift
+  "${config_gen[@]}" \
   --symbols "${symbols[@]}" \
   --participants "${participants[@]}" \
   "${desc_args[@]}" \
   --participant-default-smp CANCEL_AGGRESSOR \
-  --output engine_config.yaml \
+  --output "$output" \
   --force \
   --comment-default-config-fields \
   --seed "$seed" \
-  "${outstanding_args[@]}" \
   --api-gateway-instance "desk:${trader_list},${mm_list},OPS01:8080" \
   --api-gateway-instance dashboards::8081 \
   "${monitor_args[@]+"${monitor_args[@]}"}" \
@@ -157,7 +157,56 @@ done
   --market-data-heartbeat-interval-sec 1 --market-data-idle-timeout-sec 5 \
   --market-data-replay-window-sec 30 --market-data-max-symbols-per-client 300 \
   --market-data-max-client-queue 20000 \
-  "${long_run[@]+"${long_run[@]}"}"
+  "${long_run[@]+"${long_run[@]}"}" \
+  "$@"
+}
+
+outstanding_args=()
+index_args=()
+if [[ -z "$company_db" ]]; then
+  for index in "${!symbols[@]}"; do
+    outstanding_args+=(--outstanding-shares "${symbols[$index]}:$((500000000 + index * 10000000))")
+  done
+else
+  # pm-index weights a constituent by price x outstanding shares, so each
+  # symbol gets companies.db's market cap / its seeded price in shares. The
+  # seeded prices depend only on --seed: a first pass into a scratch
+  # directory reads them. The last line out is the 50 largest, for EDU50.
+  scratch=$(mktemp -d)
+  trap 'rm -rf "$scratch"' EXIT
+  generate "$scratch/engine_config.yaml" >/dev/null
+  python3 -I - "$scratch/engine_config.yaml" "$company_db" > "$scratch/shares.txt" <<'PY'
+import re
+import sqlite3
+import sys
+
+config, db = sys.argv[1], sys.argv[2]
+text = open(config, encoding="utf-8").read()
+prices = {
+    symbol: float(price)
+    for symbol, price in re.findall(
+        r"^  ([A-Z][A-Z0-9.]*):\n    tick_decimals: \d+\n    last_buy_price: (\S+)$",
+        text,
+        re.MULTILINE,
+    )
+}
+caps = dict(sqlite3.connect(db).execute("SELECT symbol, market_cap_musd FROM companies"))
+missing = sorted(symbol for symbol in prices if not caps.get(symbol))
+if missing:
+    sys.exit(f"Error: no market cap in {db} for {', '.join(missing)}")
+for symbol, price in prices.items():
+    print(f"{symbol}:{round(caps[symbol] * 1e6 / price)}")
+print(",".join(sorted(prices, key=lambda symbol: (-caps[symbol], symbol))[:50]))
+PY
+  mapfile -t shares < "$scratch/shares.txt"
+  for spec in "${shares[@]:0:${#shares[@]}-1}"; do
+    outstanding_args+=(--outstanding-shares "$spec")
+  done
+  index_args=(--index "EDU50:EduMatcher 50, the 50 largest companies by market cap"
+              --index-constituents "EDU50:${shares[-1]}")
+fi
+
+generate engine_config.yaml "${outstanding_args[@]}" "${index_args[@]+"${index_args[@]}"}"
 
 if [[ -n "$monitor_admin" ]]; then
   # The browser sends the one key it was given to every socket; 'desk' reads it
