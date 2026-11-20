@@ -1,3 +1,34 @@
+## [v0.82.0] - 2026-11-20
+
+Release Type: major
+
+### 📋 Summary
+This release tightens configuration and deployment contracts, improves startup recovery, and expands simulation and operator capabilities. Made multiple major updates to all guide-books to match the latest updates in code and behavior.
+
+### ⚠️ Breaking Changes
+- Moved order limits to per-symbol configuration; remove risk-level order limits and update existing configurations
+- Updated engine deployment to use the compiled artifact at `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` instead of per-process YAML configuration paths
+- Changed startup recovery to discard persisted orders whose symbols or participants are no longer configured, and seed quotes that are no longer declared
+
+### ✨ Additions
+- Added a 300-symbol simulation with generated company share counts and an `EDU50` index
+- Added `state_since` to session-status messages and REST responses so clients can detect stale session state
+
+### 🚀 Improvements
+- Improved engine startup reliability by waiting for log-server availability and successful audit health checks
+- Updated ALF console and market-maker bot help to list FOK/IOC combo leg types, and logged sent quotes at tick precision
+
+### 🐛 Bug Fixes
+- Fixed console hangup/logout handling and duplicate-session messaging
+- Fixed noisy CALF index levels, end-of-day monetary formatting, and auction display formatting
+
+### 📚 Documentation
+- Added a message-architecture chapter and figures
+- Updated architecture, operator, participant, protocol, quick-start, training, and exchange-introduction documentation to match current behavior
+
+### 🛠 Internal
+- Added regression coverage for recovery, setup, console signals, configuration, and protocol normalization
+
 ## [v0.81.3] - 2026-11-18
 
 Release Type: minor
