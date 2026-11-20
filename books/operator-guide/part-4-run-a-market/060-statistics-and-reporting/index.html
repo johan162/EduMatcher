@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5751,6 +5863,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5786,7 +5926,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -9054,6 +9194,18 @@ model later does not require migrating the reference table.</p>
 <td><code>recorder</code></td>
 <td>The process that wrote the file (<code>pm-stats</code>)</td>
 </tr>
+<tr>
+<td><code>keep_order_events_days</code></td>
+<td>The order-event retention in force (<code>--keep-order-events-days</code>, else <code>--keep-days</code>; <code>0.0</code> = keep all)</td>
+</tr>
+<tr>
+<td><code>human_gateways</code></td>
+<td>The <code>--human-gateways</code> patterns, comma-separated; empty when none</td>
+</tr>
+<tr>
+<td><code>keep_human_order_events_days</code></td>
+<td>The retention for those gateways' order events (<code>--keep-human-order-events-days</code>)</td>
+</tr>
 </tbody>
 </table>
 <p>The schema version lives in <code>PRAGMA user_version</code> rather than in this table, so
@@ -9632,6 +9784,11 @@ row for the same execution, depending on delivery latency. Within
 <td>Rejection, cancel, expire, or status reason when provided</td>
 </tr>
 <tr>
+<td><code>reject_code</code></td>
+<td>TEXT</td>
+<td>The engine's machine-readable rejection class (e.g. <code>MAX_ORDER_QTY</code>) on a <code>*_REJECT</code> event; null otherwise</td>
+</tr>
+<tr>
 <td><code>client_tag</code></td>
 <td>TEXT</td>
 <td>Client-supplied order correlation tag when present</td>
@@ -9650,6 +9807,11 @@ row for the same execution, depending on delivery latency. Within
 <td><code>priority_reset</code></td>
 <td>INTEGER</td>
 <td><code>1</code> when an amend reset queue priority, <code>0</code> when it did not, null when not applicable</td>
+</tr>
+<tr>
+<td><code>msg_id</code></td>
+<td>TEXT</td>
+<td>The audit message id the row records, joining it to its audit line</td>
 </tr>
 </tbody>
 </table>
@@ -10131,8 +10293,7 @@ volume, trade count, VWAP and largest-trade all continue from where they were.</
   received and cannot be recovered — ZeroMQ PUB/SUB has no replay. The rollup
   is consistent with what was recorded, not necessarily with what traded.</li>
 <li>For an index, <code>update_count</code> is rebuilt as the number of retained
-  <code>index_level_snapshots</code> rows, which can be marginally lower than the number
-  of updates originally received if any shared a millisecond.</li>
+  <code>index_level_snapshots</code> rows for the day.</li>
 </ul>
 <h3 id="one-recorder-per-database">One recorder per database<a class="headerlink" href="#one-recorder-per-database" title="Permanent link">&para;</a></h3>
 <p>Exactly one <code>pm-stats</code> process may write to a given <code>stats.db</code>, and this is
@@ -10140,7 +10301,7 @@ volume, trade count, VWAP and largest-trade all continue from where they were.</
 in-memory rollup and overwrite each other's <code>daily_stats</code> rows, producing
 figures that describe neither process — so a second one refuses to start:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="gp">$ </span>pm-stats<span class="w"> </span>--db<span class="w"> </span>data/stats.db
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="go">&lt;timestamp&gt; ERROR edumatcher.stats.main - fatal startup error: another pm-stats process is already recording to data/stats.db (lock held on data/stats.db.lock). Two recorders on one database overwrite each other's daily rollups — use a different --db.</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="go">&lt;timestamp&gt; CRITICAL edumatcher.stats.main - fatal startup error: another pm-stats process is already recording to /home/you/.local/share/edumatcher/stats.db (lock held on /home/you/.local/share/edumatcher/stats.db.lock). Two recorders on one database overwrite each other's daily rollups — use a different --db.</span>
 <a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
 <a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="go">1</span>
 </code></pre></div>
@@ -10798,13 +10959,14 @@ database figures:</p>
 <a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a>  Database integrity/read-write: yes
 <a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a>
 <a id="__codelineno-48-6" name="__codelineno-48-6" href="#__codelineno-48-6"></a>Database stats:
-<a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a>  path: data/stats.db
+<a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a>  path: /home/you/.local/share/edumatcher/stats.db
 <a id="__codelineno-48-8" name="__codelineno-48-8" href="#__codelineno-48-8"></a>  size: 412.3MB
 <a id="__codelineno-48-9" name="__codelineno-48-9" href="#__codelineno-48-9"></a>  trade_log rows: 1843022
 <a id="__codelineno-48-10" name="__codelineno-48-10" href="#__codelineno-48-10"></a>  order_events rows: 5210334
 <a id="__codelineno-48-11" name="__codelineno-48-11" href="#__codelineno-48-11"></a>  price_snapshots rows: 96120
 <a id="__codelineno-48-12" name="__codelineno-48-12" href="#__codelineno-48-12"></a>  daily_stats rows: 1240
 <a id="__codelineno-48-13" name="__codelineno-48-13" href="#__codelineno-48-13"></a>  feed_gaps rows: 0
+<a id="__codelineno-48-14" name="__codelineno-48-14" href="#__codelineno-48-14"></a>  feed_gaps rows: 0
 </code></pre></div>
 <p>The exit code is <code>0</code> when healthy and <code>1</code> otherwise. With <code>--quiet</code> nothing is
 printed and the exit code is the same. <code>--format json</code> prints the same report as JSON.</p>

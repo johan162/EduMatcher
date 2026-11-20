@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8215,7 +8355,7 @@ connecting two clients using the same gateway ID.</p>
 </ul>
 <p>The default is <code>REJECT_NEW</code> (the generated config shows it). A second <code>LOGON</code>
 as <code>TRADER01</code> while the first session is open gets <code>accepted=False</code>, code
-<code>0x02</code> and the message <code>Gateway already connected</code>.</p>
+<code>0x02</code> and the message <code>TRADER01 already connected</code>.</p>
 <p>Also verify heartbeat handling:</p>
 <ul>
 <li>Keep a client idle and watch for <code>HEARTBEAT</code> frames (one per second here,
@@ -8223,8 +8363,8 @@ as <code>TRADER01</code> while the first session is open gets <code>accepted=Fal
 <li>Ensure your client replies with <code>HEARTBEAT_ACK</code>.</li>
 <li>Skip ACK replies to confirm timeout disconnect after <code>heartbeat_timeout_sec</code>:
   with the generated values (1 s interval, 5 s timeout) a client that logs on
-  and then only reads receives frames at 0, 1, 2, 3 and 4 s, and the gateway
-  closes the connection at 5 s.</li>
+  and then only reads receives its <code>LOGON_ACK</code> and then a <code>HEARTBEAT</code> at 1, 2,
+  3 and 4 s, and the gateway closes the connection at 5 s.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: observed both duplicate-session behaviour and heartbeat timeout semantics.</p>
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>

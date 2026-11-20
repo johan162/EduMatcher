@@ -1383,6 +1383,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2442,6 +2470,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5015,6 +5127,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5050,7 +5190,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7799,6 +7939,9 @@ first moment of the trading day while preserving prior-session time priority.</p
 <li><code>bid_price</code>, <code>ask_price</code></li>
 <li><code>bid_qty</code>, <code>ask_qty</code></li>
 <li>optional <code>tif</code> (default <code>DAY</code>), optional <code>quote_id</code></li>
+<li>optional <code>seed_once</code> (default <code>true</code>): skip the seed when a quote for the
+  same gateway and symbol was restored from the previous run — see
+  <a href="../020-market-making/#controlling-when-seeds-are-applied-seed_once">Market Making → <code>seed_once</code></a></li>
 </ul>
 <p>If at least one <code>MARKET_MAKER</code> gateway is configured, the engine <strong>requires</strong>
 each symbol to define at least one quote seed — the config loader rejects the
@@ -7838,14 +7981,16 @@ has them validated and injected the normal way. <code>pm-config-gen
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>8.  Publish initial book snapshots for all symbols
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>9.  Begin accepting gateway connections
 </code></pre></div>
-<p>For a clean first run, clear persisted files so no stale state competes with
-your seeds:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>rm<span class="w"> </span>-f<span class="w"> </span>data/gtc_orders.json<span class="w"> </span>data/book_stats.json<span class="w"> </span>data/gtc_combos.json
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<p>For a clean first run, clear the persisted files in the data directory
+(<code>pm-opctl-cli show</code> prints where it is) so no stale state competes with your
+seeds:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>&lt;data<span class="w"> </span>directory&gt;
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>gtc_orders.json<span class="w"> </span>book_stats.json<span class="w"> </span>gtc_combos.json
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
-<p>The engine will print one line per injected quote:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[ENGINE] MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[ENGINE] Injected 3 market-maker quote(s) and 0 combo(s).
+<p>The engine logs one line per injected quote, then a total:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Injected 3 market-maker quote(s) and 0 combo(s).
 </code></pre></div>
 <h3 id="gateway_id-is-an-accounting-identity-not-a-connectivity-check"><code>gateway_id</code> is an accounting identity, not a connectivity check<a class="headerlink" href="#gateway_id-is-an-accounting-identity-not-a-connectivity-check" title="Permanent link">&para;</a></h3>
 <p>The <code>gateway_id</code> field in a seed quote serves two purposes:</p>
@@ -7968,6 +8113,7 @@ quote is cancelled and the new one is registered atomically.</p>
 <p>Engine to gateway:</p>
 <ul>
 <li><code>quote.ack.&lt;GW_ID&gt;</code></li>
+<li><code>quote.cancel_ack.&lt;GW_ID&gt;</code> (the answer to <code>QUOTE_CANCEL</code>)</li>
 <li><code>quote.status.&lt;GW_ID&gt;</code></li>
 <li><code>risk.kill_switch_ack.&lt;GW_ID&gt;</code></li>
 </ul>

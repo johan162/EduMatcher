@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4796,6 +4908,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4831,7 +4971,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8358,19 +8498,21 @@ used to produce a <code>paper_result.json</code>, regenerate it — the FIX file
 authoritative input.</p>
 <h3 id="typical-output">Typical output<a class="headerlink" href="#typical-output" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GEN] Generating and paper-trading 1000 line(s) …
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[GEN] Wrote 56 MM orders  → data/verify/mm_orders.fix
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>[GEN] Wrote engine config    → data/verify/verify_engine_config.yaml
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>[GEN] Wrote 1000 test lines  → data/verify/test_orders.fix
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>      769 new, 238 amend, 49 cancel → 879 trades
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  AAPL    bids=12 levels  asks=14 levels  last=150.22
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  AMAZ    bids=8 levels  asks=17 levels  last=180.30
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>  MSFT    bids=16 levels  asks=13 levels  last=418.83
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>  GOOG    bids=9 levels  asks=25 levels  last=160.07
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>[GEN] Saved paper result     → data/verify/paper_result.json
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[GEN] Wrote 56 MM orders  → /path/to/checkout/data/verify/mm_orders.fix
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>[GEN] Wrote engine config    → /path/to/checkout/data/verify/verify_engine_config.yaml
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>[GEN] Wrote 1000 test lines  → /path/to/checkout/data/verify/test_orders.fix
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>      770 new, 233 amend, 53 cancel → 825 trades
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  AAPL    bids=15 levels  asks=20 levels  last=150.02
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  AMAZ    bids=16 levels  asks=19 levels  last=180.03
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>  MSFT    bids=26 levels  asks=3 levels  last=422.2
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>  GOOG    bids=10 levels  asks=23 levels  last=160.16
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>[GEN] Saved paper result     → /path/to/checkout/data/verify/paper_result.json
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>[GEN] Done — run replay_to_engine.py to get the engine result.
 </code></pre></div>
-<p>(Real numbers for <code>--seed 42 --count 1000</code>, reproduced exactly on every run
-with that seed.) There is no "skipped" count any more — the four <code>#</code> comment
+<p>(Real numbers for <code>--seed 42 --count 1000</code>, measured 2026-11-20 and reproduced
+byte for byte by a second run. They change only when the generator or the
+reference matcher changes. The files go to <code>data/verify/</code> under the repository
+root, wherever you run the script from — not to the engine's data directory.) There is no "skipped" count any more — the four <code>#</code> comment
 header lines in <code>mm_orders.fix</code> are silently skipped while building the MM
 book, and <code>replay_to_engine.py</code>'s own parse-error counter (below) is what
 surfaces them later.</p>
@@ -8439,18 +8581,24 @@ used by the paper result, then saved to <code>data/verify/engine_result.json</co
 the engine running with no competing resting orders — a "rej" line for
 <code>NEW</code>/<code>AMEND</code>/<code>CANCEL</code> all count toward the same <code>rejected</code> tally.)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[REPLAY] Gateway VERIFY01 authenticated.
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[REPLAY] … 500 lines sent (500 acc, 0 rej)
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[REPLAY] … 1000 lines sent (1000 acc, 0 rej)
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>[REPLAY] Sent 1056 lines in 0.59s  (1056 accepted, 0 rejected, 4 parse errors)
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[REPLAY] … 500 lines sent (480 acc, 20 rej)
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[REPLAY] … 1000 lines sent (960 acc, 40 rej)
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>[REPLAY] Sent 1056 lines in 0.51s  (1011 accepted, 45 rejected, 4 parse errors)
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>[REPLAY] Pausing 0.5s for engine to drain …
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>[REPLAY] Requesting book snapshots …
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>  AAPL    bids=12 levels  asks=14 levels  last=150.22
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>  AMAZ    bids=8 levels  asks=17 levels  last=180.3
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>  MSFT    bids=16 levels  asks=13 levels  last=418.83
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>  GOOG    bids=9 levels  asks=25 levels  last=160.07
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>[REPLAY] Saved engine result → data/verify/engine_result.json
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>  AAPL    bids=15 levels  asks=20 levels  last=150.02
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>  AMAZ    bids=16 levels  asks=19 levels  last=180.03
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>  MSFT    bids=26 levels  asks=3 levels  last=422.2
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>  GOOG    bids=10 levels  asks=23 levels  last=160.16
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>[REPLAY] Saved engine result → /path/to/checkout/data/verify/engine_result.json
 <a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>[REPLAY] Done — run compare_results.py to verify.
 </code></pre></div>
+<p>Rejections are expected and are not failures. Nearly all are <code>FOK</code> orders
+the book cannot fill completely: the engine answers those with a single
+<code>accepted=false</code> ACK (<code>INSUFFICIENT_LIQUIDITY</code>), and the reference matcher
+rejects the same orders, so the books still agree. Replaying the <code>NEW</code> lines of
+this dataset through the reference matcher alone gives 44 rejected FOKs. The
+verdict comes from comparing the books, never from the reject count.</p>
 <p>Progress prints every 500 lines (not every 100), and the "4 parse errors" here
 are the same four <code>#</code> comment lines in <code>mm_orders.fix</code> seen in Tool 1 — this
 tool's own parser skips them too, but the summary line is the only place that
@@ -8519,12 +8667,18 @@ symbol, with a <code>✓</code>/<code>✗</code> glyph summarising each row. The
 <p>A passing run (real output, same <code>--seed 42 --count 1000</code> dataset as the Tool
 1 and Tool 2 examples above):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>── AAPL ──────────────────────────────────
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  ✓  PASS  — 12 bid level(s), 14 ask level(s), last=150.22
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  ✓  PASS  — 15 bid level(s), 20 ask level(s), last=150.02
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>── AMAZ ──────────────────────────────────
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  ✓  PASS  — 8 bid level(s), 17 ask level(s), last=180.3
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  ✓  PASS  — 16 bid level(s), 19 ask level(s), last=180.03
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>═══  RESULT: PASS  ═══
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>── MSFT ──────────────────────────────────
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>  ✓  PASS  — 26 bid level(s), 3 ask level(s), last=422.2
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>── GOOG ──────────────────────────────────
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>  ✓  PASS  — 10 bid level(s), 23 ask level(s), last=160.16
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>═══  RESULT: PASS  ═══
 </code></pre></div>
 <p>A failing run with a qty mismatch looks like this (illustrative — not from a
 real failing dataset):</p>
@@ -8719,49 +8873,51 @@ nothing to deploy. Real output, verbatim:</p>
 <a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>./tools/verify_matching.sh<span class="w"> </span>--skip-gen
 </code></pre></div>
 <p>Expected end-to-end output for a passing run (real, <code>--seed 42</code>, default
-<code>--count 10000</code> — elapsed time measured directly at ~10.6 s total, so the
-"~10 s on a laptop" estimate above still holds even though the default line
-count is ten times what it used to be):</p>
+<code>--count 10000</code> — elapsed time measured at about 22 s in total on the
+development machine, 2026-11-20; the progress lines are abridged):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>━━━  STEP 1 — Generate verification dataset (seed=42, count=10000)  ━━━
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[GEN] Generating and paper-trading 10000 line(s) …
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>[GEN] Wrote 56 MM orders  → data/verify/mm_orders.fix
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[GEN] Wrote engine config    → data/verify/verify_engine_config.yaml
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>[GEN] Wrote 10000 test lines  → data/verify/test_orders.fix
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>      7106 new, 2380 amend, 570 cancel → 9020 trades
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>  AAPL    bids=56 levels  asks=65 levels  last=150.37
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>  AMAZ    bids=77 levels  asks=55 levels  last=179.92
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>  MSFT    bids=102 levels  asks=81 levels  last=419.92
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>  GOOG    bids=69 levels  asks=73 levels  last=160.21
-<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>[GEN] Saved paper result     → data/verify/paper_result.json
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>[GEN] Wrote 56 MM orders  → /path/to/checkout/data/verify/mm_orders.fix
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[GEN] Wrote engine config    → /path/to/checkout/data/verify/verify_engine_config.yaml
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>[GEN] Wrote 10000 test lines  → /path/to/checkout/data/verify/test_orders.fix
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>      7102 new, 2374 amend, 580 cancel → 8828 trades
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>  AAPL    bids=72 levels  asks=62 levels  last=149.8
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>  AMAZ    bids=62 levels  asks=66 levels  last=179.86
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>  MSFT    bids=81 levels  asks=84 levels  last=420.22
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>  GOOG    bids=71 levels  asks=53 levels  last=160.4
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>[GEN] Saved paper result     → /path/to/checkout/data/verify/paper_result.json
 <a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>[GEN] Done — run replay_to_engine.py to get the engine result.
 <a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>
 <a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>━━━  STEP 2 — Start matching engine  ━━━
 <a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>[VERIFY] Engine data directory: /path/to/checkout/src/data
 <a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>[VERIFY] Deploying verify_engine_config.yaml …
 <a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>[VERIFY] Starting engine …
-<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>[VERIFY] Waiting for engine to bind (2 s) …
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>[VERIFY] Waiting for engine to bind …
 <a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>[VERIFY] Engine PID=84231 is running.
 <a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>
 <a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a>━━━  STEP 3 — Replay orders to engine  ━━━
 <a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a>[REPLAY] Gateway VERIFY01 authenticated.
-<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a>[REPLAY] … 500 lines sent (500 acc, 0 rej)
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a>[REPLAY] … 500 lines sent (486 acc, 14 rej)
 <a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>...
-<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>[REPLAY] Sent 10056 lines in 5.94s  (10056 accepted, 0 rejected, 4 parse errors)
-<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a>[REPLAY] Pausing 0.5s for engine to drain …
-<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a>[REPLAY] Saved engine result → data/verify/engine_result.json
-<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a>
-<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a>━━━  STEP 4 — Shut down engine  ━━━
-<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a>[VERIFY] Sending SIGINT to engine …
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>[REPLAY] … 10000 lines sent (9581 acc, 419 rej)
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a>[REPLAY] Sent 10056 lines in 5.80s  (9636 accepted, 420 rejected, 4 parse errors)
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a>[REPLAY] Pausing 0.5s for engine to drain …
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a>[REPLAY] Requesting book snapshots …
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a>...
+<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a>[REPLAY] Saved engine result → /path/to/checkout/data/verify/engine_result.json
 <a id="__codelineno-18-31" name="__codelineno-18-31" href="#__codelineno-18-31"></a>
-<a id="__codelineno-18-32" name="__codelineno-18-32" href="#__codelineno-18-32"></a>━━━  STEP 5 — Compare paper vs engine  ━━━
-<a id="__codelineno-18-33" name="__codelineno-18-33" href="#__codelineno-18-33"></a>  ✓  PASS  — 56 bid level(s), 65 ask level(s), last=150.37
-<a id="__codelineno-18-34" name="__codelineno-18-34" href="#__codelineno-18-34"></a>  ✓  PASS  — 77 bid level(s), 55 ask level(s), last=179.92
-<a id="__codelineno-18-35" name="__codelineno-18-35" href="#__codelineno-18-35"></a>  ✓  PASS  — 102 bid level(s), 81 ask level(s), last=419.92
-<a id="__codelineno-18-36" name="__codelineno-18-36" href="#__codelineno-18-36"></a>  ✓  PASS  — 69 bid level(s), 73 ask level(s), last=160.21
-<a id="__codelineno-18-37" name="__codelineno-18-37" href="#__codelineno-18-37"></a>
-<a id="__codelineno-18-38" name="__codelineno-18-38" href="#__codelineno-18-38"></a>═══  RESULT: PASS  ═══
-<a id="__codelineno-18-39" name="__codelineno-18-39" href="#__codelineno-18-39"></a>
-<a id="__codelineno-18-40" name="__codelineno-18-40" href="#__codelineno-18-40"></a>✓  Verification PASSED — engine output matches paper trade.
+<a id="__codelineno-18-32" name="__codelineno-18-32" href="#__codelineno-18-32"></a>━━━  STEP 4 — Shut down engine  ━━━
+<a id="__codelineno-18-33" name="__codelineno-18-33" href="#__codelineno-18-33"></a>[VERIFY] Sending SIGINT to engine …
+<a id="__codelineno-18-34" name="__codelineno-18-34" href="#__codelineno-18-34"></a>
+<a id="__codelineno-18-35" name="__codelineno-18-35" href="#__codelineno-18-35"></a>━━━  STEP 5 — Compare paper vs engine  ━━━
+<a id="__codelineno-18-36" name="__codelineno-18-36" href="#__codelineno-18-36"></a>  ✓  PASS  — 72 bid level(s), 62 ask level(s), last=149.8
+<a id="__codelineno-18-37" name="__codelineno-18-37" href="#__codelineno-18-37"></a>  ✓  PASS  — 62 bid level(s), 66 ask level(s), last=179.86
+<a id="__codelineno-18-38" name="__codelineno-18-38" href="#__codelineno-18-38"></a>  ✓  PASS  — 81 bid level(s), 84 ask level(s), last=420.22
+<a id="__codelineno-18-39" name="__codelineno-18-39" href="#__codelineno-18-39"></a>  ✓  PASS  — 71 bid level(s), 53 ask level(s), last=160.4
+<a id="__codelineno-18-40" name="__codelineno-18-40" href="#__codelineno-18-40"></a>
+<a id="__codelineno-18-41" name="__codelineno-18-41" href="#__codelineno-18-41"></a>═══  RESULT: PASS  ═══
+<a id="__codelineno-18-42" name="__codelineno-18-42" href="#__codelineno-18-42"></a>
+<a id="__codelineno-18-43" name="__codelineno-18-43" href="#__codelineno-18-43"></a>✓  Verification PASSED — engine output matches paper trade.
 </code></pre></div>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <table>

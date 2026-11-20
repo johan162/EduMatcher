@@ -1385,6 +1385,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2486,6 +2514,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5059,6 +5171,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5094,7 +5234,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8166,10 +8306,12 @@ exchanges support additional implication directions:</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Implied-out example:</strong> A trader posts "sell MSFT-AAPL spread at 205.00." If
-AAPL has a resting bid at 210.00, the exchange can derive an implied offer in
-MSFT at 415.00 (= 205.00 + 210.00). This publishes synthetic sell liquidity in
-the outright MSFT book that did not previously exist.</p>
+<p><strong>Implied-out example:</strong> A trader posts "sell MSFT-AAPL spread at 205.00" —
+sell MSFT, buy AAPL, for a net 205.00. If AAPL has a resting offer at 210.00,
+the exchange can derive an implied offer in MSFT at 415.00 (= 205.00 + 210.00):
+a buyer of MSFT at 415.00 trades with the spread seller, who buys AAPL from
+that offer at 210.00. This publishes synthetic sell liquidity in the outright
+MSFT book that did not previously exist.</p>
 <p><strong>Implied-through</strong> chains multiple relationships: spread AB liquidity combined
 with outright B liquidity generates implied quotes in spread AC. The
 combinatorial explosion of paths is the primary reason implied engines are

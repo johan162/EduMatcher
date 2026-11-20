@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5585,6 +5697,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5620,7 +5760,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8383,7 +8523,7 @@ where they live.</p>
 </tr>
 <tr>
 <td>Web applications</td>
-<td>four by default, <code>config-gui</code> opt-in¹</td>
+<td>six by default, <code>config-gui</code> opt-in¹</td>
 <td>started separately</td>
 <td>started separately</td>
 </tr>
@@ -8714,10 +8854,13 @@ operator who needs records afterwards.</p>
 <p>Wait until the engine reports that it loaded the deployed configuration and is
 listening on the core sockets.</p>
 <p>Typical signals:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Loaded deployed config .../ref_data/engine_config.json
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Session handling: enabled (startup state: CLOSED)
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Drop copy PUB bound on port 5557
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>using compiled config .../ref_data/engine_config.json (compiled 2026-11-19T18:43:58.000Z from .../engine_config.yaml)
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Loaded config from .../ref_data/engine_config.json  (10 symbol(s): AAPL, AMZN, ...; 4 gateway id(s))
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Session handling: enabled (startup state: CLOSED)
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Risk enforcement: collars=off, circuit_breakers=on
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>Injected 10 market-maker quote(s) and 0 combo(s).
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>Drop copy PUB bound on port 5557
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 </code></pre></div>
 <p>The exact wording may vary by release, but the important facts are: config
 loaded, session mode known, and sockets bound.</p>
@@ -8803,8 +8946,11 @@ supported way to add a process, change a flag or define a profile of your own.</
 <h3 id="what-it-gives-you-that-a-row-of-terminals-does-not">What it gives you that a row of terminals does not<a class="headerlink" href="#what-it-gives-you-that-a-row-of-terminals-does-not" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Ordering.</strong> Processes are started in the profile's order, which encodes the
-  dependencies described below. It does not wait for each one to become
-  healthy — for a slow first start, check <code>pm-opctl-cli list</code> before inviting
+  dependencies described below. Two waits are built in: <code>pm-log-srv</code> is given
+  up to 10 s to accept connections, and when the profile also starts the
+  engine, <code>pm-audit</code> must pass its health check within 10 s or <code>pm-engine</code> is
+  not started at all, so no event goes unrecorded. Nothing else is waited
+  for — for a slow first start, check <code>pm-opctl-cli list</code> before inviting
   participants in.</li>
 <li><strong>A process table.</strong> <code>list</code> reports each process as <code>running</code>, <code>not
   responding</code> (the PID is alive but its check failed) or <code>dead</code>. A
@@ -8992,7 +9138,9 @@ stack, which is the simplest thing when nothing else is running. To point
 the applications at an exchange you started by hand instead, run them from
 <code>web-apps/&lt;app&gt;/</code> — see
 <a href="../../../architecture-and-development/part-4-developing/020-development-workflow/">The Development Loop</a>, whose "hybrid" setup
-is exactly this case.</p>
+is exactly this case — or, without a checkout, install the released GUI
+containers alone with <code>install.sh --guis</code>
+(<a href="../../part-1-install-and-deploy/010-installation/#web-applications-with-a-pipx-exchange">Web applications with a pipx exchange</a>).</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Where are participant terminals?</p>
@@ -9053,7 +9201,7 @@ that matter for a long-running exchange:</p>
 <td><code>pm-clearing</code></td>
 <td><code>--retention-days N</code></td>
 <td><code>90</code></td>
-<td>Delete individual <code>trade_events</code> rows older than N days at startup and at every close; <code>0</code> disables pruning. Daily summaries are kept</td>
+<td>Delete <code>trade_events</code> rows and close snapshots older than N days at startup and at every close; the newest close snapshot is always kept, <code>0</code> disables pruning. Daily summaries are kept</td>
 </tr>
 <tr>
 <td><code>pm-clearing</code></td>
@@ -9123,8 +9271,9 @@ order-entry clients. Both ultimately send orders into the same engine.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-md-gwy<span class="w">      </span><span class="c1"># CALF market data, default TCP :5570</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-ralf-gwy<span class="w">    </span><span class="c1"># RALF post-trade dissemination</span>
 <a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>pm-dc-gwy<span class="w">      </span><span class="c1"># DC1 TCP relay for engine drop copy</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>pm-api-gwy<span class="w">     </span><span class="c1"># REST/WebSocket API, default HTTP :8080</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pm-index<span class="w">       </span><span class="c1"># optional real-time index calculator</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>pm-api-gwy<span class="w">     </span><span class="c1"># REST/WebSocket API, default HTTP :8080; with several</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">               </span><span class="c1"># api_gateways instances: pm-api-gwy --instance desk, etc.</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>pm-index<span class="w">       </span><span class="c1"># optional real-time index calculator</span>
 </code></pre></div>
 <p>Start only the services your session needs. Each exposed gateway is another
 port to document, monitor and protect.</p>
@@ -9134,9 +9283,9 @@ port to document, monitor and protect.</p>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
 </code></pre></div>
 <p><code>pm-log-srv</code> records operational logging, not trading events. Use it alongside
-<code>pm-audit</code>, not instead of it. Automatic logging into <code>pm-log-srv</code> is being
-rolled out process by process; see <a href="../../part-6-observe-and-recover/040-log-server/">Centralized Log Server</a> for
-current support and CLI workflows.</p>
+<code>pm-audit</code>, not instead of it. Every <code>pm-*</code> process ships its log lines to it;
+see <a href="../../part-6-observe-and-recover/040-log-server/">Centralized Log Server</a> for
+the CLI workflows.</p>
 <h3 id="tapedeck-trader-information-terminal">TapeDeck trader information terminal<a class="headerlink" href="#tapedeck-trader-information-terminal" title="Permanent link">&para;</a></h3>
 <p>TapeDeck (<code>pm-terminal</code>) is the browser-based read-only market display in
 <code>web-apps/terminal-gui/</code>. It is not a Python <code>pm-*</code> console script. It depends on:</p>
@@ -9303,7 +9452,10 @@ is not reachable or the gateway ID is not configured.</p>
 <p>Check that the symbol list, gateway list and session state match the intended
 session.</p>
 <p><strong>5. Submit a harmless resting order</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<p>A buy priced below the best offer rests instead of trading. Look at
+<code>BOOK|SYM=AAPL</code> first: with the default <code>s10-basic</code> configuration the seeded
+market maker offers AAPL at 22.98, so a buy at 150.00 would trade at once.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=20.00|TIF=DAY
 </code></pre></div>
 <p>Then verify it appears in <code>pm-viewer --symbol AAPL</code> or <code>pm-admin</code> <code>BOOK|SYM=AAPL</code>.</p>
 <p><strong>6. Confirm durable recorders are writing</strong></p>
@@ -9705,10 +9857,13 @@ boundary).</p>
 <a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="w">    </span>-C<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span><span class="w"> </span>.
 </code></pre></div>
 <h3 id="shutting-down-a-managed-stack">Shutting down a managed stack<a class="headerlink" href="#shutting-down-a-managed-stack" title="Permanent link">&para;</a></h3>
-<p><code>pm-opctl-cli stop</code> sends <code>SIGTERM</code> to everything it started, in alphabetical
-order by process name — which is <em>not</em> the startup order above. For a session
-whose records matter, stop order entry first (close the participant
-terminals, or halt the session with <code>pm-admin</code>), then let it stop the rest.</p>
+<p><code>pm-opctl-cli stop</code> sends <code>SIGTERM</code> to everything it started, in waves, each
+given up to 15 s to exit before the next: first everything that is not listed
+below (gateways, scheduler, bots), then <code>pm-engine</code>, then the recorders
+(<code>pm-clearing</code>, <code>pm-stats</code>, <code>pm-audit</code>, <code>pm-index</code>, <code>pm-monitor</code>) so they see
+the engine's last messages, and last <code>pm-log-srv</code>. Participant terminals it did
+not start are not touched: for a session whose records matter, close them (or
+halt the session with <code>pm-admin</code>) first.</p>
 <p>For a container:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">        </span><span class="c1"># or: make down-all</span>
 </code></pre></div>
@@ -9725,9 +9880,12 @@ runbook and replace IDs, symbols, timezones and ports with your own.</p>
 <p>Prepare:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/edumatcher-smoke
 <a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a><span class="nb">cd</span><span class="w"> </span>~/edumatcher-smoke
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>pm-setup
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>s3-basic-nomm<span class="w"> </span>--force
 <a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>pm-config-deploy<span class="w"> </span>--show
 </code></pre></div>
+<p><code>s3-basic-nomm</code> starts with empty books and no sessions, so the two
+orders below can only trade with each other. With the default <code>s10-basic</code>
+the seeded market maker would take the other side of both.</p>
 </li>
 <li>
 <p>Start engine:</p>
@@ -9832,9 +9990,12 @@ runbook and replace IDs, symbols, timezones and ports with your own.</p>
 <ol>
 <li>Start core engine and recorders.</li>
 <li>
-<p>Start market data and API history services:</p>
+<p>Start market data and API history services. With more than one
+   <code>api_gateways</code> instance configured (every bundled nominal and complex
+   example has <code>desk</code> and <code>dashboards</code>), name the one that holds the
+   read-only key:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>pm-md-gwy
-<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>pm-api-gwy
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>dashboards
 </code></pre></div>
 </li>
 <li>
@@ -9845,8 +10006,9 @@ runbook and replace IDs, symbols, timezones and ports with your own.</p>
 <li>
 <p>Start TapeDeck:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/terminal-gui
-<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'...'</span>
-<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>make<span class="w"> </span>up
+<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'...'</span><span class="w">                </span><span class="c1"># the gateway_id: null key</span>
+<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">API_GATEWAY_URL</span><span class="o">=</span><span class="s1">'http://host.docker.internal:8081'</span><span class="w">   </span><span class="c1"># the default</span>
+<a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a>make<span class="w"> </span>up
 </code></pre></div>
 </li>
 <li>

@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8066,7 +8206,7 @@ observe:</p>
   one at every opening and closing auction, and for a reopening after a halt.
   To get a non-empty one, enter a crossing sell and buy while the call phase is
   open (a sell of 50 at 149.50 from <code>TRADER01</code> and a buy of 40 at 151.00
-  from <code>TRADER02</code>); the indicative then reads <code>INDICQTY=40|IMBQTY=10|INDICPX=149.5|IMB=SELL</code>,
+  from <code>TRADER02</code>); the indicative then reads <code>INDICQTY=40|IMBQTY=10|INDICPX=149.5|IMB=SELL|PHASE=CLOSING_AUCTION</code>,
   and <code>SESSION|STATE=CLOSED</code> ends the call phase with
   <code>AUCTION|…|EQQTY=40|TRADES=1|IMBQTY=10|REASON=SCHEDULED|EQPX=149.5|IMBSIDE=SELL</code>.
   Reopen the market (<code>PRE_OPEN</code>, then <code>CONTINUOUS</code>) before you go on.</li>

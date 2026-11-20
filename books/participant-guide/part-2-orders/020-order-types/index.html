@@ -18,7 +18,7 @@
         <link rel="prev" href="../010-the-trader-console/">
       
       
-        <link rel="next" href="../030-combo-and-oco-orders/">
+        <link rel="next" href="../025-risk-controls-you-meet/">
       
       
         
@@ -2910,6 +2910,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -3765,6 +3793,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -6338,6 +6450,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -6373,7 +6513,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -9380,12 +9520,11 @@ order into an empty book is therefore an accepted order that immediately
 cancels in full — <strong>not</strong> a rejection, and worth distinguishing when you write
 a client:</p>
 <div class="admonition note">
-<p class="admonition-title">Not shown in <code>pm-alf-console</code></p>
-<p><code>pm-alf-console</code>'s terminal display prints <code>CANCELLED &lt;order-id&gt;</code> without
-the reason, even though the underlying message carries it. To see
-<code>CANCEL_REASON</code> for yourself, connect over the real ALF TCP gateway
-(<code>pm-alf-gwy</code>) with a raw client, or use the REST API's <code>cancel_reason</code>
-field — see <a href="../../../operator-guide/part-5-gateways/010-alf-gateway/#unsolicited-cancels">ALF TCP Gateway — Unsolicited cancels</a>.</p>
+<p class="admonition-title">Where you see the reason</p>
+<p><code>pm-alf-console</code> prints it on the cancel line:
+<code>CANCELLED &lt;order-id&gt; reason=INSUFFICIENT_LIQUIDITY</code>. Over the ALF TCP
+gateway (<code>pm-alf-gwy</code>) it is the <code>CANCEL_REASON</code> field, and over REST the
+<code>cancel_reason</code> field — see <a href="../../../operator-guide/part-5-gateways/010-alf-gateway/#unsolicited-cancels">ALF TCP Gateway — Unsolicited cancels</a>.</p>
 </div>
 <table>
 <thead>
@@ -10458,8 +10597,8 @@ SELL, <code>STOP=</code> at or above it), the order fires on entry rather than w
 <td>Stop may never trigger if the market doesn't move that far</td>
 </tr>
 <tr>
-<td>Triggered during uncross</td>
-<td>The resulting MARKET order participates in the uncross matching round</td>
+<td>Triggered by the uncross print</td>
+<td>Converted to MARKET and executed after the uncross, not inside it</td>
 </tr>
 <tr>
 <td>Multiple trailing stops on the same symbol</td>
@@ -10692,19 +10831,15 @@ otherwise be marketable.</p>
 <tbody>
 <tr>
 <td>Order not found (wrong ID)</td>
-<td><strong>REJECTED</strong> — "Order not found"</td>
+<td><strong>REJECTED</strong> <code>ORDER_NOT_FOUND</code> — "Order not found"</td>
 </tr>
 <tr>
 <td>Order owned by another gateway</td>
 <td><strong>REJECTED</strong> — "Cannot amend an order owned by another gateway"</td>
 </tr>
 <tr>
-<td>Order already filled</td>
-<td><strong>REJECTED</strong> — "Cannot amend FILLED order"</td>
-</tr>
-<tr>
-<td>Order already cancelled</td>
-<td><strong>REJECTED</strong> — "Cannot amend CANCELLED order"</td>
+<td>Order already filled, cancelled or expired</td>
+<td><strong>REJECTED</strong> <code>ORDER_NOT_FOUND</code> — "Order not found": a finished order has left the book</td>
 </tr>
 <tr>
 <td>MARKET / STOP / FOK order</td>
@@ -10719,8 +10854,8 @@ otherwise be marketable.</p>
 <td><strong>REJECTED</strong> — same collar-rejection reason a <code>NEW</code> order at that price would get</td>
 </tr>
 <tr>
-<td><code>QTY=</code> is not a valid integer</td>
-<td><strong>REJECTED</strong> — "Amend quantity must be an integer"</td>
+<td><code>QTY=</code> is not a whole number</td>
+<td>Refused by the console before sending (<code>Parse error: QTY= is not a whole number: '1.5'</code>); the engine answers a direct client with "Amend quantity must be an integer"</td>
 </tr>
 <tr>
 <td>New QTY <span class="arithmatex">\(\leq\)</span> already filled qty</td>

@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4796,6 +4908,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4831,7 +4971,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -5301,6 +5441,17 @@
     <span class="md-ellipsis">
       
         config-gui
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clearing-gui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clearing-gui
       
     </span>
   </a>
@@ -7801,7 +7952,7 @@
 <li>How to run a web application on your own machine, with hot reload, against
   the exchange running in containers — and why that works without any
   configuration</li>
-<li>Exactly what each of the six applications needs from a running backend:
+<li>Exactly what each of the seven applications needs from a running backend:
   which ports, which files, which credentials</li>
 <li>Which of the three loops to reach for, given the change you are making</li>
 <li>The handful of things that will waste an afternoon if you do not know them</li>
@@ -8050,6 +8201,13 @@ empty history panels and a 401 in the bridge log.</p>
 <td>8095</td>
 <td>5611 <code>pm-monitor</code> (needs <code>ZMQ=1</code>), <code>data/metrics.db</code>, the deployed configuration, 5600 log ingest</td>
 </tr>
+<tr>
+<td>clearing-gui</td>
+<td>8196</td>
+<td>—</td>
+<td>8096</td>
+<td>8080 only, proxied by Vite</td>
+</tr>
 </tbody>
 </table>
 <p>The dev ports are deliberately <code>81xx</code>/<code>51xx</code> against the containers' <code>80xx</code>, so
@@ -8136,10 +8294,17 @@ no exchange. That is also why it is opt-in (<code>CONFIG_GUI=1</code>) in the co
 stack.</p>
 <p>Its dev server needs the Python side available on your <code>PATH</code> — <code>npm run
 verify:python</code> checks that.</p>
+<h3 id="clearing-gui">clearing-gui<a class="headerlink" href="#clearing-gui" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/clearing-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+</code></pre></div>
+<p>Open <a href="http://localhost:8196">http://localhost:8196</a>. Like trader-gui it has no bridge and needs no
+<code>dev-env</code>: Vite proxies <code>/api</code> to <code>pm-api-gwy</code> on <code>http://localhost:8080</code>, and
+credentials are entered in the browser.</p>
 <h3 id="dash-gui">dash-gui<a class="headerlink" href="#dash-gui" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>dash-gui<span class="k">)</span><span class="s2">"</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/dash-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>dash-gui<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/dash-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
 </code></pre></div>
 <p>Open <a href="http://localhost:8195">http://localhost:8195</a>.</p>
 <p><strong><code>ZMQ=1</code> is required</strong>, as for log-gui: the bridge subscribes to

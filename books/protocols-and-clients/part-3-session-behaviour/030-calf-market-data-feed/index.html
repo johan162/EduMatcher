@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4995,6 +5107,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5030,7 +5170,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7744,10 +7884,10 @@
 <ul>
 <li>What CALF is and why a market-data protocol is separate from order entry</li>
 <li>How CALF channels expose different levels of market information</li>
-<li>How <code>TOP</code>, <code>TRADE</code>, and <code>STATE</code> complement each other</li>
+<li>How <code>TOP</code>, <code>TRADE</code>, <code>STATE</code> and the other channels complement each other</li>
 <li>How participants subscribe and stay synchronized using a generic text protocol</li>
 <li>How sequence numbers and replay make reconnect behavior deterministic</li>
-<li>How the same CALF model can disseminate derived index calculations</li>
+<li>How the same CALF model disseminates the exchange's index levels</li>
 </ul>
 </div>
 <h2 id="why-calf-exists">Why CALF Exists<a class="headerlink" href="#why-calf-exists" title="Permanent link">&para;</a></h2>
@@ -7793,9 +7933,30 @@ it in a terminal while still following exchange-grade ideas:</p>
 <td>Session/instrument state transitions (<code>STATE</code>)</td>
 <td>Session-aware bots, operational monitors</td>
 </tr>
+<tr>
+<td><code>DEPTH</code></td>
+<td>Several price levels per side, aggregated (<code>SNAP</code> + <code>DEPTH</code>)</td>
+<td>Ladders, liquidity analysis</td>
+</tr>
+<tr>
+<td><code>AUCTION</code></td>
+<td>Auction uncross results and, during a call phase, the indicative price (<code>AUCTION</code>, <code>INDIC</code>)</td>
+<td>Auction strategies, opening/closing price displays</td>
+</tr>
+<tr>
+<td><code>CB</code></td>
+<td>Circuit-breaker halt and resume detail: level, trigger price, reopening time (<code>SNAP</code> + <code>CB</code>)</td>
+<td>Halt displays, risk monitors</td>
+</tr>
+<tr>
+<td><code>INDEX</code></td>
+<td>Index levels from <code>pm-index</code> (<code>SNAP</code> + <code>IDX</code>)</td>
+<td>Index dashboards, benchmark tracking</td>
+</tr>
 </tbody>
 </table>
-<p>Think of the three channels as answering increasingly specific questions about the market:</p>
+<p>The full rules for each are in the <a href="../../part-2-specifications/030-calf/">CALF Protocol Reference</a>.
+The three core channels answer increasingly specific questions about the market:</p>
 <table>
 <thead>
 <tr>
@@ -7919,7 +8080,7 @@ sends a <code>SNAP</code> baseline for that channel. Clients never subscribe to 
 <a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>MD|CH=TOP|SYM=AAPL|SEQ=101|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400
 <a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
 <a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a># A trade executed: 200 shares at 150.12, buy-side was the aggressor
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-07T10:16:00.141Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 </code></pre></div>
 <pre class="mermaid"><code>sequenceDiagram
     participant C as CALF Client
@@ -7999,30 +8160,21 @@ Every incremental message (<code>MD</code>, <code>TRADE</code>, <code>STATE</cod
     M[Risk Monitor] --&gt; MS[STATE + selected TRADE]</code></pre>
 <p>The same protocol works for all, with different subscription sets.</p>
 <h2 id="calf-and-index-dissemination">CALF and Index Dissemination<a class="headerlink" href="#calf-and-index-dissemination" title="Permanent link">&para;</a></h2>
-<p>The <code>CALF</code> channel model is also suitable for <strong>disseminating index calculations</strong>.</p>
-<p>Conceptually, an index feed is just another ordered stream of derived market facts:</p>
-<ul>
-<li>index value</li>
-<li>timestamp</li>
-<li>optional contribution metadata</li>
-<li>sequence for gap detection/recovery</li>
-</ul>
-<p>In EduMatcher, this can be integrated in the same operational pattern as other CALF
-streams, so clients can consume index updates with the same subscription, sequence,
-and replay semantics they already use for <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>.</p>
-<p>Practical options include:</p>
-<ul>
-<li>publishing index values as a dedicated CALF stream in the gateway</li>
-<li>mapping index updates into <code>STATE</code>-style or dedicated symbol streams for consumers</li>
-</ul>
-<p>A client subscribing to index data would follow the same handshake and sequence rules as any other CALF stream. For example, an index update might look like:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>SUB|CH=TOP|SYM=EDU-INDEX
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SNAP|CH=TOP|SYM=EDU-INDEX|SEQ=1|TS=2026-06-07T10:00:00.000Z|LAST=1042.30
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>MD|CH=TOP|SYM=EDU-INDEX|SEQ=2|TS=2026-06-07T10:00:05.000Z|LAST=1043.10
+<p>The same channel model carries <strong>index levels</strong>. <code>pm-index</code> computes each
+configured index and publishes its level; <code>pm-md-gwy</code> turns those updates into
+the <code>INDEX</code> channel, with the same subscription, sequence and replay rules as
+<code>TOP</code>/<code>TRADE</code>/<code>STATE</code>. An index id is not a tradable symbol, so it is not in
+<code>WELCOME|SYMBOLS=</code> and <code>SYM=*</code> is not allowed: subscribe to each index by id.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>SUB|CH=INDEX|SYM=EDU50
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SNAP|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|OPEN=5100.00|HIGH=5130.10|LOW=5098.20|SESSION=CONTINUOUS
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>IDX|CH=INDEX|SYM=EDU50|SEQ=13|TS=2026-06-07T10:16:05.000Z|LEVEL=5124.10|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+24.10|PCTCHG=+0.47
 </code></pre></div>
+<p>A <code>SNAP</code> without <code>LEVEL</code> means the gateway has had no level for that id since
+it started — normal outside trading hours, or for an id that does not exist.
+See <a href="../../part-2-specifications/030-calf/#idx"><code>IDX</code></a> for every field.</p>
 <p>The key idea: <strong>one generic subscriber model for both raw market events and derived index events</strong>.</p>
 <pre class="mermaid"><code>flowchart LR
-    E[Engine market events] --&gt; X[Index calculator]
+    E[Engine market events] --&gt; X[pm-index]
     X --&gt; G[pm-md-gwy normalisation and fanout]
     G --&gt; C1[Index dashboard]
     G --&gt; C2[Strategy bot]
@@ -8034,7 +8186,7 @@ and replay semantics they already use for <code>TOP</code>/<code>TRADE</code>/<c
 <ol>
 <li><strong>Parse line-by-line</strong> — TCP is a byte stream; a single <code>recv()</code> can contain part of a line, one full line, or several lines at once. Buffer and split on <code>\n</code>.</li>
 <li><strong>Track <code>last_seq</code> per stream</strong> — keep a dict keyed by <code>(CH, SYM)</code> and check every incoming <code>SEQ</code>.</li>
-<li><strong>Treat missing fields in <code>MD</code> as unchanged</strong> — if an <code>MD</code> message has no <code>ASK</code> field, the ask price has not moved since the last <code>SNAP</code> or <code>MD</code> that carried it. Do not reset it to zero.</li>
+<li><strong>Treat missing fields in <code>MD</code> as unchanged, and empty ones as withdrawn</strong> — if an <code>MD</code> message has no <code>ASK</code> field, the ask price has not moved since the last <code>SNAP</code> or <code>MD</code> that carried it; <code>ASK=</code> with an empty value means the ask side is now empty. Do not reset a missing field to zero.</li>
 <li><strong>Handle <code>HB</code></strong> — a heartbeat means the gateway is alive but quiet. If neither data nor <code>HB</code> arrives, the connection may be dead.</li>
 <li><strong>On gap, attempt replay; on replay miss, reset from <code>SNAP</code></strong> — send <code>RESUME|CH=&lt;ch&gt;|SYM=&lt;sym&gt;|LASTSEQ=&lt;n&gt;|EPOCH=&lt;epoch of the run n came from&gt;</code>, and drop any replayed message at or below the <code>SEQ</code> you already recorded. If you get <code>ERR CODE=REPLAY_MISS</code> instead, accept the fresh <code>SNAP</code> that follows on the snapshot-backed channels; on <code>TRADE</code>/<code>AUCTION</code> none follows and the gap is permanent.</li>
 <li><strong>Keep subscriptions narrow</strong> — only subscribe to <code>(CH, SYM)</code> pairs your process actually uses.</li>
@@ -8042,11 +8194,11 @@ and replay semantics they already use for <code>TOP</code>/<code>TRADE</code>/<c
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>CALF gives EduMatcher a readable but production-shaped market-data model:</p>
 <ul>
-<li>channelized information levels (<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>)</li>
+<li>channelized information levels (<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>, <code>DEPTH</code>, <code>AUCTION</code>, <code>CB</code>, <code>INDEX</code>)</li>
 <li>snapshot baseline + incremental updates</li>
 <li>deterministic sync via per-stream sequences</li>
 <li>bounded replay for short disconnect recovery</li>
-<li>reusable dissemination pattern for derived outputs such as index calculations</li>
+<li>the same dissemination pattern for derived outputs such as index levels</li>
 </ul>
 <p>This makes CALF a practical bridge between educational clarity and realistic feed behavior.</p>
 <p><a href="../../../reference-manual/90-backmatter/010-glossary/">Glossary →</a></p>

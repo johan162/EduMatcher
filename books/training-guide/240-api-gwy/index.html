@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8053,7 +8193,11 @@ of trading. Capture the returned <code>order_id</code>, then cancel it with a re
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
-<li>the submit call returns an accepted response or an engine validation error</li>
+<li>the submit call returns <code>202 Accepted</code> with <code>"status": "PENDING"</code>: the order
+  was sent, and the engine's verdict follows on the private WebSocket
+  (Exercise 9). Add <code>?wait=ack</code> to the URL to wait for it instead
+  (<code>"status": "ACKED"</code>, <code>"accepted": true</code>). A request the gateway can check
+  itself — a price off the tick grid, say — is refused at once with <code>400</code></li>
 <li>a valid cancel request targets the authenticated credential's <code>gateway_id</code></li>
 <li><code>request_tag</code> is echoed on the cancel response/event and identifies this
   request, not the original order</li>
@@ -8228,7 +8372,8 @@ first and then subscribes can drop frames at or below it.</p>
   ack lists them under <code>always</code></li>
 <li>an <code>order.fill</code> event's <code>data.liquidity_flag</code> tells you whether <em>your</em>
   order supplied liquidity (<code>MAKER</code>, it was resting) or removed it
-  (<code>TAKER</code>, it crossed the spread) — no join against another feed required</li>
+  (<code>TAKER</code>, it crossed the spread); a fill from an auction uncross is
+  <code>AUCTION</code> on both sides — no join against another feed required</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.</p>
 <h2 id="exercise-10-admin-rest-session-control-risk-and-cross-gateway-orders">Exercise 10: Admin REST — Session Control, Risk, and Cross-Gateway Orders<a class="headerlink" href="#exercise-10-admin-rest-session-control-risk-and-cross-gateway-orders" title="Permanent link">&para;</a></h2>
@@ -8271,8 +8416,8 @@ already in <code>CONTINUOUS</code>, the request above is one:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>HTTP/1.1 409 Conflict
 <a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>{"error":{"code":"TRANSITION_REJECTED","message":"Invalid transition CONTINUOUS → CONTINUOUS (allowed: CLOSED, CLOSING_AUCTION)","reject_code":"UNKNOWN"}}
 </code></pre></div>
-<p>This is one place where REST tells you more than the console: <code>pm-admin</code>
-only prints <code>TIMEOUT</code> for the same request.</p>
+<p><code>pm-admin</code> gives the same reason for the same request
+(<code>SESSION  REJECTED  Invalid transition …</code>).</p>
 <p>Look at cross-gateway order visibility:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/admin/orders?symbol=AAPL"</span>

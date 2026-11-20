@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5897,6 +6009,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5932,7 +6072,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8668,9 +8808,9 @@ FIX:</p>
 another tool, bot, or GUI wants to generate ALF commands, this document is the
 correct source to follow.</p>
 <h2 id="scope-conformance">Scope &amp; conformance<a class="headerlink" href="#scope-conformance" title="Permanent link">&para;</a></h2>
-<p>ALF is the <strong>text command language accepted by <code>pm-alf-console</code></strong>. It is not the
-internal engine wire format. The gateway converts ALF commands into the engine's
-ZeroMQ + JSON message payloads.</p>
+<p>ALF is the <strong>text command language accepted by <code>pm-alf-console</code> and <code>pm-alf-gwy</code></strong>.
+It is not the internal engine wire format. Both convert ALF commands into the
+engine's ZeroMQ + JSON message payloads.</p>
 <p>That distinction matters:</p>
 <ul>
 <li><strong>ALF</strong> is what a human or external client writes</li>
@@ -9399,9 +9539,8 @@ detail.</p>
 <li><code>AMEND|ID=...|QTY=120|RTAG=AMD-UP</code> also loses queue priority (new <code>arrival_seq</code> assigned)</li>
 </ol>
 <h3 id="important-identifier-rule">Important identifier rule<a class="headerlink" href="#important-identifier-rule" title="Permanent link">&para;</a></h3>
-<p>Use the <strong>full order ID</strong> from the gateway's order table or acknowledgement
-stream. Inline gateway messages often abbreviate IDs visually, but <code>AMEND</code>
-requires the full internal ID.</p>
+<p>Use the <strong>full 32-character order ID</strong> from the <code>ACK</code> (<code>ORDER_ID=</code>) or the
+<code>ORDERS</code> reply. <code>AMEND</code> and <code>CANCEL</code> do not accept a prefix.</p>
 <h2 id="cancel-order-and-group-cancellation"><code>CANCEL</code> - order and group cancellation<a class="headerlink" href="#cancel-order-and-group-cancellation" title="Permanent link">&para;</a></h2>
 <h3 id="single-order-cancel">Single order cancel<a class="headerlink" href="#single-order-cancel" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>CANCEL|ID=&lt;order-id&gt;[|RTAG=&lt;request-tag&gt;]
@@ -9781,9 +9920,8 @@ acknowledgement instead of cancelling anything.</p>
 <li><code>ORDERS</code> - number of cancelled non-quote resting orders</li>
 <li><code>QUOTES</code> - number of cancelled quote legs</li>
 </ul>
-<p>(<code>pm-alf-console</code> labels these <code>cancelled_orders</code>/<code>cancelled_quotes</code> in its
-own on-screen rendering; those are display labels, not wire field names.)</p>
-<p>Important detail: <code>cancelled_quotes</code> counts <strong>legs</strong>, not quote records. One
+<p>(<code>pm-alf-console</code> prints them as <code>KILL ACK  orders=&lt;n&gt; quote_legs=&lt;n&gt;</code>.)</p>
+<p>Important detail: <code>QUOTES</code> counts <strong>legs</strong>, not quote records. One
 two-sided quote typically contributes up to <strong>2</strong> to this count.</p>
 <h3 id="examples_4">Examples<a class="headerlink" href="#examples_4" title="Permanent link">&para;</a></h3>
 <p>If gateway <code>MM01</code> currently has:</p>
@@ -9956,7 +10094,7 @@ answer it differently</strong>:</p>
 </ul>
 <p>Typical output columns:</p>
 <ul>
-<li><code>Symbol</code>, <code>Quote</code>, <code>Leg</code>, <code>Order</code></li>
+<li><code>Symbol</code>, <code>Quote</code>, <code>Leg</code>, <code>Order</code>, <code>Price</code></li>
 <li><code>Qty</code>, <code>Rem</code>, <code>Filled</code>, <code>Filled?</code></li>
 <li><code>Leg status</code>, <code>Quote status</code>, <code>Time</code></li>
 </ul>
@@ -10012,13 +10150,16 @@ arrive from the engine, and closes the session 2 seconds after the
 half-close. An <code>EXIT</code> from such a client does not close it earlier, since
 replies may still be on their way.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
-<p>ALF gateway authorization and behavior are configured in the main engine
-configuration file (<code>engine_config.yaml</code>), under the <code>participants</code> list.</p>
-<p>Path location:</p>
+<p>Two parts of the engine configuration (<code>engine_config.yaml</code>) govern ALF:</p>
 <ul>
-<li><code>engine_config.yaml</code> -&gt; <code>participants</code> -&gt; list of participant entries</li>
+<li>the <code>participants</code> list says <strong>who</strong> may log on and with which role and
+  policies — it applies to every order-entry path, not only ALF;</li>
+<li>the <code>alf_gateway</code> block configures the <code>pm-alf-gwy</code> TCP listener itself
+  (address, port, heartbeat and idle timeouts, connection and rate limits) —
+  see <a href="../../../operator-guide/part-5-gateways/010-alf-gateway/#configuration-reference">ALF TCP Gateway → Configuration</a>
+  and <a href="../../../reference-manual/part-3-configuration/030-formal-specification/#61-alf_gateway-pm-alf-gwy">Engine Config Specification §6.1</a>.</li>
 </ul>
-<p>All supported ALF gateway configuration fields are listed below.</p>
+<p>The participant fields are:</p>
 <table>
 <thead>
 <tr>
@@ -10083,6 +10224,12 @@ configuration file (<code>engine_config.yaml</code>), under the <code>participan
 <td>Empty mapping</td>
 <td>Optional per-symbol MM overrides when configured.</td>
 </tr>
+<tr>
+<td><code>participants[].smp_action</code></td>
+<td>Enum: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
+<td><code>participant_defaults.smp_action</code>, else <code>NONE</code></td>
+<td>Self-match prevention applied to this gateway's orders that carry no <code>SMP=</code></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
@@ -10124,9 +10271,8 @@ configuration file (<code>engine_config.yaml</code>), under the <code>participan
    <code>TRAILING_STOP</code>.</li>
 <li><code>AMEND</code> applies only to resting <code>LIMIT</code> and <code>ICEBERG</code> orders.</li>
 <li>OCO syntax can express stop and trailing-stop legs, but not iceberg legs.</li>
-<li>Combo ALF syntax does <strong>not</strong> expose per-leg <code>STOP</code>, <code>TRAIL</code>, or <code>VISIBLE</code>
-   fields, so some engine-level leg types are not practically expressible in
-   ALF combo form.</li>
+<li>Combo legs carry <code>LEGi.PRICE</code> and <code>LEGi.STOP</code> but no <code>TRAIL</code> or <code>VISIBLE</code>,
+   so <code>TRAILING_STOP</code> and <code>ICEBERG</code> legs are refused (<code>INVALID_VALUE</code>).</li>
 <li><code>QBOOT</code> is the protocol-level way to discover active quote bootstrap state
    for the current gateway (optionally filtered by symbol).</li>
 <li><code>QLEGS</code> is a monitoring view for quote legs; use <code>SHOW=ALL</code> after fills

@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5341,6 +5453,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5376,7 +5516,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8611,7 +8751,7 @@ close those gaps:</p>
 </tr>
 <tr>
 <td>Startup recovery is on the record</td>
-<td><code>system.startup_recovery</code>, published once right after <code>_restore_gtc()</code>, reports how many orders were restored, discarded as stale <code>TIF=DAY</code>, or failed to restore; how many single-leg quote remnants and rebuilt <code>QuoteIndex</code> entries resulted; how many GTC combos came back; and for how many symbols the persisted book statistics (<code>book_stats.json</code>) were corrupt and skipped (<code>failed_book_stats</code>). Previously these counts reached only <code>log.info</code>/<code>log.error</code>. <code>system.recovery_item</code> now accompanies it with one line per entity — <code>entity_id</code>, <code>kind</code> (<code>ORDER</code>/<code>COMBO</code>) and <code>outcome</code> (<code>RESTORED</code>/<code>DISCARDED_STALE_DAY</code>/<code>FAILED</code>/<code>QUOTE_REMNANT</code>), plus <code>detail</code> carrying the exception text for a <code>FAILED</code> order — so a single bad GTC record is a wire fact with a reason attached, not just a decremented count.</td>
+<td><code>system.startup_recovery</code>, published once right after <code>_restore_gtc()</code>, reports how many orders were restored, discarded as stale <code>TIF=DAY</code>, discarded because the deployed configuration no longer allows them (<code>discarded_unconfigured_orders</code>: their symbol or participant is gone, or they are a seed quote the configuration no longer declares), or failed to restore; how many single-leg quote remnants and rebuilt <code>QuoteIndex</code> entries resulted; how many GTC combos came back; and for how many symbols the persisted book statistics (<code>book_stats.json</code>) were corrupt and skipped (<code>failed_book_stats</code>). Previously these counts reached only <code>log.info</code>/<code>log.error</code>. <code>system.recovery_item</code> now accompanies it with one line per entity — <code>entity_id</code>, <code>kind</code> (<code>ORDER</code>/<code>COMBO</code>) and <code>outcome</code> (<code>RESTORED</code>/<code>DISCARDED_STALE_DAY</code>/<code>DISCARDED_UNCONFIGURED</code>/<code>FAILED</code>/<code>QUOTE_REMNANT</code>), plus <code>detail</code> carrying the exception text for a <code>FAILED</code> order and the reason for a <code>DISCARDED_UNCONFIGURED</code> one — so a single bad GTC record is a wire fact with a reason attached, not just a decremented count.</td>
 </tr>
 <tr>
 <td>Kill-switch and admin sweeps say which ids they hit, not just how many</td>

@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8004,9 +8144,11 @@ shares. <code>pm-index</code> also needs a reference price for every constituent
 <code>pm-config-gen</code> only writes one by seeding it from a market maker's midpoint:
 hence the <code>MM01:MARKET_MAKER</code> participant and the <code>--seed-mm-mid-range</code> /
 <code>--seed-last-prices-from-mm</code> flags. <code>--no-mm-seed-quotes</code> keeps the book empty
-at startup.</p>
+at startup. <code>AMZN</code> is configured but left out of the index: Exercise 7 adds
+it, and <code>pm-index</code> only accepts a constituent the exchange is configured to
+trade.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span>AMZN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
@@ -8066,7 +8208,7 @@ startup includes:</p>
 Verify:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/indexes/EDU100_history.jsonl"</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INIT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ts_ns"</span><span class="p">:</span><span class="w"> </span><span class="err">...</span><span class="p">,</span><span class="w"> </span><span class="nt">"index_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"base_value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"divisor"</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"constituents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">],</span><span class="w"> </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="s2">"INIT"</span><span class="p">,</span><span class="nt">"ts_ns"</span><span class="p">:</span><span class="err">...</span><span class="p">,</span><span class="nt">"index_id"</span><span class="p">:</span><span class="s2">"EDU100"</span><span class="p">,</span><span class="nt">"level"</span><span class="p">:</span><span class="mf">1000.0</span><span class="p">,</span><span class="nt">"base_value"</span><span class="p">:</span><span class="mf">1000.0</span><span class="p">,</span><span class="nt">"divisor"</span><span class="p">:</span><span class="mf">8187542000.0</span><span class="p">,</span><span class="nt">"constituents"</span><span class="p">:[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="s2">"MSFT"</span><span class="p">,</span><span class="s2">"TSLA"</span><span class="p">]}</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index</code> running, INIT record visible in history file.</p>
 <h2 id="exercise-3-query-the-live-index-level">Exercise 3: Query the Live Index Level<a class="headerlink" href="#exercise-3-query-the-live-index-level" title="Permanent link">&para;</a></h2>
@@ -8257,9 +8399,11 @@ moment of addition. You must supply the new shares and a reference price:</p>
 the history instead (the <code>ADD OK</code> reply also prints the new divisor):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>ADD_CONSTITUENT
 </code></pre></div>
-<p>AMZN is not traded on this venue, so its price stays at the reference price
-you gave until an engine feed for it exists; it contributes to the cap at
-<code>195.00</code>. (<code>delist</code> needs no price.)</p>
+<p>Nobody trades AMZN in this chapter, so its price stays at the reference price
+you gave until it trades; it contributes to the cap at <code>195.00</code>. (<code>delist</code>
+needs no price.) A symbol the exchange is not configured to trade is refused
+(<code>REJECTED  AMZN is not a configured symbol</code>), so a typo cannot become a
+constituent that never moves — which is why Exercise 1 configured AMZN.</p>
 <h3 id="remove-tsla-from-the-index">Remove TSLA from the index<a class="headerlink" href="#remove-tsla-from-the-index" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
@@ -8290,10 +8434,10 @@ before it was running.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
 </code></pre></div>
 <p>Sample table output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>ts                  | index_id | level   | aggregate_cap       | divisor      | session_state | day_open | day_high | day_low
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>--------------------+----------+---------+---------------------+--------------+----------------+----------+----------+---------
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>2026-06-25T10:00:01 | EDU100   | 1000.00 | 7007100000000.00    | 7007100000.0 | PRE_OPEN       |          |          |
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>2026-06-25T10:01:23 | EDU100   | 1034.82 | 7251000000000.00    | 7007100000.0 | CONTINUOUS     | 1000.00  | 1034.82  | 1000.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>ts                            | index_id | level            | aggregate_cap | divisor    | session_state | day_open        | day_high         | day_low
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>------------------------------+----------+------------------+---------------+------------+---------------+-----------------+------------------+----------------
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>2026-06-25T10:00:38.798+00:00 | EDU100   | 1001.8320516707  | 8202542000000 | 8187542000 | CONTINUOUS    | 1001.8320516707 | 1001.8320516707  | 1001.8320516707
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>2026-06-25T10:00:40.511+00:00 | EDU100   | 1002.73586382824 | 8209942000000 | 8187542000 | CONTINUOUS    | 1001.8320516707 | 1002.73586382824 | 1001.8320516707
 <a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>...
 </code></pre></div>
 <p>You can list which index IDs <code>pm-stats</code> has actually recorded with:</p>
@@ -8306,9 +8450,9 @@ EOD-forced publish like any other tick and rolls the day's ticks up into
 one daily OHLC row. Query it with <code>pm-stats-cli index-daily</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>date       | index_id | open_level | high_level | low_level | close_level | update_count
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>-----------+----------+------------+------------+-----------+-------------+--------------
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>2026-06-25 | EDU100   | 1000.00    | 1052.10    | 987.40    | 1041.55     | 312
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>date       | index_id | open_level      | high_level       | low_level       | close_level     | close_session_state | update_count
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>-----------+----------+-----------------+------------------+-----------------+-----------------+---------------------+-------------
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>2026-06-25 | EDU100   | 1001.8320516707 | 1002.73586382824 | 1001.8320516707 | 1002.3633466552 | CONTINUOUS          | 7
 </code></pre></div>
 <p>Add <code>--wide</code> to also show the opening/closing aggregate market cap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--wide
@@ -8355,7 +8499,7 @@ rows for <code>EDU100</code>; the CSV and JSON exports contain the same data.</p
 <h2 id="exercise-9-two-indices">Exercise 9: Two Indices<a class="headerlink" href="#exercise-9-two-indices" title="Permanent link">&para;</a></h2>
 <p>Configure a second, narrower index alongside <code>EDU100</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span>AMZN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
@@ -8395,11 +8539,11 @@ first trade right after the restart may only reach <code>EDU100</code>), then ru
 <code>INDEX</code> in the TRADER terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[15:52:12.376] EDU100 1001.83 +0.00 +0.00% O=1001.83 H=1001.83 L=1001.83 PRE_OPEN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[12:02:31.131] TECH2 501.47 +0.00 +0.00% O=501.47 H=501.47 L=501.47 CONTINUOUS
 </code></pre></div>
-<p>You see one line, for whichever index published last. <code>TECH2</code> is throttled to
-one publish every 2 seconds, so <code>EDU100</code> is usually the one shown. <code>INDEX</code> is
-not a multi-index listing; use <code>pm-index-cli indices</code> to list both indices
+<p>You see one line, for whichever index published last — <code>TECH2</code> here, <code>EDU100</code>
+just as often (both publish after an MSFT trade, <code>TECH2</code> at most every 2
+seconds). <code>INDEX</code> is not a multi-index listing; use <code>pm-index-cli indices</code> to list both indices
 and <code>pm-stats-cli index-daily</code> to verify recorded daily data. On startup,
 <code>pm-index</code> requests the engine's current session status and publishes an
 initial update for each configured index, so a restart during <code>CONTINUOUS</code>

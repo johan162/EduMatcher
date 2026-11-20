@@ -1393,6 +1393,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2236,6 +2264,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4809,6 +4921,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4844,7 +4984,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7568,6 +7708,10 @@ vocabulary.</p>
 <td>The lowest price at which someone is currently willing to sell. Also called the <em>offer</em>.</td>
 </tr>
 <tr>
+<td><strong>API key</strong></td>
+<td>The secret a browser application or REST client logs in with. Each key belongs to one participant; <code>pm-config-show -a</code> lists them.</td>
+</tr>
+<tr>
 <td><strong>Auction</strong></td>
 <td>A phase in which orders are collected and then all matched at once, at one price (the <em>equilibrium price</em>). Used to open and close the day.</td>
 </tr>
@@ -7620,6 +7764,10 @@ vocabulary.</p>
 <td>All resting buy and sell orders for one symbol, best prices first.</td>
 </tr>
 <tr>
+<td><strong>Order ID</strong></td>
+<td>The 32-character hexadecimal ID the engine gives every order, shown in the <code>ACK</code> line. <code>CANCEL</code> and <code>AMEND</code> need it.</td>
+</tr>
+<tr>
 <td><strong>Participant</strong></td>
 <td>A trader, market maker or operator configured to connect, with an ID such as <code>TRADER01</code> and a role.</td>
 </tr>
@@ -7640,6 +7788,10 @@ vocabulary.</p>
 <td>An order waiting in the book for someone to trade with it.</td>
 </tr>
 <tr>
+<td><strong>Seed quote</strong></td>
+<td>A market maker's bid and ask that the engine places from the configuration at startup, so a book is not empty.</td>
+</tr>
+<tr>
 <td><strong>Session phase</strong></td>
 <td>Where the trading day is: <code>PRE_OPEN</code>, <code>OPENING_AUCTION</code>, <code>CONTINUOUS</code>, <code>CLOSING_AUCTION</code>, <code>CLOSED</code>.</td>
 </tr>
@@ -7658,6 +7810,10 @@ vocabulary.</p>
 <tr>
 <td><strong>Time in force (TIF)</strong></td>
 <td>How long an order stays active: <code>DAY</code>, <code>GTC</code> (good till cancelled), or only in an auction (<code>ATO</code>, <code>ATC</code>). <code>IOC</code> and <code>FOK</code> are order <em>types</em>, not TIF values.</td>
+</tr>
+<tr>
+<td><strong>Uncross</strong></td>
+<td>The end of an auction: all orders that can trade are matched at once, at the one <em>equilibrium price</em> that trades the most shares.</td>
 </tr>
 <tr>
 <td><strong>ALF, BALF, CALF, RALF, LALF</strong></td>

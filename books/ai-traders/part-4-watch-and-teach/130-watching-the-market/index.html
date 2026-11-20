@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7568,6 +7708,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-edu50-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The EDU50 index
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -7821,7 +7972,8 @@ headline in the <strong>News</strong> view probably jumped (an unannounced chang
 value), or is being pushed by momentum traders. The <strong>Trade Tape</strong> shows who
 traded: <code>AI</code> ids are the swarm, <code>MM01</code> the market maker, <code>TRADER</code> ids your
 students. During the auctions the <strong>Session &amp; Halt Status Board</strong> counts
-down to the next phase.</p>
+down to the next phase. The <strong>Index</strong> view charts the <code>EDU50</code> index
+(<a href="#the-edu50-index">below</a>).</p>
 <h3 id="order-book-viewer-one-book-up-close">Order Book Viewer: one book up close<a class="headerlink" href="#order-book-viewer-one-book-up-close" title="Permanent link">&para;</a></h3>
 <p>Pick a symbol and watch for a minute:</p>
 <ul>
@@ -7889,34 +8041,47 @@ traders have working; <code>rejects</code> should stay a tiny share of the actio
 </code></pre></div>
 <p><code>pm-stats</code> keeps the daily rows for good and individual trades for the last
 seven days (<a href="../150-running-it-for-weeks/">Running It for Weeks</a>).</p>
+<h3 id="the-edu50-index">The EDU50 index<a class="headerlink" href="#the-edu50-index" title="Permanent link">&para;</a></h3>
+<p><code>s300-sim</code> has one index, <code>EDU50</code>: the 50 largest companies by the market caps
+in the company database (<code>NVDA</code>, <code>AAPL</code>, <code>MSFT</code>, … <code>BX</code>), weighted by price ×
+outstanding shares and starting at 1000. Each share's outstanding shares are
+its company's market cap divided by its starting price, so the weights begin
+at the company profiles' caps. Like a real large-cap index it is top-heavy:
+the ten largest make up about 64% of it and technology about 47%. It shows
+the large-cap market, not the average share: a day when technology falls
+moves <code>EDU50</code> far more than one when utilities do.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU50<span class="w">       </span><span class="c1"># open, high, low, close per day</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-index-cli<span class="w"> </span>indices<span class="w">                            </span><span class="c1"># the index and its constituents</span>
+</code></pre></div>
+<p><code>pm-index</code> calculates it (<a href="../../../operator-guide/part-4-run-a-market/070-market-index/">The Market Index</a>).</p>
 <h2 id="who-made-money">Who made money<a class="headerlink" href="#who-made-money" title="Permanent link">&para;</a></h2>
 <p>After each close (five seconds after, so the closing auction's fills are in)
 the swarm writes one line per trader to
 <code>/data/ai_swarm/&lt;date&gt;-&lt;worker&gt;.jsonl</code> — on the host,
 <code>./data-sim/ai_swarm/</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="nt">"closed_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-03T15:05:05+00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"day"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">"agent"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AI007"</span><span class="p">,</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w"> </span><span class="nt">"preset"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value-investor"</span><span class="p">,</span><span class="w"> </span><span class="nt">"submitted"</span><span class="p">:</span><span class="w"> </span><span class="mi">412</span><span class="p">,</span><span class="w"> </span><span class="nt">"fills"</span><span class="p">:</span><span class="w"> </span><span class="mi">233</span><span class="p">,</span><span class="w"> </span><span class="nt">"filled_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">9120</span><span class="p">,</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w"> </span><span class="nt">"cancels"</span><span class="p">:</span><span class="w"> </span><span class="mi">160</span><span class="p">,</span><span class="w"> </span><span class="nt">"rejected"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"killed"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"unseen_expiries"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w"> </span><span class="nt">"gtc_orders"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"gross_position"</span><span class="p">:</span><span class="w"> </span><span class="mi">1840</span><span class="p">,</span><span class="w"> </span><span class="nt">"pnl_realized"</span><span class="p">:</span><span class="w"> </span><span class="mf">412.10</span><span class="p">,</span><span class="w"> </span><span class="nt">"pnl_mtm"</span><span class="p">:</span><span class="w"> </span><span class="mf">87.40</span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="nt">"closed_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-03T15:05:05+00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"day"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">"agent"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AI007"</span><span class="p">,</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w"> </span><span class="nt">"preset"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value-investor"</span><span class="p">,</span><span class="w"> </span><span class="nt">"submitted"</span><span class="p">:</span><span class="w"> </span><span class="mi">412</span><span class="p">,</span><span class="w"> </span><span class="nt">"fills"</span><span class="p">:</span><span class="w"> </span><span class="mi">233</span><span class="p">,</span><span class="w"> </span><span class="nt">"filled_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">9120</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w"> </span><span class="nt">"cancels"</span><span class="p">:</span><span class="w"> </span><span class="mi">160</span><span class="p">,</span><span class="w"> </span><span class="nt">"rejected"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"killed"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"unseen_expiries"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w"> </span><span class="nt">"gtc_orders"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"gross_position"</span><span class="p">:</span><span class="w"> </span><span class="mi">1840</span><span class="p">,</span><span class="w"> </span><span class="nt">"pnl_realized"</span><span class="p">:</span><span class="w"> </span><span class="mf">412.10</span><span class="p">,</span><span class="w"> </span><span class="nt">"pnl_mtm"</span><span class="p">:</span><span class="w"> </span><span class="mf">87.40</span><span class="p">}</span>
 </code></pre></div>
 <p>The counters are for that day; the profit and loss (<code>pnl_realized</code>, made on
 closed positions, and <code>pnl_mtm</code>, on the open position at the last price)
 since the trader last started. To total the latest P&amp;L by kind of trader:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s">import glob, json</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s">latest = {}</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="s">for path in sorted(glob.glob("/data/ai_swarm/*.jsonl")):</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="s">    for line in open(path):</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s">        row = json.loads(line)</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="s">        latest[row["agent"]] = row</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="s">by_preset = {}</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="s">for row in latest.values():</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="s">    pnl = row["pnl_realized"] + row["pnl_mtm"]</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="s">    total, n = by_preset.get(row["preset"], (0.0, 0))</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="s">    by_preset[row["preset"]] = (total + pnl, n + 1)</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="s">for preset, (total, n) in sorted(by_preset.items(), key=lambda kv: -kv[1][0]):</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="s">    print(f"{preset:16} {n:3} traders  P&amp;L {total:12.2f}  per trader {total / n:10.2f}")</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="s">EOF</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="s">import glob, json</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="s">latest = {}</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="s">for path in sorted(glob.glob("/data/ai_swarm/*.jsonl")):</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="s">    for line in open(path):</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="s">        row = json.loads(line)</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="s">        latest[row["agent"]] = row</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="s">by_preset = {}</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="s">for row in latest.values():</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="s">    pnl = row["pnl_realized"] + row["pnl_mtm"]</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="s">    total, n = by_preset.get(row["preset"], (0.0, 0))</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="s">    by_preset[row["preset"]] = (total + pnl, n + 1)</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="s">for preset, (total, n) in sorted(by_preset.items(), key=lambda kv: -kv[1][0]):</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="s">    print(f"{preset:16} {n:3} traders  P&amp;L {total:12.2f}  per trader {total / n:10.2f}")</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>In a market like <code>s300-sim</code> the informed traders — value investors,
 institutions, news traders — usually come out ahead, and the noise and
@@ -7927,8 +8092,8 @@ It makes a good class discussion either way: who paid whom, and why.</p>
 <h2 id="for-the-instructor-the-values-through-the-api">For the instructor: the values through the API<a class="headerlink" href="#for-the-instructor-the-values-through-the-api" title="Permanent link">&para;</a></h2>
 <p>The values are available to ADMIN keys through the API gateway, for your own
 dashboards and scripts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-ops01-3e34rs"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span>http://localhost:8080/api/v1/admin/sim
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-ops01-3e34rs"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>http://localhost:8080/api/v1/admin/sim
 </code></pre></div>
 <p>returns the model's state and every share's latest value; the WebSocket
 <code>ws://localhost:8080/api/v1/ws/admin/sim</code> streams them. Students' keys are

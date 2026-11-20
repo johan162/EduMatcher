@@ -1463,6 +1463,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2306,6 +2334,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4879,6 +4991,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4914,7 +5054,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7652,7 +7792,7 @@ first three.</p>
 <tr>
 <td>What is each process doing?</td>
 <td>Log Operator Console at <a href="http://localhost:8091">http://localhost:8091</a></td>
-<td><code>pm-log-cli</code></td>
+<td><code>pm-log-cli tail</code></td>
 </tr>
 <tr>
 <td>Am I looking at the exchange I think I am?</td>
@@ -7680,8 +7820,9 @@ The usual causes are:</p>
 <li><em>Permission denied on the Docker socket</em> (Linux). Your user must be allowed
   to use Docker (see Docker's "post-installation steps for Linux"), or use
   Podman, which needs no special rights.</li>
-<li><em>A port is already in use.</em> The exchange publishes 8080, 8081 and 8090–8096
-  on your computer. Stop whatever else uses them, or change a browser
+<li><em>A port is already in use.</em> The exchange publishes 8080, 8081, 8090–8096
+  and the gateway ports 5560, 5565, 5570, 5580, 5590 and 5600 on your
+  computer. Stop whatever else uses them, or change a browser
   application's port in <code>.env</code> (for example <code>TERMINAL_GUI_PORT=8190</code>) and run
   <code>./edumatcher.sh restart</code>; <code>./edumatcher.sh urls</code> prints the addresses in
   use. Another running EduMatcher installation counts too (see <em>Two
@@ -7698,7 +7839,10 @@ them up again with <code>./edumatcher.sh shell pm-config-show -a</code>. Paste t
 key, with no spaces, and use the key of the participant you mean.</p>
 <p><strong>The console says <em>Gateway already connected</em>.</strong> A participant ID can be
 connected once at a time. Another console, or a Trading GUI login, is using
-it. Close that one, or use another participant such as <code>TRADER02</code>.</p>
+it. Close that one, or use another participant such as <code>TRADER02</code>. A
+console logs out when you type <code>EXIT</code>, close its window or kill it; only one
+that crashed keeps the ID, and the message then says within how many seconds
+(at most 15) the engine frees it.</p>
 <p><strong>My orders disappeared.</strong> When a trader disconnects (typing <code>EXIT</code>, or
 closing the console window) the exchange cancels that trader's resting orders
 in the bundled configurations. Orders with <code>TIF=GTC</code> are cancelled too; they
@@ -7718,8 +7862,10 @@ that crosses yours. That is the market working correctly. Look at the book
 Viewer) to see the best bid and ask.</p>
 <p><strong>My order traded immediately, before the other trader did anything.</strong> The
 book already had liquidity: a market maker's seeded quote, or the
-market-maker bot of the container's <code>mm-demo</code> profile. Use an <code>-nomm</code>
-configuration and the <code>default</code> profile, as in
+market-maker bot of the container's <code>mm-demo</code> profile, or orders saved from
+an earlier run (the engine restores the same day's resting orders at start,
+even after you switch configuration). Use an <code>-nomm</code> configuration and the
+<code>default</code> profile, as in
 <a href="../../part-1-see-it-run/030-your-first-trade/">Your First Trade</a>, to start
 from an empty book.</p>
 <p><strong>Every order is rejected with <em>Market is closed</em>.</strong> The configuration has a
@@ -7751,7 +7897,8 @@ which one owns the ports.</p>
 Guide has a full troubleshooting section in
 <a href="../../../operator-guide/part-3-run/010-running-the-exchange/">Running the Exchange</a>.
 If something in this guide does not work as written, that is a documentation
-bug — please report it on GitHub.</p>
+bug — please report it on GitHub, at
+<a href="https://github.com/johan162/EduMatcher/issues">https://github.com/johan162/EduMatcher/issues</a>.</p>
 
 
 

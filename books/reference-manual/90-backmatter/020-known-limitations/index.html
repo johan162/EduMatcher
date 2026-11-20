@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4940,6 +5052,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4975,7 +5115,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7769,7 +7909,7 @@ explains the detail.</p>
 </tr>
 <tr>
 <td><strong>Security</strong></td>
-<td>The internal bus has no authentication or encryption and binds to <code>127.0.0.1</code> by default. The <code>pm-index</code> command socket accepts any non-empty <code>gateway_id</code> and uses it only to route acks. BALF has no protocol-level encryption</td>
+<td>The internal bus has no authentication or encryption and binds to <code>127.0.0.1</code> by default. The <code>pm-index</code> command socket accepts any non-empty <code>gateway_id</code> and uses it only to route acks. The engine's position and open-orders queries carry no requester, so any client that can reach the engine's <code>PULL</code> socket can read any participant's orders and positions. BALF has no protocol-level encryption</td>
 <td>Keep the bus on a private interface; put external gateways behind TLS or a tunnel. See <a href="../../part-1-command-line/010-processes-environment-and-ports/#network-variables">Environment variables</a></td>
 </tr>
 <tr>
@@ -7781,6 +7921,16 @@ explains the detail.</p>
 <td><strong>Indices</strong></td>
 <td>At most 5 indices, cap-weighted</td>
 <td>See the <code>indices</code> block in <a href="../../part-3-configuration/010-schema-and-process-blocks/">Configuration Schema</a></td>
+</tr>
+<tr>
+<td><strong>Corporate actions</strong></td>
+<td>A split or dividend applied with <code>pm-index-admin-cli</code> adjusts the constituent in the index only. The engine, the market makers and <code>pm-market-sim</code> keep trading the symbol at the old price, so the next trade moves the index by the split factor</td>
+<td>Apply it only when the symbol will trade at the adjusted price from then on, ideally during <code>PRE_OPEN</code>. See <a href="../../../operator-guide/part-4-run-a-market/070-market-index/#applying-corporate-actions">Market Index</a></td>
+</tr>
+<tr>
+<td><strong>Static collar without a reference price</strong></td>
+<td>A symbol that starts with no persisted last price and no <code>last_buy_price</code>/<code>last_sell_price</code> gets no static collar until the next engine start, however long it trades. The dynamic collar still applies once it has traded</td>
+<td>Give every symbol a reference price in the configuration. See <a href="../../../operator-guide/part-4-run-a-market/040-risk-controls/#band-definitions">Risk Controls</a></td>
 </tr>
 <tr>
 <td><strong>Market-maker bot</strong></td>
@@ -8033,11 +8183,12 @@ message's price from the <code>Trade</code> records the book already produced:</
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="k">for</span> <span class="n">oid</span><span class="p">,</span> <span class="n">side</span> <span class="ow">in</span> <span class="p">((</span><span class="n">t</span><span class="o">.</span><span class="n">buy_order_id</span><span class="p">,</span> <span class="s2">"BUY"</span><span class="p">),</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">sell_order_id</span><span class="p">,</span> <span class="s2">"SELL"</span><span class="p">)):</span>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>            <span class="n">ex</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">oid</span><span class="p">)</span>
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>            <span class="k">if</span> <span class="n">ex</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>                <span class="n">ex</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="n">oid</span><span class="p">]</span> <span class="o">=</span> <span class="n">_Execution</span><span class="p">(</span><span class="s2">"TAKER"</span> <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">agg</span> <span class="k">else</span> <span class="s2">"MAKER"</span><span class="p">)</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>                <span class="n">ex</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="n">oid</span><span class="p">]</span> <span class="o">=</span> <span class="n">_Execution</span><span class="p">(</span><span class="n">_liquidity_flag</span><span class="p">(</span><span class="n">side</span><span class="p">,</span> <span class="n">agg</span><span class="p">))</span>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">qty</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span>
 <a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">notional</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">price</span> <span class="o">*</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span>   <span class="c1"># integer ticks</span>
 <a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">trade_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="k">return</span> <span class="n">out</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">ts_ns</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">ts_ns</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="k">return</span> <span class="n">out</span>
 </code></pre></div>
 <p>The fill then reports <code>notional / (qty * 10 ** tick_decimals)</code>: the notional is
 summed in integer ticks and divided once, so the VWAP is correctly rounded. An

@@ -888,6 +888,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#removing-edumatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removing EduMatcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-to-go-next" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1528,6 +1539,34 @@
     
   
     Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
   
 
     
@@ -2391,6 +2430,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4964,6 +5087,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4999,7 +5150,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7756,8 +7907,8 @@ people should then use the container route below.</p>
 </tr>
 <tr>
 <td>Browser applications</td>
-<td>six, ready to use</td>
-<td>not included</td>
+<td>seven, ready to use</td>
+<td>optional, as containers (see below)</td>
 </tr>
 <tr>
 <td>Where <code>pm-*</code> commands run</td>
@@ -7790,8 +7941,8 @@ containers from source, and a developer checkout) in full detail.</p>
 <p>(The installer is a short script that you are piping into <code>bash</code>. If you
 prefer to read it first, open the URL in a browser, or download it with
 <code>curl -fsSLO &lt;the same URL&gt;</code>, look through it and run <code>bash install.sh</code>.)</p>
-<p>The installer downloads the latest release into <code>~/.edumatcher</code>, pulls seven
-container images (the exchange plus six browser applications) and starts
+<p>The installer downloads the latest release into <code>~/.edumatcher</code>, pulls eight
+container images (the exchange plus seven browser applications) and starts
 them. The first start takes a few minutes; later starts take seconds. When it
 finishes it prints the addresses of the browser applications.</p>
 <p><code>./edumatcher.sh</code> is your control panel for this installation. You only need
@@ -7874,6 +8025,11 @@ a handful of its commands:</p>
 <td><a href="http://localhost:8092">http://localhost:8092</a></td>
 <td><strong>Configuration GUI</strong></td>
 <td>A form-based editor for exchange configurations</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8096">http://localhost:8096</a></td>
+<td><strong>Clearing GUI</strong></td>
+<td>A login screen for positions, P&amp;L and settlement</td>
 </tr>
 <tr>
 <td><a href="http://localhost:8080/docs">http://localhost:8080/docs</a></td>
@@ -8012,6 +8168,21 @@ data explicitly:</p>
 section explains exactly how the directory is chosen, and the Operator's Guide
 chapter <a href="../../../operator-guide/part-6-observe-and-recover/010-persistence/">Persistence</a>
 lists every file in it.</p>
+<h2 id="removing-edumatcher">Removing EduMatcher<a class="headerlink" href="#removing-edumatcher" title="Permanent link">&para;</a></h2>
+<p>Nothing is installed outside the places above, so removing it is short.</p>
+<p><strong>Containers.</strong> In <code>~/.edumatcher</code>, remove the containers and the data, then
+the folder itself:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">cd</span><span class="w"> </span>~<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>~/.edumatcher
+</code></pre></div>
+<p>The downloaded images stay in Podman's or Docker's image store; <code>podman image
+prune -a</code> (or <code>docker image prune -a</code>) removes every image no container uses.</p>
+<p><strong>Python package.</strong> Stop the exchange, uninstall the package and delete the
+data directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pipx<span class="w"> </span>uninstall<span class="w"> </span>edumatcher
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.local/share/edumatcher
+</code></pre></div>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <p>Continue with <a href="../030-your-first-trade/">Your First Trade</a>. If something did not
 work, see <a href="../../90-backmatter/020-when-something-does-not-work/">When Something Does Not Work</a>.</p>

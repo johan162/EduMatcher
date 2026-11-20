@@ -29,7 +29,7 @@
     
     
       
-        <title>SQLite Database Formats - EduMatcher — Educational Trading System</title>
+        <title>Data File Formats - EduMatcher — Educational Trading System</title>
       
     
     
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sqlite-database-formats" class="md-skip">
+        <a href="#data-file-formats" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              SQLite Database Formats
+              Data File Formats
             
           </span>
         </div>
@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4798,6 +4910,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../020-guided-tour/" class="md-nav__link">
         
   
@@ -4842,7 +4982,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -4860,7 +5000,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -4890,6 +5030,17 @@
     <span class="md-ellipsis">
       
         Storage Behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#engine-state-files-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine State Files (JSON)
       
     </span>
   </a>
@@ -7629,9 +7780,10 @@
   
 
 
-<h1 id="sqlite-database-formats">SQLite Database Formats<a class="headerlink" href="#sqlite-database-formats" title="Permanent link">&para;</a></h1>
+<h1 id="data-file-formats">Data File Formats<a class="headerlink" href="#data-file-formats" title="Permanent link">&para;</a></h1>
 <p>EduMatcher uses SQLite for durable event records, derived summaries, and
-operator-interface state. Database paths normally live under <code>$DATA_DIR</code>, but
+operator-interface state, a line-oriented text format for the audit trail, and
+small JSON files for the engine's own state. Database paths normally live under <code>$DATA_DIR</code>, but
 services and bridges can override their individual paths. Each database has
 one owning writer and its own retention and recovery policy.</p>
 <p>The complete database inventory, field metadata, and formal DDL are in the
@@ -7662,6 +7814,59 @@ ticks and require the row's <code>tick_decimals</code> to convert to display cur
 Index levels and some derived values are <code>REAL</code> values. Timestamps may be UTC
 ISO-8601 text or integer Unix nanoseconds; the generated reference shows each
 column's declared type, and the owning process defines its units.</p>
+<h2 id="engine-state-files-json">Engine State Files (JSON)<a class="headerlink" href="#engine-state-files-json" title="Permanent link">&para;</a></h2>
+<p>The engine keeps its own state in small JSON files in the data directory,
+outside SQLite. Each is written with <code>atomic_write_text</code>: write a temporary file
+beside it, fsync, rename over the old one. A crash during a write therefore
+leaves the previous version intact, never a truncated file.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Written</th>
+<th>Read</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gtc_orders.json</code></td>
+<td>every 5 s while running, and at shutdown</td>
+<td>at startup</td>
+<td>every resting order (<code>TIF=GTC</code> and <code>TIF=DAY</code>) as <code>Order.to_dict()</code>, with its <code>arrival_seq</code>; restored in that order so queue priority survives. A DAY order whose business day has passed is dropped at startup</td>
+</tr>
+<tr>
+<td><code>gtc_combos.json</code></td>
+<td>with <code>gtc_orders.json</code></td>
+<td>at startup</td>
+<td>live combo parents and the ids of their child legs</td>
+</tr>
+<tr>
+<td><code>book_stats.json</code></td>
+<td>with <code>gtc_orders.json</code></td>
+<td>at startup</td>
+<td>per symbol: last buy and sell price, previous close, each circuit breaker's reference window (<code>cb_window</code>) and any operator halt still in force</td>
+</tr>
+<tr>
+<td><code>engine_run_seq.json</code></td>
+<td>once, at every engine start</td>
+<td>at every engine start</td>
+<td><code>{"run_seq": N}</code> — the engine-run number in every trade id (<code>{run_seq:06d}-{n:09d}</code>). A corrupt file stops the engine rather than risk reissuing trade ids</td>
+</tr>
+<tr>
+<td><code>ref_data/engine_config.json</code></td>
+<td>by <code>pm-config-deploy</code> / <code>pm-setup</code></td>
+<td>by every process at startup</td>
+<td>the compiled configuration, with a digest of its content; a process refuses to start against a copy edited by hand</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>gtc_orders.json</code> or <code>gtc_combos.json</code> cannot be parsed at startup, the
+engine first copies it aside as <code>&lt;name&gt;.corrupt-&lt;UTC timestamp&gt;</code> — its first
+checkpoint will overwrite the original seconds later — and names the copy in a
+CRITICAL log line. Each index's state and structural history are kept in the
+files its <code>indexes:</code> entry names (<code>state_file</code>, a JSON checkpoint, and
+<code>history_file</code>, append-only JSON lines); <code>pm-index-cli</code> can check both.</p>
 <h2 id="sqlite-files-on-disk">SQLite Files on Disk<a class="headerlink" href="#sqlite-files-on-disk" title="Permanent link">&para;</a></h2>
 <p><code>stats.db.lock</code> is a SQLite sidecar used only to hold the <code>pm-stats</code> writer
 lock; it contains no application tables. While a database is open in WAL mode,

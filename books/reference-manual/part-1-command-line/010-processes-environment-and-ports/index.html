@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4124,6 +4236,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-sim-forensics-simulation-run-checker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-sim-forensics — Simulation Run Checker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pm-compdb-cli-company-database-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5864,6 +5987,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5899,7 +6050,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -9273,6 +9424,12 @@ must be run from <code>~/.edumatcher</code>, where rule 4 finds <code>./data</co
 <td>Read-only drop-copy spy — connects to the engine's drop-copy <code>PUB</code> socket (:5557) and prints every fill event</td>
 <td>Optional</td>
 </tr>
+<tr>
+<td><strong>pm-sim-forensics</strong></td>
+<td><code>pm-sim-forensics [--data DIR] [--out DIR]</code></td>
+<td>Cross-checks a stopped simulation run's records and writes a findings report</td>
+<td>Optional</td>
+</tr>
 </tbody>
 </table>
 <h2 id="port-reference">Port Reference<a class="headerlink" href="#port-reference" title="Permanent link">&para;</a></h2>
@@ -9363,7 +9520,7 @@ process's own <code>config.py</code>.</p>
 </tr>
 <tr>
 <td><code>pm-api-gwy</code></td>
-<td>connects out to <code>5555</code>, <code>5556</code></td>
+<td>connects out to <code>5555</code>, <code>5556</code>, and <code>pm-index</code>'s <code>5558</code>, <code>5559</code></td>
 <td><code>8080</code> (code default; example configs may assign additional instances other ports, e.g. <code>8081</code>)</td>
 <td>HTTP/REST + WebSocket</td>
 <td>REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by <code>pm-alf-console</code>. Each named <code>api_gateways</code> instance in config gets its own port.</td>
@@ -10845,7 +11002,7 @@ changing the raw event log format.</p>
 <td><code>events</code></td>
 <td style="text-align: right;">100</td>
 <td>Search log entries by topic, gateway, symbol, and time range</td>
-<td><code>--topic</code>, <code>--gateway</code>, <code>--symbol</code>, <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--reverse</code></td>
+<td><code>--topic</code>, <code>--gateway</code>, <code>--symbol</code>, <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--reverse</code>, <code>-f</code>/<code>--follow</code>, <code>--interval SEC</code></td>
 </tr>
 <tr>
 <td><code>orders</code></td>
@@ -10875,7 +11032,7 @@ changing the raw event log format.</p>
 <td><code>timeline</code></td>
 <td style="text-align: right;">500</td>
 <td>Raw chronological event stream for session replay</td>
-<td><code>--from</code>, <code>--to</code>, <code>--topic</code>, <code>--gateway</code>, <code>--symbol</code></td>
+<td><code>--from</code>, <code>--to</code>, <code>--topic</code>, <code>--gateway</code>, <code>--symbol</code>, <code>-f</code>/<code>--follow</code>, <code>--interval SEC</code></td>
 </tr>
 <tr>
 <td><code>stats</code></td>
@@ -10917,7 +11074,8 @@ changing the raw event log format.</p>
 </ul>
 <p><code>--from</code>/<code>--to</code> are inclusive; a bare date, and a time without an offset, are
 UTC, and a bare date in <code>--to</code> means the end of that day. <code>events</code>/<code>timeline
---follow</code> first print the newest <code>--limit</code> matching entries, like <code>tail -f</code>.</p>
+--follow</code> first print the newest <code>--limit</code> matching entries, like <code>tail -f</code>,
+then poll for new ones every <code>--interval</code> seconds (default <code>1.0</code>).</p>
 <h2 id="pm-audit-replay-audit-replay">pm-audit-replay — Audit Replay<a class="headerlink" href="#pm-audit-replay-audit-replay" title="Permanent link">&para;</a></h2>
 <p>Reconstructs the causal structure of the audit trail and narrates it: which
 order caused which trade, which kill switch cancelled what, where the log
@@ -10973,6 +11131,16 @@ no ZeroMQ socket.</p>
 <td><code>index</code></td>
 <td>Build or refresh the episode index</td>
 <td><code>--stats</code></td>
+</tr>
+<tr>
+<td><code>rerun</code></td>
+<td>Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>queue</code></td>
+<td>Follow one resting order, or one price level, through the queue (observes the re-run)</td>
+<td><code>--order ID</code> (order view), or <code>--price P</code> with the global <code>--symbol</code> and optional <code>--side {BUY,SELL}</code> (level view); <code>--anonymise</code> names other gateways A, B, C and hides iceberg reserve</td>
 </tr>
 </tbody>
 </table>
@@ -11094,7 +11262,9 @@ no ZeroMQ socket.</p>
 </tbody>
 </table>
 <p><strong>Exit codes:</strong> <code>0</code> success; <code>1</code> nothing to narrate, or no audit log at the
-given path; <code>2</code> argument error.</p>
+given path (<code>rerun</code>: a difference; <code>queue</code>: order not in the trail); <code>2</code>
+argument error; <code>3</code> <code>rerun</code>/<code>queue</code>: the trail cannot be re-run (it does not
+begin at an engine start with an empty book, or has a proven hole).</p>
 <p>See <a href="../../../operator-guide/part-6-observe-and-recover/030-audit-replay/">Audit Replay</a> for how causality is
 recovered, what each anomaly means and worked examples.</p>
 <h2 id="pm-clearing-clearing-pl">pm-clearing — Clearing &amp; P&amp;L<a class="headerlink" href="#pm-clearing-clearing-pl" title="Permanent link">&para;</a></h2>
@@ -11125,12 +11295,12 @@ recovered, what each anomaly means and worked examples.</p>
 <tr>
 <td><code>--flush-size</code></td>
 <td><code>100</code></td>
-<td>Flush immediately when buffered trades reaches N</td>
+<td>Flush immediately when buffered trades reaches N (<code>1</code>–<code>100</code>)</td>
 </tr>
 <tr>
 <td><code>--flush-interval</code></td>
 <td><code>5.0</code></td>
-<td>Flush interval in seconds when buffer is non-empty</td>
+<td>Flush interval in seconds when buffer is non-empty (at least <code>0.1</code>)</td>
 </tr>
 <tr>
 <td><code>--print-every</code></td>
@@ -11140,7 +11310,7 @@ recovered, what each anomaly means and worked examples.</p>
 <tr>
 <td><code>--retention-days</code></td>
 <td><code>90</code></td>
-<td>Prune <code>trade_events</code> rows older than N days on startup and at every close of the market (<code>0</code> disables pruning)</td>
+<td>Delete <code>trade_events</code> rows and close snapshots older than N days on startup and at every close of the market; the newest close snapshot is kept (<code>0</code> disables pruning)</td>
 </tr>
 <tr>
 <td><code>--sql-trace</code></td>
@@ -11184,17 +11354,17 @@ recovered, what each anomaly means and worked examples.</p>
 </tr>
 </tbody>
 </table>
-<p><code>pm-clearing-cli</code> global options include <code>--raw-output</code> to disable display
-normalization and print raw tick-unit values for price-derived fields.</p>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None.</p>
-<p>On startup, <code>pm-clearing</code> applies schema migrations and prunes <code>trade_events</code>
-older than the retention window (default: 90 days). Writes are batched into
-single SQLite transactions to update:</p>
+<p>On startup, <code>pm-clearing</code> prunes <code>trade_events</code> and close snapshots older
+than the retention window (default: 90 days). Writes are batched into single
+SQLite transactions to update:</p>
 <ul>
 <li><code>trade_events</code></li>
 <li><code>gateway_symbol_positions</code></li>
 <li><code>gateway_daily_summary</code></li>
+<li><code>position_close_snapshot</code> (at each session close)</li>
+<li><code>session_events</code> and <code>gateway_sessions</code></li>
 </ul>
 <p><code>trade.executed.tick_decimals</code> is persisted so downstream output can normalize
 price-derived values for table/JSON/CSV rendering.</p>
@@ -11214,6 +11384,10 @@ price-derived values for table/JSON/CSV rendering.</p>
 <tr>
 <td><code>system.eod</code></td>
 <td>End-of-day marks and the session-close <code>session_events</code> row</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>Session-phase transitions, recorded as <code>PHASE</code> rows in <code>session_events</code></td>
 </tr>
 <tr>
 <td><code>system.gateway_auth.</code></td>
@@ -11337,6 +11511,12 @@ which also pings the running <code>pm-clearing</code> on port <code>5563</code>.
 <td><code>--gateway</code>, <code>--symbol</code>, <code>--from</code>, <code>--to</code>, <code>--with-totals</code></td>
 </tr>
 <tr>
+<td><code>snapshots</code></td>
+<td style="text-align: right;">10000</td>
+<td>Position snapshots taken at each session close — the basis for settlement</td>
+<td><code>--gateway</code>, <code>--symbol</code>, <code>--date</code>, <code>--from</code>, <code>--to</code></td>
+</tr>
+<tr>
 <td><code>health</code></td>
 <td style="text-align: right;">n/a</td>
 <td>Check the <code>pm-clearing</code> process and ping its health socket; <code>--extended</code> adds the clearing DB integrity and read/write check, and <code>--extended -v</code> the row counts, flush metadata and journal mode</td>
@@ -11361,9 +11541,21 @@ which also pings the running <code>pm-clearing</code> on port <code>5563</code>.
 <td><code>--from</code>, <code>--to</code>, <code>--limit</code></td>
 </tr>
 <tr>
+<td><code>gaps</code></td>
+<td style="text-align: right;">500</td>
+<td>Trade-feed gaps: trades <code>pm-clearing</code> never received, so never booked</td>
+<td><code>--from</code>, <code>--to</code></td>
+</tr>
+<tr>
+<td><code>rebuild</code></td>
+<td style="text-align: right;">n/a</td>
+<td>Replays <code>pm-audit</code>'s <code>trade.executed</code> lines into a <strong>new</strong> database (the live one is only read), copies the close snapshots over and lists every gateway/symbol position that differs. The audit trail must reach back to the ledger's first trading day. Exit <code>0</code> no difference, <code>3</code> differences listed, <code>1</code> refused</td>
+<td><code>--from-audit DATA_DIR</code> and <code>--output PATH</code> (must not exist), both required</td>
+</tr>
+<tr>
 <td><code>prune</code></td>
 <td style="text-align: right;">n/a</td>
-<td>Deletes old <code>trade_events</code> rows by retention window</td>
+<td>Deletes <code>trade_events</code> rows and close snapshots older than the retention window (default 90 days; the newest close snapshot is kept). The file keeps its size; SQLite reuses the freed pages</td>
 <td><code>--days</code>, <code>--dry-run</code></td>
 </tr>
 </tbody>
@@ -11951,7 +12143,7 @@ prints output, and exits.</p>
 <tr>
 <td><code>daily</code></td>
 <td>Daily OHLCV summary from <code>daily_stats</code></td>
-<td><code>--date</code>, <code>--symbol</code>, <code>--limit</code>, <code>--after</code>, <code>--wide</code></td>
+<td><code>--date</code> or <code>--from-date</code>/<code>--to-date</code> (inclusive range), <code>--symbol</code>, <code>--limit</code>, <code>--after</code>, <code>--wide</code></td>
 </tr>
 <tr>
 <td><code>snapshots</code></td>
@@ -11986,7 +12178,7 @@ prints output, and exits.</p>
 <tr>
 <td><code>index-daily</code></td>
 <td>Daily index OHLC rollup from <code>index_daily_stats</code></td>
-<td><code>--date</code>, <code>--index-id</code>, <code>--limit</code>, <code>--after</code>, <code>--wide</code></td>
+<td><code>--date</code> or <code>--from-date</code>/<code>--to-date</code> (inclusive range), <code>--index-id</code>, <code>--limit</code>, <code>--after</code>, <code>--wide</code></td>
 </tr>
 <tr>
 <td><code>index-snapshots</code></td>
@@ -12210,6 +12402,7 @@ in <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Cl
 <a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span><span class="o">[</span>--log-keep-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--backup-keep-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--backup-skip<span class="w"> </span>NAME<span class="w"> </span>...<span class="o">]</span>
 <a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>pm-eod<span class="w"> </span><span class="o">[</span>--datapath<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>status<span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--limit<span class="w"> </span>N<span class="o">]</span>
 <a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>pm-eod<span class="w"> </span><span class="o">[</span>--datapath<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>balances<span class="w"> </span><span class="o">[</span>--date<span class="w"> </span>YYYY-MM-DD<span class="o">]</span><span class="w"> </span><span class="o">[</span>--gateway<span class="w"> </span>GW_ID<span class="o">]</span><span class="w"> </span><span class="o">[</span>--check<span class="o">]</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>pm-eod<span class="w"> </span><span class="o">[</span>--datapath<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>show<span class="w"> </span>--date<span class="w"> </span>YYYY-MM-DD<span class="w"> </span><span class="o">[</span>--gateway<span class="w"> </span>GW_ID<span class="o">]</span><span class="w"> </span><span class="o">[</span>--steps<span class="o">]</span>
 </code></pre></div>
 <p><strong>Global options</strong> (must come <em>before</em> the subcommand):</p>
 <table>
@@ -12229,7 +12422,7 @@ in <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Cl
 <tr>
 <td><code>--format</code></td>
 <td><code>table</code></td>
-<td>Output format for <code>status</code> and <code>balances</code>: <code>table</code>, <code>json</code> or <code>csv</code></td>
+<td>Output format for <code>status</code>, <code>balances</code> and <code>show</code>: <code>table</code>, <code>json</code> or <code>csv</code></td>
 </tr>
 <tr>
 <td><code>--no-header</code></td>
@@ -12311,6 +12504,10 @@ printed but not recorded, so an <code>ok</code> day stays <code>ok</code>.</p>
 <p><strong><code>balances</code> options:</strong> <code>--date</code> shows balances as of that date; <code>--gateway</code>
 filters to one trader (case-insensitive); <code>--check</code> verifies that every settled
 date sums to exactly zero and exits 1 if one does not.</p>
+<p><strong><code>show</code> options:</strong> <code>--date</code> (required) picks the settled date and prints each
+account's amount with its per-symbol split; <code>--gateway</code> filters to one trader;
+<code>--steps</code> prints that date's run steps with their full messages instead of the
+amounts.</p>
 <p><strong>Exit codes of <code>run</code>:</strong> <code>0</code> clean · <code>1</code> the gate, the settlement or the report
 failed · <code>2</code> usage error (nothing was done) · <code>3</code> settled and reported, but a
 step warned (a housekeeping step, or the <code>settle</code> note that a settled date's
@@ -13075,8 +13272,9 @@ See <a href="../../../operator-guide/part-4-run-a-market/090-market-model/">The 
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
-<p>None. It reads <code>market_sim.yaml</code> from the deployed configuration directory
-and keeps its state in <code>&lt;DATA_DIR&gt;/market_sim_state.json</code>.</p>
+<p>None. It reads <code>market_sim.yaml</code> from the deployed configuration directory,
+keeps its state in <code>&lt;DATA_DIR&gt;/market_sim_state.json</code> and records every
+headline and value jump in <code>&lt;DATA_DIR&gt;/market_sim_news.db</code>.</p>
 <h2 id="pm-news-news-desk">pm-news — News Desk<a class="headerlink" href="#pm-news-news-desk" title="Permanent link">&para;</a></h2>
 <p>The instructor's news desk: sends commands to the running <code>pm-market-sim</code> as
 an ADMIN participant. See
@@ -13087,6 +13285,7 @@ an ADMIN participant. See
 <a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>ADMIN_ID<span class="w"> </span>retract<span class="w"> </span>NEWS_ID
 <a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>ADMIN_ID<span class="w"> </span>play<span class="w"> </span>scenario.yaml
 <a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>pm-news<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>--duration<span class="w"> </span>SECONDS<span class="o">]</span>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>pm-news<span class="w"> </span>past<span class="w"> </span><span class="o">[</span>--limit<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--date<span class="w"> </span>YYYY-MM-DD<span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -13116,10 +13315,88 @@ an ADMIN participant. See
 <td><code>list</code></td>
 <td>Print headlines as they are published; <code>--duration 0</code> (default) until Ctrl+C</td>
 </tr>
+<tr>
+<td><code>past</code></td>
+<td>Print headlines already published, newest first, from <code>&lt;DATA_DIR&gt;/market_sim_news.db</code>; needs no running process and no <code>--id</code>. <code>--limit</code> (default <code>20</code>) caps the count, <code>--date</code> picks one session date</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None.</p>
+<h2 id="pm-sim-forensics-simulation-run-checker">pm-sim-forensics — Simulation Run Checker<a class="headerlink" href="#pm-sim-forensics-simulation-run-checker" title="Permanent link">&para;</a></h2>
+<p>Checks a finished simulation run's records against each other. A long
+AI-trader run is a randomized test without assertions; <code>pm-stats</code>,
+<code>pm-clearing</code>, <code>pm-audit</code>, <code>pm-monitor</code> and the gateways each record the
+engine's output independently, and every check is an oracle over those
+records — a balance that must hold, two stores that must agree, a matching
+rule the trades must obey. Run it on a <strong>stopped</strong> run's data directory.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-sim-forensics<span class="w"> </span><span class="o">[</span>--data<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--check<span class="w"> </span>ID<span class="w"> </span>...<span class="o">]</span><span class="w"> </span><span class="o">[</span>--slow<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>pm-sim-forensics<span class="w"> </span>--list
+</code></pre></div>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--data</code></td>
+<td><code>EDUMATCHER_DATA_DIR</code></td>
+<td>The run's data directory</td>
+</tr>
+<tr>
+<td><code>--out</code></td>
+<td><code>forensics/</code> beside the data directory</td>
+<td>Where <code>report.md</code> and <code>findings.json</code> are written</td>
+</tr>
+<tr>
+<td><code>--check</code></td>
+<td>every check</td>
+<td>Run only this check; repeat for several. A check named here runs even if it is slow</td>
+</tr>
+<tr>
+<td><code>--samples</code></td>
+<td><code>10</code></td>
+<td>Sample rows kept per check</td>
+</tr>
+<tr>
+<td><code>--slow</code></td>
+<td>off</td>
+<td>Also run the slow checks (several engine re-runs)</td>
+</tr>
+<tr>
+<td><code>--jobs</code></td>
+<td>one per CPU</td>
+<td>Worker processes; <code>1</code> runs every check in this process</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>No progress lines on stderr</td>
+</tr>
+<tr>
+<td><code>--list</code></td>
+<td>—</td>
+<td>Print every check (ID, oracle family, title) and exit</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
+</tbody>
+</table>
+<p>Each check ends <code>PASS</code>, <code>FAIL</code> (with sample rows), <code>INFO</code> (statistical
+checks: a count, not a verdict), <code>SKIPPED</code> (its data is absent) or <code>ERROR</code>
+(the check itself broke). <code>make forensics DATA=&lt;dir&gt; OUT=&lt;dir&gt; [SLOW=1]</code> wraps
+the command in a source checkout.</p>
+<p><strong>Exit codes:</strong> <code>0</code> no check failed; <code>1</code> at least one <code>FAIL</code> or <code>ERROR</code> —
+that is the finding, see <code>report.md</code>; <code>2</code> usage error (unknown check ID,
+<code>--data</code> not a directory).</p>
 <h2 id="pm-compdb-cli-company-database-cli">pm-compdb-cli — Company Database CLI<a class="headerlink" href="#pm-compdb-cli-company-database-cli" title="Permanent link">&para;</a></h2>
 <p>A SQLite database of company profiles for the 300 tickers of the s300
 simulation (<code>docs/examples/ref_data/s300-sim-setup</code>), and the tool to query and
@@ -13127,9 +13404,9 @@ edit it. It also holds 100 Swedish and other Nordic companies whose tickers
 <code>pm-market-sim</code> does not trade. The companies are made up: each ticker keeps its
 sector and industry from <code>pm-market-sim</code> (and so the news it gets), but every
 name, person and number is invented. No running process is needed.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-compdb-cli<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>grid<span class="p">|</span>markdown<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-c<span class="w"> </span>COLS<span class="p">|</span>all<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="w"> </span>FILTER<span class="o">]</span>...<span class="w"> </span><span class="o">[</span>-s<span class="w"> </span>COL<span class="w"> </span><span class="o">[</span>--desc<span class="o">]]</span><span class="w"> </span><span class="o">[</span>-n<span class="w"> </span>N<span class="o">]</span>
-<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>pm-compdb-cli<span class="w"> </span>add<span class="p">|</span>update<span class="w"> </span>SYMBOL<span class="w"> </span><span class="nv">FIELD</span><span class="o">=</span>VALUE...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-compdb-cli<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>grid<span class="p">|</span>markdown<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-c<span class="w"> </span>COLS<span class="p">|</span>all<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="w"> </span>FILTER<span class="o">]</span>...<span class="w"> </span><span class="o">[</span>-s<span class="w"> </span>COL<span class="w"> </span><span class="o">[</span>--desc<span class="o">]]</span><span class="w"> </span><span class="o">[</span>-n<span class="w"> </span>N<span class="o">]</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>pm-compdb-cli<span class="w"> </span>add<span class="p">|</span>update<span class="w"> </span>SYMBOL<span class="w"> </span><span class="nv">FIELD</span><span class="o">=</span>VALUE...
 </code></pre></div>
 <table>
 <thead>
@@ -13153,7 +13430,7 @@ name, person and number is invented. No running process is needed.</p>
 </tr>
 <tr>
 <td><code>list</code></td>
-<td>List companies: <code>-c</code> comma-separated columns or <code>all</code>; <code>-w COLUMN OP VALUE</code> with <code>OP</code> one of <code>=</code> <code>!=</code> <code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code> <code>~</code> (contains, any case), repeat to narrow; <code>-s</code> sort column, <code>--desc</code>; <code>-n</code> at most N rows</td>
+<td>List companies: <code>-c</code>/<code>--columns</code> comma-separated columns or <code>all</code> (default <code>symbol,name,sector,industry,market_cap_musd,pe_ratio</code>); <code>-w</code>/<code>--where COLUMN OP VALUE</code> with <code>OP</code> one of <code>=</code> <code>!=</code> <code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code> <code>~</code> (contains, any case), repeat to narrow; <code>-s</code>/<code>--sort</code> sort column, <code>--desc</code>; <code>-n</code>/<code>--limit</code> at most N rows</td>
 </tr>
 <tr>
 <td><code>add SYMBOL FIELD=VALUE...</code></td>
@@ -13200,8 +13477,8 @@ name, person and number is invented. No running process is needed.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-compdb-cli<span class="w"> </span>--format<span class="w"> </span>grid<span class="w"> </span>list<span class="w"> </span>-w<span class="w"> </span><span class="nv">sector</span><span class="o">=</span>TECH<span class="w"> </span>-s<span class="w"> </span>market_cap_musd<span class="w"> </span>--desc<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span>
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>pm-compdb-cli<span class="w"> </span>--format<span class="w"> </span>markdown<span class="w"> </span>show<span class="w"> </span>NVDA<span class="w"> </span>&gt;<span class="w"> </span>nvda.md
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-compdb-cli<span class="w"> </span>--format<span class="w"> </span>grid<span class="w"> </span>list<span class="w"> </span>-w<span class="w"> </span><span class="nv">sector</span><span class="o">=</span>TECH<span class="w"> </span>-s<span class="w"> </span>market_cap_musd<span class="w"> </span>--desc<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>pm-compdb-cli<span class="w"> </span>--format<span class="w"> </span>markdown<span class="w"> </span>show<span class="w"> </span>NVDA<span class="w"> </span>&gt;<span class="w"> </span>nvda.md
 </code></pre></div>
 <p><strong>Where the companies come from.</strong> The bundled companies are hand-written
 YAML files, one per sector, installed as part of the <code>edumatcher</code> package in
@@ -13235,7 +13512,7 @@ package, and no option points it elsewhere. To load your own files, use
 </tbody>
 </table>
 <p>To see the folder of the installation you are running:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from edumatcher.compdb.store import SEED_DIR; print(SEED_DIR)"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from edumatcher.compdb.store import SEED_DIR; print(SEED_DIR)"</span>
 </code></pre></div>
 <p><code>init</code> never changes the YAML files. Adding, changing or deleting a company
 changes only the database. The source checkout also has a prebuilt copy,
@@ -13275,11 +13552,11 @@ industries the simulation gives news of their own (<code>Semiconductors</code>,
 <code>Software</code>, <code>Pharmaceuticals</code>, <code>Automobiles</code>, <code>Airlines</code>,
 <code>Aerospace &amp; Defense</code>) belong to exactly their members; years must run in order
 (founded, IPO, fiscal year; the CEO no earlier than the founding).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-compdb-cli<span class="w"> </span>show<span class="w"> </span>NVDA
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,pe_ratio,dividend_yield_pct<span class="w"> </span>-w<span class="w"> </span><span class="nv">sector</span><span class="o">=</span>UTILITIES<span class="w"> </span>-s<span class="w"> </span>dividend_yield_pct<span class="w"> </span>--desc
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-w<span class="w"> </span><span class="s2">"origin=MERGER"</span><span class="w"> </span>-w<span class="w"> </span><span class="s2">"founded_year&lt;1950"</span><span class="w"> </span>-c<span class="w"> </span>symbol,name,founders
-<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-w<span class="w"> </span><span class="s2">"net_income_musd&lt;0"</span><span class="w"> </span>-c<span class="w"> </span>symbol,name,revenue_growth_pct,key_risk
-<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>pm-compdb-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>all<span class="w"> </span>&gt;<span class="w"> </span>companies.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-compdb-cli<span class="w"> </span>show<span class="w"> </span>NVDA
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,pe_ratio,dividend_yield_pct<span class="w"> </span>-w<span class="w"> </span><span class="nv">sector</span><span class="o">=</span>UTILITIES<span class="w"> </span>-s<span class="w"> </span>dividend_yield_pct<span class="w"> </span>--desc
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-w<span class="w"> </span><span class="s2">"origin=MERGER"</span><span class="w"> </span>-w<span class="w"> </span><span class="s2">"founded_year&lt;1950"</span><span class="w"> </span>-c<span class="w"> </span>symbol,name,founders
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-w<span class="w"> </span><span class="s2">"net_income_musd&lt;0"</span><span class="w"> </span>-c<span class="w"> </span>symbol,name,revenue_growth_pct,key_risk
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>pm-compdb-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>all<span class="w"> </span>&gt;<span class="w"> </span>companies.csv
 </code></pre></div>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None.</p>
@@ -13661,26 +13938,26 @@ a figure for each.</p>
 </ul>
 <p>To try these on the simulation's companies, use <code>list</code> with filters and
 sorting:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="c1"># Cheap and profitable: low P/E, high net margin</span>
-<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,pe_ratio,net_margin_pct<span class="w"> </span>-w<span class="w"> </span><span class="s2">"pe_ratio&lt;12"</span><span class="w"> </span>-w<span class="w"> </span><span class="s2">"net_margin_pct&gt;15"</span><span class="w"> </span>-s<span class="w"> </span>pe_ratio
-<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>
-<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="c1"># Highly leveraged companies and what they are rated</span>
-<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,debt_to_equity,credit_rating,free_cash_flow_musd<span class="w"> </span>-w<span class="w"> </span><span class="s2">"debt_to_equity&gt;2"</span><span class="w"> </span>-s<span class="w"> </span>debt_to_equity<span class="w"> </span>--desc
-<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>
-<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="c1"># Growth at a price: fast growers ranked by P/S</span>
-<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,revenue_growth_pct,ps_ratio<span class="w"> </span>-w<span class="w"> </span><span class="s2">"revenue_growth_pct&gt;20"</span><span class="w"> </span>-s<span class="w"> </span>ps_ratio<span class="w"> </span>--desc
-<a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a>
-<a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a><span class="c1"># A company against its competitors</span>
-<a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a>pm-compdb-cli<span class="w"> </span>show<span class="w"> </span>NVDA
-<a id="__codelineno-42-12" name="__codelineno-42-12" href="#__codelineno-42-12"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,pe_ratio,operating_margin_pct,revenue_growth_pct<span class="w"> </span>-w<span class="w"> </span><span class="s2">"industry=Semiconductors"</span><span class="w"> </span>-s<span class="w"> </span>pe_ratio<span class="w"> </span>--desc
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="c1"># Cheap and profitable: low P/E, high net margin</span>
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,pe_ratio,net_margin_pct<span class="w"> </span>-w<span class="w"> </span><span class="s2">"pe_ratio&lt;12"</span><span class="w"> </span>-w<span class="w"> </span><span class="s2">"net_margin_pct&gt;15"</span><span class="w"> </span>-s<span class="w"> </span>pe_ratio
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>
+<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a><span class="c1"># Highly leveraged companies and what they are rated</span>
+<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,debt_to_equity,credit_rating,free_cash_flow_musd<span class="w"> </span>-w<span class="w"> </span><span class="s2">"debt_to_equity&gt;2"</span><span class="w"> </span>-s<span class="w"> </span>debt_to_equity<span class="w"> </span>--desc
+<a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a>
+<a id="__codelineno-43-7" name="__codelineno-43-7" href="#__codelineno-43-7"></a><span class="c1"># Growth at a price: fast growers ranked by P/S</span>
+<a id="__codelineno-43-8" name="__codelineno-43-8" href="#__codelineno-43-8"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,name,revenue_growth_pct,ps_ratio<span class="w"> </span>-w<span class="w"> </span><span class="s2">"revenue_growth_pct&gt;20"</span><span class="w"> </span>-s<span class="w"> </span>ps_ratio<span class="w"> </span>--desc
+<a id="__codelineno-43-9" name="__codelineno-43-9" href="#__codelineno-43-9"></a>
+<a id="__codelineno-43-10" name="__codelineno-43-10" href="#__codelineno-43-10"></a><span class="c1"># A company against its competitors</span>
+<a id="__codelineno-43-11" name="__codelineno-43-11" href="#__codelineno-43-11"></a>pm-compdb-cli<span class="w"> </span>show<span class="w"> </span>NVDA
+<a id="__codelineno-43-12" name="__codelineno-43-12" href="#__codelineno-43-12"></a>pm-compdb-cli<span class="w"> </span>list<span class="w"> </span>-c<span class="w"> </span>symbol,pe_ratio,operating_margin_pct,revenue_growth_pct<span class="w"> </span>-w<span class="w"> </span><span class="s2">"industry=Semiconductors"</span><span class="w"> </span>-s<span class="w"> </span>pe_ratio<span class="w"> </span>--desc
 </code></pre></div>
 <h2 id="pm-new-symbol-pm-ipo-list-a-new-symbol">pm-new-symbol / pm-ipo — List a New Symbol<a class="headerlink" href="#pm-new-symbol-pm-ipo-list-a-new-symbol" title="Permanent link">&para;</a></h2>
 <p>Lists a new symbol (an IPO) in an engine configuration: appends it to
 <code>symbols:</code>, gives it its reference price and, normally, a seed quote from the
 market maker, validates the whole edited file and, when that file is the
 deployed source, redeploys it. <code>pm-ipo</code> is an alias for the same command.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-new-symbol<span class="w"> </span>--symbol<span class="w"> </span>NEWCO<span class="w"> </span>--ipo-price<span class="w"> </span><span class="m">25</span>.00<span class="w"> </span>--outstanding-shares<span class="w"> </span><span class="m">40000000</span>
-<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>pm-new-symbol<span class="w"> </span>--config<span class="w"> </span>my_config.yaml<span class="w"> </span>--symbol<span class="w"> </span>NEWCO<span class="w"> </span>--ipo-price<span class="w"> </span><span class="m">25</span>.00<span class="w"> </span>--outstanding-shares<span class="w"> </span><span class="m">40000000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-new-symbol<span class="w"> </span>--symbol<span class="w"> </span>NEWCO<span class="w"> </span>--ipo-price<span class="w"> </span><span class="m">25</span>.00<span class="w"> </span>--outstanding-shares<span class="w"> </span><span class="m">40000000</span>
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>pm-new-symbol<span class="w"> </span>--config<span class="w"> </span>my_config.yaml<span class="w"> </span>--symbol<span class="w"> </span>NEWCO<span class="w"> </span>--ipo-price<span class="w"> </span><span class="m">25</span>.00<span class="w"> </span>--outstanding-shares<span class="w"> </span><span class="m">40000000</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -13771,9 +14048,9 @@ give <code>--symbols A,B,C</code>, or use <code>--all-symbols</code>. Each symbo
 the others' failures. To compete on the same symbol, or to keep symbols under
 separate gateway IDs, run several instances with different <code>--id-suffix</code>
 values.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
-<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">5000</span>
-<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>pm-mm-bot<span class="w"> </span>--all-symbols
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">5000</span>
+<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>pm-mm-bot<span class="w"> </span>--all-symbols
 </code></pre></div>
 <p><strong>Per-symbol flags.</strong> <code>--symbol</code> may be repeated. A per-symbol flag
 (<code>--strategy</code>, <code>--gap</code>, <code>--qty</code>, <code>--max-position</code>, <code>--drift-ticks</code>, <code>--tif</code>,
@@ -14015,19 +14292,19 @@ be pre-registered in <code>engine_config.yaml</code> with <code>role: MARKET_MAK
 </table>
 <p><strong>Config file (<code>--config</code>):</strong> a YAML file with <code>version: 1</code> separates
 gateway-wide settings from per-symbol ones:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a><span class="nt">gateway</span><span class="p">:</span>
-<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a><span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TECH</span>
-<a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
-<a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a><span class="nt">defaults</span><span class="p">:</span>
-<a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
-<a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a><span class="w">  </span><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
-<a id="__codelineno-45-10" name="__codelineno-45-10" href="#__codelineno-45-10"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
-<a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.50</span>
-<a id="__codelineno-45-12" name="__codelineno-45-12" href="#__codelineno-45-12"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inventory_skew</span>
-<a id="__codelineno-45-13" name="__codelineno-45-13" href="#__codelineno-45-13"></a><span class="w">    </span><span class="nt">max_position</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="nt">gateway</span><span class="p">:</span>
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a><span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TECH</span>
+<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
+<a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a><span class="nt">defaults</span><span class="p">:</span>
+<a id="__codelineno-46-6" name="__codelineno-46-6" href="#__codelineno-46-6"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
+<a id="__codelineno-46-7" name="__codelineno-46-7" href="#__codelineno-46-7"></a><span class="w">  </span><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-46-8" name="__codelineno-46-8" href="#__codelineno-46-8"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-46-9" name="__codelineno-46-9" href="#__codelineno-46-9"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-46-10" name="__codelineno-46-10" href="#__codelineno-46-10"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-46-11" name="__codelineno-46-11" href="#__codelineno-46-11"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.50</span>
+<a id="__codelineno-46-12" name="__codelineno-46-12" href="#__codelineno-46-12"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inventory_skew</span>
+<a id="__codelineno-46-13" name="__codelineno-46-13" href="#__codelineno-46-13"></a><span class="w">    </span><span class="nt">max_position</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
 </code></pre></div>
 <p>Unknown keys are rejected with a suggestion for the likely typo. A
 <code>logging:</code> block sets <code>level</code>, <code>target</code>, <code>file</code> and <code>failover_timeout_sec</code>.</p>
@@ -14204,9 +14481,9 @@ bootstrap details, and troubleshooting.</p>
 discounted cash flow, and simulates the IPO that prices it. The result can be
 listed with <code>pm-new-symbol</code>. It is a full-screen terminal application and joins
 no ZeroMQ socket.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-valuation
-<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>halvard<span class="w"> </span>--level<span class="w"> </span>intermediate
-<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>pm-valuation<span class="w"> </span>--load<span class="w"> </span>my_scenario.yaml<span class="w"> </span>--no-tui<span class="w"> </span>--export<span class="w"> </span>report.md
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-valuation
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>halvard<span class="w"> </span>--level<span class="w"> </span>intermediate
+<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a>pm-valuation<span class="w"> </span>--load<span class="w"> </span>my_scenario.yaml<span class="w"> </span>--no-tui<span class="w"> </span>--export<span class="w"> </span>report.md
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -14311,8 +14588,8 @@ classroom exercise.</p>
 <h2 id="pm-ralf-gwy-post-trade-dissemination-gateway">pm-ralf-gwy — Post-Trade Dissemination Gateway<a class="headerlink" href="#pm-ralf-gwy-post-trade-dissemination-gateway" title="Permanent link">&para;</a></h2>
 <p>Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -14503,7 +14780,12 @@ dropping it as an idle client.</p>
 <tr>
 <td><code>--lastseq</code></td>
 <td><code>0</code></td>
-<td>Requests replay on connect via <code>HELLO\|LASTSEQ=N</code> (<code>0</code> = no replay)</td>
+<td>Requests replay on connect via <code>HELLO\|LASTSEQ=N</code>; the <code>SUB</code> that follows is answered with the events after it (<code>0</code> = no replay)</td>
+</tr>
+<tr>
+<td><code>--epoch</code></td>
+<td>none</td>
+<td>The <code>WELCOME\|EPOCH</code> of the gateway run <code>--lastseq</code> came from; required with a non-zero <code>--lastseq</code>. A checkpoint from another run is answered with <code>ERR\|CODE=REPLAY_MISS</code> and a <code>SNAP</code> baseline</td>
 </tr>
 <tr>
 <td><code>--ping-interval</code></td>
@@ -14523,7 +14805,7 @@ dropping it as an idle client.</p>
 <tr>
 <td><code>--raw</code></td>
 <td>off</td>
-<td>Print raw protocol bytes instead of decoded fields</td>
+<td>Also echo the raw wire line under each formatted line (human format only)</td>
 </tr>
 <tr>
 <td><code>--no-color</code></td>
@@ -14583,8 +14865,8 @@ of concurrently connected external clients instead of printing to a
 terminal. There is no authentication, entitlement model, or replay-by-sequence
 — any client may <code>HELLO</code> with any gateway <code>ID</code> and receive that gateway's
 live fills for as long as it stays connected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-dc-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5590</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-dc-pub<span class="w"> </span>tcp://127.0.0.1:5557<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-dc-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5590</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-dc-pub<span class="w"> </span>tcp://127.0.0.1:5557<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -14809,7 +15091,7 @@ of instances can run at once (e.g. one per terminal, each with a different
 cap-weighted market indices in real time. Publishes live index values on a
 dedicated ZMQ PUB socket so <code>pm-md-gwy</code> can forward them to external subscribers
 over the CALF <code>INDEX</code> channel.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -14980,9 +15262,9 @@ market data over REST/JSON and WebSocket. It is not a second matching engine —
 it translates HTTP and WebSocket requests into the same ZMQ messages used by the
 interactive <code>pm-alf-console</code> terminal. Reads configuration from the <code>api_gateways:</code>
 section of <code>engine_config.yaml</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--stats-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="w">  </span><span class="o">[</span>--clearing-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--stats-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="w">  </span><span class="o">[</span>--clearing-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -15265,7 +15547,7 @@ simulator's state, values and news.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
 <p>An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;<span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;<span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -15517,7 +15799,7 @@ needing a full gateway session.</p>
 <h2 id="pm-admin-cli-cli-admin-commands">pm-admin-cli — CLI Admin Commands<a class="headerlink" href="#pm-admin-cli-cli-admin-commands" title="Permanent link">&para;</a></h2>
 <p>A non-interactive alternative to <code>pm-admin</code> for scripting or single-shot
 operational commands.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p>Each invocation sends one command to the engine, waits for an acknowledgement,
 prints the result, and exits. Suitable for shell scripts and CI automation.</p>
@@ -15693,7 +15975,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 </table>
 <h2 id="pm-cverifier-config-verifier">pm-cverifier — Config Verifier<a class="headerlink" href="#pm-cverifier-config-verifier" title="Permanent link">&para;</a></h2>
 <p>Validates <code>engine_config.yaml</code> across four layers: YAML syntax, JSON schema, semantic checks, and completeness checks. Produces a human-readable or JSON report and exits with a non-zero code if any findings meet or exceed the minimum severity threshold.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>pm-cverifier<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>text<span class="p">|</span>json<span class="o">]</span><span class="w"> </span><span class="o">[</span>--level<span class="w"> </span>info<span class="p">|</span>warn<span class="p">|</span>error<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-color<span class="o">]</span><span class="w"> </span><span class="o">[</span>--strict<span class="o">]</span><span class="w"> </span>CONFIG_FILE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>pm-cverifier<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>text<span class="p">|</span>json<span class="o">]</span><span class="w"> </span><span class="o">[</span>--level<span class="w"> </span>info<span class="p">|</span>warn<span class="p">|</span>error<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-color<span class="o">]</span><span class="w"> </span><span class="o">[</span>--strict<span class="o">]</span><span class="w"> </span>CONFIG_FILE
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -15751,11 +16033,11 @@ correct</em>, <code>pm-config-show</code> answers <em>what does this file say</e
 port map, which cannot be read off the YAML at all because the engine and index
 sockets live in <code>config.py</code> and a gateway section without a <code>port:</code> key still
 binds on its runtime default.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>pm-config-show
-<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>pm-config-show<span class="w"> </span>-m<span class="w"> </span><span class="m">2</span>
-<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>pm-config-show<span class="w"> </span>--all
-<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a>pm-config-show<span class="w"> </span>-f<span class="w"> </span>my_config.yaml
-<a id="__codelineno-54-5" name="__codelineno-54-5" href="#__codelineno-54-5"></a>pm-config-show<span class="w"> </span>--format<span class="w"> </span>pdf<span class="w"> </span>-o<span class="w"> </span>exchange.pdf
+<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a>pm-config-show
+<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a>pm-config-show<span class="w"> </span>-m<span class="w"> </span><span class="m">2</span>
+<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>pm-config-show<span class="w"> </span>--all
+<a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a>pm-config-show<span class="w"> </span>-f<span class="w"> </span>my_config.yaml
+<a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a>pm-config-show<span class="w"> </span>--format<span class="w"> </span>pdf<span class="w"> </span>-o<span class="w"> </span>exchange.pdf
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -15862,7 +16144,7 @@ masked, so it stays safe to run on a projector. Note that a PDF produced with
 runtime message bus.</p>
 <h2 id="pm-setup-session-bootstrap-tool">pm-setup — Session Bootstrap Tool<a class="headerlink" href="#pm-setup-session-bootstrap-tool" title="Permanent link">&para;</a></h2>
 <p>Bootstraps a runnable EduMatcher session directory with sensible defaults.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a>pm-setup<span class="w"> </span><span class="o">[</span>--data-dir<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--show<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--force<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-config<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a>pm-setup<span class="w"> </span><span class="o">[</span>--data-dir<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--show<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--force<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-config<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -15919,10 +16201,10 @@ runtime message bus.</p>
 <h2 id="pm-config-deploy-compile-and-install-a-configuration">pm-config-deploy — Compile and Install a Configuration<a class="headerlink" href="#pm-config-deploy-compile-and-install-a-configuration" title="Permanent link">&para;</a></h2>
 <p>Validates an authored <code>engine_config.yaml</code>, compiles it, and installs the
 result as the one file every process reads.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a>pm-config-deploy<span class="w"> </span>my_config.yaml
-<a id="__codelineno-56-2" name="__codelineno-56-2" href="#__codelineno-56-2"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>my_config.yaml
-<a id="__codelineno-56-3" name="__codelineno-56-3" href="#__codelineno-56-3"></a>pm-config-deploy<span class="w"> </span>--example<span class="w"> </span>s3-basic
-<a id="__codelineno-56-4" name="__codelineno-56-4" href="#__codelineno-56-4"></a>pm-config-deploy<span class="w"> </span>--show
+<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>pm-config-deploy<span class="w"> </span>my_config.yaml
+<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>my_config.yaml
+<a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a>pm-config-deploy<span class="w"> </span>--example<span class="w"> </span>s3-basic
+<a id="__codelineno-57-4" name="__codelineno-57-4" href="#__codelineno-57-4"></a>pm-config-deploy<span class="w"> </span>--show
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -15988,7 +16270,7 @@ runtime message bus.</p>
 <h2 id="pm-config-gen-engine-config-generator">pm-config-gen — Engine Config Generator<a class="headerlink" href="#pm-config-gen-engine-config-generator" title="Permanent link">&para;</a></h2>
 <p>Generates an <code>engine_config.yaml</code> from explicit CLI parameters so environments
 can be recreated without manual YAML editing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <h4 id="required">Required<a class="headerlink" href="#required" title="Permanent link">&para;</a></h4>
@@ -16301,7 +16583,7 @@ default; these flags tune or disable it.</p>
 <tr>
 <td><code>--api-gateway</code></td>
 <td><code>api_gateways:</code> for <code>pm-api-gwy</code></td>
-<td><code>--api-gateway-name</code>, <code>--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]</code> (repeatable), <code>--api-gateway-host</code>, <code>--api-gateway-port</code>, <code>--api-gateway-log-level</code>, <code>--api-gateway-stats-db</code>, <code>--api-gateway-swagger-enabled</code> / <code>--api-gateway-swagger-disabled</code>, <code>--api-gateway-enabled</code> / <code>--api-gateway-disabled</code>, <code>--api-gateway-rate-limit-writes-per-second</code>, <code>--api-gateway-rate-limit-burst</code>, <code>--api-gateway-engine-auth-sec</code>, <code>--api-gateway-engine-reply-sec</code>, <code>--api-gateway-wait-ack-sec</code>, <code>--api-gateway-order-retention-sec</code>; credential flags: <code>--api-key KEY:GATEWAY_ID[:DESCRIPTION]</code> (repeatable), <code>--api-gateway-generate-keys</code> / <code>--no-api-gateway-generate-keys</code>, <code>--api-gateway-readonly-key</code></td>
+<td><code>--api-gateway-name</code>, <code>--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]</code> (repeatable), <code>--api-gateway-host</code>, <code>--api-gateway-port</code>, <code>--api-gateway-log-level</code>, <code>--api-gateway-stats-db</code>, <code>--api-gateway-swagger-enabled</code> / <code>--api-gateway-swagger-disabled</code>, <code>--api-gateway-enabled</code> / <code>--api-gateway-disabled</code>, <code>--api-gateway-rate-limit-writes-per-second</code>, <code>--api-gateway-rate-limit-burst</code>, <code>--api-gateway-engine-auth-sec</code>, <code>--api-gateway-engine-reply-sec</code>, <code>--api-gateway-wait-ack-sec</code>, <code>--api-gateway-order-retention-sec</code>; credential flags: <code>--api-key KEY:GATEWAY_ID[:DESCRIPTION]</code> (repeatable), <code>--api-gateway-generate-keys</code> / <code>--no-api-gateway-generate-keys</code>, <code>--api-gateway-readonly-key</code> / <code>--no-api-gateway-readonly-key</code> (a read-only key for the dashboards is generated by default), <code>--api-keys-for GW_ID [...]</code> (writes one key per listed participant to <code>api_keys.yaml</code> beside <code>--output</code> and points the gateway at it with <code>credentials_file</code>; keys derive from <code>--seed</code>, or a fixed default seed, so pass your own <code>--seed</code> outside a classroom)</td>
 </tr>
 <tr>
 <td><code>--dc-gateway</code></td>
@@ -16499,6 +16781,11 @@ default; these flags tune or disable it.</p>
 <td>Output YAML file path</td>
 </tr>
 <tr>
+<td><code>--split</code></td>
+<td>off</td>
+<td>Write the symbols and the participants to <code>symbols.yaml</code> and <code>participants.yaml</code> beside <code>--output</code>, and list them under <code>include:</code> in the main file</td>
+</tr>
+<tr>
 <td><code>--force</code></td>
 <td>off</td>
 <td>Overwrite existing output file</td>
@@ -16532,7 +16819,7 @@ directly from disk and renders them as a table, JSON, or CSV. No running
 process is required, except for <code>health</code>. It does not expose level or EOD history — use
 <code>pm-stats-cli index-daily</code> / <code>index-snapshots</code> for that instead (see the
 pm-stats-cli section above).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -16615,7 +16902,7 @@ issuances and buy-backs) and constituent changes (add/delist) to a running
 <code>pm-index</code> process. Unlike <code>pm-index-cli</code> above, this tool is a <strong>write</strong>
 tool and talks directly to <code>pm-index</code>'s live PUSH/PULL socket pair — it does
 not read JSONL files and does not require <code>--config</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;<span class="w"> </span><span class="o">[</span>--push<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sub<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timeout<span class="w"> </span>MS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--dry-run<span class="o">]</span><span class="w"> </span><span class="o">[</span>-y<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;<span class="w"> </span><span class="o">[</span>--push<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sub<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timeout<span class="w"> </span>MS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--dry-run<span class="o">]</span><span class="w"> </span><span class="o">[</span>-y<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -16764,18 +17051,18 @@ reference, confirmation-prompt behaviour, and worked examples.</p>
 the recommended way to bring up (or tear down) a full EduMatcher stack,
 instead of launching each process by hand in its own terminal — see
 <a href="../../../operator-guide/part-3-run/010-running-the-exchange/#starting-the-stack-with-pm-opctl-cli">Running the Exchange → Starting the stack with pm-opctl-cli</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span><span class="o">[</span>PROFILE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-d<span class="o">]</span>
-<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-y<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-restart<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-tcp-probe<span class="o">]</span>
-<a id="__codelineno-60-3" name="__codelineno-60-3" href="#__codelineno-60-3"></a>pm-opctl-cli<span class="w"> </span>health<span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
-<a id="__codelineno-60-4" name="__codelineno-60-4" href="#__codelineno-60-4"></a>pm-opctl-cli<span class="w"> </span>stop
-<a id="__codelineno-60-5" name="__codelineno-60-5" href="#__codelineno-60-5"></a>pm-opctl-cli<span class="w"> </span><span class="nb">kill</span>
-<a id="__codelineno-60-6" name="__codelineno-60-6" href="#__codelineno-60-6"></a>pm-opctl-cli<span class="w"> </span>init
-<a id="__codelineno-60-7" name="__codelineno-60-7" href="#__codelineno-60-7"></a>pm-opctl-cli<span class="w"> </span>show<span class="w"> </span><span class="o">[</span>--json<span class="o">]</span>
-<a id="__codelineno-60-8" name="__codelineno-60-8" href="#__codelineno-60-8"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span><span class="o">(</span>--state<span class="w"> </span><span class="p">|</span><span class="w"> </span>--all<span class="o">)</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span><span class="o">[</span>PROFILE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-d<span class="o">]</span>
+<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-y<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-restart<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-tcp-probe<span class="o">]</span>
+<a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a>pm-opctl-cli<span class="w"> </span>health<span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<a id="__codelineno-61-4" name="__codelineno-61-4" href="#__codelineno-61-4"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-61-5" name="__codelineno-61-5" href="#__codelineno-61-5"></a>pm-opctl-cli<span class="w"> </span><span class="nb">kill</span>
+<a id="__codelineno-61-6" name="__codelineno-61-6" href="#__codelineno-61-6"></a>pm-opctl-cli<span class="w"> </span>init
+<a id="__codelineno-61-7" name="__codelineno-61-7" href="#__codelineno-61-7"></a>pm-opctl-cli<span class="w"> </span>show<span class="w"> </span><span class="o">[</span>--json<span class="o">]</span>
+<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span><span class="o">(</span>--state<span class="w"> </span><span class="p">|</span><span class="w"> </span>--all<span class="o">)</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span>
 </code></pre></div>
 <p><strong>Profiles:</strong></p>
 <p>A <em>profile</em> is a named list of processes to run together, defined in
-<code>&lt;DATA_DIR&gt;/emo-config.yaml</code>. Four profiles are built in and used as-is until
+<code>&lt;DATA_DIR&gt;/emo-config.yaml</code>. Six profiles are built in and used as-is until
 that file exists:</p>
 <table>
 <thead>
@@ -16807,7 +17094,7 @@ that file exists:</p>
 </tr>
 <tr>
 <td><code>ai-sim</code></td>
-<td><code>ai-swarm</code> set up to run for weeks on the <code>s300-sim</code> example: <code>pm-ai-swarm --swarm &lt;examples&gt;/s300-sim-setup/swarm.yaml --verbose</code> (<code>AI001</code>–<code>AI100</code>, 120 order actions a second), the market maker with the <code>symmetric</code> strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), <code>pm-engine</code> without <code>--verbose</code>, <code>pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7</code> and <code>pm-clearing --print-every 0 --retention-days 7</code>. What the <code>edumatcher-ai-sim</code> image runs; needs <code>s300-sim</code> deployed. See <a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">AI Traders and Market Simulation</a></td>
+<td><code>ai-swarm</code> set up to run for weeks on the <code>s300-sim</code> example: <code>pm-ai-swarm --swarm &lt;examples&gt;/s300-sim-setup/swarm.yaml --verbose</code> (<code>AI001</code>–<code>AI100</code>, 120 order actions a second), the market maker with the <code>symmetric</code> strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), <code>pm-engine</code> without <code>--verbose</code>, <code>pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7</code> and <code>pm-clearing --print-every 0 --retention-days 7</code>, plus a third API gateway instance, <code>monitor</code> on <code>8082</code>, for the admin monitor feed. What the <code>edumatcher-ai-sim</code> image runs; needs <code>s300-sim</code> deployed. See <a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">AI Traders and Market Simulation</a></td>
 </tr>
 </tbody>
 </table>
@@ -16870,7 +17157,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 <tr>
 <td><code>clear</code></td>
 <td>—</td>
-<td><code>--state</code> (engine/session state only) or <code>--all</code> (also logs and audit trail), <code>--yes</code> (skip prompt)</td>
+<td><code>--state</code> (the exchange's working state: GTC orders and combos, book statistics, <code>stats.db</code>, <code>clearing.db</code>, index state) or <code>--all</code> (also the audit trail and its index, <code>log.db</code>, <code>metrics.db</code>, fallback logs, the PID directory, and <code>pm-eod</code>'s <code>eod.db</code>, <code>settlement/</code> and <code>backup/</code>), <code>--yes</code> (skip prompt)</td>
 <td>Delete persisted data under the data directory; <code>ref_data/</code> (configuration) is never touched</td>
 </tr>
 </tbody>
@@ -16910,10 +17197,10 @@ the Quick Start's <a href="../../../quick-start/part-1-see-it-run/020-install-an
 <p>Lists every <code>pm-*</code> command with a one-sentence explanation, or prints a full
 man page for one of them. <code>pm-man</code> is a plain alias for the exact same tool --
 use whichever name is more familiar.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>pm-help<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>text<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span>
-<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a>pm-help<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>text<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span><span class="w"> </span>&lt;pm-command&gt;
-<a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="p">|</span>zsh
-<a id="__codelineno-61-4" name="__codelineno-61-4" href="#__codelineno-61-4"></a>pm-man<span class="w"> </span>&lt;pm-command&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a>pm-help<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>text<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span>
+<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a>pm-help<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>text<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span><span class="w"> </span>&lt;pm-command&gt;
+<a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="p">|</span>zsh
+<a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a>pm-man<span class="w"> </span>&lt;pm-command&gt;
 </code></pre></div>
 <p><strong>With no argument</strong>, prints the version and data-file locations (the same
 information as <code>pm-opctl-cli show</code>), then a table of every <code>pm-*</code> command
@@ -16968,11 +17255,11 @@ command's own <code>--help</code> output -- so it can show information no <code>
 parser exposes on its own, such as ports and ZeroMQ message-bus involvement.
 It does not participate in the runtime message bus.</p>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a>pm-help<span class="w">                    </span><span class="c1"># version, data dirs, and the full command table</span>
-<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a>pm-help<span class="w"> </span>--format<span class="w"> </span>text<span class="w"> </span>-v<span class="w">   </span><span class="c1"># plain-text table with per-command examples</span>
-<a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a>pm-help<span class="w"> </span>pm-viewer<span class="w">          </span><span class="c1"># full man page for pm-viewer</span>
-<a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a>pm-man<span class="w"> </span>pm-alf-console<span class="w">      </span><span class="c1"># pm-man is an alias for pm-help</span>
-<a id="__codelineno-62-5" name="__codelineno-62-5" href="#__codelineno-62-5"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="w">  </span><span class="c1"># print the bash tab-completion script and exit</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a>pm-help<span class="w">                    </span><span class="c1"># version, data dirs, and the full command table</span>
+<a id="__codelineno-63-2" name="__codelineno-63-2" href="#__codelineno-63-2"></a>pm-help<span class="w"> </span>--format<span class="w"> </span>text<span class="w"> </span>-v<span class="w">   </span><span class="c1"># plain-text table with per-command examples</span>
+<a id="__codelineno-63-3" name="__codelineno-63-3" href="#__codelineno-63-3"></a>pm-help<span class="w"> </span>pm-viewer<span class="w">          </span><span class="c1"># full man page for pm-viewer</span>
+<a id="__codelineno-63-4" name="__codelineno-63-4" href="#__codelineno-63-4"></a>pm-man<span class="w"> </span>pm-alf-console<span class="w">      </span><span class="c1"># pm-man is an alias for pm-help</span>
+<a id="__codelineno-63-5" name="__codelineno-63-5" href="#__codelineno-63-5"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="w">  </span><span class="c1"># print the bash tab-completion script and exit</span>
 </code></pre></div>
 <h2 id="order-lifecycle-message-flow">Order Lifecycle Message Flow<a class="headerlink" href="#order-lifecycle-message-flow" title="Permanent link">&para;</a></h2>
 <p>The following diagram traces a single limit order from submission to full fill,
@@ -17005,8 +17292,8 @@ It accepts BALF binary frames from low-latency programmatic clients and
 translates them into the same engine order flow as the ALF gateways.</p>
 <p>See <a href="../../../operator-guide/part-5-gateways/020-balf-gateway/">BALF TCP Gateway</a> for operational usage and
 <a href="../../../protocols-and-clients/part-2-specifications/020-balf/">BALF Protocol Reference</a> for the wire-level contract.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5560</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-63-2" name="__codelineno-63-2" href="#__codelineno-63-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5560</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -17079,8 +17366,8 @@ sequence-aware channels: <code>TOP</code> (top-of-book), <code>TRADE</code> (exe
 (circuit-breaker halt/resume events). A client discovers which channels a
 given gateway build supports via <code>WELCOME|CH_SUPPORTED=</code>; only <code>TOP</code>,
 <code>TRADE</code>, <code>STATE</code>, and <code>AUCTION</code> accept the <code>SYM=*</code> wildcard.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -17220,7 +17507,7 @@ dropping it as an idle client.</p>
 <tr>
 <td><code>--raw</code></td>
 <td>off</td>
-<td>Print raw protocol bytes instead of decoded fields</td>
+<td>Also echo the raw wire line under each formatted line (human format only)</td>
 </tr>
 <tr>
 <td><code>--no-color</code></td>
@@ -17277,18 +17564,16 @@ processes and appends every received log record to a queryable SQLite
 database (<code>log.db</code>), the same "dedicated collector + SQLite + read-only
 query CLI" shape <code>pm-stats</code>/<code>pm-audit</code> already use for market data and
 trading events, applied here to operational <code>logging</code>-module output.</p>
-<div class="admonition note">
-<p class="admonition-title">Phased rollout</p>
-<p><code>pm-log-srv</code>/<code>pm-log-cli</code> are fully implemented and usable today. Wiring
-every existing <code>pm-*</code> process's own logging into a LALF client that
-auto-detects a running <code>pm-log-srv</code> at startup is a follow-up phase and
-has not yet been rolled out — until then, <code>--log-level</code>/<code>-v</code>/<code>-q</code> still
-control each process's own stdout logging as before.</p>
-</div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
-<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a>           [--retention-days N] [--max-message-bytes N]
-<a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a>           [--pub-port PORT] [--pull-port PORT] [--no-pubsub] [--lease-sec N]
-<a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a>           [--log-level LEVEL] [-v|-vv] [-q] [--log-target stdout|file] [--log-file PATH]
+<p>Every other long-running <code>pm-*</code> process sends its own log records here by
+default (<code>--log-target server</code>): it probes for a running <code>pm-log-srv</code> for
+up to 3 s at startup and logs to stdout if none answers; once attached, it
+falls back to a local log file when the server has been unreachable for
+<code>--log-failover-timeout</code> seconds. <code>--log-level</code>/<code>-v</code>/<code>-q</code>
+set the level whichever target is used.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
+<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a>           [--retention-days N] [--max-message-bytes N]
+<a id="__codelineno-66-3" name="__codelineno-66-3" href="#__codelineno-66-3"></a>           [--pub-port PORT] [--pull-port PORT] [--no-pubsub] [--lease-sec N]
+<a id="__codelineno-66-4" name="__codelineno-66-4" href="#__codelineno-66-4"></a>           [--log-level LEVEL] [-v|-vv] [-q] [--log-target stdout|file] [--log-file PATH]
 </code></pre></div>
 <table>
 <thead>
@@ -17380,11 +17665,13 @@ control each process's own stdout logging as before.</p>
 <p><code>pm-log-cli</code> is a read-only offline tool: it queries <code>log.db</code> directly, never
 over the network, so a busy or even-stopped <code>pm-log-srv</code> never blocks
 troubleshooting with data already collected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
 </code></pre></div>
 <p>Subcommands: <code>tail</code>, <code>query</code>, <code>processes</code>, <code>stats</code>, <code>diagnose</code> (rule-based
-troubleshooting heuristics with concrete recommendations), and <code>prune</code>
-(manual retention maintenance).</p>
+troubleshooting heuristics with concrete recommendations), <code>prune</code>
+(manual retention maintenance), <code>explain SEQ</code> (one row with its log-ledger
+explanation and suggested actions) and <code>ledger</code> (browse and check the log
+ledger).</p>
 <p>See <a href="../../../operator-guide/part-6-observe-and-recover/040-log-server/">Centralized Log Server</a> for the full operational guide
 — starting the server, every <code>pm-log-cli</code> subcommand, and a workflow
 cookbook — and <a href="../../../protocols-and-clients/part-2-specifications/050-lalf/">LALF Protocol Reference</a> for the
@@ -17397,9 +17684,9 @@ DOWN), turns counters into rates, evaluates thresholds, keeps history in
 <code>metrics.db</code>, and publishes <code>health.snapshot</code> once a second and
 <code>health.event</code> as things happen. Every built-in <code>pm-opctl-cli</code> profile except
 <code>micro</code> starts it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a>pm-monitor [--log-level LEVEL] [-v|-vv] [-q]
-<a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a>           [--log-target server|stdout|file] [--log-file PATH]
-<a id="__codelineno-67-3" name="__codelineno-67-3" href="#__codelineno-67-3"></a>           [--log-failover-timeout SEC] [--version]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a>pm-monitor [--log-level LEVEL] [-v|-vv] [-q]
+<a id="__codelineno-68-2" name="__codelineno-68-2" href="#__codelineno-68-2"></a>           [--log-target server|stdout|file] [--log-file PATH]
+<a id="__codelineno-68-3" name="__codelineno-68-3" href="#__codelineno-68-3"></a>           [--log-failover-timeout SEC] [--version]
 </code></pre></div>
 <p>All its settings come from the <code>monitor</code> section of the deployed
 configuration (see <a href="../../part-3-configuration/010-schema-and-process-blocks/#configuring-pm-monitor">Configuring <code>pm-monitor</code></a>);
@@ -17457,8 +17744,8 @@ the thresholds, <code>metrics.db</code> and troubleshooting.</p>
 <h2 id="pm-monitor-cli-health-query-cli">pm-monitor-cli — Health Query CLI<a class="headerlink" href="#pm-monitor-cli-health-query-cli" title="Permanent link">&para;</a></h2>
 <p><code>pm-monitor-cli</code> is read-only: it subscribes to <code>pm-monitor</code>'s PUB port for
 the live view and reads <code>metrics.db</code> for the event log, never writing either.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a>pm-monitor-cli [--host HOST] [--port PORT] [--db PATH]
-<a id="__codelineno-68-2" name="__codelineno-68-2" href="#__codelineno-68-2"></a>               [--format table|json] [--timeout SEC] COMMAND [options]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a>pm-monitor-cli [--host HOST] [--port PORT] [--db PATH]
+<a id="__codelineno-69-2" name="__codelineno-69-2" href="#__codelineno-69-2"></a>               [--format table|json] [--timeout SEC] COMMAND [options]
 </code></pre></div>
 <table>
 <thead>
@@ -17493,10 +17780,10 @@ process imports or invokes it — it exists so that the spec is the single
 source of truth for every topic name and payload shape, and so a spec change
 without regeneration (or a hand-edit to a generated file) cannot silently
 drift from what the engine and gateways actually send.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a>pm-msgen<span class="w"> </span>generate<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
-<a id="__codelineno-69-2" name="__codelineno-69-2" href="#__codelineno-69-2"></a>pm-msgen<span class="w"> </span>check<span class="w">    </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
-<a id="__codelineno-69-3" name="__codelineno-69-3" href="#__codelineno-69-3"></a>pm-msgen<span class="w"> </span>lint<span class="w">     </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span>
-<a id="__codelineno-69-4" name="__codelineno-69-4" href="#__codelineno-69-4"></a>pm-msgen<span class="w"> </span>grep-literals<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--src<span class="w"> </span>DIR<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-70-1" name="__codelineno-70-1" href="#__codelineno-70-1"></a>pm-msgen<span class="w"> </span>generate<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-70-2" name="__codelineno-70-2" href="#__codelineno-70-2"></a>pm-msgen<span class="w"> </span>check<span class="w">    </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-70-3" name="__codelineno-70-3" href="#__codelineno-70-3"></a>pm-msgen<span class="w"> </span>lint<span class="w">     </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-70-4" name="__codelineno-70-4" href="#__codelineno-70-4"></a>pm-msgen<span class="w"> </span>grep-literals<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--src<span class="w"> </span>DIR<span class="o">]</span>
 </code></pre></div>
 <p><strong>Subcommands:</strong></p>
 <table>

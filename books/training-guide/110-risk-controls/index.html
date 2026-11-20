@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7873,7 +8013,7 @@ ticks of 0.01).</p>
 <p>Circuit-breaker trigger percentages and halt durations come from a global
 ladder, <code>circuit_breaker_defaults</code>, applied to every symbol unless a symbol
 defines its own <code>circuit_breaker.levels</code> override (see the <code>TSLA</code> pattern in
-<a href="../../operator-guide/part-2-configure/010-the-configuration-workflow/#risk-controls-and-collars">The Configuration Workflow</a>).
+<a href="../../operator-guide/part-4-run-a-market/040-risk-controls/#circuit-breakers">Risk Controls — Circuit breakers</a>).
 Add a one-level ladder:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes — window the move is measured over</span>
@@ -8131,7 +8271,7 @@ only the <em>static</em> band is being tested:</p>
 <p>MSFT's 290.00 would have been rejected under L2 as well, and AAPL's 142.00 would
 have passed under L1: the level is the whole difference. An inline <code>collar:</code> on
 a symbol still overrides its level field by field, which is how <code>TSLA</code> in
-<a href="../../operator-guide/part-2-configure/010-the-configuration-workflow/#risk-controls-and-collars">The Configuration Workflow</a>
+<a href="../../operator-guide/part-4-run-a-market/040-risk-controls/#price-collars">Risk Controls — Price collars</a>
 sets only a tighter <code>dynamic_band_pct</code>.</p>
 <p>Three of the six orders were accepted and are still resting. Remove them
 before the next chapter, so they do not sit in the books as stale prices:</p>

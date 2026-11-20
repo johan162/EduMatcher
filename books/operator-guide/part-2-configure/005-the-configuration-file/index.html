@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/books/operator-guide/part-2-configure/005-the-configuration-file/">
       
       
-        <link rel="prev" href="../../part-1-install-and-deploy/030-container-deployment-walkthrough/">
+        <link rel="prev" href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/">
       
       
         <link rel="next" href="../010-the-configuration-workflow/">
@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5320,6 +5432,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5355,7 +5495,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -9563,7 +9703,7 @@ reason to.</p>
 <td><code>auction_indicative_interval_sec</code></td>
 <td>number <code>&gt; 0</code></td>
 <td><code>1.0</code></td>
-<td>Minimum time between republications of the indicative uncross price during a call phase (<code>PRE_OPEN</code>, <code>PRE_CLOSE</code>, or a halt).</td>
+<td>Minimum time between republications of the indicative uncross price during an auction call phase (<code>OPENING_AUCTION</code> or <code>CLOSING_AUCTION</code>); halted symbols are skipped.</td>
 </tr>
 <tr>
 <td><code>engine_tuning.snapshot_interval_sec</code></td>
@@ -10190,6 +10330,16 @@ audiences different keys on different ports.</p>
 <td><code>3.0</code></td>
 <td>Wait used by <code>?wait=ack</code>.</td>
 </tr>
+<tr>
+<td><code>engine_pull_addr</code>, <code>engine_pub_addr</code></td>
+<td><code>tcp://&lt;engine host&gt;:5555</code>, <code>:5556</code></td>
+<td>The engine's ZeroMQ endpoints. Normally left unset.</td>
+</tr>
+<tr>
+<td><code>index_pull_addr</code>, <code>index_pub_addr</code></td>
+<td><code>tcp://&lt;index bind host&gt;:5559</code>, <code>:5558</code></td>
+<td><code>pm-index</code>'s ZeroMQ endpoints. Normally left unset.</td>
+</tr>
 </tbody>
 </table>
 <p>Each entry of <code>credentials</code>:</p>
@@ -10427,6 +10577,34 @@ rows to log viewers such as <code>pm-log-ui</code>:</p>
 <td><code>pub_sndhwm</code></td>
 <td><code>10000</code></td>
 <td>Upper cap on that ZeroMQ send high-water mark, in messages. Messages lost there show as <code>msg_no</code> gaps.</td>
+</tr>
+</tbody>
+</table>
+<p>An optional <code>client</code> mapping inside <code>log_server</code> is read not by <code>pm-log-srv</code>
+but by every other process, for how it ships its own log lines:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client.connect_timeout_sec</code></td>
+<td><code>0.5</code></td>
+<td>TCP connect timeout for each attempt to reach the log server.</td>
+</tr>
+<tr>
+<td><code>client.failover_timeout_sec</code></td>
+<td><code>30.0</code></td>
+<td>How long a process keeps retrying a lost connection before it switches, for good, to a local file. <code>--log-failover-timeout</code> overrides it.</td>
+</tr>
+<tr>
+<td><code>client.failover_dir</code></td>
+<td><code>&lt;data dir&gt;/logs</code></td>
+<td>Where those local failover files go.</td>
 </tr>
 </tbody>
 </table>

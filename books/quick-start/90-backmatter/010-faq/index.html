@@ -1657,6 +1657,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2500,6 +2528,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5073,6 +5185,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5108,7 +5248,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7853,6 +7993,11 @@ scratch), either:
 <p>On the container route, also note that the default <code>mm-demo</code> process profile
 runs a market-maker bot that quotes every symbol; set <code>EM_PROFILE=default</code> in
 <code>.env</code> to run without it.</p>
+<p>Switching configuration does not empty the books by itself: the engine
+restores the same day's resting orders from the data directory, keeping only
+seed quotes the new configuration still declares. Run
+<code>pm-opctl-cli clear --state --yes</code> while the exchange is stopped to start
+from nothing.</p>
 <h3 id="why-is-the-engine-not-matching-orders-it-starts-in-closed-state">Why is the engine not matching orders? It starts in CLOSED state<a class="headerlink" href="#why-is-the-engine-not-matching-orders-it-starts-in-closed-state" title="Permanent link">&para;</a></h3>
 <p>With <code>sessions_enabled: true</code> (the default), the engine starts in <code>CLOSED</code> state
 and waits for <code>pm-scheduler</code> to drive it through the session phases before it
@@ -7955,7 +8100,7 @@ freely.</p>
 </tr>
 <tr>
 <td><code>GTC</code></td>
-<td>Saved to <code>data/gtc_orders.json</code> and reloaded on next engine start.</td>
+<td>Saved to <code>gtc_orders.json</code> in the data directory and reloaded on next engine start.</td>
 </tr>
 <tr>
 <td><code>ATO</code></td>
@@ -8020,7 +8165,7 @@ is kept unless you pass <code>--force</code>. The container installation runs th
 equivalent for you.</p>
 <h3 id="how-do-i-upgrade-edumatcher-to-a-newer-version">How do I upgrade EduMatcher to a newer version?<a class="headerlink" href="#how-do-i-upgrade-edumatcher-to-a-newer-version" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>edumatcher<span class="w">            </span><span class="c1"># Python package, from PyPI</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">             </span><span class="c1"># container installation, latest release</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>upgrade<span class="w">            </span><span class="c1"># container installation, newest release</span>
 </code></pre></div>
 <p>Your configuration and data files are not touched by the upgrade. If the new
 version changes the configuration format, redeploy your configuration with
@@ -8084,7 +8229,7 @@ covers its topic. Nothing has been dropped.</p>
 <td>Operator's Guide</td>
 </tr>
 <tr>
-<td><a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/#why-is-my-order-rejected-with-gateway-not-authenticated">Why is my order rejected with "Gateway not authenticated"?</a></td>
+<td><a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/#why-is-my-login-refused-with-gateway-not-configured">Why is my login refused with "Gateway not configured"?</a></td>
 <td>Operator's Guide</td>
 </tr>
 <tr>

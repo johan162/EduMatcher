@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -7687,6 +7799,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -7722,7 +7862,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -10503,14 +10643,15 @@ The YAML definitions in <code>spec/messages/*.yaml</code> are the canonical mess
 contracts. <code>pm-msgen generate</code> produces the Python bindings, applicable C
 artifacts, and the generated sections of this reference; <code>pm-msgen check</code>
 fails when any generated output diverges from its specification. Message
-producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
-so the generated bindings remain readable alongside the wire format they
-enforce.</p>
+producers and consumers still exchange ordinary JSON over ZeroMQ, so the
+generated bindings remain readable alongside the wire format they enforce.</p>
 <h3 id="what-zeromq-requires-of-a-message">What ZeroMQ requires of a message<a class="headerlink" href="#what-zeromq-requires-of-a-message" title="Permanent link">&para;</a></h3>
 <p>ZeroMQ does not impose a message format.  It sees messages as one or more
 opaque <strong>frames</strong> — byte arrays that are sent and received atomically as a
 group.  It is up to the application to define what those bytes mean.</p>
-<p>EduMatcher uses exactly <strong>two frames</strong> for every message:</p>
+<p>Every EduMatcher message starts with these <strong>two frames</strong> (the main bus adds
+a third, the envelope — see <a href="#message-structure">Message structure</a>; the
+drop-copy socket sends the two alone):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>frame[0]  →  topic string, UTF-8 encoded
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>             e.g.  b"order.ack.GW01"
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -10768,8 +10909,11 @@ tear down the live session.</p>
 <h3 id="systemgateway_heartbeat"><code>system.gateway_heartbeat</code><a class="headerlink" href="#systemgateway_heartbeat" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Frees a participant ID whose process died without sending <code>system.gateway_disconnect</code>.
 <strong>Published by:</strong> Every process that holds an ID (<code>pm-admin</code>, <code>pm-alf-console</code>, <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-api-gwy</code>, <code>pm-mm-bot</code>) via PUSH :5555</p>
-<p>Sent every 60 seconds (<code>GATEWAY_HEARTBEAT_INTERVAL_SEC</code>), the first one
-immediately after the connect is accepted. It is one-way: the engine does not
+<p>Sent every 60 seconds (<code>GATEWAY_HEARTBEAT_INTERVAL_SEC</code>) by bots and
+gateways, and every 5 seconds (<code>INTERACTIVE_HEARTBEAT_INTERVAL_SEC</code>) by the
+interactive consoles <code>pm-alf-console</code> and <code>pm-admin</code>, so a closed console window
+frees its ID within seconds; the first beat follows immediately after the
+connect is accepted. It is one-way: the engine does not
 reply. The payload carries the sender's own <code>interval_sec</code>, so the engine needs
 no per-client setting. After <strong>3 consecutive missed beats</strong> the engine
 disconnects the session exactly as if <code>system.gateway_disconnect</code> had arrived,
@@ -10871,7 +11015,7 @@ is not connected is ignored. Heartbeats are not re-published on the audit feed.<
 <tr>
 <td><code>price_ticks</code></td>
 <td>integer (ticks) | null</td>
-<td>Limit price <strong>in ticks</strong> (LIMIT, STOP_LIMIT, FOK, ICEBERG); <code>null</code> for MARKET, which has none</td>
+<td>Limit price <strong>in ticks</strong> (LIMIT, STOP_LIMIT, FOK, IOC, ICEBERG); <code>null</code> for MARKET, STOP and TRAILING_STOP, which have none</td>
 </tr>
 <tr>
 <td><code>stop_price_ticks</code></td>
@@ -10999,7 +11143,7 @@ tables below are authoritative when this narrative and the spec disagree.</p>
 </tr>
 <tr>
 <td><code>IOC</code></td>
-<td>Optional</td>
+<td>Required</td>
 <td>—</td>
 <td>—</td>
 <td>—</td>
@@ -11016,10 +11160,10 @@ tables below are authoritative when this narrative and the spec disagree.</p>
 <tr>
 <td><code>TRAILING_STOP</code></td>
 <td>—</td>
-<td>—</td>
+<td>Optional</td>
 <td>—</td>
 <td>Required</td>
-<td>Stop price follows best opposite-side price by <code>trail_offset_ticks</code></td>
+<td>Stop price follows the last trade price by <code>trail_offset_ticks</code>; without <code>stop_price_ticks</code> it starts from the last trade</td>
 </tr>
 </tbody>
 </table>
@@ -11254,7 +11398,7 @@ Role requirements and MM obligation controls are documented in
 </tr>
 <tr>
 <td><code>CANCELLED</code></td>
-<td>Quote removed (explicit cancel, kill switch, or halt)</td>
+<td>Quote removed (explicit cancel, replacement by a new quote, kill switch, halt, disconnect, or expiry at the close)</td>
 </tr>
 </tbody>
 </table>
@@ -11357,7 +11501,7 @@ stream), <code>SYMBOLS</code> (ask which instruments exist), <code>PING</code>, 
 <code>SNAP</code> per new stream on the five channels that have one, the seven message
 types above, periodic <code>HB</code> heartbeats, and <code>ERR</code> on protocol/subscription
 violations.</p>
-<p>Two behaviours are easy to get wrong from the table alone:</p>
+<p>Four behaviours are easy to get wrong from the table alone:</p>
 <ul>
 <li><strong><code>MD</code> is a delta, and an empty value is meaningful.</strong> Only changed fields
   are sent; an omitted field means <em>unchanged</em>. An explicitly empty <code>BID=</code> or
@@ -23713,6 +23857,13 @@ wire-format specification in the
 <td>TIF=DAY orders discarded because the business day rolled over.</td>
 </tr>
 <tr>
+<td><code>discarded_unconfigured_orders</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>Orders the deployed configuration no longer allows: their symbol or participant is not configured, or they are a seed quote whose market maker and symbol have no seed in it (a seed belongs to the configuration that declared it).</td>
+</tr>
+<tr>
 <td><code>failed_orders</code></td>
 <td><code>int</code></td>
 <td>required</td>
@@ -23758,7 +23909,7 @@ wire-format specification in the
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
 <p><strong>Since:</strong> 1.2</p>
-<p>Engine to all subscribers: one restored, discarded or failed entity from <code>_restore_gtc()</code> (AR-0.5). <code>startup_recovery</code>'s order and combo counts say <em>how many</em>; this says <em>which ones</em> — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary <code>startup_recovery</code> broadcast, so the counts there are the cross-check: <code>restored_orders + discarded_stale_day_orders + failed_orders</code> must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and <code>restored_combos</code> must equal the number of COMBO-kind lines.</p>
+<p>Engine to all subscribers: one restored, discarded or failed entity from <code>_restore_gtc()</code> (AR-0.5). <code>startup_recovery</code>'s order and combo counts say <em>how many</em>; this says <em>which ones</em> — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary <code>startup_recovery</code> broadcast, so the counts there are the cross-check: <code>restored_orders + discarded_stale_day_orders + discarded_unconfigured_orders + failed_orders</code> must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY, DISCARDED_UNCONFIGURED or FAILED respectively, and <code>restored_combos</code> must equal the number of COMBO-kind lines.</p>
 <table>
 <thead>
 <tr>
@@ -23786,10 +23937,10 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>outcome</code></td>
-<td>enum: <code>RESTORED</code>, <code>DISCARDED_STALE_DAY</code>, <code>FAILED</code>, <code>QUOTE_REMNANT</code></td>
+<td>enum: <code>RESTORED</code>, <code>DISCARDED_STALE_DAY</code>, <code>DISCARDED_UNCONFIGURED</code>, <code>FAILED</code>, <code>QUOTE_REMNANT</code></td>
 <td>required</td>
 <td>—</td>
-<td>RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: <code>load_gtc_combos()</code> has no per-combo guard, so there is no combo failure path to report yet.</td>
+<td>RESTORED/DISCARDED_STALE_DAY/DISCARDED_UNCONFIGURED/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. DISCARDED_UNCONFIGURED is an order the deployed configuration no longer allows (see <code>startup_recovery.discarded_unconfigured_orders</code>). QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: <code>load_gtc_combos()</code> has no per-combo guard, so there is no combo failure path to report yet.</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>
@@ -24225,6 +24376,13 @@ wire-format specification in the
 <td>required</td>
 <td>max_len 32</td>
 <td>Same values as <code>session.state.state</code>.</td>
+</tr>
+<tr>
+<td><code>state_since</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td>UTC instant the engine entered <code>state</code> -- its last accepted transition, else its start -- as <code>YYYY-MM-DDTHH:MM:SS.mmmZ</code>. Lets a caller tell a state left over from an earlier day, such as a <code>CONTINUOUS</code> whose close never came, from the same state entered today.</td>
 </tr>
 <tr>
 <td><code>sessions_enabled</code></td>

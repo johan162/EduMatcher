@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -3601,10 +3713,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#why-is-my-order-rejected-with-gateway-not-authenticated" class="md-nav__link">
+  <a href="#why-is-my-login-refused-with-gateway-not-configured" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why is my order rejected with "Gateway not authenticated"?
+        Why is my login refused with "Gateway not configured"?
       
     </span>
   </a>
@@ -4992,6 +5104,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5027,7 +5167,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7758,8 +7898,11 @@ is expected to keep submitting its own quotes.</p>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">    </span><span class="c1"># inject on every startup</span>
 </code></pre></div>
-<p>To force a day-1 re-injection without changing the config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>rm<span class="w"> </span>data/book_stats.json<span class="w">    </span><span class="c1"># or $EDUMATCHER_DATA_DIR/book_stats.json</span>
+<p>To force a re-injection without changing the config, remove the restored
+quote. The seed check looks at the quotes restored from <code>gtc_orders.json</code>, so
+stop the engine and delete that file — note that this discards <strong>every</strong>
+participant's resting orders, not just the market maker's quote:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>rm<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/gtc_orders.json"</span><span class="w">    </span><span class="c1"># with the engine stopped</span>
 </code></pre></div>
 <h3 id="why-did-pm-scheduler-exit-immediately">Why did <code>pm-scheduler</code> exit immediately?<a class="headerlink" href="#why-did-pm-scheduler-exit-immediately" title="Permanent link">&para;</a></h3>
 <p>Because no configuration is deployed. The scheduler exits with a fatal error
@@ -7775,8 +7918,9 @@ ZeroMQ messages and prints them to stdout, giving a full real-time trace of
 every event in the system.</p>
 <hr />
 <h2 id="participants">Participants<a class="headerlink" href="#participants" title="Permanent link">&para;</a></h2>
-<h3 id="why-is-my-order-rejected-with-gateway-not-authenticated">Why is my order rejected with "Gateway not authenticated"?<a class="headerlink" href="#why-is-my-order-rejected-with-gateway-not-authenticated" title="Permanent link">&para;</a></h3>
-<p>Your gateway ID is not in the engine's allowlist. Gateway IDs must be
+<h3 id="why-is-my-login-refused-with-gateway-not-configured">Why is my login refused with "Gateway not configured"?<a class="headerlink" href="#why-is-my-login-refused-with-gateway-not-configured" title="Permanent link">&para;</a></h3>
+<p>Your gateway ID is not in the engine's allowlist (the full reply is
+<code>Gateway not configured: GW01</code>). Gateway IDs must be
 pre-configured in <code>engine_config.yaml</code> under <code>participants</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">participants</span><span class="p">:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW01</span>

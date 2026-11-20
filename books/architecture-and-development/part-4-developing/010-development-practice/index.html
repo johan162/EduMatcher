@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4796,6 +4908,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4831,7 +4971,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8857,7 +8997,7 @@ that cost further, since they share the same Markdown sources.</p>
 filter's behavior: a diagram whose Mermaid source hasn't changed is reused
 from disk instead of being re-rendered.</p>
 <h3 id="why-it-isnt-just-a-patch-to-the-installed-package">Why it isn't just a patch to the installed package<a class="headerlink" href="#why-it-isnt-just-a-patch-to-the-installed-package" title="Permanent link">&para;</a></h3>
-<p><code>build-tools/</code> is entirely git-ignored and is wiped and recreated by
+<p><code>build-tools/node_modules/</code> is git-ignored and is wiped and recreated by
 <code>npm install</code> on every fresh checkout (see the <code>$(NODE_MODULES_PATH):</code> targets
 in the Makefiles). Editing
 <code>build-tools/node_modules/.bin/mermaid-filter</code> (a symlink into
@@ -8872,7 +9012,9 @@ npm-installed binary.</p>
   characters — independent of caption, filename, or which document the
   diagram appears in, so two identical diagrams anywhere share one render.</li>
 <li><strong>Cache location</strong>: <code>build-tools/.mermaid-cache/&lt;hash&gt;.&lt;format&gt;</code> by
-  default, overridable with <code>MERMAID_FILTER_CACHE_DIR</code>. This is deliberately
+  default, overridable with <code>MERMAID_FILTER_CACHE_DIR</code>. The cache is committed
+  to the repository, so a fresh checkout builds without rendering a diagram
+  that has not changed; commit the new files a changed diagram produces. This is deliberately
   <strong>not</strong> the per-build <code>.mermaid-img</code> directory the Makefiles pass via
   <code>MERMAID_FILTER_LOC</code> — that directory is <code>rm -rf</code>'d at the start of every
   PDF build, so anything cached there would never survive to be reused.</li>

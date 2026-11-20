@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4796,6 +4908,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4831,7 +4971,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -5803,10 +5943,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-a-book-lab-script" class="md-nav__link">
+  <a href="#a-book-lab-script" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. A book lab script
+        A book lab script
       
     </span>
   </a>
@@ -5814,10 +5954,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-debugger-configurations" class="md-nav__link">
+  <a href="#debugger-configurations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Debugger configurations
+        Debugger configurations
       
     </span>
   </a>
@@ -5825,10 +5965,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-where-to-put-breakpoints" class="md-nav__link">
+  <a href="#where-to-put-breakpoints" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Where to put breakpoints
+        Where to put breakpoints
       
     </span>
   </a>
@@ -5836,10 +5976,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-watch-expressions-that-do-not-change-the-book" class="md-nav__link">
+  <a href="#watch-expressions-that-do-not-change-the-book" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Watch expressions that do not change the book
+        Watch expressions that do not change the book
       
     </span>
   </a>
@@ -5847,10 +5987,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-reading-the-debug-log" class="md-nav__link">
+  <a href="#reading-the-debug-log" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Reading the debug log
+        Reading the debug log
       
     </span>
   </a>
@@ -5858,10 +5998,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#6-experiments-to-try" class="md-nav__link">
+  <a href="#experiments-to-try" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6. Experiments to try
+        Experiments to try
       
     </span>
   </a>
@@ -5869,10 +6009,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#7-gotchas-while-debugging" class="md-nav__link">
+  <a href="#gotchas-while-debugging" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. Gotchas while debugging
+        Gotchas while debugging
       
     </span>
   </a>
@@ -9053,7 +9193,7 @@ the quote-reissue path. When a gateway's last order leaves the book,
 <code>_discard_from_gateway_index</code> deletes the gateway key too, so
 <code>resting_count_by_gateway()</code> reports only gateways that actually have orders.
 For why this matters on a real venue, see the
-<a href="../../part-1-architecture/020-guided-tour/#10-market-maker-quotes-two-orders-one-obligation">guided tour, §10</a>.</p>
+<a href="../../part-1-architecture/020-guided-tour/#market-maker-quotes-two-orders-one-obligation">guided tour — Market-Maker Quotes: Two Orders, One Obligation</a>.</p>
 <h3 id="_bid_qty-_ask_qty-display-depth-per-price-level"><code>_bid_qty</code> / <code>_ask_qty</code> — display depth per price level<a class="headerlink" href="#_bid_qty-_ask_qty-display-depth-per-price-level" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Price-level quantity index: price → total visible resting qty</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># (an iceberg contributes only its displayed slice).  Display depth,</span>
@@ -9071,8 +9211,8 @@ For why this matters on a real venue, see the
    <code>best_bid_ticks()</code> (<code>max</code> over the keys) and <code>bid_levels</code> rely on.</li>
 <li><strong>Not used for matching.</strong> <code>_sweep</code> walks the heaps. Because of rule 1 the
    index <em>under-counts</em> liquidity when icebergs rest, which is why the FOK
-   pre-check (<code>_fok_available_qty</code>) and the combo pre-check
-   (<code>fillable_quantity</code>) walk the heap entries instead.</li>
+   pre-check (<code>fillable_quantity</code>) and the combo pre-check
+   (<code>fillable_quantities</code>) walk the heap entries instead.</li>
 </ol>
 <p>Why two dicts instead of one keyed by <code>(side, price)</code>? The two sides are
 queried separately (best bid vs best ask, bid depth vs ask depth), and during
@@ -9728,7 +9868,7 @@ fine, the rest is cancelled with <code>INSUFFICIENT_LIQUIDITY</code> and reporte
 <h3 id="fok-_match_fok">FOK — <code>_match_fok</code><a class="headerlink" href="#fok-_match_fok" title="Permanent link">&para;</a></h3>
 <p>Fill-or-kill is the only matcher that looks <strong>before</strong> it trades: a partial
 fill cannot be undone, so the decision is made up front by
-<code>_fok_available_qty</code>. It cannot use <code>_ask_qty</code>/<code>_bid_qty</code>, because those
+<code>fillable_quantity</code>. It cannot use <code>_ask_qty</code>/<code>_bid_qty</code>, because those
 under-count icebergs, so it walks the real resting orders in priority order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="n">live</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
 <a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="n">e</span>
@@ -9759,9 +9899,13 @@ orders), and then the FOK becomes either <strong>CANCELLED</strong> with
 <code>SELF_MATCH_PREVENTED</code> (it would have self-matched) or <strong>REJECTED</strong> (a genuine
 liquidity shortfall). A safety net after the sweep cancels any remainder,
 which should never fire given an accurate pre-check.</p>
-<p><code>fillable_quantity(side, price_limit)</code> is a simpler public cousin (counts all
-hidden quantity, no SMP); the engine's all-or-none combo pre-check uses it
-(finding <strong>M5</strong>).</p>
+<p>The walk lives in <code>_walk_fillable_quantities</code> and has two public faces.
+<code>fillable_quantity</code> is the FOK pre-check: it applies the gateway's SMP policy
+and stops counting once it has found the quantity it needs. <code>fillable_quantities</code>
+returns two totals from one walk — what the order could trade with SMP applied,
+and what it could trade without — and is what the engine's all-or-none combo
+pre-check uses (finding <strong>M5</strong>), so it can tell a self-match from a genuine
+shortage.</p>
 <h3 id="iceberg-_match_iceberg">ICEBERG — <code>_match_iceberg</code><a class="headerlink" href="#iceberg-_match_iceberg" title="Permanent link">&para;</a></h3>
 <p>An <strong>incoming</strong> iceberg trades its <em>full</em> quantity like a LIMIT — hiding only
 matters for what rests. Whatever remains rests with a full peak:</p>
@@ -10547,7 +10691,7 @@ yet. <code>_add_trailing_stop</code> asserts that both values are present.</p>
 is safe in the middle of a sweep: the cancel only flips <code>valid</code>, adjusts the
 dicts and maybe compacts the heaps (compaction keeps the same list objects),
 and the next <code>_peek</code> simply skips the dead entry. See the
-<a href="../../part-1-architecture/020-guided-tour/#10-market-maker-quotes-two-orders-one-obligation">guided tour, §10</a>
+<a href="../../part-1-architecture/020-guided-tour/#market-maker-quotes-two-orders-one-obligation">guided tour — Market-Maker Quotes: Two Orders, One Obligation</a>
 for the engine side.</p>
 <h2 id="no-matching-mode-and-auctions">No-Matching Mode and Auctions<a class="headerlink" href="#no-matching-mode-and-auctions" title="Permanent link">&para;</a></h2>
 <p>During an opening or closing auction, a reopening after a halt, or while a
@@ -11002,7 +11146,7 @@ advertised 600 and the print would have been 60.</p>
 <tr>
 <td><strong>Verification.</strong></td>
 <td>An independent check has to model the same rules or it reports every SMP auction as wrong.</td>
-<td>The simulation forensics replay (<code>tools/sim_forensics/checks/matching.py</code>, <code>_walk</code>) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against <code>compute_equilibrium</code>.</td>
+<td>The simulation forensics replay (<code>src/edumatcher/sim_forensics/checks/matching.py</code>, <code>_walk</code>) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against <code>compute_equilibrium</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -11322,7 +11466,7 @@ best-effort clean-up after the damage is done.</p>
 <p>Reading is good; watching one order move through the code is better. Because
 <code>OrderBook</code> needs no network, you can drive it from a ten-line script and step
 through every function in this chapter.</p>
-<h3 id="1-a-book-lab-script">1. A book lab script<a class="headerlink" href="#1-a-book-lab-script" title="Permanent link">&para;</a></h3>
+<h3 id="a-book-lab-script">A book lab script<a class="headerlink" href="#a-book-lab-script" title="Permanent link">&para;</a></h3>
 <p>Save this as <code>book_lab.py</code> in the <strong>repository root</strong> (do not commit it) and
 run it with <code>poetry run python book_lab.py</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="sd">"""book_lab.py -- drive one OrderBook by hand and look inside it."""</span>
@@ -11397,7 +11541,7 @@ abbreviated):</p>
 </code></pre></div>
 <p>Every worked example in this chapter came from a variation of this script.
 Change the orders and predict the output <em>before</em> you run it.</p>
-<h3 id="2-debugger-configurations">2. Debugger configurations<a class="headerlink" href="#2-debugger-configurations" title="Permanent link">&para;</a></h3>
+<h3 id="debugger-configurations">Debugger configurations<a class="headerlink" href="#debugger-configurations" title="Permanent link">&para;</a></h3>
 <p>The repository does not ship a <code>.vscode/launch.json</code>. Create one with these
 three configurations (you need the Python and Python Debugger extensions):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="p">{</span>
@@ -11453,7 +11597,7 @@ three configurations (you need the Python and Python Debugger extensions):</p>
   into <code>book.process</code>. The engine waits while you are stopped, so gateways may
   report missed heartbeats — that is expected when debugging a live system.</li>
 </ul>
-<h3 id="3-where-to-put-breakpoints">3. Where to put breakpoints<a class="headerlink" href="#3-where-to-put-breakpoints" title="Permanent link">&para;</a></h3>
+<h3 id="where-to-put-breakpoints">Where to put breakpoints<a class="headerlink" href="#where-to-put-breakpoints" title="Permanent link">&para;</a></h3>
 <p>Set them by function name and follow the order as it moves down this table:</p>
 <table>
 <thead>
@@ -11531,7 +11675,7 @@ only for the order you care about — for example <code>aggressor.id.startswith(
 in <code>_sweep</code>, or <code>order.order_type.value == "STOP"</code> in <code>process</code>. A
 <strong>logpoint</strong> prints without stopping, which is ideal inside the sweep loop:
 <code>fill {fill_qty} @ {best_price} vs {best.id[:4]}</code>.</p>
-<h3 id="4-watch-expressions-that-do-not-change-the-book">4. Watch expressions that do not change the book<a class="headerlink" href="#4-watch-expressions-that-do-not-change-the-book" title="Permanent link">&para;</a></h3>
+<h3 id="watch-expressions-that-do-not-change-the-book">Watch expressions that do not change the book<a class="headerlink" href="#watch-expressions-that-do-not-change-the-book" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>sorted((e.key, e.order.id[:4], e.valid) for e in self._asks)   # true priority order
 <a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a>self._ask_qty, self._bid_qty
 <a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a>{k[:4]: v.status.value for k, v in self._order_index.items()}
@@ -11555,7 +11699,7 @@ trying to observe. Read-only views (<code>snapshot()</code>, <code>depth_snapsho
 <p>If that raises, the message says which invariant (I1–I5) broke. This is the
 fastest way to find the exact step at which an edit to <code>order_book.py</code> breaks
 the synchronisation rules.</p>
-<h3 id="5-reading-the-debug-log">5. Reading the debug log<a class="headerlink" href="#5-reading-the-debug-log" title="Permanent link">&para;</a></h3>
+<h3 id="reading-the-debug-log">Reading the debug log<a class="headerlink" href="#reading-the-debug-log" title="Permanent link">&para;</a></h3>
 <p>With <code>-vv</code> (or <code>--log-level DEBUG</code>) the engine's <code>edumatcher.engine.order_book</code>
 logger narrates matching without a debugger:</p>
 <table>
@@ -11600,7 +11744,7 @@ logger narrates matching without a debugger:</p>
 </tr>
 </tbody>
 </table>
-<h3 id="6-experiments-to-try">6. Experiments to try<a class="headerlink" href="#6-experiments-to-try" title="Permanent link">&para;</a></h3>
+<h3 id="experiments-to-try">Experiments to try<a class="headerlink" href="#experiments-to-try" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong>Price improvement.</strong> Rest an ask at 100.00, send a BUY LIMIT at 101.00 and
    confirm the trade prints at 100.00.</li>
@@ -11616,9 +11760,9 @@ logger narrates matching without a debugger:</p>
    <code>_compact_heaps</code> rebuilds the heap.</li>
 <li><strong>FOK and hidden quantity.</strong> Rest an ICEBERG 1000/100 and send a FOK BUY 500.
    <code>_ask_qty</code> shows only 100, yet the FOK fills — step through
-   <code>_fok_available_qty</code> to see why.</li>
+   <code>fillable_quantity</code> to see why.</li>
 </ol>
-<h3 id="7-gotchas-while-debugging">7. Gotchas while debugging<a class="headerlink" href="#7-gotchas-while-debugging" title="Permanent link">&para;</a></h3>
+<h3 id="gotchas-while-debugging">Gotchas while debugging<a class="headerlink" href="#gotchas-while-debugging" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>len(book._bids)</code> includes dead entries; use <code>len(book._entry_index)</code> or
   <code>book_stats()</code>.</li>
@@ -11688,7 +11832,7 @@ logger narrates matching without a debugger:</p>
 </tr>
 <tr>
 <td>FOK</td>
-<td><code>_match_fok</code>, <code>_fok_available_qty</code></td>
+<td><code>_match_fok</code>, <code>fillable_quantity</code></td>
 </tr>
 <tr>
 <td>Auctions</td>

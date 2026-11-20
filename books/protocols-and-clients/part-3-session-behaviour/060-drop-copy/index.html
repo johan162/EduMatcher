@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4473,6 +4585,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#trade-correlation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trade correlation
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5106,6 +5229,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5141,7 +5292,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8011,15 +8162,12 @@ below), which does enforce per-connection role entitlement.</p>
 <tr>
 <td><code>liquidity_flag</code></td>
 <td>str</td>
-<td><code>"TAKER"</code> for the aggressor, <code>"MAKER"</code> for the resting side</td>
+<td><code>"TAKER"</code> for the aggressor, <code>"MAKER"</code> for the resting side, <code>"AUCTION"</code> for both sides of an auction uncross</td>
 </tr>
 </tbody>
 </table>
-<p>The field set is fixed, not open. It used to be described as "event-specific
-data merged into the top-level object", because <code>DropCopyPublisher.publish</code>
-took a <code>payload</code> dict — but the single producer has always sent these five
-keys, and since phase 6.1d the publisher takes them as named arguments and
-the spec declares them. A second event type is a spec change, not a new key.</p>
+<p>The field set is fixed, not open: every field above is declared in the message
+spec, and a second event type would be a spec change, not a new key.</p>
 <h3 id="orderfill-event"><code>order.fill</code> event<a class="headerlink" href="#orderfill-event" title="Permanent link">&para;</a></h3>
 <p>Published whenever a trade occurs. This is the only live drop-copy event
 type currently emitted by the engine. Every trade produces <strong>two</strong> drop-copy
@@ -8042,16 +8190,17 @@ a matched MAKER/TAKER pair, not the whole trade.</p>
 <p class="admonition-title">Price units and fields</p>
 <p><code>fill_price</code> is published as a display-price float, not as raw integer
 ticks. <code>liquidity_flag</code> is derived from the trade's aggressor side
-(<code>"TAKER"</code> for the aggressor, <code>"MAKER"</code> for the resting side). The
+(<code>"TAKER"</code> for the aggressor, <code>"MAKER"</code> for the resting side, <code>"AUCTION"</code>
+for both sides of an uncross, which has no aggressor). The
 payload does not include <code>remaining_qty</code>, <code>side</code>, or <code>leaves_qty</code>.</p>
 </div>
-<p>### Trade correlation</p>
+<h3 id="trade-correlation">Trade correlation<a class="headerlink" href="#trade-correlation" title="Permanent link">&para;</a></h3>
 <p><code>trade_ids</code> connects a private fill to the public <code>trade.executed</code> tape.
-  Drop-copy events are emitted once per execution, so the list currently has one
-  durable trade ID. An aggressive order that sweeps several price levels instead
-  receives one coalesced private <code>order.fill</code> with all of those IDs in execution
-  order; concatenating its corresponding drop-copy <code>trade_ids</code> produces the same
-  list. Consumers should treat this as a list, not a scalar.</p>
+Drop-copy events are emitted once per execution, so the list currently has one
+durable trade ID. An aggressive order that sweeps several price levels instead
+receives one coalesced private <code>order.fill</code> with all of those IDs in execution
+order; concatenating its corresponding drop-copy <code>trade_ids</code> produces the same
+list. Consumers should treat this as a list, not a scalar.</p>
 <p>This is fed from the engine's single trade-publication path (<code>engine/main.py</code>,
 <code>_publish_trade</code>), so it covers every fill-producing flow — new orders,
 quotes, combo legs, OCO legs, auction uncrosses, stop cascades, and

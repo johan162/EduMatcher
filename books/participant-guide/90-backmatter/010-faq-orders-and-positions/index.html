@@ -1383,6 +1383,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2458,6 +2486,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5031,6 +5143,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5066,7 +5206,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7838,11 +7978,17 @@ tracking the true cost basis of a position built over multiple trades.</p>
 <hr />
 <h2 id="saved-orders">Saved orders<a class="headerlink" href="#saved-orders" title="Permanent link">&para;</a></h2>
 <h3 id="my-gtc-orders-didnt-reload-after-restart-why">My GTC orders didn't reload after restart. Why?<a class="headerlink" href="#my-gtc-orders-didnt-reload-after-restart-why" title="Permanent link">&para;</a></h3>
-<p>GTC orders are written to <code>data/gtc_orders.json</code> <strong>on engine shutdown</strong> (when
-you press Ctrl-C or the scheduler sends a CLOSED transition). If the engine was
-killed forcefully (<code>kill -9</code> or a crash), the file was not written.</p>
-<p><strong>Fix:</strong> Check whether <code>data/gtc_orders.json</code> exists and has recent content.
-If the engine was killed mid-session, the file may be stale or missing.</p>
+<p>The engine saves every resting GTC and DAY order to <code>gtc_orders.json</code> in the
+data directory every few seconds while it runs, and once more when it shuts
+down. After a crash or <code>kill -9</code> the file is therefore at most a few seconds
+old: an order placed, filled or cancelled in those last seconds may be
+missing or restored in its earlier state.</p>
+<p>A DAY order is restored only on the business day it was placed; after the
+date has changed it is discarded at startup. Only GTC orders carry over to
+the next day.</p>
+<p><strong>Fix:</strong> Check that <code>gtc_orders.json</code> exists in the data directory
+(<code>pm-opctl-cli show</code> prints it) and has recent content, and that the engine
+was started with the same data directory as before.</p>
 <hr />
 <h2 id="self-match-prevention">Self-match prevention<a class="headerlink" href="#self-match-prevention" title="Permanent link">&para;</a></h2>
 <h3 id="what-is-smp-and-why-did-my-order-get-cancelled">What is SMP and why did my order get cancelled?<a class="headerlink" href="#what-is-smp-and-why-did-my-order-get-cancelled" title="Permanent link">&para;</a></h3>

@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -3927,6 +4039,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#log_serverclient-read-by-every-other-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log_server.client — read by every other process
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5628,6 +5751,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5663,7 +5814,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8542,17 +8693,21 @@ for the formal grammar and validation rules, see
 </tbody>
 </table>
 <p>The nested sections below document every field currently parsed under these
-top-level keys. Unknown keys in a mapping are generally ignored by the loader,
-but they should not be relied on for runtime behavior — <code>pm-config-show -a</code>
-lists any it finds, which is the cheapest way to catch a mistyped section name.</p>
+top-level keys. An unknown key, at any depth, is a <code>pm-cverifier</code> error
+(<code>S121</code>), so <code>pm-config-deploy</code> refuses the file and a mistyped key never
+reaches a running process. <code>pm-config-show -a</code> also lists unrecognised
+top-level keys of the file it shows.</p>
 <h2 id="which-process-reads-what">Which Process Reads What<a class="headerlink" href="#which-process-reads-what" title="Permanent link">&para;</a></h2>
-<p><code>engine_config.yaml</code> is one shared ref-data file, but no single process reads
-all of it. Each auxiliary gateway or service opens the file independently at
-its own startup, ignores every top-level key it doesn't recognize, and parses
-only the section(s) it owns. <code>pm-engine</code> is the only process that reads most
-of the file — the gateway-specific blocks (<code>market_data_gateway</code>,
+<p><code>engine_config.yaml</code> is one shared ref-data file, but no single process uses
+all of it. <code>pm-config-deploy</code> validates the whole file and runs each section's
+loader once, writing the resolved result to
+<code>&lt;DATA_DIR&gt;/ref_data/engine_config.json</code>; every process then reads only its own
+section(s) of that compiled file at startup. <code>pm-engine</code> is the only process
+that uses most of it — the gateway-specific blocks (<code>market_data_gateway</code>,
 <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>log_server</code>,
-<code>alf_gateway</code>, <code>api_gateways</code>) are never touched by the engine itself.</p>
+<code>alf_gateway</code>, <code>api_gateways</code>) are never touched by the engine itself. The
+loader modules in the table below are the ones <code>pm-config-deploy</code> runs for each
+section.</p>
 <table>
 <thead>
 <tr>
@@ -8566,7 +8721,7 @@ of the file — the gateway-specific blocks (<code>market_data_gateway</code>,
 <tr>
 <td><code>pm-engine</code></td>
 <td><code>engine/config_loader.py</code></td>
-<td><code>symbols</code>, <code>participants</code>, <code>participant_defaults</code>, <code>sessions_enabled</code>, <code>enforce_collars</code>, <code>enforce_circuit_breakers</code>, <code>require_mm_seed_quotes</code>, <code>auction_indicative_interval_sec</code>, <code>engine_tuning</code>, <code>mm_obligation_defaults</code>, <code>risk_controls</code>, <code>circuit_breaker_defaults</code>, <code>market_maker_combos</code>, <code>schedule</code>, <code>indices</code></td>
+<td><code>symbols</code>, <code>participants</code>, <code>participant_defaults</code>, <code>sessions_enabled</code>, <code>enforce_collars</code>, <code>enforce_circuit_breakers</code>, <code>require_mm_seed_quotes</code>, <code>auction_indicative_interval_sec</code>, <code>engine_tuning</code>, <code>mm_obligation_defaults</code>, <code>risk_controls</code>, <code>circuit_breaker_defaults</code>, <code>market_maker_combos</code>, <code>schedule</code>, <code>locale</code>, <code>indices</code></td>
 <td>Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions</td>
 </tr>
 <tr>
@@ -8642,12 +8797,13 @@ including sections no runtime process consumes on its own. Neither is a
 </div>
 <p>Two practical consequences follow from this split:</p>
 <ul>
-<li>A typo in, say, <code>balf_gateway</code> will not be caught by <code>pm-engine</code> at all —
-  only <code>pm-balf-gwy</code> (or <code>pm-cverifier</code>) will reject it. Run <code>pm-cverifier</code>
-  before starting a full stack to catch cross-section mistakes early.</li>
+<li>A mistake in any section, say <code>balf_gateway</code>, is caught when the file is
+  deployed, not when the process that owns the section first starts:
+  <code>pm-config-deploy</code> refuses a file <code>pm-cverifier</code> reports an error for.</li>
 <li>Each gateway process can be restarted independently with a changed config
-  section (for example, bumping <code>market_data_gateway.depth_levels</code>) without
-  restarting <code>pm-engine</code>, since the engine never reads that section.</li>
+  section (for example, bumping <code>market_data_gateway.depth_levels</code>): redeploy
+  the file, then restart that gateway only. <code>pm-engine</code> never reads that
+  section, so it need not restart.</li>
 </ul>
 <h2 id="configuring-pm-alf-gwy">Configuring <code>pm-alf-gwy</code><a class="headerlink" href="#configuring-pm-alf-gwy" title="Permanent link">&para;</a></h2>
 <p><code>pm-alf-gwy</code> is the TCP front door for the ALF text protocol. It reads an
@@ -9126,12 +9282,17 @@ engine reply waits are applied. In the current implementation:</p>
 <li><code>credentials_file</code> names a YAML list of credentials, relative to the file that names it, in place of an inline <code>credentials</code> (not both)</li>
 <li><code>rate_limit</code> applies per API key to write endpoints only</li>
 <li><code>timeouts.engine_reply_sec</code> and <code>timeouts.wait_ack_sec</code> control request/reply and <code>?wait=ack</code> waits</li>
+<li><code>engine_pull_addr</code>, <code>engine_pub_addr</code>, <code>index_pull_addr</code> and <code>index_pub_addr</code>
+  are the ZeroMQ endpoints of the engine (<code>5555</code>/<code>5556</code> on
+  <code>EDUMATCHER_ENGINE_HOST</code>) and of <code>pm-index</code> (<code>5559</code>/<code>5558</code> on
+  <code>EDUMATCHER_INDEX_BIND_HOST</code>); they are not validated and normally left unset</li>
 </ul>
 <p>If you prefer to generate this block instead of writing it by hand,
 <code>pm-config-gen</code> can emit it with <code>--api-gateway</code>. By default it generates one
-credential per configured ALF gateway. Add <code>--api-gateway-readonly-key</code> for a
-dashboard-style key with <code>gateway_id: null</code>, or pass explicit <code>--api-key</code>
-entries when you need known token values.</p>
+credential per configured ALF gateway plus a dashboard-style read-only key with
+<code>gateway_id: null</code> (<code>--no-api-gateway-readonly-key</code> leaves that out). Pass
+explicit <code>--api-key</code> entries when you need known token values, or
+<code>--api-keys-for</code> to write the keys to a separate <code>api_keys.yaml</code>.</p>
 <p>When more than one named API gateway is configured, start each process with its
 entry name, for example <code>pm-api-gwy --instance desk</code>.</p>
 <h2 id="configuring-pm-index">Configuring <code>pm-index</code><a class="headerlink" href="#configuring-pm-index" title="Permanent link">&para;</a></h2>
@@ -9377,8 +9538,37 @@ that invocation only — the same CLI-flag-over-config precedence every other
 <code>pm-config-gen</code> can emit it with <code>--log-server</code> and the associated
 <code>--log-server-*</code> options — see "Log server options" and "Log server LALF-PS
 options" in
-<a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/#generate-configs-with-pm-config-gen">Generate Configs with pm-config-gen</a>
-above.</p>
+<a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/#generate-configs-with-pm-config-gen">Generate Configs with pm-config-gen</a>.</p>
+<h3 id="log_serverclient-read-by-every-other-process"><code>log_server.client</code> — read by every other process<a class="headerlink" href="#log_serverclient-read-by-every-other-process" title="Permanent link">&para;</a></h3>
+<p>The optional <code>client</code> mapping inside <code>log_server</code> is not read by <code>pm-log-srv</code>
+itself but by every other <code>pm-*</code> process, to configure how it ships its own
+log records to the server.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>connect_timeout_sec</code></td>
+<td><code>0.5</code></td>
+<td>TCP connect timeout for each attempt to reach the log server</td>
+</tr>
+<tr>
+<td><code>failover_timeout_sec</code></td>
+<td><code>30.0</code></td>
+<td>How long a process keeps retrying a dropped log-server connection before it switches, permanently for that process, to a local log file. The <code>--log-failover-timeout</code> flag overrides it</td>
+</tr>
+<tr>
+<td><code>failover_dir</code></td>
+<td><code>&lt;data dir&gt;/logs</code></td>
+<td>Directory for the local failover log files; <code>~</code> expanded</td>
+</tr>
+</tbody>
+</table>
 <h2 id="configuring-pm-monitor">Configuring <code>pm-monitor</code><a class="headerlink" href="#configuring-pm-monitor" title="Permanent link">&para;</a></h2>
 <p><code>pm-monitor</code> and every process that sends a health beacon read an optional
 top-level <code>monitor</code> block. An absent block means every default below, with

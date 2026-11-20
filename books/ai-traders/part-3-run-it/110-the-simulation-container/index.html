@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4788,6 +4900,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4823,7 +4963,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8163,6 +8303,11 @@ compose file (the installer writes one) or on the command line, as in
 <td>Host ports of the GUIs</td>
 </tr>
 <tr>
+<td><code>INDEX_IDS</code></td>
+<td><code>EDU50</code></td>
+<td>The indexes TapeDeck's Index view follows; change it only with your own configuration</td>
+</tr>
+<tr>
 <td><code>PM_READONLY_API_KEY</code></td>
 <td>the <code>s300-sim</code> key</td>
 <td>The read-only key the GUIs use; change it only with your own configuration</td>
@@ -8214,6 +8359,9 @@ the 300 tickers (name, industry, CEO, founder story, financials, P/E, …). Look
 them up with <code>./edumatcher.sh shell pm-compdb-cli show AAPL</code>, or list and
 filter them with <code>pm-compdb-cli list</code>. It is built only when missing, so
 companies you add survive restarts; delete it to get the bundled set back.
+The market caps in it also set each share's outstanding shares in <code>s300-sim</code>,
+and the 50 largest companies make up its <code>EDU50</code> index
+(<a href="../../part-4-watch-and-teach/130-watching-the-market/#the-edu50-index">Watching the Market</a>).
 The reference manual's
 <a href="../../../reference-manual/part-1-command-line/010-processes-environment-and-ports/#pm-compdb-cli-company-database-cli">pm-compdb-cli</a>
 section explains where the source files are and when the entrypoint builds the

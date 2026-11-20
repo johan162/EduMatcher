@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/books/participant-guide/part-2-orders/030-combo-and-oco-orders/">
       
       
-        <link rel="prev" href="../020-order-types/">
+        <link rel="prev" href="../025-risk-controls-you-meet/">
       
       
         <link rel="next" href="../040-implied-orders/">
@@ -1382,6 +1382,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -2725,6 +2753,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5298,6 +5410,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5333,7 +5473,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8188,8 +8328,8 @@ Requires more legs than pairs trading.</p>
 enter the entire position in one instruction: all of it at entry, or none of it
 then.</p>
 <h3 id="hedged-entry">Hedged Entry<a class="headerlink" href="#hedged-entry" title="Permanent link">&para;</a></h3>
-<p>Buy a stock and simultaneously place a protective stop on a correlated instrument to
-limit downside.</p>
+<p>Buy a stock and simultaneously sell a correlated instrument, such as an index
+proxy, to limit downside.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>COMBO: BUY 100 MSFT @415.00, SELL 100 SPY @520.00
 </code></pre></div>
 <p><strong>Thesis:</strong> You want MSFT exposure but hedge broad market risk by shorting the index.</p>
@@ -8471,24 +8611,25 @@ quantity (you profit when the price falls below where you sold).</p>
 <tbody>
 <tr>
 <td>Both rise</td>
-<td>420 (+5)</td>
-<td>210 (+2)</td>
-<td>+500 + 200 = <strong>+700</strong></td>
+<td>430 (+15)</td>
+<td>215 (+3)</td>
+<td>+1500 − 300 = <strong>+1200</strong></td>
 </tr>
 <tr>
 <td>Both fall</td>
 <td>410 (−5)</td>
-<td>205 (+7)</td>
+<td>205 (−7)</td>
 <td>−500 + 700 = <strong>+200</strong></td>
 </tr>
 <tr>
 <td>MSFT rises, AAPL flat</td>
-<td>420 (+5)</td>
+<td>424 (+9)</td>
 <td>212 (0)</td>
-<td>+500 + 0 = <strong>+500</strong></td>
+<td>+900 + 0 = <strong>+900</strong></td>
 </tr>
 </tbody>
 </table>
+<p>(Price changes in brackets; each row ends at the ratio 2.0.)</p>
 <p>The combo profits regardless of market direction — only the spread matters.</p>
 <h3 id="example-2-hedged-long">Example 2 — Hedged Long<a class="headerlink" href="#example-2-hedged-long" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> You are bullish on AAPL but worried about a broad market sell-off.</p>

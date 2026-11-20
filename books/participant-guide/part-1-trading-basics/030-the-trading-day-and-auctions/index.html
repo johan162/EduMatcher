@@ -1581,6 +1581,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2436,6 +2464,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5009,6 +5121,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5044,7 +5184,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7802,7 +7942,7 @@ different rules about which orders are accepted and whether matching occurs.</p>
 <td><code>PRE_OPEN</code></td>
 <td>Yes</td>
 <td>No</td>
-<td>LIMIT, STOP, STOP_LIMIT, ICEBERG</td>
+<td>LIMIT, ICEBERG, STOP, STOP_LIMIT, TRAILING_STOP</td>
 </tr>
 <tr>
 <td><code>OPENING_AUCTION</code></td>
@@ -7861,8 +8001,9 @@ Monday-Friday:</p>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w">   </span><span class="s">"16:05"</span>
 </code></pre></div>
-<p>All values are <code>HH:MM</code> in the <strong>local time of the machine running the
-scheduler</strong>.</p>
+<p>All values are <code>HH:MM</code> in the exchange's session timezone,
+<code>locale.session_timezone</code> in the configuration (default <code>Europe/Stockholm</code>) —
+not the timezone of the machine the scheduler runs on.</p>
 <table>
 <thead>
 <tr>
@@ -8017,7 +8158,7 @@ event identifies the reason as <code>Opening auction ended</code>. The market tr
 to CONTINUOUS.</p>
 <h2 id="phase-3-continuous">Phase 3 — CONTINUOUS<a class="headerlink" href="#phase-3-continuous" title="Permanent link">&para;</a></h2>
 <p>This is the main trading session. Every new order is immediately swept against
-resting liquidity. All ten order types are valid here.</p>
+resting liquidity. All eight order types, and COMBO and OCO, are valid here.</p>
 <p><strong>Price-time priority is in full effect.</strong> See <a href="../020-the-order-book/">The Order Book</a>
 for a detailed explanation.</p>
 <p><strong>Example: continuous trading in action</strong></p>
@@ -8050,13 +8191,19 @@ the day. The <code>TIF=ATC</code> (At-The-Close) order type is only valid in thi
 </code></pre></div>
 <p>The uncross algorithm runs and produces the official closing price.</p>
 <h2 id="phase-5-closed">Phase 5 — CLOSED<a class="headerlink" href="#phase-5-closed" title="Permanent link">&para;</a></h2>
-<p>The market is closed. All incoming orders are rejected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW01] order.ack: accepted=false reason="Market is CLOSED"
+<p>The market is closed. All incoming orders are rejected; in the trader
+console:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[16:05:12.031] REJECTED  c67d537068afd247bdff53dea6ba2989 code=MARKET_CLOSED  Market is closed
 </code></pre></div>
-<p>When the engine shuts down it:
-1. Serialises all resting <strong>GTC</strong> (Good-Till-Cancelled) orders to <code>data/gtc_orders.json</code>.
-2. Publishes <code>order.expired</code> for all resting <strong>DAY</strong> orders (they are discarded at close).
-3. Publishes <code>system.eod</code> to all subscribers.</p>
+<p>On the transition to <code>CLOSED</code> the engine expires every resting <strong>DAY</strong>
+order (<code>EXPIRED &lt;id&gt;  (Trading day ended)</code>) and every unfilled <strong>ATC</strong> order
+(<code>Closing auction ended</code>). <strong>GTC</strong> (Good-Till-Cancelled) orders keep resting.</p>
+<p>Stopping the engine is a separate event, not the close. When the engine shuts
+down it saves every resting GTC and DAY order to <code>gtc_orders.json</code> in the data
+directory (it also writes that file every few seconds while it runs) and
+publishes <code>system.eod</code> to all subscribers. On the next start it restores them;
+a DAY order is kept only if the business day has not changed since it was
+placed.</p>
 <h2 id="what-happens-to-my-orders-at-each-transition">What happens to my orders at each transition?<a class="headerlink" href="#what-happens-to-my-orders-at-each-transition" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8075,7 +8222,7 @@ the day. The <code>TIF=ATC</code> (At-The-Close) order type is only valid in thi
 <tr>
 <td><code>GTC</code></td>
 <td>Keeps resting</td>
-<td>Persisted to file, reloaded next day</td>
+<td>Keeps resting into the next day (saved and restored across an engine restart)</td>
 </tr>
 <tr>
 <td><code>ATO</code></td>
@@ -8090,16 +8237,24 @@ the day. The <code>TIF=ATC</code> (At-The-Close) order type is only valid in thi
 </tbody>
 </table>
 <h2 id="triggering-phase-transitions-in-edumatcher">Triggering phase transitions in EduMatcher<a class="headerlink" href="#triggering-phase-transitions-in-edumatcher" title="Permanent link">&para;</a></h2>
-<p>In production, a scheduler process drives phase transitions automatically:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
+<p>In production, the scheduler process drives phase transitions automatically
+from the <code>schedule</code> block:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-scheduler<span class="w"> </span>--daily
 </code></pre></div>
-<p><code>--now</code> starts immediately in PRE_OPEN and progresses through all phases.
-Transition times are configurable in <code>engine_config.yaml</code>.</p>
-<p>You can also trigger transitions manually from the admin console during development:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>SESSION|STATE=CONTINUOUS
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SESSION|STATE=CLOSING_AUCTION
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>SESSION|STATE=CLOSED
+<p>For testing, <code>--now</code> closes the engine first if it is not <code>CLOSED</code>, then
+fires every transition of the day in quick succession, <code>--delay</code> seconds
+apart (default 3):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-scheduler<span class="w"> </span>--now
+</code></pre></div>
+<p>You can also trigger transitions by hand from the admin console,
+<code>pm-admin --id &lt;ADMIN gateway&gt;</code> (a participant with <code>role: ADMIN</code>). From
+<code>CLOSED</code> the day starts with <code>PRE_OPEN</code>; the engine refuses a transition out
+of order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>SESSION|STATE=PRE_OPEN
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>SESSION|STATE=OPENING_AUCTION
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>SESSION|STATE=CONTINUOUS
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>SESSION|STATE=CLOSED
 </code></pre></div>
 <h2 id="putting-it-all-together-a-full-day-scenario">Putting it all together — a full-day scenario<a class="headerlink" href="#putting-it-all-together-a-full-day-scenario" title="Permanent link">&para;</a></h2>
 <table>
@@ -8114,7 +8269,7 @@ Transition times are configurable in <code>engine_config.yaml</code>.</p>
 <tr>
 <td>06:00</td>
 <td>PRE_OPEN</td>
-<td>Engine starts; GTC orders reload from file</td>
+<td>Pre-open begins; GTC orders from earlier days are still on the book</td>
 </tr>
 <tr>
 <td>06:00–08:00</td>
@@ -8154,7 +8309,7 @@ Transition times are configurable in <code>engine_config.yaml</code>.</p>
 <tr>
 <td>16:00</td>
 <td>→ CLOSED</td>
-<td><strong>Uncross at closing price</strong>; ATC orders expired; GTC orders saved; DAY orders expired</td>
+<td><strong>Uncross at closing price</strong>; ATC orders expired; DAY orders expired; GTC orders carry over</td>
 </tr>
 </tbody>
 </table>

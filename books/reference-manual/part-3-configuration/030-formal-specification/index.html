@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5345,6 +5457,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5380,7 +5520,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8096,8 +8236,11 @@ governs. For worked examples, recipes, and rationale, see
 <p>The schema described here is derived from and MUST match the runtime loaders:
 <code>engine/config_loader.py</code>, <code>alf_gwy/config.py</code>, <code>balf_gwy/config.py</code>,
 <code>ralf_gateway/config.py</code>, <code>md_gateway/config.py</code>, <code>api_gateway/config.py</code>,
-<code>dc_gateway/config.py</code>, <code>log_srv/config.py</code>, and <code>scheduler/main.py</code>
-(<code>schedule</code> and <code>locale.country</code> only). <code>pm-cverifier</code> is the reference validator.</p>
+<code>dc_gateway/config.py</code>, <code>log_srv/config.py</code> and <code>monitor/config.py</code>.
+<code>pm-config-deploy</code> runs each of them once over the authored file and installs
+the resolved result as <code>&lt;EDUMATCHER_DATA_DIR&gt;/ref_data/engine_config.json</code>, the
+only configuration file a running process reads. <code>pm-cverifier</code> is the
+reference validator.</p>
 <hr />
 <h2 id="1-conventions">1. Conventions<a class="headerlink" href="#1-conventions" title="Permanent link">&para;</a></h2>
 <h3 id="11-requirement-keywords">1.1 Requirement keywords<a class="headerlink" href="#11-requirement-keywords" title="Permanent link">&para;</a></h3>
@@ -8233,14 +8376,16 @@ optional), <strong>Default</strong> (value applied when the key is omitted from 
 file), and <strong>Constraints</strong>. A <code>Default</code> of <code>—</code> means the field has no default and,
 if optional, its absence leaves the feature disabled.</p>
 <h3 id="15-unknown-keys">1.5 Unknown keys<a class="headerlink" href="#15-unknown-keys" title="Permanent link">&para;</a></h3>
-<p>Loaders are <strong>permissive</strong>: a key not defined in this specification is <strong>ignored</strong>
-and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. <code>pm-cverifier</code> reports an unrecognised key anywhere in the file —
-at the top level or at any depth of an engine section (§5) or gateway and service
-block (§6) — as an <strong>error</strong> (<code>S121</code>), because the loader's silent fallback to a
-default would otherwise hide the typo. The one exception is the key set of
-<code>schedule</code> itself, whose unknown keys are reported as <code>M027</code>. <code>pm-config-show --all</code>
-also lists top-level sections that are not part of this specification.</p>
+<p>Conforming producers MUST NOT emit keys not defined in this specification.
+<code>pm-cverifier</code> reports an unrecognised key anywhere in the file — at the top
+level or at any depth of an engine section (§5) or gateway and service block
+(§6) — as an <strong>error</strong> (<code>S121</code>); the one exception is the key set of <code>schedule</code>
+itself, whose unknown keys are reported as <code>M027</code>. <code>pm-config-deploy</code> refuses
+any file with a verifier error, so an unknown key is never deployed. The
+loaders themselves are permissive and ignore unknown keys, except in
+<code>participant_defaults</code> (CV22) and <code>schedule</code>, which they reject.
+<code>pm-config-show --all</code> also lists top-level sections that are not part of this
+specification.</p>
 <h3 id="16-case-normalisation">1.6 Case normalisation<a class="headerlink" href="#16-case-normalisation" title="Permanent link">&para;</a></h3>
 <p><code>Symbol</code>, <code>GatewayId</code>, <code>IndexId</code>, and every <code>Enum&lt;E&gt;</code> value are upper-cased during
 load. Producers MAY write any case; consumers compare upper-case.</p>
@@ -10552,19 +10697,24 @@ rejected at load.</p>
 <hr />
 <h2 id="8-processing-model">8. Processing model<a class="headerlink" href="#8-processing-model" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Parse.</strong> Load the document as YAML; a non-mapping root is rejected (§1.2).</li>
-<li><strong>Section ownership.</strong> <code>pm-engine</code> reads the engine sections (§5) plus the
-   <code>SymbolSpec</code>/nested structures — with one exception, <code>locale.country</code> (§5.10),
-   which is read only by <code>pm-scheduler</code>; each auxiliary process reads only its own
-   block (§6). No single process reads the whole file.</li>
+<li><strong>Parse.</strong> Load the document as YAML, merging any <code>include:</code> files; a
+   non-mapping root is rejected (§1.2).</li>
+<li><strong>Whole-file validation.</strong> <code>pm-config-deploy</code> runs <code>pm-cverifier</code>'s four
+   layers (YAML, schema, semantic, completeness) over every section; any
+   error refuses the deploy. <code>pm-cverifier</code> is the reference conformance
+   checker.</li>
 <li><strong>Normalisation.</strong> Symbols, gateway ids, index ids, and enum values are
    upper-cased (§1.6).</li>
-<li><strong>Validation.</strong> Field-level constraints (§4–§6) are checked, then the
-   cross-field rules (§7). The first violation MAY abort loading.</li>
-<li><strong>Unknown keys</strong> are ignored (§1.5).</li>
-<li><strong>Whole-file validation.</strong> <code>pm-cverifier</code> validates every section — including
-   blocks no runtime process consumes on its own — across four layers (YAML,
-   schema, semantic, completeness). It is the reference conformance checker.</li>
+<li><strong>Section validation and defaults.</strong> Each section's loader checks its
+   field-level constraints (§4–§6), then the cross-field rules (§7), and
+   resolves every default. The first violation MAY abort loading.</li>
+<li><strong>Install.</strong> The resolved sections are written to
+   <code>&lt;EDUMATCHER_DATA_DIR&gt;/ref_data/engine_config.json</code>, with a copy of the
+   authored source beside it.</li>
+<li><strong>Section ownership.</strong> At startup, <code>pm-engine</code> reads the engine sections
+   (§5) of the compiled file and each auxiliary process only its own block
+   (§6); <code>pm-scheduler</code> also reads <code>schedule</code> and <code>locale</code>. No single process
+   uses the whole file.</li>
 <li><strong>Whole-file presentation.</strong> <code>pm-config-show</code> reads every section for
    display only. It is read-only and non-normative: it neither validates nor
    resolves defaults, and it MUST NOT be treated as a conformance signal — a

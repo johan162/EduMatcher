@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4796,6 +4908,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4831,7 +4971,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8018,13 +8158,13 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>How the eight container images, the compose overlays and the three layers
+<li>How the nine container images, the compose overlays and the three layers
   of Makefile fit together</li>
 <li>Where networking responsibility actually sits, and which of the several
   <code>127.0.0.1</code>/<code>0.0.0.0</code> knobs controls what</li>
 <li>What is baked into an image at build time versus decided at start time,
   and the precedence order between the ways of setting each</li>
-<li>How a release turns one git tag into a wheel and eight multi-architecture
+<li>How a release turns one git tag into a wheel and nine multi-architecture
   images</li>
 <li>What maintenance this design will demand as the system grows, and where
   it will drift first</li>
@@ -8032,7 +8172,7 @@
 </ul>
 </div>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>EduMatcher ships as <strong>eight container images</strong>. The backend and the five
+<p>EduMatcher ships as <strong>nine container images</strong>. The backend and the six
 backend-connected GUIs run as <strong>one Compose project</strong> (<code>config-gui</code> is opt-in,
 and <code>edumatcher-ai-sim</code> runs in a project of its own):</p>
 <table>
@@ -8099,7 +8239,7 @@ containers that reach it over the Compose network.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph repo["This repository"]
         BE["deployment/docker/\nDockerfile + entrypoint.sh"]
-        WA["web-apps/*/Dockerfile\nsix Node apps"]
+        WA["web-apps/*/Dockerfile\nseven Node apps"]
     end
 
     subgraph dev["deployment/docker/ — built from source"]
@@ -8112,7 +8252,7 @@ containers that reach it over the Compose network.</p>
         SH["install.sh\nedumatcher.sh"]
     end
 
-    GH["GHCR\neight multi-arch images\ntagged with the release version"]
+    GH["GHCR\nnine multi-arch images\ntagged with the release version"]
 
     BE --&gt; DC
     WA --&gt; DC
@@ -8141,7 +8281,7 @@ containers that reach it over the Compose network.</p>
 </tr>
 <tr>
 <td><code>deployment/docker/compose.guis.yaml</code></td>
-<td>Overlay: the five backend-connected GUIs, built from <code>web-apps/</code>, in the <strong>same project</strong> so they reach <code>edumatcher:&lt;port&gt;</code></td>
+<td>Overlay: the six backend-connected GUIs, built from <code>web-apps/</code>, in the <strong>same project</strong> so they reach <code>edumatcher:&lt;port&gt;</code></td>
 <td>No, needs the base</td>
 <td><code>make up-all</code></td>
 </tr>
@@ -8214,7 +8354,7 @@ is the main standing maintenance cost of this design — see
     C5["web-apps/book-gui/Makefile"]
     C6["web-apps/dash-gui/Makefile"]
 
-    A --&gt;|"compose build/up across\nthe seven build contexts"| IMGS["eight images"]
+    A --&gt;|"compose build/up across\nthe eight build contexts"| IMGS["nine images"]
     B --&gt;|"make -C, one per app"| C1
     B --&gt; C2
     B --&gt; C3
@@ -8640,7 +8780,7 @@ on this project, from a path in the <code>RUN</code> step that did not match the
 <h2 id="part-4-starting-and-configuring-the-whole-system">Part 4 — Starting and configuring the whole system<a class="headerlink" href="#part-4-starting-and-configuring-the-whole-system" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># backend image from a wheel built out of this checkout</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + the five backend-connected GUIs</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + the six backend-connected GUIs</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>down-all<span class="w">       </span><span class="c1"># stop and remove everything</span>
 </code></pre></div>
 <table>
@@ -8723,8 +8863,8 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 <p>A configuration with no read-only credential is not an error: the start
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
-<p>One git tag produces a wheel and eight multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.81.3</code>
+<p>One git tag produces a wheel and nine multi-architecture images, all carrying
+the same version. That coupling is what lets <code>install.sh --version 0.82.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -8747,7 +8887,7 @@ pin an entire system with one number.</p>
 <p>Points a developer needs to know:</p>
 <p><strong>Each image is built twice, natively.</strong> A single-runner build with
 <code>platforms: linux/amd64,linux/arm64</code> would emulate the foreign architecture
-under QEMU — six Node images each running <code>npm ci</code> and a Vite build, which
+under QEMU — seven Node images each running <code>npm ci</code> and a Vite build, which
 turns a release into hours. Instead each <code>(image, arch)</code> pair builds on its own
 native runner and pushes <strong>by digest only</strong>; a merge job then joins the two
 digests into a manifest list and applies the tags. arm64 hosted runners are
@@ -8773,12 +8913,12 @@ never becomes what a new user gets by default. That is the same test
 <code>publish-to-pypi.yml</code> uses to choose between PyPI and TestPyPI.</p>
 <p><strong><code>mkghrelease.sh</code> waits but does not push.</strong> Its PHASE 6B polls
 <code>gh run view</code> for the image workflow — bounded by <code>IMAGE_WAIT_MINUTES</code>
-(default 30), skippable with <code>--skip-images</code> — and reports the eight image
+(default 30), skippable with <code>--skip-images</code> — and reports the nine image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and <code>gh workflow run publish-images.yml -f tag=vX.Y.Z</code>
 re-runs just that part.</p>
 <h3 id="the-manual-escape-hatch">The manual escape hatch<a class="headerlink" href="#the-manual-escape-hatch" title="Permanent link">&para;</a></h3>
-<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all six images from your
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds the eight images other than <code>edumatcher-ai-sim</code> from your
 checkout and pushes them. It exists for when the workflow cannot run at all.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all six, tagged :dev</span>
@@ -8821,7 +8961,7 @@ tag, and <code>latest</code> never moving unless asked.</p>
 </tr>
 </tbody>
 </table>
-<p>A newly created GHCR package is private. Until each of the eight is made public
+<p>A newly created GHCR package is private. Until each of the nine is made public
 in its package settings, <code>podman pull</code> fails for every user but you.</p>
 <h3 id="a-package-the-workflow-did-not-create">A package the workflow did not create<a class="headerlink" href="#a-package-the-workflow-did-not-create" title="Permanent link">&para;</a></h3>
 <p>A package that a workflow pushes for the first time is linked to the repository
@@ -8922,15 +9062,15 @@ section.</p>
 </code></pre></div>
 <h3 id="standing-costs">Standing costs<a class="headerlink" href="#standing-costs" title="Permanent link">&para;</a></h3>
 <p><strong>Version coupling.</strong> Every image carries the EduMatcher release version, so
-every release republishes all eight even when only the backend changed. That is
+every release republishes all nine even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.</p>
 <p><strong>The GUI <code>package.json</code> versions are now decorative</strong> for release purposes.
 They still drive <code>make cdist</code> and per-app <code>cpush</code>. If that divergence starts
 causing confusion, the fix is to stop versioning the apps independently rather
 than to reintroduce per-app tags into the release.</p>
-<p><strong>Build minutes grow linearly with images.</strong> Sixteen build jobs today; one
-more image makes it eighteen. The GitHub Actions cache is scoped per
+<p><strong>Build minutes grow linearly with images.</strong> Eighteen build jobs today (nine
+images, two architectures); one more image makes it twenty. The GitHub Actions cache is scoped per
 <code>(image, arch)</code>, so an unchanged app is cheap, but the matrix is not free.</p>
 <p><strong>The credential-lookup snippet is the fragile one.</strong> It reads a specific shape
 out of the compiled configuration — <code>api_gateways.&lt;name&gt;.credentials[].gateway_id</code>.

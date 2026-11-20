@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5020,6 +5132,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5055,7 +5195,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7793,7 +7933,9 @@ touch any participant's position. EduMatcher has no primary-market allocation,
 so the shares investors "bought in the offering" only appear once they are
 traded.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
-<p>With the exchange stopped:</p>
+<p>With the exchange stopped, and running a configuration of your own (see
+<a href="#which-file-is-edited">Which file is edited</a> when it is still a bundled
+example):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-opctl-cli<span class="w"> </span>stop
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-new-symbol<span class="w"> </span>--symbol<span class="w"> </span>NEWCO<span class="w"> </span>--ipo-price<span class="w"> </span><span class="m">20</span>.00<span class="w"> </span>--outstanding-shares<span class="w"> </span><span class="m">50000000</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pm-opctl-cli<span class="w"> </span>start
@@ -7861,9 +8003,15 @@ source, never the artifact.</p>
 </tr>
 </tbody>
 </table>
-<p>If you set up with <code>pm-setup</code>, the deployed source <em>is</em>
-<code>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml</code>, so the default works without
-<code>--config</code>.</p>
+<p>If you set up with <code>pm-setup</code>, or with a container install that runs a
+bundled example (<code>EM_CONFIG</code>), the deployed source <em>is</em> that bundled example,
+so the default refuses. Make the configuration your own first, once:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/course
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cp<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data/engine_config.yaml"</span><span class="w"> </span>~/course/engine_config.yaml
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-config-deploy<span class="w"> </span>~/course/engine_config.yaml
+</code></pre></div>
+<p>From then on <code>pm-new-symbol</code> edits <code>~/course/engine_config.yaml</code> and redeploys
+it, without <code>--config</code>.</p>
 <p>If the source uses <code>include:</code>, the symbol is written to the included file that
 supplies the last listed symbol and the main file is left as it is; the command
 reports which file it edited.</p>
@@ -7926,8 +8074,8 @@ way:</p>
 a symbol that is not listed yet, so it plays no part here.)</p>
 <p>By default the quote is exactly the widest spread allowed, placed around the
 IPO price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>bid = ipo_price - (max_spread_ticks // 2) × tick
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>ask = bid + max_spread_ticks × tick
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>bid = ipo_price - (max_spread_ticks // 2) × tick
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>ask = bid + max_spread_ticks × tick
 </code></pre></div>
 <p>With <code>mm_max_spread_ticks: 20</code> and an IPO price of <code>20.00</code>, that gives
 <code>19.90 / 20.10</code>. With an odd width such as 7, the extra tick goes on the ask:

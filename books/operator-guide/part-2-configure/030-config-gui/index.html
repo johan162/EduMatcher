@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5429,6 +5541,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5464,7 +5604,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8364,21 +8504,25 @@ background. Open <strong>http://localhost:8092</strong> once the build completes
 image layout, environment variables, and building behind a corporate proxy —
 are covered under <a href="#deployment-and-operations">Deployment and operations</a>.</p>
 <h3 id="option-2-a-pre-built-image-artifact">Option 2 — A pre-built image artifact<a class="headerlink" href="#option-2-a-pre-built-image-artifact" title="Permanent link">&para;</a></h3>
+<p>Every release publishes the image on GHCR, so a host with network access needs
+no archive at all:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>ghcr.io/johan162/edumatcher-config-gui:latest
+</code></pre></div>
 <p>For a host without a repository clone — or to ship a ready-to-run image — the
 distributable artifact is a self-contained OCI image archive built with
 <code>make cdist</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dist/edumatcher-config-gui-&lt;version&gt;.tar.xz
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dist/edumatcher-config-gui-&lt;version&gt;.tar.xz
 </code></pre></div>
 <p>The archive contains everything the application needs at runtime (Node.js
 runtime, compiled frontend, and the Fastify backend) with no external
 dependencies. Load and run it on the target host:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Podman</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>podman<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar.xz
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Docker</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>docker<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar.xz
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Podman</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>podman<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar.xz
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># Docker</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>docker<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar.xz
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
 </code></pre></div>
 <p>The <code>load</code> command prints the exact image tag, e.g. <code>edumatcher-config-gui:1.0.0</code>.
 Open <strong>http://localhost:8092</strong>. Stop and remove with
@@ -8393,9 +8537,9 @@ Docker — no Node.js, no npm, and no repository clone.</p>
 <h3 id="option-3-local-development">Option 3 — Local development<a class="headerlink" href="#option-3-local-development" title="Permanent link">&para;</a></h3>
 <p>To hack on the GUI, run the two processes (the Fastify <strong>API</strong> and the Vite
 <strong>web</strong> dev server) from a checkout:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>npm<span class="w"> </span>install
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>npm<span class="w"> </span>run<span class="w"> </span>dev<span class="w">          </span><span class="c1"># starts the API (port 5192) and the web UI (port 8192)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>npm<span class="w"> </span>install
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>npm<span class="w"> </span>run<span class="w"> </span>dev<span class="w">          </span><span class="c1"># starts the API (port 5192) and the web UI (port 8192)</span>
 </code></pre></div>
 <p>Open <strong>http://127.0.0.1:8192</strong>. The Vite dev server hot-reloads on save and
 proxies <code>/api/*</code> to the backend, so you only ever open the <code>8192</code> URL.</p>
@@ -8407,14 +8551,14 @@ engine — live in the project's
 <h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
 <p>The window is a persistent <strong>three-pane layout</strong> designed so that you always
 know what to edit, what you are editing, and what still needs attention.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>┌─────────────────────────────────────────────────────────────────────┐
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>│  Top bar:  [Persona ▾] [☐ Comment defaults]  Import  New  ☾  Save     │
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>├───────────────┬─────────────────────────────────┬────────────────────┤
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>│  Navigation   │        Active panel             │   Diagnostics      │
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>│  (tab list    │   (fields for the selected      │   drawer           │
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>│   with status │    tab / master–detail editor)  │   (errors,         │
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>│   glyphs)     │                                 │    warnings, info) │
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>└───────────────┴─────────────────────────────────┴────────────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>┌─────────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>│  Top bar:  [Persona ▾] [☐ Comment defaults]  Import  New  ☾  Save     │
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├───────────────┬─────────────────────────────────┬────────────────────┤
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│  Navigation   │        Active panel             │   Diagnostics      │
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│  (tab list    │   (fields for the selected      │   drawer           │
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│   with status │    tab / master–detail editor)  │   (errors,         │
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│   glyphs)     │                                 │    warnings, info) │
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>└───────────────┴─────────────────────────────────┴────────────────────┘
 </code></pre></div>
 <ul>
 <li><strong>Top bar</strong> — the <a href="#personas">persona</a> switcher, <strong>Comment defaults</strong> (add
@@ -8755,16 +8899,16 @@ the same symbol the dialog would:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>symbol,reference_price,outstanding_shares,tick_decimals,mm_gateway,spread_ticks,quote_size
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>AAPL,182.50,15000000000,2,MM01,2,500
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>MSFT,410.00,,,,,
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>symbol,reference_price,outstanding_shares,tick_decimals,mm_gateway,spread_ticks,quote_size
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>AAPL,182.50,15000000000,2,MM01,2,500
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>MSFT,410.00,,,,,
 </code></pre></div>
 <p>The JSON form is an array of objects with the same keys; a missing key or
 <code>null</code> counts as blank:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">[</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reference_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">182.5</span><span class="p">,</span><span class="w"> </span><span class="nt">"mm_gateway"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MM01"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reference_price"</span><span class="p">:</span><span class="w"> </span><span class="mi">410</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">[</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reference_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">182.5</span><span class="p">,</span><span class="w"> </span><span class="nt">"mm_gateway"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MM01"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reference_price"</span><span class="p">:</span><span class="w"> </span><span class="mi">410</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">]</span>
 </code></pre></div>
 <p>An import is all-or-nothing. The whole file is checked first, and any problem
 rejects it: an unknown column or key, a symbol that already exists or appears
@@ -8823,10 +8967,10 @@ row creates the gateway <strong>"+ Add gateway"</strong> would:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>id,role,disconnect_behaviour,smp_action,description
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>DESK01,TRADER,,CANCEL_AGGRESSOR,"Equities desk, floor 2"
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>MM01,MARKET_MAKER,,,
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>OPS,ADMIN,,,Operations
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>id,role,disconnect_behaviour,smp_action,description
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>DESK01,TRADER,,CANCEL_AGGRESSOR,"Equities desk, floor 2"
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>MM01,MARKET_MAKER,,,
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>OPS,ADMIN,,,Operations
 </code></pre></div>
 <p>IDs and the <code>role</code>, <code>disconnect_behaviour</code> and <code>smp_action</code> values are
 uppercased on import. As for symbols, the import is all-or-nothing: an ID that
@@ -9075,10 +9219,10 @@ row (Basics tab) provides the finest-grained control:</p>
 quotes are inactivated after a fill. The default <code>INACTIVATE_ON_ANY_FILL</code> suits
 most scenarios.</p>
 <p><strong>Precedence (highest to lowest):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Per-gateway per-symbol  (mm_obligations.&lt;SYM&gt;)
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>  → Per-gateway flat    (gateway.mm_max_spread_ticks / mm_min_qty)
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    → Per-symbol global (mm_obligation_defaults.symbols.&lt;SYM&gt;)
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>      → Global defaults (mm_obligation_defaults)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Per-gateway per-symbol  (mm_obligations.&lt;SYM&gt;)
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  → Per-gateway flat    (gateway.mm_max_spread_ticks / mm_min_qty)
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    → Per-symbol global (mm_obligation_defaults.symbols.&lt;SYM&gt;)
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>      → Global defaults (mm_obligation_defaults)
 </code></pre></div>
 <p><img alt="The ⚙ Advanced market-maker settings for MM01." src="../../../../assets/config-gui/config-mm-advanced.png" /></p>
 <p><em>MM01 keeps the default quote refresh policy, allows itself a 25-tick spread instead of
@@ -9109,9 +9253,9 @@ book at startup. This maps to <code>require_mm_seed_quotes</code> in the YAML (t
 <p><strong>Option B — Global mid-range seeding.</strong> On the Market Maker tab, set a <strong>Seed
 MM mid-range</strong> (e.g. <code>100</code> to <code>300</code>). The builder computes one deterministic
 midpoint and applies it to <em>every</em> symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>midpoint = (min + max) / 2     # arithmetic mean, snapped to the tick grid
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>bid      = midpoint − 1 tick
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>ask      = midpoint + 1 tick
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>midpoint = (min + max) / 2     # arithmetic mean, snapped to the tick grid
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>bid      = midpoint − 1 tick
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>ask      = midpoint + 1 tick
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">The same midpoint applies to every symbol</p>
@@ -9525,7 +9669,7 @@ clash as an error). <code>pm-config-deploy</code> installs the included files to
 with the main file.</p>
 <p>The download is an <strong>authored</strong> <code>engine_config.yaml</code> — the file you keep and
 version, not the one the exchange runs. Install it before starting anything:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-config-deploy<span class="w"> </span>~/Downloads/engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-config-deploy<span class="w"> </span>~/Downloads/engine_config.yaml
 </code></pre></div>
 <p>That validates it, resolves every default, and writes the compiled artifact the
 processes actually read. Because the GUI already refuses to export while any
@@ -9554,11 +9698,11 @@ assets. The API serves the UI and falls back to <code>index.html</code> for clie
 routes.</p>
 <h3 id="manual-production-build">Manual production build<a class="headerlink" href="#manual-production-build" title="Permanent link">&para;</a></h3>
 <p>To run the pieces yourself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>npm<span class="w"> </span>install
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist"</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>npm<span class="w"> </span>install
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist"</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
 </code></pre></div>
 <p>Alternatively host <code>apps/web/dist</code> on any static server and run the API
 separately; then either reverse-proxy <code>/api</code> under the same origin or set
@@ -9617,7 +9761,7 @@ inherit your host's npm or proxy settings</strong> — it has its own network an
 empty npm config. Behind a proxy or a TLS-intercepting firewall, <code>npm install</code>
 may <strong>hang</strong> (the connection is silently dropped) rather than fail fast.</p>
 <p>First confirm the registry is reachable from inside a container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">"npm config set fetch-timeout 30000 &amp;&amp; npm ping"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">"npm config set fetch-timeout 30000 &amp;&amp; npm ping"</span>
 </code></pre></div>
 <p>If that hangs, pass build arguments to route around it. <code>docker compose</code> picks
 up your shell's proxy variables automatically:</p>
@@ -9643,9 +9787,9 @@ up your shell's proxy variables automatically:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:8092
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:3128
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">TLS interception (custom root CA)</p>

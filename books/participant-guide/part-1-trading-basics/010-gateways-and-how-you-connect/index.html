@@ -1498,6 +1498,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2353,6 +2381,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4926,6 +5038,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4961,7 +5101,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7861,13 +8001,14 @@ process that <em>is</em> the real ALF gateway.</p>
 </div>
 <p>Each protocol's configuration lives in a different part of <code>engine_config.yaml</code>:</p>
 <ul>
-<li><strong>ALF</strong> — configured under <code>participants</code>; used by <code>pm-engine</code> to authenticate order-entry connections from <code>pm-alf-console</code> and <code>pm-alf-gwy</code>, as well as <code>pm-balf-gwy</code> (the gateway id used in the BALF configurations must exist under <code>participants</code>).
+<li><strong>ALF</strong> — the TCP listener of <code>pm-alf-gwy</code> is configured under the top-level <code>alf_gateway</code> key. Every order-entry identity, whichever gateway it arrives through (<code>pm-alf-console</code>, <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-api-gwy</code>), must exist under <code>participants</code>, which <code>pm-engine</code> authenticates it against.
   Uses a pipe-delimited text format (<code>FIELD=VALUE|FIELD=VALUE</code>).</li>
 <li><strong>BALF</strong> — configured under the top-level <code>balf_gateway</code> key; used by <code>pm-balf-gwy</code>. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable.</li>
 <li><strong>CALF</strong> — configured under the top-level <code>market_data_gateway</code> key; used by <code>pm-md-gwy</code>. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection.</li>
 <li><strong>RALF</strong> — configured under the top-level <code>post_trade_gateway</code> key; used by <code>pm-ralf-gwy</code>. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection.</li>
 <li><strong>DC1</strong> — configured under the top-level <code>dc_gateway</code> key; used by <code>pm-dc-gwy</code>. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol.</li>
 <li><strong>LALF</strong> — configured under the top-level <code>log_server</code> key; used by <code>pm-log-srv</code>. Collects operational <code>logging</code>-module output from every other <code>pm-*</code> process over a persistent TCP connection into a queryable SQLite database. The same key also configures <strong>LALF-PS</strong>, the ZeroMQ <code>PUB</code>/<code>PULL</code> interface that distributes those rows back out to live log viewers.</li>
+<li><strong>REST/WebSocket</strong> — configured under the top-level <code>api_gateways</code> key, one block per instance (the bundled configurations define <code>desk</code> on 8080 and <code>dashboards</code> on 8081); used by <code>pm-api-gwy</code>. Each instance lists the API keys it accepts and the participant each key trades as.</li>
 </ul>
 <p>See <a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/">The Configuration Workflow</a> for the full field-by-field schema of
 each gateway's configuration block, and <a href="../../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview/">External Protocols Overview</a>

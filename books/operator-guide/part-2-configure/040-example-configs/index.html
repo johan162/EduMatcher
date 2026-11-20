@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4904,6 +5016,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4939,7 +5079,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7676,21 +7816,21 @@
 <li><code>s150-nominal-setup</code></li>
 <li><code>s150-complex-setup</code></li>
 <li><code>s300-load-setup</code> — AI-trader design-limit load test bed: 300 symbols, 500 AI participants (<code>AI001</code>–<code>AI500</code>); no <code>-nomm</code> variant</li>
-<li><code>s300-sim-setup</code> — the long-running simulated market used by the <a href="../../../ai-traders/00-front/010-how-to-use-this-book/">AI Traders and Market Simulation</a> book and the <code>edumatcher-ai-sim</code> container image's default config: 300 symbols, 100 AI traders (<code>AI001</code>–<code>AI100</code>) plus a <code>market_sim.yaml</code> hidden-true-value market model with news/rumours; no <code>-nomm</code> variant</li>
+<li><code>s300-sim-setup</code> — the long-running simulated market used by the <a href="../../../ai-traders/00-front/010-how-to-use-this-book/">AI Traders and Market Simulation</a> book and the <code>edumatcher-ai-sim</code> container image's default config: 300 symbols, 100 AI traders (<code>AI001</code>–<code>AI100</code>) plus a <code>market_sim.yaml</code> hidden-true-value market model with news/rumours, and the <code>EDU50</code> index of its 50 largest companies; no <code>-nomm</code> variant</li>
 </ul>
-<p>The <code>s150-*</code> configs also list <code>AI001</code>–<code>AI020</code> so a 20-bot <code>pm-ai-swarm</code> runs unchanged. Each profile also has a <code>-nomm</code> variant without seeded market-maker quotes. Every directory contains a small generator script, <code>mkrefdata.sh</code>, and the resulting <code>engine_config.yaml</code>.</p>
+<p>The <code>s150-*</code> configs also list <code>AI001</code>–<code>AI020</code> so a 20-bot <code>pm-ai-swarm</code> runs unchanged. Each profile also has a <code>-nomm</code> variant without seeded market-maker quotes. Every directory contains a one-line generator script, <code>mkrefdata.sh</code>, the resulting <code>engine_config.yaml</code> and a <code>README.md</code>; the <code>s150-*</code> and <code>s300-*</code> directories also hold a <code>market_sim.yaml</code> and a <code>swarm.yaml</code> for the AI traders.</p>
 <h2 id="how-they-are-generated">How they are generated<a class="headerlink" href="#how-they-are-generated" title="Permanent link">&para;</a></h2>
-<p>The example configs are produced by running <code>mkrefdata.sh</code> in each profile directory. The scripts invoke <code>pm-config-gen</code> with the appropriate symbol set and gateway layout, then apply a small amount of profile-specific post-processing where needed.</p>
+<p>The example configs are produced by running <code>mkrefdata.sh</code> in each profile directory. That script only delegates: the <code>s1</code>–<code>s30</code> directories to the shared <code>mkrefdata_common.py</code>, the <code>s150-*</code> and <code>s300-*</code> directories to <code>mks150.sh</code> and <code>mks300.sh</code>, all three in <code>docs/examples/ref_data/</code>. They derive the symbol set and gateway layout from the directory name, invoke <code>pm-config-gen</code>, then apply a small amount of profile-specific post-processing where needed.</p>
 <p>In practice this means:</p>
 <ul>
 <li>the engine config structure is generated by the same config generator used elsewhere in the project</li>
 <li>RALF and CALF gateway sections are emitted natively by <code>pm-config-gen</code></li>
-<li>every symbol includes <code>outstanding_shares</code> data for statistics and future index-style consumers</li>
-<li>the basic profiles use <code>--seed-mm-mid-range</code> and <code>--seed-last-prices-from-mm</code> so each book starts with a reproducible bootstrap market-maker quote and matching last-price references</li>
+<li>every symbol includes <code>outstanding_shares</code> data for statistics and index weighting; <code>s300-sim-setup</code> derives them from the market caps in its <code>companies.db</code> (cap ÷ seeded price) and defines the cap-weighted <code>EDU50</code> index from the 50 largest</li>
+<li>every profile uses <code>--seed-mm-mid-range</code> and <code>--seed-last-prices-from-mm</code>, so each book starts with a reproducible bootstrap market-maker quote and matching last-price references; the <code>-nomm</code> variants add <code>--no-mm-seed-quotes</code> and keep only the last prices</li>
 <li>the nominal and complex profiles include richer session, risk, clearing, and market-data settings</li>
 <li>complex profiles define a fuller trader set and market-maker bootstrap inputs for more involved scenarios</li>
 </ul>
-<p>Several of the generator scripts accept <code>--seed</code> so the bootstrap prices can be reproduced when needed.</p>
+<p>The generators accept <code>--seed</code> so the bootstrap prices can be reproduced when needed.</p>
 <h2 id="training-usage">Training usage<a class="headerlink" href="#training-usage" title="Permanent link">&para;</a></h2>
 <p>These templates are ready to use in training scenarios as soon as they are generated.</p>
 <ul>

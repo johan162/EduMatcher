@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -4796,6 +4908,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -4831,7 +4971,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7850,11 +7990,11 @@
 <p>Experiments 1-15 are the original proposal, ordered from basic to very complex. Experiments 16-20 were added later (self-trade prevention, plus three further operational and observability tracks) and are appended after, not sorted into that difficulty ordering — see "Suggested progression path" below for where each one fits.</p>
 <h2 id="how-to-use-this-page">How to use this page<a class="headerlink" href="#how-to-use-this-page" title="Permanent link">&para;</a></h2>
 <div class="admonition note">
-<p class="admonition-title">Statuses verified 2026-09-11</p>
+<p class="admonition-title">Statuses verified 2026-09-11, re-checked 2026-11-20</p>
 <p>EduMatcher has moved a long way since these experiments were written, and
 several of them have since been built — sometimes under different names
 than proposed here. Every <code>**Status:**</code> line below was re-checked against
-the code on that date, and where something shipped, the status says where
+the code on those dates, and where something shipped, the status says where
 it lives and how it differs from the proposal. An experiment marked
 <strong>Implemented</strong> is still worth reading for the financial explanation; it
 is just no longer something to build.</p>
@@ -7867,7 +8007,16 @@ is just no longer something to build.</p>
 <li>Keep a short implementation log with assumptions and tradeoffs.</li>
 </ol>
 <h2 id="experiment-1-price-time-priority-audit-trace">Experiment 1: Price-Time Priority Audit Trace<a class="headerlink" href="#experiment-1-price-time-priority-audit-trace" title="Permanent link">&para;</a></h2>
-<p><strong>Status: Still Valid</strong></p>
+<p><strong>Status: Partially Implemented — re-checked 2026-11-20</strong></p>
+<p>The book now reports what it did beyond trades: <code>engine.trace.&lt;SYM&gt;</code> records,
+published for the audit trail only, give each order's queue position when it
+rests (<code>RESTED</code> with its <code>priority_seq</code>, the book's <code>arrival_seq</code>), an
+iceberg's refill to the back of its level, every self-match-prevention
+decision, stop triggers and trailing-stop ratchets (see
+<a href="../../part-2-inside-the-engine/010-order-book-deep-dive/#trace-records-what-the-book-reports-besides-trades">Trace Records</a>).
+From those, a student can reconstruct the queue at any moment. Still open: the
+per-match <code>was_selected</code> trace proposed below, which records every candidate
+the sweep <em>considered</em>.</p>
 <p>Difficulty: Basic
 Estimated effort: Less than 1 day
 Gap vs real exchange: Real venues provide deterministic post-trade replay and explainability tooling.</p>
@@ -7903,7 +8052,7 @@ A student can reconstruct exactly why each fill happened and which queue rule wa
 Understand deterministic matching and queue priority mechanics at a forensic level.</p>
 <h2 id="experiment-2-exchange-tick-size-regime-per-symbol">Experiment 2: Exchange Tick-Size Regime per Symbol<a class="headerlink" href="#experiment-2-exchange-tick-size-regime-per-symbol" title="Permanent link">&para;</a></h2>
 <p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
-<p><em>Current state</em>: <code>tick_decimals</code> per symbol exists in config. New work: add <code>tick_size</code> (exact increment), variable-tick bands, and price validation.</p>
+<p><em>Current state</em> (re-checked 2026-11-20): <code>tick_decimals</code> per symbol exists in config, and prices are validated against it at every entry point (a price that is not a whole number of ticks raises <code>TickViolation</code> in <code>models/price.py</code> and is refused). New work: a tick size that is not a power of ten (<code>tick_size</code>, e.g. 0.05) and variable-tick bands that depend on the price level.</p>
 <p>Difficulty: Basic
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Production exchanges enforce symbol-specific tick tables.</p>
@@ -8042,9 +8191,14 @@ Understand how session design controls market behavior and participant risk.</p>
 <p><strong>Status: Implemented (gateway layer) — verified 2026-09-11</strong></p>
 <p>Rate limiting is enforced at the gateways rather than in the engine:
 <code>alf_gwy/gateway.py</code> and <code>balf_gwy/gateway.py</code> reject with <code>RATE_LIMITED</code>,
-and <code>api_gateway</code> maps its own <code>RATE_LIMIT</code> to the same code. What remains
-open from the proposal below is the <em>burst</em> shaping (token bucket with a
-configurable refill) and per-gateway limits in config rather than in code.</p>
+and <code>api_gateway</code> maps its own <code>RATE_LIMIT</code> to the same code. Re-checked
+2026-11-20: the ALF and BALF limits are a per-session token bucket whose rate
+and capacity come from configuration (<code>alf_gateway.max_commands_per_second</code>,
+<code>balf_gateway.max_messages_per_second</code>), and the API's from
+<code>api_gateway.rate_limit</code>. What remains open from the proposal below is a burst
+size configured separately from the rate, per-participant limits (today one
+value applies to every session of a gateway), and a limit in the engine itself
+for processes that bypass the gateways.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Real gateways enforce throughput and abuse controls.</p>
@@ -8206,7 +8360,7 @@ Orders always follow valid state paths; all terminal transitions carry a machine
 Understand order lifecycle reliability and protocol discipline.</p>
 <h2 id="experiment-8-market-data-channel-separation-level-1-vs-level-2">Experiment 8: Market Data Channel Separation (Level 1 vs Level 2)<a class="headerlink" href="#experiment-8-market-data-channel-separation-level-1-vs-level-2" title="Permanent link">&para;</a></h2>
 <p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
-<p><em>Current state</em>: Depth metrics via <code>depth_snapshot()</code> and <code>encode(f"depth.{symbol}", depth)</code> publication exist. New work: introduce formal <code>book.l1.*</code> and <code>book.l2.*</code> topic namespaces with contract-enforced payloads, configurable publish cadence, and sequence counters per channel.</p>
+<p><em>Current state</em> (re-checked 2026-11-20): depth metrics via <code>depth_snapshot()</code> are published as <code>depth.&lt;symbol&gt;</code> (<code>make_depth_msg</code>), and the external CALF feed already separates top of book (<code>TOP</code>) from market depth (<code>DEPTH</code>) as channels a client subscribes to separately. New work on the internal bus: introduce formal <code>book.l1.*</code> and <code>book.l2.*</code> topic namespaces with contract-enforced payloads, configurable publish cadence, and sequence counters per channel.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 2 to 3 days
 Gap vs real exchange: Production venues separate feed products and entitlement tiers.</p>
@@ -8332,7 +8486,8 @@ Learn real-time safety controls used in production trading systems.</p>
 <code>seq</code>, plus <code>drop_copy.replay.{recipient_id}</code> for gap recovery — a live
 replay channel rather than the proposed end-of-session log file.
 Reconciliation is <code>pm-clearing-cli reconcile</code> rather than a standalone
-<code>dropcopy_reconcile.py</code>. Still open from the proposal: the durable
+<code>dropcopy_reconcile.py</code>, and <code>pm-dc-gwy</code> relays the feed to external consumers
+over the DC1 protocol, with replay. Still open from the proposal: the durable
 <code>dropcopy_YYYYMMDD.log</code> JSON-lines artifact, if you want reconciliation
 against a file rather than against the clearing database.</p>
 <p><em>Current state</em>: Drop copy publisher, sequencing, and in-memory replay buffer exist (<code>DropCopyPublisher</code>). New work: durable append-only log file, session-scoped rotation, reconciliation tooling for gap detection and quantity validation.</p>

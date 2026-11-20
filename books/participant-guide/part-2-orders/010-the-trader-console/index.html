@@ -2101,6 +2101,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2956,6 +2984,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5529,6 +5641,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5564,7 +5704,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8674,7 +8814,7 @@ do not carry an <code>RTAG</code>.</p>
 </code></pre></div>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[MM01]&gt; QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q1
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e2 ask=be2170fd
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e20b3f4d8e9a1c55d0e6f2b713 ask=be2170fd4c8e41a7b0d93e5f12a6c048
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>[09:30:00.102] QUOTE ACTIVE  Q1
 </code></pre></div>
 <p>Rules:</p>
@@ -8764,13 +8904,13 @@ answer the only question that usually matters.</p>
 </code></pre></div>
 <h4 id="example-workflow-manual-mm-session">Example workflow (manual MM session)<a class="headerlink" href="#example-workflow-manual-mm-session" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[MM01]&gt; QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q123
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e2 ask=be2170fd
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e20b3f4d8e9a1c55d0e6f2b713 ask=be2170fd4c8e41a7b0d93e5f12a6c048
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[09:30:00.102] QUOTE ACTIVE  Q123
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>[MM01]&gt; QLEGS|SYM=AAPL
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a># shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a># shows BUY leg 7c4a91e20b3f4d8e9a1c55d0e6f2b713 and SELL leg be2170fd4c8e41a7b0d93e5f12a6c048 as active, Filled?=NO
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.80  remaining=400  [PARTIAL]
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>[09:31:02.417] FILL      7c4a91e20b3f4d8e9a1c55d0e6f2b713  qty=100 @209.80  remaining=400  [PARTIAL]
 <a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
 <a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>[MM01]&gt; QLEGS|SYM=AAPL|SHOW=ALL
 <a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a># BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
@@ -8908,7 +9048,7 @@ line, in addition to (not instead of) the usual <code>FILL</code> line driven by
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[GW01]&gt; DC|STATE=ON
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>DC ON
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>...
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[09:31:02.417] DC_FILL   7c4a91e2  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[09:31:02.417] DC_FILL   7c4a91e20b3f4d8e9a1c55d0e6f2b713  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
 </code></pre></div>
 <p>Disabled by default; start with <code>--drop-copy</code> to enable automatically on
 connect instead of sending <code>DC|STATE=ON</code> manually every session:</p>
@@ -9017,7 +9157,7 @@ terminal's tab completion alongside <code>DAY</code> and <code>GTC</code> (see
 <tr>
 <td>MARKET</td>
 <td>SYM, SIDE, QTY</td>
-<td>SMP</td>
+<td>TIF, SMP</td>
 </tr>
 <tr>
 <td>LIMIT</td>
@@ -9037,12 +9177,12 @@ terminal's tab completion alongside <code>DAY</code> and <code>GTC</code> (see
 <tr>
 <td>FOK</td>
 <td>SYM, SIDE, QTY, PRICE</td>
-<td>SMP</td>
+<td>TIF, SMP</td>
 </tr>
 <tr>
 <td>IOC</td>
 <td>SYM, SIDE, QTY, PRICE</td>
-<td>SMP</td>
+<td>TIF, SMP</td>
 </tr>
 <tr>
 <td>ICEBERG</td>
@@ -9112,12 +9252,17 @@ terminal's tab completion alongside <code>DAY</code> and <code>GTC</code> (see
 <tr>
 <td><code>LEG&lt;i&gt;.PRICE</code></td>
 <td>Yes*</td>
-<td>Limit price (*required for LIMIT, FOK, STOP_LIMIT, ICEBERG leg types)</td>
+<td>Limit price (*required for LIMIT, FOK, IOC and STOP_LIMIT legs; refused on MARKET and STOP legs)</td>
+</tr>
+<tr>
+<td><code>LEG&lt;i&gt;.STOP</code></td>
+<td>Yes*</td>
+<td>Stop price (*required for STOP and STOP_LIMIT legs; refused on the others)</td>
 </tr>
 <tr>
 <td><code>LEG&lt;i&gt;.TYPE</code></td>
 <td>No</td>
-<td>Order type (default LIMIT)</td>
+<td><code>LIMIT</code> (default), <code>MARKET</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code> or <code>IOC</code>; an <code>ICEBERG</code> or <code>TRAILING_STOP</code> leg is refused</td>
 </tr>
 <tr>
 <td><code>SMP=&lt;action&gt;</code></td>
@@ -9260,12 +9405,12 @@ with <code>Cannot amend &lt;TYPE&gt; orders</code>.</p>
 <tr>
 <td><code>LEG1_PRICE</code></td>
 <td>Conditional</td>
-<td>Required for <code>LIMIT</code>, <code>IOC</code>, <code>FOK</code> legs (a <code>STOP_LIMIT</code> leg only requires <code>LEG1_STOP</code>, not <code>LEG1_PRICE</code>)</td>
+<td>Required for <code>LIMIT</code>, <code>IOC</code>, <code>FOK</code> and <code>STOP_LIMIT</code> legs; refused on <code>MARKET</code>, <code>STOP</code> and <code>TRAILING_STOP</code> legs</td>
 </tr>
 <tr>
 <td><code>LEG1_STOP</code></td>
 <td>Conditional</td>
-<td>Required for <code>STOP</code>, <code>STOP_LIMIT</code> legs</td>
+<td>Required for <code>STOP</code>, <code>STOP_LIMIT</code> legs; optional initial stop on a <code>TRAILING_STOP</code> leg</td>
 </tr>
 <tr>
 <td><code>LEG1_TRAIL</code></td>
@@ -9296,9 +9441,9 @@ with <code>Cannot amend &lt;TYPE&gt; orders</code>.</p>
 
     Note over ENG: Time passes — AAPL trades at 148.00
     ENG--&gt;&gt;GW: order.fill.GW  {order_id: "abc..", fill_qty: 100, status: "FILLED"}
-    ENG--&gt;&gt;GW: oco.cancelled.GW {oco_id: "BRACKET-001", cancelled_order_id: "def..", reason: "OCO sibling filled"}
+    ENG--&gt;&gt;GW: oco.cancelled.GW {oco_id: "BRACKET-001", cancelled_order_id: "def..", reason: "OCO sibling abc12345 reached FILLED"}
     Note over GW: [FILL] abc...  qty=100 @148.00 [FILLED]
-    Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling filled</code></pre>
+    Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling abc12345 reached FILLED</code></pre>
 <h3 id="cancel-cancel-a-resting-order-combo-or-oco">CANCEL — Cancel a Resting Order, Combo, or OCO<a class="headerlink" href="#cancel-cancel-a-resting-order-combo-or-oco" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>CANCEL|ID=&lt;full-order-id&gt;[|RTAG=&lt;request-tag&gt;]  # single-leg order
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>CANCEL|COMBO_ID=&lt;combo-label&gt;      # combo and all its resting legs
@@ -9394,7 +9539,8 @@ average cost):</p>
 <a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>└──────────┴─────────┴──────────────┘
 </code></pre></div>
 <p>A gateway with no open positions prints <code>&lt;gateway_id&gt;: flat (no open
-positions).</code> instead of an empty table.</p>
+positions).</code> instead of an empty table, or <code>&lt;gateway_id&gt; (not connected):
+flat (no open positions).</code> when that gateway is not logged on.</p>
 <p><strong>How it works:</strong></p>
 <ul>
 <li>The console sends <code>system.position_request</code> for the given <code>gateway_id</code>.
@@ -9538,8 +9684,8 @@ session; see <a href="#lost-events">Lost events</a>.</p>
 <td>Amendment confirmed</td>
 </tr>
 <tr>
-<td><code>CANCELLED  &lt;id&gt;</code></td>
-<td>Cancel confirmed</td>
+<td><code>CANCELLED  &lt;id&gt;  [reason=&lt;reason&gt;] [rtag=&lt;request-tag&gt;]</code></td>
+<td>Order cancelled. <code>reason</code> names an engine-initiated cancel (<code>INSUFFICIENT_LIQUIDITY</code> for a MARKET/IOC remainder, <code>KILL_SWITCH</code>, <code>QUOTE_LEG_FILLED</code>, <code>QUOTE_REPLACED</code>, …); <code>rtag</code> echoes your own <code>CANCEL</code>'s <code>RTAG</code></td>
 </tr>
 <tr>
 <td><code>TRIGGERED  &lt;id&gt;  @148.00  → LIMIT</code></td>
@@ -9586,11 +9732,15 @@ misses the lost fills. Check them with <code>pm-stats-cli trades</code> if it ma
 </tr>
 <tr>
 <td><code>QUOTE REJ  &lt;quote_id&gt;  &lt;reason&gt;</code></td>
-<td>Quote rejected (e.g. "Quote requires bid_price &lt; ask_price", missing gateway role)</td>
+<td>Quote rejected by the engine (e.g. missing <code>MARKET_MAKER</code> role, obligation breached). A <code>BID</code> not below <code>ASK</code> is refused locally first, with <code>QUOTE requires BID &lt; ASK</code></td>
 </tr>
 <tr>
 <td><code>QUOTE &lt;status&gt;  &lt;quote_id&gt;  [reason]</code></td>
 <td>Quote lifecycle update — status is <code>ACTIVE</code>, <code>INACTIVE_BID_FILLED</code>, <code>INACTIVE_ASK_FILLED</code> or <code>CANCELLED</code></td>
+</tr>
+<tr>
+<td><code>QUOTE CXL OK &lt;symbol&gt;  legs cancelled=&lt;n&gt;</code></td>
+<td>Your <code>QUOTE_CANCEL</code> was carried out (<code>QUOTE CXL REJ &lt;symbol&gt;  &lt;code&gt; &lt;reason&gt;</code> if refused)</td>
 </tr>
 </tbody>
 </table>
@@ -9613,7 +9763,11 @@ misses the lost fills. Check them with <code>pm-stats-cli trades</code> if it ma
 </tr>
 <tr>
 <td><code>OCO CANCEL  &lt;oco_id&gt;  sibling=&lt;order-id&gt;  &lt;reason&gt;</code></td>
-<td>Engine auto-cancelled the sibling leg after the other leg filled or was cancelled</td>
+<td>Engine auto-cancelled the sibling leg after the other leg filled or was cancelled; the reason reads <code>OCO sibling &lt;id&gt; reached &lt;STATUS&gt;</code></td>
+</tr>
+<tr>
+<td><code>OCO CXL OK &lt;oco_id&gt;  legs cancelled=&lt;n&gt;</code></td>
+<td>Your <code>CANCEL\|OCO_ID=</code> was carried out (<code>OCO CXL REJ …</code> if refused)</td>
 </tr>
 </tbody>
 </table>
@@ -9635,20 +9789,24 @@ misses the lost fills. Check them with <code>pm-stats-cli trades</code> if it ma
 <td>Combo failed validation (e.g. "Duplicate symbols in combo legs")</td>
 </tr>
 <tr>
-<td><code>COMBO STATUS  &lt;combo_id&gt;  PARTIALLY_MATCHED</code></td>
+<td><code>COMBO PARTIALLY_MATCHED  &lt;combo_id&gt;</code></td>
 <td>At least one leg has filled</td>
 </tr>
 <tr>
-<td><code>COMBO STATUS  &lt;combo_id&gt;  MATCHED</code></td>
+<td><code>COMBO MATCHED  &lt;combo_id&gt;</code></td>
 <td>All legs fully filled</td>
 </tr>
 <tr>
-<td><code>COMBO STATUS  &lt;combo_id&gt;  FAILED  &lt;reason&gt;</code></td>
+<td><code>COMBO FAILED  &lt;combo_id&gt;  &lt;reason&gt;</code></td>
 <td>A leg was cancelled/expired; siblings cascade-cancelled</td>
 </tr>
 <tr>
-<td><code>COMBO STATUS  &lt;combo_id&gt;  CANCELLED</code></td>
+<td><code>COMBO CANCELLED  &lt;combo_id&gt;</code></td>
 <td>User-initiated cancel completed</td>
+</tr>
+<tr>
+<td><code>COMBO CXL OK &lt;combo_id&gt;  legs cancelled=&lt;n&gt;</code></td>
+<td>Your <code>CANCEL\|COMBO_ID=</code> was carried out (<code>COMBO CXL REJ …</code> if refused)</td>
 </tr>
 </tbody>
 </table>
@@ -9736,21 +9894,21 @@ misses the lost fills. Check them with <code>pm-stats-cli trades</code> if it ma
 <a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a># confirms AAPL/MSFT active
 <a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>
 <a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
-<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>[09:30:00.100] ACK  7c4a91e20b3f4d8e9a1c55d0e6f2b713  order accepted
 <a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>
 <a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>[TRADER01]&gt; ORDERS
 <a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a># copy the full 32-character order ID from the table if you plan to amend/cancel
 <a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>
-<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
-<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.10 qty=100 remaining=100 (priority reset) rtag=AMD-001
+<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e20b3f4d8e9a1c55d0e6f2b713|PRICE=150.10|RTAG=AMD-001
+<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>[09:30:01.500] AMENDED  7c4a91e20b3f4d8e9a1c55d0e6f2b713  price=150.10 qty=100 remaining=100 (priority reset) rtag=AMD-001
 <a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a>
-<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
+<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a>[09:30:02.200] FILL  7c4a91e20b3f4d8e9a1c55d0e6f2b713  qty=40 @150.10  remaining=60  [PARTIAL]
 <a id="__codelineno-41-17" name="__codelineno-41-17" href="#__codelineno-41-17"></a>
 <a id="__codelineno-41-18" name="__codelineno-41-18" href="#__codelineno-41-18"></a>[TRADER01]&gt; POS
 <a id="__codelineno-41-19" name="__codelineno-41-19" href="#__codelineno-41-19"></a># exposure now reflects partial fill
 <a id="__codelineno-41-20" name="__codelineno-41-20" href="#__codelineno-41-20"></a>
-<a id="__codelineno-41-21" name="__codelineno-41-21" href="#__codelineno-41-21"></a>[TRADER01]&gt; CANCEL|ID=7c4a91e2-...
-<a id="__codelineno-41-22" name="__codelineno-41-22" href="#__codelineno-41-22"></a>[09:30:03.000] CANCELLED  7c4a91e2
+<a id="__codelineno-41-21" name="__codelineno-41-21" href="#__codelineno-41-21"></a>[TRADER01]&gt; CANCEL|ID=7c4a91e20b3f4d8e9a1c55d0e6f2b713
+<a id="__codelineno-41-22" name="__codelineno-41-22" href="#__codelineno-41-22"></a>[09:30:03.000] CANCELLED  7c4a91e20b3f4d8e9a1c55d0e6f2b713
 <a id="__codelineno-41-23" name="__codelineno-41-23" href="#__codelineno-41-23"></a>
 <a id="__codelineno-41-24" name="__codelineno-41-24" href="#__codelineno-41-24"></a>[TRADER01]&gt; EXIT
 </code></pre></div>

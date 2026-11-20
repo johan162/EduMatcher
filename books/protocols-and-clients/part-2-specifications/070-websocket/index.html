@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5118,6 +5230,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5153,7 +5293,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8411,6 +8551,11 @@ because a halt or a phase change alters the meaning of every other channel.</p>
 <li><strong>Items form:</strong> <code>"items": [{"symbols": ["*"], "channels": ["book"]}, {"symbols": ["AAPL"], "channels": ["depth"]}]</code>
   is a list of independent rules: book for every symbol, depth for AAPL only.</li>
 <li>An empty <code>symbols</code> list, or <code>["*"]</code>, means every symbol.</li>
+<li><code>resume</code> on a snapshot topic (<code>book.AAPL</code>, <code>depth.AAPL</code>, an <code>auction</code>
+  topic) re-sends that topic's current snapshot. On <code>trade.executed</code> it replays
+  the buffered prints after <code>from_seq</code> for the symbol named in <code>symbols</code>, or
+  for every symbol when <code>symbols</code> is omitted. When nothing is newer than
+  <code>from_seq</code> the reply is empty: no events and no <code>resume.rejected</code>.</li>
 <li>An item may carry <code>resume_from: {"trades": &lt;seq&gt;}</code>; on <code>subscribe</code> and
   <code>snapshot</code> the <code>trades</code> channel then replays buffered prints after that
   <code>seq</code> instead of sending the whole tail.</li>

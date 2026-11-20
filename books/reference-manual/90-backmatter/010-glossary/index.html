@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5127,6 +5239,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5162,7 +5302,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -7883,7 +8023,7 @@ participant in the configuration.</p>
 <p><strong>ALF, BALF, CALF, RALF, LALF, DC1:</strong> EduMatcher's protocols: ALF ("Almost
 FIX") is text order entry, BALF (Binary ALF) binary order entry, CALF (Channel
 ALF) the market-data feed, RALF (Reconciliation ALF) post-trade dissemination,
-LALF (Log ALF) centralized logging and DC1 the drop-copy feed over TCP.
+LALF (Logging ALF) centralized logging and DC1 the drop-copy feed over TCP.
 See <a href="../../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview/">Protocols Overview</a>.</p>
 <p><strong>Arrival sequence (<code>arrival_seq</code>):</strong> The number an order book assigns to an
 order each time the order is placed on a heap, strictly increasing within one
@@ -7910,19 +8050,22 @@ rather than from the first message of the day.</p>
 exchange instance keeps its deployed configuration, databases, logs and saved
 state. All processes of one exchange must use the same one. See
 <a href="../../part-1-command-line/010-processes-environment-and-ports/#environment-variables">Environment variables</a>.</p>
-<p><strong>Episode (audit replay):</strong> In <code>pm-audit-replay</code>, a group of causally connected
-facts with one business meaning: one order, one trade, one quote or one command,
-together with its outcome. Episodes sit between the raw events and the narrated
-story, and are kept in the episode index (<code>audit_replay.db</code>). See <a href="../../../operator-guide/part-6-observe-and-recover/030-audit-replay/">Audit
-Replay</a>.</p>
 <p><strong>Deployed configuration:</strong> The compiled configuration at
 <code>&lt;data directory&gt;/ref_data/engine_config.json</code> that every process reads. You
 edit <code>engine_config.yaml</code> and install it with <code>pm-config-deploy</code> (or
 <code>pm-setup</code>); editing the YAML alone changes nothing.</p>
 <p><strong>Engine (<code>pm-engine</code>):</strong> EduMatcher's matching engine, the single process that
 owns every order book and decides every trade.</p>
+<p><strong>Episode (audit replay):</strong> In <code>pm-audit-replay</code>, a group of causally connected
+facts with one business meaning: one order, one trade, one quote or one command,
+together with its outcome. Episodes sit between the raw events and the narrated
+story, and are kept in the episode index (<code>audit_replay.db</code>). See <a href="../../../operator-guide/part-6-observe-and-recover/030-audit-replay/">Audit
+Replay</a>.</p>
 <p><strong>Equity (settlement sense):</strong> In the settlement documentation, a position's <em>cumulative realized plus unrealized P&amp;L</em>. Not to be confused with <em>equity</em> meaning shares; the general-terms entry below describes that sense.</p>
 <p><strong><code>EXCHANGE</code> (ledger account):</strong> The account in <code>eod.db</code> that absorbs the rounding residual of a day (a cent or two at most), so the amounts of every day sum to exactly zero. A reserved name: no gateway may use it.</p>
+<p><strong>Gateway ID:</strong> The identity a participant presents when it connects, for
+example <code>TRADER01</code>. It is the participant's <code>id</code> from the configuration;
+messages and protocols call it <code>gateway_id</code>. See also <em>Gateway</em>.</p>
 <p><strong>Health beacon:</strong> The small message every long-running <code>pm-*</code> process pushes
 to <code>pm-monitor</code> every two seconds (<code>monitor.beacon_interval_sec</code>). <code>pm-monitor</code>
 judges each process from its beacons and publishes <code>health.snapshot</code> and
@@ -7934,9 +8077,6 @@ and whoever next reaches it at the top discards it (<code>_peek</code>). Because
 entries pile up deep in the book, <code>_compact_heaps</code> rebuilds the heaps once they
 hold more than twice the live entries plus 64. The consequence to remember is
 that the length of a heap is not the number of resting orders.</p>
-<p><strong>Gateway ID:</strong> The identity a participant presents when it connects, for
-example <code>TRADER01</code>. It is the participant's <code>id</code> from the configuration;
-messages and protocols call it <code>gateway_id</code>. See also <em>Gateway</em>.</p>
 <p><strong>Ledger (<code>eod.db</code>):</strong> The settlement database written by <code>pm-eod</code>: one row per participant per settled trading date (plus an <code>EXCHANGE</code> row that absorbs the rounding residual), plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.</p>
 <p><strong>Operator Dashboard (<code>pm-dash</code>):</strong> The browser view of <code>pm-monitor</code>'s
 health snapshot and history: every process's state, trading activity,
@@ -7952,7 +8092,7 @@ simple for teaching.</p>
 <p><strong><code>pm-eod</code>:</strong> The end-of-day command: settles a closed trading date, writes the statements and runs the housekeeping (audit archive, log compression, database backups). See <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Closing the Day</a>.</p>
 <p><strong>Process profile:</strong> A named set of <code>pm-*</code> processes that <code>pm-opctl-cli</code> starts
 and stops together: <code>micro</code>, <code>mini</code>, <code>default</code>, <code>mm-demo</code> (the default set
-plus a market-maker bot) or <code>ai-swarm</code> (<code>mm-demo</code> with its market maker quoting around the market model's values, plus the model and twenty AI traders).</p>
+plus a market-maker bot), <code>ai-swarm</code> (<code>mm-demo</code> with its market maker quoting around the market model's values, plus the model and twenty AI traders) or <code>ai-sim</code> (<code>ai-swarm</code> set up to run for weeks with a hundred AI traders on the <code>s300-sim</code> example).</p>
 <p><strong>Recorder:</strong> A process that turns the engine's live events into durable
 records: <code>pm-stats</code> (prices and volumes), <code>pm-clearing</code> (positions and P&amp;L) and
 <code>pm-audit</code> (the full event log). A recorder only captures what happens while

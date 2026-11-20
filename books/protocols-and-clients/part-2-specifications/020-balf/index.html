@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2215,6 +2243,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5361,6 +5473,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5396,7 +5536,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8135,10 +8275,10 @@ bot, or GUI wants to speak BALF, this document is the correct source to follow.<
 <p>BALF <code>1.1.0</code> adds one server-to-client message, <code>ORDER_STATUS</code> (0x22), with
 which a freshly started gateway hands a client back the orders its ID left on
 the book. Every rule this appendix states for <code>1.0.0</code> holds in <code>1.1.0</code>; the
-header's <code>version</code> byte is still <code>1</code>. A client MUST skip a frame whose
-<code>msg_type</code> it does not know (its size is in the summary table of the version
-it was written for, or it closes the session), so later additions of this
-kind do not break it.</p>
+header's <code>version</code> byte is still <code>1</code>. A client written for <code>1.0.0</code> that meets
+an <code>ORDER_STATUS</code> frame MUST skip its 64 bytes; it is only sent to a client
+whose gateway ID had orders resting when <code>pm-balf-gwy</code> started. See
+<a href="#frame-structure">Frame structure</a> for any other unknown <code>msg_type</code>.</p>
 <h2 id="scope-conformance">Scope &amp; conformance<a class="headerlink" href="#scope-conformance" title="Permanent link">&para;</a></h2>
 <p>BALF is the <strong>binary client protocol accepted by <code>pm-balf-gwy</code></strong>. The gateway
 translates BALF frames into the engine's internal ZeroMQ + JSON messages.</p>
@@ -8181,8 +8321,10 @@ big-endian exchange protocols such as ITCH / OUCH.</p>
 <p>There is no length prefix. The receiver reads the header first, looks up the
 expected frame size from the message type, then reads exactly the remaining
 bytes.</p>
-<p>If <code>msg_type</code> is unknown, the receiver treats the frame as a protocol error and
-should close the connection.</p>
+<p>Because there is no length prefix, a frame whose <code>msg_type</code> is not in the
+<a href="#summary-table">summary table</a> cannot be skipped: the receiver treats it as a
+protocol error and closes the connection. The gateway does exactly that when
+a client sends an unknown <code>msg_type</code>.</p>
 <h3 id="flag-semantics">Flag semantics<a class="headerlink" href="#flag-semantics" title="Permanent link">&para;</a></h3>
 <p>In BALF <code>1.0.0</code>, all header flag bits must be zero.</p>
 <p>The <code>RETRANSMIT</code> bit is reserved for a future recovery extension and is not
@@ -8963,28 +9105,88 @@ parameters under <code>balf_gateway</code>.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>balf_gateway.enabled</code></td>
+<td>Boolean</td>
+<td><code>true</code></td>
+<td><code>false</code> makes <code>pm-balf-gwy</code> exit at start-up</td>
+</tr>
+<tr>
+<td><code>balf_gateway.name</code></td>
+<td>String</td>
+<td><code>balf-gwy01</code></td>
+<td>Gateway instance name, used in logs</td>
+</tr>
+<tr>
 <td><code>balf_gateway.bind_address</code></td>
 <td>IP/host bind string</td>
-<td><code>0.0.0.0</code> (common)</td>
-<td>Local interface address for BALF TCP listening.</td>
+<td><code>0.0.0.0</code></td>
+<td>Local interface address for BALF TCP listening; <code>EDUMATCHER_GATEWAY_BIND_HOST</code> overrides it</td>
 </tr>
 <tr>
 <td><code>balf_gateway.port</code></td>
 <td>Integer, <code>1..65535</code></td>
 <td><code>5560</code></td>
-<td>BALF listen port.</td>
+<td>BALF listen port</td>
 </tr>
 <tr>
 <td><code>balf_gateway.heartbeat_interval_sec</code></td>
 <td>Number, <code>&gt; 0</code></td>
 <td><code>1</code></td>
-<td>Default heartbeat send interval.</td>
+<td>The gateway sends <code>HEARTBEAT</code> after this long without sending anything</td>
 </tr>
 <tr>
 <td><code>balf_gateway.heartbeat_timeout_sec</code></td>
 <td>Number, <code>&gt; 0</code></td>
 <td><code>5</code></td>
-<td>Liveness timeout before session is considered dead and closed.</td>
+<td>A session from which nothing arrives for this long is closed</td>
+</tr>
+<tr>
+<td><code>balf_gateway.idle_timeout_sec</code></td>
+<td>Number, <code>&gt; 0</code></td>
+<td><code>30</code></td>
+<td>Accepted but not used; <code>heartbeat_timeout_sec</code> closes idle sessions</td>
+</tr>
+<tr>
+<td><code>balf_gateway.auth_timeout_sec</code></td>
+<td>Number, <code>&gt; 0</code></td>
+<td><code>10</code></td>
+<td>A connection without a completed <code>LOGON</code> after this long is closed</td>
+</tr>
+<tr>
+<td><code>balf_gateway.max_connections</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>64</code></td>
+<td>Concurrent client connections</td>
+</tr>
+<tr>
+<td><code>balf_gateway.max_client_queue</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>10000</code></td>
+<td>Outbound frames queued for a slow client before it is disconnected</td>
+</tr>
+<tr>
+<td><code>balf_gateway.max_messages_per_second</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>100</code></td>
+<td>Per-session rate limit; excess orders get <code>RC_RATE_LIMITED</code></td>
+</tr>
+<tr>
+<td><code>balf_gateway.max_errors_before_disconnect</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>10</code></td>
+<td>Protocol errors within <code>error_window_sec</code> before the session is closed</td>
+</tr>
+<tr>
+<td><code>balf_gateway.error_window_sec</code></td>
+<td>Number, <code>&gt; 0</code></td>
+<td><code>60</code></td>
+<td>Window for <code>max_errors_before_disconnect</code></td>
+</tr>
+<tr>
+<td><code>balf_gateway.duplicate_session_policy</code></td>
+<td><code>REJECT_NEW</code> or <code>EVICT_OLD</code></td>
+<td><code>REJECT_NEW</code></td>
+<td>What a second <code>LOGON</code> for a connected gateway ID does: refused (<code>LOGON_ACK</code> code <code>0x02</code>), or it replaces the old session</td>
 </tr>
 </tbody>
 </table>

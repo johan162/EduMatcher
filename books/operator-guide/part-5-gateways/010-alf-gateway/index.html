@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2223,6 +2251,90 @@
     
   
     Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
   
 
     
@@ -5364,6 +5476,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5399,7 +5539,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8294,7 +8434,8 @@ can connect to <code>pm-alf-gwy</code>.</p>
 time, whichever process holds it — <code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-alf-console</code>
 or <code>pm-api-gwy</code>.  If the ID is already connected, the engine refuses the
 second connect and <code>WELCOME</code> never arrives: the gateway answers
-<code>ERR|CODE=AUTH_FAILED|DETAIL=Gateway already connected: TRADER01</code> and closes.
+<code>ERR|CODE=AUTH_FAILED|DETAIL=Gateway already connected: TRADER01 — if that session is gone, the ID is freed within 12 s</code>
+and closes. The engine counts that time from the holder's last heartbeat.
 (Two processes sharing one ID would share one session, so either one dropping
 would cancel the other's orders.)</p>
 <p>A process that dies without saying goodbye (<code>kill -9</code>, a crashed host, a pulled
@@ -8306,9 +8447,11 @@ right after <code>WELCOME</code>, and a session that closes stops being reported
 <strong>3 consecutive missed beats</strong> (15 s) the engine disconnects the session as if
 it had said goodbye: the participant's <code>disconnect_behaviour</code> is applied and
 the ID can be connected again.  So if <code>pm-alf-gwy</code> itself dies, its clients can
-log back on through a restarted gateway within about 15 seconds.  (Single-ID
-processes such as <code>pm-alf-console</code> beat every 60 seconds, so their ID stays
-locked for up to three minutes.)</p>
+log back on through a restarted gateway within about 15 seconds.  The
+interactive consoles <code>pm-alf-console</code> and <code>pm-admin</code> also beat every 5
+seconds, and they log out properly when their terminal window is closed or
+they are killed (<code>SIGHUP</code>, <code>SIGTERM</code>), so only a hard crash leaves their ID
+held, for at most 15 seconds.</p>
 <p>This engine heartbeat is <strong>separate from</strong> the <code>HB</code> / <code>PING</code> / <code>idle_timeout_sec</code>
 mechanism above, which is between your TCP client and the gateway and is much
 quicker (30 s by default).  Your ALF client needs to do nothing extra for the
@@ -8368,6 +8511,21 @@ a reverse proxy (nginx, stunnel, or similar).</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Explicit WARNING log level (the default)</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where this process's own log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>—</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code></td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
 </tbody>
 </table>

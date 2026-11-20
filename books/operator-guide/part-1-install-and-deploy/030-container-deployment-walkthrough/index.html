@@ -18,7 +18,7 @@
         <link rel="prev" href="../020-vm-runtime-image/">
       
       
-        <link rel="next" href="../../part-2-configure/005-the-configuration-file/">
+        <link rel="next" href="../040-deploying-tapedeck/">
       
       
         
@@ -1372,6 +1372,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../participant-guide/part-2-orders/025-risk-controls-you-meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls You Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/" class="md-nav__link">
         
   
@@ -2328,10 +2356,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#eight-images-one-backend-dockerfile" class="md-nav__link">
+  <a href="#nine-images-one-backend-dockerfile" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Eight images, one backend Dockerfile
+        Nine images, one backend Dockerfile
       
     </span>
   </a>
@@ -2505,10 +2533,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#composeguisyaml-the-four-connected-web-guis" class="md-nav__link">
+  <a href="#composeguisyaml-the-six-connected-web-guis" class="md-nav__link">
     <span class="md-ellipsis">
       
-        compose.guis.yaml — the four connected web GUIs
+        compose.guis.yaml — the six connected web GUIs
       
     </span>
   </a>
@@ -2857,6 +2885,90 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-deploying-tapedeck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying TapeDeck (`pm-terminal`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-deploying-the-trading-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Trading GUI (`pm-trading-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-deploying-the-order-book-viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying the Order Book Viewer (`pm-book`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5437,6 +5549,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/015-message-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Message Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/" class="md-nav__link">
         
   
@@ -5472,7 +5612,7 @@
   <span class="md-ellipsis">
     
   
-    SQLite Database Formats
+    Data File Formats
   
 
     
@@ -8221,7 +8361,7 @@ each one means in an EduMatcher deployment.</p>
 <tr>
 <td><strong>Image</strong></td>
 <td>A read-only template: a file system plus a default command</td>
-<td>Seven of them: <code>edumatcher</code> (the whole exchange), <code>edumatcher-ai-sim</code> (the same exchange preset to trade by itself) and one per web GUI</td>
+<td>Nine of them: <code>edumatcher</code> (the whole exchange), <code>edumatcher-ai-sim</code> (the same exchange preset to trade by itself) and one per web GUI</td>
 </tr>
 <tr>
 <td><strong>Container</strong></td>
@@ -8230,7 +8370,7 @@ each one means in an EduMatcher deployment.</p>
 </tr>
 <tr>
 <td><strong>Compose file</strong></td>
-<td>A YAML file that describes several containers and how they connect, so you start them with one command instead of six</td>
+<td>A YAML file that describes several containers and how they connect, so you start them with one command instead of one at a time</td>
 <td><code>compose.yaml</code> and its overlays. Several files can be combined, each adding to the last</td>
 </tr>
 <tr>
@@ -8408,8 +8548,12 @@ seven GUIs in one file.</p>
 <td>The AI-trader simulation, from GHCR images (<code>install.sh --sim</code>)</td>
 </tr>
 <tr>
-<td><code>.env.example</code> / <code>.env.sim.example</code></td>
-<td>The default settings for the exchange and for the simulation</td>
+<td><code>compose.guis.yaml</code></td>
+<td>The seven GUIs alone, pointed at a pipx exchange on the host (<code>install.sh --guis</code>)</td>
+</tr>
+<tr>
+<td><code>.env.example</code> / <code>.env.sim.example</code> / <code>.env.guis.example</code></td>
+<td>The default settings for the exchange, the simulation and the GUI-only install</td>
 </tr>
 <tr>
 <td><code>README.md</code></td>
@@ -8418,7 +8562,7 @@ seven GUIs in one file.</p>
 </tbody>
 </table>
 <h2 id="the-images">The images<a class="headerlink" href="#the-images" title="Permanent link">&para;</a></h2>
-<h3 id="eight-images-one-backend-dockerfile">Eight images, one backend Dockerfile<a class="headerlink" href="#eight-images-one-backend-dockerfile" title="Permanent link">&para;</a></h3>
+<h3 id="nine-images-one-backend-dockerfile">Nine images, one backend Dockerfile<a class="headerlink" href="#nine-images-one-backend-dockerfile" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -8488,7 +8632,7 @@ seven GUIs in one file.</p>
 <p>Locally built images are tagged <code>edumatcher:local</code> (from <code>IMAGE_NAME</code> and
 <code>IMAGE_TAG</code> in <code>.env</code>) and <code>edumatcher-&lt;app&gt;:latest</code>. Released images are
 <code>ghcr.io/johan162/&lt;image&gt;:&lt;version&gt;</code>, with <code>latest</code> following the newest
-release. One version tag pins all eight images to the same release.</p>
+release. One version tag pins every image to the same release.</p>
 <h3 id="why-the-whole-exchange-is-one-container">Why the whole exchange is one container<a class="headerlink" href="#why-the-whole-exchange-is-one-container" title="Permanent link">&para;</a></h3>
 <p>It is tempting to expect one container per process: one for <code>pm-engine</code>, one
 for each gateway, and so on. EduMatcher deliberately does not do that.</p>
@@ -8765,7 +8909,7 @@ optional feature is a separate <em>overlay</em> you add only when you want it.</
     BASE["compose.yaml\nthe exchange container"] --&gt; M(("merged\nconfiguration"))
     ZMQ["compose.zmq.yaml\n+ bus ports, + 2 env vars"] -.-&gt;|"ZMQ=1"| M
     SSH["compose.ssh.yaml\n+ sshd, + key mount, + port 22"] -.-&gt;|"SSH=1"| M
-    GUIS["compose.guis.yaml\n+ 5 GUI services"] -.-&gt;|"make up-all"| M
+    GUIS["compose.guis.yaml\n+ 6 GUI services"] -.-&gt;|"make up-all"| M
     CFG["compose.config-gui.yaml\n+ config-gui service"] -.-&gt;|"CONFIG_GUI=1"| M
     M --&gt; RUN["podman-compose / docker compose\nup -d"]</code></pre>
 <p>The <code>make</code> flags only choose which <code>-f</code> arguments are passed:</p>
@@ -8938,7 +9082,7 @@ below say which is which.</p>
 <p><code>entrypoint.sh</code> also reads <code>EM_SSH</code>, <code>EM_SPEED</code>, <code>EM_START</code> and
 <code>EM_RESTART_DEAD</code>, which the overlays and the AI-sim stack set.</p>
 <h3 id="composezmqyaml-the-raw-message-bus"><code>compose.zmq.yaml</code> — the raw message bus<a class="headerlink" href="#composezmqyaml-the-raw-message-bus" title="Permanent link">&para;</a></h3>
-<p>Adds seven ports and two environment variables to the <code>edumatcher</code> service, so
+<p>Adds eight ports and two environment variables to the <code>edumatcher</code> service, so
 tools on your machine (<code>pm-calf-spy</code>, <code>pm-dc-spy</code>, <code>pm-index-cli</code>, your own
 ZeroMQ clients) can attach to the bus directly.</p>
 <table>
@@ -8962,8 +9106,8 @@ ZeroMQ clients) can attach to the bus directly.</p>
 </tr>
 <tr>
 <td>ports</td>
-<td>5555–5559, 5601, 5602</td>
-<td>The engine's, the index's and the log server's ZeroMQ sockets</td>
+<td>5555–5559, 5601, 5602, 5611</td>
+<td>The engine's, the index's and the log server's ZeroMQ sockets, and <code>pm-monitor</code>'s health snapshot feed</td>
 </tr>
 </tbody>
 </table>
@@ -9004,8 +9148,8 @@ key files it does not own with mode <code>0600</code>. The container's host keys
 generated once and kept in <code>data/ssh-hostkeys/</code>, so recreating the container
 does not trigger a "host key changed" warning. No key material is ever built
 into the image.</p>
-<h3 id="composeguisyaml-the-four-connected-web-guis"><code>compose.guis.yaml</code> — the four connected web GUIs<a class="headerlink" href="#composeguisyaml-the-four-connected-web-guis" title="Permanent link">&para;</a></h3>
-<p>Adds four services in the <strong>same compose project</strong> as the exchange. That is
+<h3 id="composeguisyaml-the-six-connected-web-guis"><code>compose.guis.yaml</code> — the six connected web GUIs<a class="headerlink" href="#composeguisyaml-the-six-connected-web-guis" title="Permanent link">&para;</a></h3>
+<p>Adds six services in the <strong>same compose project</strong> as the exchange. That is
 the important part: being in one project puts them on one private network,
 where the exchange answers to the hostname <code>edumatcher</code>.</p>
 <pre class="mermaid"><code>flowchart LR
@@ -9018,6 +9162,7 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
         TR["trader-gui\n:8093"]
         B["book-gui\n:8094"]
         D["dash-gui\n:8095"]
+        CL["clearing-gui\n:8096"]
         E["edumatcher"]
     end
     BR --&gt;|"8090"| T
@@ -9025,11 +9170,13 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
     BR --&gt;|"8093"| TR
     BR --&gt;|"8094"| B
     BR --&gt;|"8095"| D
+    BR --&gt;|"8096"| CL
     T --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history\nedumatcher:5600 own logs"| E
     L --&gt;|"edumatcher:5601 / 5602\nlive log stream\nedumatcher:5570 session phase"| E
     TR --&gt;|"edumatcher:8080\nREST + WebSocket"| E
     B --&gt;|"edumatcher:8081\nmarket data + history\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
     D --&gt;|"edumatcher:5611\nhealth snapshots\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
+    CL --&gt;|"edumatcher:8080\nREST"| E
     L -.-&gt;|"reads log.db from\n./data, read-only"| DATA[("./data")]
     D -.-&gt;|"reads metrics.db and the\nconfiguration, read-only"| DATA</code></pre>
 <table>
@@ -9072,6 +9219,12 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
 <td><code>MONITOR_HOST</code>/<code>MONITOR_PUB_PORT</code>, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, <code>PM_DASH_API_KEY</code>, <code>METRICS_DB_PATH</code>, <code>CONFIG_ARTIFACT_PATH</code>, <code>LOG_GUI_URL</code>/<code>BOOK_GUI_URL</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
 <td><code>./data</code> read-only at <code>/backend-data</code>; named volume <code>dash-gui-logs</code></td>
 </tr>
+<tr>
+<td><code>clearing-gui</code></td>
+<td><code>pm-api-gwy</code> desk (8080); clearing and EOD data are read by <code>pm-api-gwy</code>, not by the GUI</td>
+<td><code>API_PROXY_TARGET</code></td>
+<td>none</td>
+</tr>
 </tbody>
 </table>
 <p>Every GUI also gets <code>HOST=0.0.0.0</code> (listen on the container's interface),
@@ -9102,6 +9255,7 @@ default. It needs no <code>.env</code> and no build.</p>
         DG["edumatcher-sim-dash-gui"]
         L["edumatcher-sim-log-gui"]
         TR["edumatcher-sim-trader-gui"]
+        CL["edumatcher-sim-clearing-gui"]
     end
     D[("./data-sim")] --- E
     D -. "read-only" .- L
@@ -9110,7 +9264,8 @@ default. It needs no <code>.env</code> and no build.</p>
     T --&gt; E
     B --&gt; E
     L --&gt; E
-    TR --&gt; E</code></pre>
+    TR --&gt; E
+    CL --&gt; E</code></pre>
 <p>Its differences from the plain exchange:</p>
 <table>
 <thead>
@@ -9148,7 +9303,7 @@ default. It needs no <code>.env</code> and no build.</p>
 </tr>
 <tr>
 <td>GUIs</td>
-<td>four (no config-gui)</td>
+<td>six (no config-gui)</td>
 <td>Nothing to configure in a preset simulation</td>
 </tr>
 </tbody>
@@ -9209,7 +9364,7 @@ and finally the directory name.</p>
 </tr>
 <tr>
 <td>Containers</td>
-<td><code>edumatcher</code>, <code>edumatcher-terminal-gui</code>, <code>edumatcher-log-gui</code>, <code>edumatcher-trader-gui</code>, <code>edumatcher-book-gui</code>, <code>edumatcher-dash-gui</code>, <code>edumatcher-config-gui</code></td>
+<td><code>edumatcher</code>, <code>edumatcher-terminal-gui</code>, <code>edumatcher-log-gui</code>, <code>edumatcher-trader-gui</code>, <code>edumatcher-book-gui</code>, <code>edumatcher-dash-gui</code>, <code>edumatcher-clearing-gui</code>, <code>edumatcher-config-gui</code></td>
 <td><code>container_name:</code> in the files</td>
 </tr>
 <tr>
@@ -9252,6 +9407,7 @@ exchange's service is called <code>edumatcher</code>, so <code>edumatcher:8081</
         TR["trader-gui"]
         B["book-gui"]
         DG["dash-gui"]
+        CL["clearing-gui"]
         C["config-gui"]
     end
     LO --&gt;|"port forwarding"| net
@@ -9259,7 +9415,8 @@ exchange's service is called <code>edumatcher</code>, so <code>edumatcher:8081</
     L --- E
     TR --- E
     B --- E
-    DG --- E</code></pre>
+    DG --- E
+    CL --- E</code></pre>
 <p>Each container has its own network namespace and its own <code>127.0.0.1</code>. A
 process listening on <code>127.0.0.1</code> inside <code>edumatcher</code> is invisible to the GUI
 containers. That is why the client-facing listeners bind <code>0.0.0.0</code>: <em>every
@@ -9783,7 +9940,7 @@ in
 <h3 id="edumatcher-simenv-curl-sim-install"><code>~/.edumatcher-sim/.env</code> (curl <code>--sim</code> install)<a class="headerlink" href="#edumatcher-simenv-curl-sim-install" title="Permanent link">&para;</a></h3>
 <p><code>EM_STACK=sim</code> (which tells <code>edumatcher.sh</code> to drive <code>compose.ai-sim.yaml</code>),
 <code>EM_VERSION</code>, <code>GHCR_OWNER</code>, <code>EM_SPEED</code>, <code>EM_START</code>, <code>EM_CONFIG_FILE</code>, <code>TZ</code>,
-<code>BIND_ADDR</code>, <code>EDUMATCHER_GATEWAY_BIND_HOST</code>, <code>PM_READONLY_API_KEY</code> and the four
+<code>BIND_ADDR</code>, <code>EDUMATCHER_GATEWAY_BIND_HOST</code>, <code>PM_READONLY_API_KEY</code> and the six
 GUI ports.</p>
 <h3 id="variables-only-entrypointsh-reads">Variables only <code>entrypoint.sh</code> reads<a class="headerlink" href="#variables-only-entrypointsh-reads" title="Permanent link">&para;</a></h3>
 <table>
@@ -10136,7 +10293,7 @@ code change only redoes the <code>pip install</code> and what follows.</p>
 </code></pre></div>
 <p>The names compose expects are <code>edumatcher-terminal-gui</code>,
 <code>edumatcher-log-gui</code>, <code>edumatcher-config-gui</code>, <code>edumatcher-trader-gui</code>,
-<code>edumatcher-book-gui</code> and <code>edumatcher-dash-gui</code>, each with the tag <code>latest</code>. From
+<code>edumatcher-book-gui</code>, <code>edumatcher-dash-gui</code> and <code>edumatcher-clearing-gui</code>, each with the tag <code>latest</code>. From
 <code>deployment/docker</code>, <code>podman-compose -f compose.yaml -f compose.guis.yaml -f
 compose.config-gui.yaml build terminal-gui</code> does the same. This is what
 <code>make build-guis GUI=terminal-gui</code> runs.</p>
