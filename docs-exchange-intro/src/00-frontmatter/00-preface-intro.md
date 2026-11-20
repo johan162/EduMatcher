@@ -11,7 +11,11 @@ Status: Published
 
 # Preface to the Second Edition
 
-This book is still for the same person: the developer who gets dropped into an exchange codebase full of words like "NBBO", "LULD", "implied in/out", "ATC", "SIP", "MMP", and quietly wonders whether they have accidentally joined a cult. You have not. You have joined a domain with very old vocabulary, very modern latency budgets, and very expensive failure modes.
+This book is still for the person who have started in the fin-tech world wthout a financial background. 
+You may be an expert in your field but that will not help you when you are faced with a barrage of unfamiliar acronyms
+that people trow around like candy expecting you to understand and act on. This was the situation I found myself in
+a long time ago and this is the book I whished someone had handed to me back then. It would surely have made my journey
+so much faster and easier.  
 
 The first edition focused on giving the reader a map. This second edition keeps the same promise, almost no code-first deep dives, no equations for their own sake, just concepts that make the system legible, but the map is now wider, denser, and more practical. Compared with the first edition, this edition adds well over a thousand lines of new material and rewrites key chapters that were a bit too brief in the first pass where obviously my aspiration to keep it short sometimes conflicted with the need for completeness and understandability. Some pseudo-code has in addition been added where it helps clarify the mechanics, but the focus is still on concepts, not implementation. The goal is still to give you a mental model that lets you reason about the system, not just translate jargon.
 
@@ -30,15 +34,15 @@ Reasonable efforts have been made to ensure accuracy, but it would be foolish of
 Enjoy the pleasure of finding things out and the triumph of being sure that the author was provably wrong! 
 So, any typos, missing signs, bad explanations/grammar or faults otherwise, are mine and mine alone. I have no-one to blame!
 
-If you find any mistakes or have other suggestions, please let me know at *johan162@gmail.com*. I genuinely appreciate it.
+If you find any mistakes, errors or have any suggestions, please let me know at *johan162@gmail.com*. I genuinely appreciate it!
 
 Johan Persson,
-Second Edition, Autumn 2026, Järnboås Socken
+Second Edition, Winter 2026, Järnboås Socken, Sweden
 
 
 # Preface to the First Edition
 
-This is a book for anyone who finds themselves having been asked to work on a financial exchange system, and yet, has no financial background. Scary. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names; each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened to be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50-ish years ago the terms did not yet exist and you would have seen them come to life organically.
+This is a book for anyone who finds themselves having been asked to work in the finacial industry and yet, has no financial background. Scary. The air is full of new acronyms like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many, many more. These are not arbitrary names; each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened to be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50-ish years ago the terms did not yet exist and you would have seen them come to life organically.
 
 My goal with this book is simple: give you the conceptual vocabulary so that when someone says "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt," you nod instead of panic. No code. No math. Just the map of the territory your code inhabits.
 

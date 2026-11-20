@@ -230,6 +230,7 @@ help: ## Show this help message
 	$(call print_section,Code Quality,check|lint|format|typecheck|pre-commit|dbdocs-check|openapi-check)
 	$(call print_section,Testing,test|test-short|test-html|verify)
 	$(call print_section,Build & Documentation,build|docs|docs-serve|dbdocs|openapi)
+	$(call print_section,Web Site,web-site|web-site-serve|web-site-upload)
 	$(call print_section,Cleanup,clean|clean-venv|maintainer-clean)
 	$(call print_section,Git Operations,pull-all)
 	@echo ""
