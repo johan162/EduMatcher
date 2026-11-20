@@ -1,3 +1,24 @@
+## [v0.82.1] - 2026-11-20
+
+Release Type: minor
+
+### 📋 Summary
+This release refreshes the website around the simulated stock market and updates the Exchange Introduction to its second edition. It makes the simulation’s capabilities and quick-start path easier to discover.
+
+### ✨ Additions
+- Added website facts for the 13 simulation presets and the `EDU50` index
+
+### 🚀 Improvements
+- Reworked the website landing page to highlight the 300-symbol simulation, AI traders, market maker, auctions, news, and rumours
+- Updated the main call to action to the ten-minute simulation guide and changed the install command to use `--sim`
+
+### 📚 Documentation
+- Rewrote the Exchange Introduction second-edition preface
+- Released the Exchange Introduction as version 2.0.0 and removed the pre-release watermark from its cover
+
+### 🛠 Internal
+- Added `web-site`, `web-site-serve`, and `web-site-upload` Makefile commands to help
+
 ## [v0.82.0] - 2026-11-20
 
 Release Type: major

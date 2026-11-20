@@ -7,5 +7,7 @@
   "tps": 29122,
   "perf_note": "engine-only, risk checks enabled (price collar + circuit breaker), high-end Linux server",
   "sim_traders": 100,
-  "sim_symbols": 300
+  "sim_symbols": 300,
+  "sim_presets": 13,
+  "sim_index": "EDU50"
 }

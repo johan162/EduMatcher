@@ -1,6 +1,6 @@
 ---
-title: EduMatcher — a real exchange you can learn from
-desc: EduMatcher is a complete multi-process trading exchange in Python — matching engine, auctions, clearing, market data, six web applications and five wire protocols — built to teach how markets really work.
+title: EduMatcher — a living stock market you can study
+desc: EduMatcher is a market microstructure simulator: one command starts a complete stock market — 300 symbols, an index, a market maker and 100 AI traders — that you can watch from every angle, backed by thorough documentation that explains what you see.
 nav: home
 ---
 <!doctype html>
@@ -17,17 +17,17 @@ nav: home
   <canvas class="net" aria-hidden="true"></canvas>
   <div class="wrap grid-hero">
     <div>
-      <div class="eyebrow">Equity trading infrastructure · v{{VERSION}}</div>
-      <h1 class="display">A real exchange.<br><span class="accent">Built to be understood.</span></h1>
-      <p class="sub">EduMatcher is a complete trading venue — matching engine, auctions, risk controls, clearing, market data, audit trail and six browser applications — written in readable Python, so you can run it, watch it and take it apart.</p>
+      <div class="eyebrow">Market microstructure simulator · v{{VERSION}}</div>
+      <h1 class="display">A simulated stock market.<br><span class="accent">One command.</span></h1>
+      <p class="sub">One line starts a complete simulated market: {{F_SIM_SYMBOLS}} symbols, the {{F_SIM_INDEX}} index, a market maker and {{F_SIM_TRADERS}} AI traders, trading through real auctions, news and rumours. Watch prices form, spreads breathe and books refill from every angle, then read exactly why it happens.</p>
       <div class="btn-row">
-        <a class="btn primary" href="download.html#install">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Run it in one command</a>
+        <a class="btn primary" href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Start the market</a>
         <a class="btn ghost" href="docs.html">Read the documentation</a>
         <a class="btn ghost" href="{{REPO_URL}}" rel="noopener">★ Source on GitHub</a>
       </div>
-      <div class="cmd" role="group" aria-label="Install command"><span class="prompt">$</span><code id="hero-cmd">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash</code><button class="copy" data-copy="#hero-cmd">copy</button></div>
-      <div class="hero-meta"><span>Docker or Podman</span><span>Python {{PYTHON}}+</span><span>MIT licensed</span><span>No toy order book</span></div>
+      <div class="cmd" role="group" aria-label="Install command"><span class="prompt">$</span><code id="hero-cmd">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim</code><button class="copy" data-copy="#hero-cmd">copy</button></div>
+      <div class="hero-meta"><span>Docker or Podman</span><span>Running in minutes</span><span>MIT licensed</span><span>Real exchange underneath</span></div>
     </div>
 
     <div class="rv" aria-label="A live, illustrative order book">
@@ -46,80 +46,46 @@ nav: home
 <section class="section tight" style="padding-top:0">
   <div class="wrap">
     <div class="stats rv" role="list">
-      <div class="s" role="listitem"><div class="n"><span data-count="{{N_COMMANDS}}">{{N_COMMANDS}}</span></div><div class="l">Commands &amp; processes</div></div>
-      <div class="s" role="listitem"><div class="n"><span data-count="6">6</span></div><div class="l">Browser applications</div></div>
-      <div class="s" role="listitem"><div class="n"><span data-count="6">6</span></div><div class="l">Wire protocol families</div></div>
-      <div class="s" role="listitem"><div class="n"><span data-count="{{N_LOC}}">{{N_LOC_FMT}}</span><small>+</small></div><div class="l">Lines of Python</div></div>
-      <div class="s" role="listitem"><div class="n"><span data-count="{{N_TESTS}}">{{N_TESTS_FMT}}</span><small>+</small></div><div class="l">Automated tests</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="1">1</span></div><div class="l">Command to start</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{F_SIM_SYMBOLS}}">{{F_SIM_SYMBOLS}}</span></div><div class="l">Symbols trading</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{F_SIM_TRADERS}}">{{F_SIM_TRADERS}}</span></div><div class="l">AI traders</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{F_SIM_PRESETS}}">{{F_SIM_PRESETS}}</span></div><div class="l">Trading strategies</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="6">6</span></div><div class="l">Browser views</div></div>
       <div class="s" role="listitem"><div class="n"><span data-count="{{N_BOOKS}}">{{N_BOOKS}}</span></div><div class="l">Guide books</div></div>
     </div>
   </div>
 </section>
 
-<!-- ================= TWO THINGS ================= -->
+<!-- ================= AI MARKET ================= -->
 <section class="section">
   <div class="wrap">
-    <div class="center rv" style="margin-bottom:54px">
-      <div class="eyebrow">Two things at once</div>
-      <h2 class="display">Educational on purpose.<br><span class="accent">Not a toy</span> by any measure.</h2>
-      <p class="lede">Most teaching exchanges are a single script with a sorted list. EduMatcher is the opposite: the whole venue, as separate processes talking over real protocols — with the books and tooling to learn every part of it.</p>
-    </div>
-    <div class="twin rv">
-      <div class="half">
-        <span class="tag mono muted small">// for learning</span>
-        <h3 class="display" style="margin-top:6px">Made to be read</h3>
-        <ul>
-          <li><b>Plain Python</b> — no C extensions in the matching path, no magic; step through any order in a debugger.</li>
-          <li><b>{{N_BOOKS}} guide books</b> from a quick start to protocol specifications and a guided code tour — plus a separate general introduction to exchanges for readers new to finance.</li>
-          <li><b>29-chapter training guide</b> with hands-on exercises, plus slide decks for instructors.</li>
-          <li><b>An exchange that trades itself</b> — 100 AI traders keep 300 symbols alive for your class.</li>
-          <li><b>Observable by design</b> — every process logs, every event is on the bus, every fill is audited.</li>
-        </ul>
+    <div class="feature">
+      <div class="copy-col rv">
+        <div class="eyebrow">What the one line starts</div>
+        <h2 class="display">A market that<br><span class="accent">trades itself</span></h2>
+        <p class="lede">An empty exchange teaches nothing. The simulation fills it: {{F_SIM_TRADERS}} AI traders of {{F_SIM_PRESETS}} kinds trade {{F_SIM_SYMBOLS}} symbols all day, a market maker quotes every book, and the {{F_SIM_INDEX}} index moves with them. Each trader follows a simple rule of its own, and the prices are what those rules add up to as they chase a <b>hidden true value</b> that jumps on news and wobbles on rumours.</p>
+        <ul class="checks"><li>Value investors, trend followers, contrarians, scalpers, news traders, institutions slicing big orders, icebergs, auction players</li><li>Real trading days: pre-open, opening auction, continuous trading, closing auction</li><li>Public headlines, secret values: price discovery you can watch happen</li><li>Runs for weeks, or speeds the calendar up so a whole day fits in a lecture</li><li>Students log on and trade in the same books, next to the bots</li></ul>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/ai-traders/part-1-start-here/010-a-market-that-runs-itself/">How the simulation works</a><a class="btn ghost sm" href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Ten-minute start</a></div>
       </div>
-      <div class="join" aria-hidden="true">
-        <svg viewBox="0 0 80 160" preserveAspectRatio="xMidYMid meet"><defs><linearGradient id="jg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset=".5" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
-          <line x1="40" y1="0" x2="40" y2="160" stroke="url(#jg)" stroke-width="2"/><circle cx="40" cy="80" r="17" fill="var(--bg-solid)" stroke="var(--accent)" stroke-width="2"/>
-          <path d="M33 80h14M40 73v14" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/></svg>
-      </div>
-      <div class="half">
-        <span class="tag mono muted small">// for real</span>
-        <h3 class="display" style="margin-top:6px">Built like a venue</h3>
-        <ul>
-          <li><b>Multi-process</b> ZeroMQ architecture — engine, gateways, clearing, audit, statistics, scheduler, monitor.</li>
-          <li><b>Full order set</b> — market, limit, stop, stop-limit, trailing stop, IOC/FOK, iceberg, combo, OCO, mass quotes.</li>
-          <li><b>Auctions &amp; risk</b> — opening/closing auctions, price collars, circuit breakers with collar expansion, kill switch.</li>
-          <li><b>Real interfaces</b> — text, binary, market-data, post-trade, REST and WebSocket protocols.</li>
-          <li><b>Operations</b> — health monitor, audit replay, persistence and recovery, containers, one-line install.</li>
-        </ul>
+      <div class="rv d1">
+        <div class="chart-box">
+          <canvas id="pdchart" aria-label="Animated chart: a price chasing a hidden true value that jumps on news" role="img"></canvas>
+          <div class="legend"><span style="color:var(--accent)">━ market price</span><span style="color:var(--amber)">╌ hidden true value</span><span>▏news jumps the value; price follows</span></div>
+          <div class="swarm" id="swarm" style="margin-top:16px" aria-hidden="true"></div>
+          <div class="legend"><span class="up">■ buying</span><span class="down">■ selling</span><span>□ waiting — the {{F_SIM_TRADERS}}-trader swarm, live</span></div>
+        </div>
       </div>
     </div>
-    <p class="center muted rv" style="margin-top:28px;max-width:70ch;margin-inline:auto"><b style="color:var(--text)">The one honest difference:</b> it is written in Python. It will not rival C++ and FPGA venues on raw speed — and that is exactly why you can read it.</p>
-  </div>
-</section>
-
-<!-- ================= ARCHITECTURE ================= -->
-<section class="section band">
-  <div class="wrap">
-    <div class="center rv" style="margin-bottom:44px">
-      <div class="eyebrow">Anatomy of a venue</div>
-      <h2 class="display">Every part of a real exchange,<br>as its own process</h2>
-      <p class="lede">A brokerless ZeroMQ bus ties them together. The engine is the only process that binds sockets; everything else — gateways, clearing, audit, market data — is just a client of the bus, exactly like the colocated services of a production venue.</p>
-    </div>
-    <div class="diagram rv" data-hl>
-      {{> diagram-architecture}}
-    </div>
-    <div class="legend"><span><i></i>commands in</span><span><i class="b"></i>events out</span><span>Hover a box to follow its connections</span></div>
-    <div class="center rv" style="margin-top:30px"><a class="btn ghost" href="platform.html">Explore the platform →</a></div>
   </div>
 </section>
 
 <!-- ================= APPS ================= -->
-<section class="section">
+<section class="section band">
   <div class="wrap">
     <div class="center rv" style="margin-bottom:40px">
-      <div class="eyebrow">Six windows on one exchange</div>
-      <h2 class="display">Trade it. Watch it.<br><span class="accent">Operate it.</span></h2>
-      <p class="lede">Six browser applications and a full set of terminal tools all talk to the same running exchange. Place an order in one — see it on the others within a second.</p>
+      <div class="eyebrow">Every view of one market</div>
+      <h2 class="display">Watch it. Trade it.<br><span class="accent">Look inside it.</span></h2>
+      <p class="lede">The same running market seen from every side: the wallboard, one symbol's book level by level, a trader's workstation, the operator's vital signs and the log of every process. Place an order in one view and see it on the others within a second.</p>
     </div>
     <div class="rv">
       <div class="tabs" data-tabs role="tablist" aria-label="Applications">
@@ -171,8 +137,85 @@ nav: home
   </div>
 </section>
 
-<!-- ================= ORDER LIFECYCLE ================= -->
+<!-- ================= TWO THINGS ================= -->
+<section class="section">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:54px">
+      <div class="eyebrow">See it, then understand it</div>
+      <h2 class="display">A living market.<br><span class="accent">Explained</span> in full.</h2>
+      <p class="lede">Textbooks describe market microstructure; here you watch it happen. Every effect in the simulation is something you can see on a screen, and every screen is explained in the documentation, down to the line of code that produced it.</p>
+    </div>
+    <div class="twin rv">
+      <div class="half">
+        <span class="tag mono muted small">// what you can watch</span>
+        <h3 class="display" style="margin-top:6px">Market dynamics, live</h3>
+        <ul>
+          <li><b>Price discovery</b>: prices chasing a hidden value, news moving it at once and the price a little later, rumours moving only the price.</li>
+          <li><b>Liquidity</b>: spreads widening and tightening, depth behind the best prices, icebergs refilling, queue priority at work.</li>
+          <li><b>Auctions</b>: orders building up in pre-open, the equilibrium price forming, the book uncrossing at the open and the close.</li>
+          <li><b>Stress</b>: price collars rejecting runaway orders, circuit breakers halting a falling market and reopening it.</li>
+          <li><b>Outcomes</b>: positions and P&amp;L per trader at the end of each day: which strategies won, and why.</li>
+        </ul>
+      </div>
+      <div class="join" aria-hidden="true">
+        <svg viewBox="0 0 80 160" preserveAspectRatio="xMidYMid meet"><defs><linearGradient id="jg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset=".5" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+          <line x1="40" y1="0" x2="40" y2="160" stroke="url(#jg)" stroke-width="2"/><circle cx="40" cy="80" r="17" fill="var(--bg-solid)" stroke="var(--accent)" stroke-width="2"/>
+          <path d="M33 80h14M40 73v14" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="half">
+        <span class="tag mono muted small">// what explains it</span>
+        <h3 class="display" style="margin-top:6px">Documentation that teaches</h3>
+        <ul>
+          <li><b>{{N_BOOKS}} guide books</b>, from a quick start to protocol specifications and a guided code tour, on the web and as PDF and EPUB.</li>
+          <li><b>A book on the simulation itself</b>: the true-value model, news and rumours, how each kind of trader decides, how to tune them.</li>
+          <li><b>29-chapter training guide</b> with hands-on exercises, plus slide decks for instructors.</li>
+          <li><b>An introduction to exchanges</b> for readers new to finance.</li>
+          <li><b>Plain Python underneath</b>: when the books are not enough, step through any order in a debugger.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="center muted rv" style="margin-top:28px;max-width:70ch;margin-inline:auto"><b style="color:var(--text)">Not a toy order book:</b> the market runs on a complete exchange, with a matching engine, auctions, risk controls, clearing and audit, built the way a real venue is.</p>
+  </div>
+</section>
+
+<!-- ================= LIBRARY ================= -->
 <section class="section band">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:48px">
+      <div class="eyebrow">The library</div>
+      <h2 class="display">{{N_BOOKS}} guide books. One simulated market.</h2>
+      <p class="lede">Start with the Quick Start Guide, then pick the book that matches what you want to do. Every guide book is on the web and downloadable as PDF and EPUB. New to financial markets? A separate introduction to exchanges follows below.</p>
+    </div>
+    <div class="books">
+      {{BOOKS_CARDS}}
+    </div>
+    <div class="center rv" style="margin-top:46px"><a class="btn ghost" href="learn.html">Learning paths →</a> &nbsp; <a class="btn ghost" href="docs.html">Open the documentation</a></div>
+  </div>
+</section>
+
+<!-- ================= INTRO BOOK ================= -->
+<section class="section" id="intro">
+{{> intro-book}}
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section class="section band">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">Underneath the simulation</div>
+      <h2 class="display">Every part of a real exchange,<br>as its own process</h2>
+      <p class="lede">A brokerless ZeroMQ bus ties them together. The engine is the only process that binds sockets; everything else — gateways, clearing, audit, market data — is just a client of the bus, exactly like the colocated services of a production venue.</p>
+    </div>
+    <div class="diagram rv" data-hl>
+      {{> diagram-architecture}}
+    </div>
+    <div class="legend"><span><i></i>commands in</span><span><i class="b"></i>events out</span><span>Hover a box to follow its connections</span></div>
+    <div class="center rv" style="margin-top:30px"><a class="btn ghost" href="platform.html">Explore the platform →</a></div>
+  </div>
+</section>
+
+<!-- ================= ORDER LIFECYCLE ================= -->
+<section class="section">
   <div class="wrap">
     <div class="feature">
       <div class="copy-col rv">
@@ -187,29 +230,6 @@ nav: home
         <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end/">Read the step-by-step walkthrough</a></div>
       </div>
       <div class="rv d1">{{> diagram-lifecycle}}</div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= AI MARKET ================= -->
-<section class="section">
-  <div class="wrap">
-    <div class="feature">
-      <div class="copy-col rv">
-        <div class="eyebrow">An exchange that trades itself</div>
-        <h2 class="display">A market with<br><span class="accent">nobody at the desks</span></h2>
-        <p class="lede">An empty exchange teaches nothing. EduMatcher ships a simulation: {{F_SIM_TRADERS}} AI traders, each with a simple rule of its own, trade {{F_SIM_SYMBOLS}} symbols all day — chasing a <b>hidden true value</b> that jumps when news breaks and wobbles when rumours spread.</p>
-        <ul class="checks"><li>Value investors, trend followers, noise traders, news reactors</li><li>Public headlines, secret values — price discovery you can watch</li><li>One container, runs for weeks, accelerated time for lectures</li></ul>
-        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/ai-traders/part-1-start-here/010-a-market-that-runs-itself/">How the simulation works</a></div>
-      </div>
-      <div class="rv d1">
-        <div class="chart-box">
-          <canvas id="pdchart" aria-label="Animated chart: a price chasing a hidden true value that jumps on news" role="img"></canvas>
-          <div class="legend"><span style="color:var(--accent)">━ market price</span><span style="color:var(--amber)">╌ hidden true value</span><span>▏news jumps the value; price follows</span></div>
-          <div class="swarm" id="swarm" style="margin-top:16px" aria-hidden="true"></div>
-          <div class="legend"><span class="up">■ buying</span><span class="down">■ selling</span><span>□ waiting — the {{F_SIM_TRADERS}}-trader swarm, live</span></div>
-        </div>
-      </div>
     </div>
   </div>
 </section>
@@ -259,34 +279,14 @@ nav: home
   </div>
 </section>
 
-<!-- ================= LIBRARY ================= -->
-<section class="section band">
-  <div class="wrap">
-    <div class="center rv" style="margin-bottom:48px">
-      <div class="eyebrow">The library</div>
-      <h2 class="display">{{N_BOOKS}} guide books. One exchange.</h2>
-      <p class="lede">Start with the Quick Start Guide, then pick the book that matches what you want to do. Every guide book is on the web and downloadable as PDF and EPUB. New to financial markets? A separate introduction to exchanges follows below.</p>
-    </div>
-    <div class="books">
-      {{BOOKS_CARDS}}
-    </div>
-    <div class="center rv" style="margin-top:46px"><a class="btn ghost" href="learn.html">Learning paths →</a> &nbsp; <a class="btn ghost" href="docs.html">Open the documentation</a></div>
-  </div>
-</section>
-
-<!-- ================= INTRO BOOK ================= -->
-<section class="section" id="intro">
-{{> intro-book}}
-</section>
-
 <!-- ================= CTA ================= -->
 <section class="section">
   <div class="wrap">
     <div class="cta rv">
       <div class="eyebrow">Version {{VERSION}} · MIT licensed</div>
-      <h2 class="display">Start your own exchange<br><span class="accent">in the next five minutes</span></h2>
-      <p class="lede" style="margin-bottom:28px">One command, a running venue, six web apps. Fork it, break it, extend it — the whole source is on GitHub.</p>
-      <div class="btn-row"><a class="btn primary" href="download.html">Download</a><a class="btn ghost" href="{{REPO_URL}}" rel="noopener">★ Star on GitHub</a><a class="btn ghost" href="docs/books/quick-start/00-front/010-how-to-use-this-book/">Quick Start Guide</a></div>
+      <h2 class="display">Start your own market<br><span class="accent">in the next five minutes</span></h2>
+      <p class="lede" style="margin-bottom:28px">One command: {{F_SIM_SYMBOLS}} symbols, {{F_SIM_TRADERS}} AI traders and every view open in your browser. Watch it, trade in it, then read why it moves.</p>
+      <div class="btn-row"><a class="btn primary" href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Ten-minute start</a><a class="btn ghost" href="download.html">Download</a><a class="btn ghost" href="{{REPO_URL}}" rel="noopener">★ Star on GitHub</a></div>
     </div>
   </div>
 </section>
