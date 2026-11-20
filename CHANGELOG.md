@@ -1,3 +1,17 @@
+## [v0.82.2] - 2026-11-21
+
+Release Type: patch
+
+### 📋 Summary
+This patch completes the Exchange Introduction as a single HTML page usede in the documentation and
+web-site which was outdated.
+
+### 📚 Documentation
+- Updated the single-file Exchange Introduction with the forgotten content refresh and revised illustrations
+
+### 🛠 Internal
+- Added a new `web-exchange-intro` target to the main Makefile
+
 ## [v0.82.1] - 2026-11-20
 
 Release Type: minor
