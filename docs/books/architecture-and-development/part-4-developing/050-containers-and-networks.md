@@ -3,13 +3,13 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - How the eight container images, the compose overlays and the three layers
+    - How the nine container images, the compose overlays and the three layers
       of Makefile fit together
     - Where networking responsibility actually sits, and which of the several
       `127.0.0.1`/`0.0.0.0` knobs controls what
     - What is baked into an image at build time versus decided at start time,
       and the precedence order between the ways of setting each
-    - How a release turns one git tag into a wheel and eight multi-architecture
+    - How a release turns one git tag into a wheel and nine multi-architecture
       images
     - What maintenance this design will demand as the system grows, and where
       it will drift first
@@ -18,7 +18,7 @@
 
 ## Summary
 
-EduMatcher ships as **eight container images**. The backend and the five
+EduMatcher ships as **nine container images**. The backend and the six
 backend-connected GUIs run as **one Compose project** (`config-gui` is opt-in,
 and `edumatcher-ai-sim` runs in a project of its own):
 
@@ -45,7 +45,7 @@ There are two deployments of that same set:
 flowchart LR
     subgraph repo["This repository"]
         BE["deployment/docker/\nDockerfile + entrypoint.sh"]
-        WA["web-apps/*/Dockerfile\nsix Node apps"]
+        WA["web-apps/*/Dockerfile\nseven Node apps"]
     end
 
     subgraph dev["deployment/docker/ — built from source"]
@@ -58,7 +58,7 @@ flowchart LR
         SH["install.sh\nedumatcher.sh"]
     end
 
-    GH["GHCR\neight multi-arch images\ntagged with the release version"]
+    GH["GHCR\nnine multi-arch images\ntagged with the release version"]
 
     BE --> DC
     WA --> DC
@@ -76,7 +76,7 @@ There are three families of compose files. Only the first is for development.
 | File | Role | Standalone? | Started by |
 |---|---|---|---|
 | `deployment/docker/compose.yaml` | Base: the one `edumatcher` backend container, ports, `./data` volume, bind hosts | Yes | `make up`, `make up-all` |
-| `deployment/docker/compose.guis.yaml` | Overlay: the five backend-connected GUIs, built from `web-apps/`, in the **same project** so they reach `edumatcher:<port>` | No, needs the base | `make up-all` |
+| `deployment/docker/compose.guis.yaml` | Overlay: the six backend-connected GUIs, built from `web-apps/`, in the **same project** so they reach `edumatcher:<port>` | No, needs the base | `make up-all` |
 | `deployment/docker/compose.config-gui.yaml` | Overlay: `config-gui`, which needs no backend | No | `make up-all CONFIG_GUI=1` |
 | `deployment/docker/compose.zmq.yaml` | Overlay: publish the raw ZeroMQ bus (5555-5559, 5601/5602, 5611) | No | `ZMQ=1` |
 | `deployment/docker/compose.ssh.yaml` | Overlay: sshd on `SSH_PORT` (default 2222) | No | `SSH=1` |
@@ -117,7 +117,7 @@ flowchart TD
     C5["web-apps/book-gui/Makefile"]
     C6["web-apps/dash-gui/Makefile"]
 
-    A -->|"compose build/up across\nthe seven build contexts"| IMGS["eight images"]
+    A -->|"compose build/up across\nthe eight build contexts"| IMGS["nine images"]
     B -->|"make -C, one per app"| C1
     B --> C2
     B --> C3
@@ -445,7 +445,7 @@ from `web-apps/log-gui/.wheel/` (its Diagnostics view runs `pm-log-cli`), and
 ```bash
 cd deployment/docker
 make build          # backend image from a wheel built out of this checkout
-make up-all         # exchange + the five backend-connected GUIs
+make up-all         # exchange + the six backend-connected GUIs
 make down-all       # stop and remove everything
 ```
 
@@ -500,7 +500,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 
 ## Part 5 — The release process
 
-One git tag produces a wheel and eight multi-architecture images, all carrying
+One git tag produces a wheel and nine multi-architecture images, all carrying
 the same version. That coupling is what lets `install.sh --version 0.81.3`
 pin an entire system with one number.
 
@@ -529,7 +529,7 @@ Points a developer needs to know:
 
 **Each image is built twice, natively.** A single-runner build with
 `platforms: linux/amd64,linux/arm64` would emulate the foreign architecture
-under QEMU — six Node images each running `npm ci` and a Vite build, which
+under QEMU — seven Node images each running `npm ci` and a Vite build, which
 turns a release into hours. Instead each `(image, arch)` pair builds on its own
 native runner and pushes **by digest only**; a merge job then joins the two
 digests into a manifest list and applies the tags. arm64 hosted runners are
@@ -559,14 +559,14 @@ never becomes what a new user gets by default. That is the same test
 
 **`mkghrelease.sh` waits but does not push.** Its PHASE 6B polls
 `gh run view` for the image workflow — bounded by `IMAGE_WAIT_MINUTES`
-(default 30), skippable with `--skip-images` — and reports the eight image
+(default 30), skippable with `--skip-images` — and reports the nine image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and `gh workflow run publish-images.yml -f tag=vX.Y.Z`
 re-runs just that part.
 
 ### The manual escape hatch
 
-`make ghcr-push` in `deployment/docker/` builds all six images from your
+`make ghcr-push` in `deployment/docker/` builds the eight images other than `edumatcher-ai-sim` from your
 checkout and pushes them. It exists for when the workflow cannot run at all.
 
 ```bash
@@ -590,7 +590,7 @@ tag, and `latest` never moving unless asked.
 | GHCR packages left private | Everyone except the maintainer, who is already authenticated | Installing from a machine with no credentials |
 | A package that predates the workflow | Only that one image, and only in CI | `permission_denied: read_package` on push |
 
-A newly created GHCR package is private. Until each of the eight is made public
+A newly created GHCR package is private. Until each of the nine is made public
 in its package settings, `podman pull` fails for every user but you.
 
 ### A package the workflow did not create
@@ -684,7 +684,7 @@ PY
 ### Standing costs
 
 **Version coupling.** Every image carries the EduMatcher release version, so
-every release republishes all eight even when only the backend changed. That is
+every release republishes all nine even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.
 
@@ -693,8 +693,8 @@ They still drive `make cdist` and per-app `cpush`. If that divergence starts
 causing confusion, the fix is to stop versioning the apps independently rather
 than to reintroduce per-app tags into the release.
 
-**Build minutes grow linearly with images.** Sixteen build jobs today; one
-more image makes it eighteen. The GitHub Actions cache is scoped per
+**Build minutes grow linearly with images.** Eighteen build jobs today (nine
+images, two architectures); one more image makes it twenty. The GitHub Actions cache is scoped per
 `(image, arch)`, so an unchanged app is cheap, but the matrix is not free.
 
 **The credential-lookup snippet is the fragile one.** It reads a specific shape

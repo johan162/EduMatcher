@@ -26,7 +26,7 @@ flowchart TD
     MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
 
     OUTP["PyPI\nedumatcher X.Y.Z"]
-    OUTC["GHCR\n8 multi-arch images X.Y.Z"]
+    OUTC["GHCR\n9 multi-arch images X.Y.Z"]
 
     USER1["pipx install edumatcher"]
     USER2["curl .../install.sh | bash"]
@@ -44,7 +44,7 @@ Each image is built **natively** on both architectures rather than emulated,
 then the two are joined into one manifest list. A user on Intel and a user on
 Apple Silicon pull the same tag and each gets the right binary.
 
-The eight published images are:
+The nine published images are:
 
 ```text
 ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
@@ -55,6 +55,7 @@ ghcr.io/johan162/edumatcher-config-gui      the Configuration GUI
 ghcr.io/johan162/edumatcher-trader-gui      the Trading GUI
 ghcr.io/johan162/edumatcher-book-gui        the order-book viewer
 ghcr.io/johan162/edumatcher-dash-gui        the Operator Dashboard
+ghcr.io/johan162/edumatcher-clearing-gui    the Clearing client
 ```
 
 `latest` is only moved for an exact `vMAJOR.MINOR.PATCH` tag, so a pre-release
@@ -63,12 +64,12 @@ uses to choose between PyPI and TestPyPI.
 
 ### Publishing by hand
 
-`make ghcr-push` in `deployment/docker/` builds the seven images other than
+`make ghcr-push` in `deployment/docker/` builds the eight images other than
 `edumatcher-ai-sim` from your checkout and pushes them, for when the workflow cannot run:
 
 ```bash
 export GITHUB_USER=<you> GHCR_TOKEN=<token with write:packages>
-make ghcr-push                              # all six, tagged :dev
+make ghcr-push                              # all eight, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # as a release tag
 ```
 
@@ -265,7 +266,10 @@ above.
 
 ### Starting clients before the engine
 
-Most processes assume the engine sockets already exist. Start `pm-engine` first.
+A client may start first — ZeroMQ connects as soon as the engine binds — but
+every command it sends before then is refused at once (`ENGINE_UNAVAILABLE`),
+because PUSH sockets fail fast rather than queue. Start `pm-engine` first, as
+`pm-opctl-cli start` does.
 
 ### Using a gateway ID that is not in `engine_config.yaml`
 
@@ -273,7 +277,8 @@ Most processes assume the engine sockets already exist. Start `pm-engine` first.
 
 ### Forgetting that observer processes depend on each other
 
-`pm-ticker` and `pm-board` rely on statistics written by `pm-stats`.
+`pm-ticker` reads its daily figures from `stats.db`, which `pm-stats` writes.
+`pm-board` needs only the engine.
 
 ### Assuming docs-only changes need no validation
 

@@ -10,7 +10,7 @@
     - How to run a web application on your own machine, with hot reload, against
       the exchange running in containers — and why that works without any
       configuration
-    - Exactly what each of the six applications needs from a running backend:
+    - Exactly what each of the seven applications needs from a running backend:
       which ports, which files, which credentials
     - Which of the three loops to reach for, given the change you are making
     - The handful of things that will waste an afternoon if you do not know them
@@ -215,6 +215,7 @@ empty history panels and a 401 in the bridge log.
 | config-gui | 8192 | 5192 | 8092 | nothing |
 | book-gui | 8194 | 5194 | 8094 | 8081 market data, history + read-only key, 5600 log ingest |
 | dash-gui | 8195 | 5195 | 8095 | 5611 `pm-monitor` (needs `ZMQ=1`), `data/metrics.db`, the deployed configuration, 5600 log ingest |
+| clearing-gui | 8196 | — | 8096 | 8080 only, proxied by Vite |
 
 The dev ports are deliberately `81xx`/`51xx` against the containers' `80xx`, so
 both can run at once.
@@ -310,6 +311,17 @@ stack.
 
 Its dev server needs the Python side available on your `PATH` — `npm run
 verify:python` checks that.
+
+### clearing-gui
+
+```bash
+cd deployment/docker && make up-all
+cd ../../web-apps/clearing-gui && make install && make dev
+```
+
+Open <http://localhost:8196>. Like trader-gui it has no bridge and needs no
+`dev-env`: Vite proxies `/api` to `pm-api-gwy` on `http://localhost:8080`, and
+credentials are entered in the browser.
 
 ### dash-gui
 

@@ -13,11 +13,11 @@ Experiments 1-15 are the original proposal, ordered from basic to very complex. 
 
 ## How to use this page
 
-!!! note "Statuses verified 2026-09-11"
+!!! note "Statuses verified 2026-09-11, re-checked 2026-11-20"
     EduMatcher has moved a long way since these experiments were written, and
     several of them have since been built — sometimes under different names
     than proposed here. Every `**Status:**` line below was re-checked against
-    the code on that date, and where something shipped, the status says where
+    the code on those dates, and where something shipped, the status says where
     it lives and how it differs from the proposal. An experiment marked
     **Implemented** is still worth reading for the financial explanation; it
     is just no longer something to build.
@@ -32,7 +32,17 @@ Experiments 1-15 are the original proposal, ordered from basic to very complex. 
 
 ## Experiment 1: Price-Time Priority Audit Trace
 
-**Status: Still Valid**
+**Status: Partially Implemented — re-checked 2026-11-20**
+
+The book now reports what it did beyond trades: `engine.trace.<SYM>` records,
+published for the audit trail only, give each order's queue position when it
+rests (`RESTED` with its `priority_seq`, the book's `arrival_seq`), an
+iceberg's refill to the back of its level, every self-match-prevention
+decision, stop triggers and trailing-stop ratchets (see
+[Trace Records](../part-2-inside-the-engine/010-order-book-deep-dive.md#trace-records-what-the-book-reports-besides-trades)).
+From those, a student can reconstruct the queue at any moment. Still open: the
+per-match `was_selected` trace proposed below, which records every candidate
+the sweep *considered*.
 
 Difficulty: Basic
 Estimated effort: Less than 1 day
@@ -79,7 +89,7 @@ Understand deterministic matching and queue priority mechanics at a forensic lev
 
 **Status: Partially Implemented — Phase 2 Enhancement**
 
-*Current state*: `tick_decimals` per symbol exists in config. New work: add `tick_size` (exact increment), variable-tick bands, and price validation.
+*Current state* (re-checked 2026-11-20): `tick_decimals` per symbol exists in config, and prices are validated against it at every entry point (a price that is not a whole number of ticks raises `TickViolation` in `models/price.py` and is refused). New work: a tick size that is not a power of ten (`tick_size`, e.g. 0.05) and variable-tick bands that depend on the price level.
 
 Difficulty: Basic
 Estimated effort: 1 to 2 days
@@ -198,9 +208,14 @@ Understand how session design controls market behavior and participant risk.
 
 Rate limiting is enforced at the gateways rather than in the engine:
 `alf_gwy/gateway.py` and `balf_gwy/gateway.py` reject with `RATE_LIMITED`,
-and `api_gateway` maps its own `RATE_LIMIT` to the same code. What remains
-open from the proposal below is the *burst* shaping (token bucket with a
-configurable refill) and per-gateway limits in config rather than in code.
+and `api_gateway` maps its own `RATE_LIMIT` to the same code. Re-checked
+2026-11-20: the ALF and BALF limits are a per-session token bucket whose rate
+and capacity come from configuration (`alf_gateway.max_commands_per_second`,
+`balf_gateway.max_messages_per_second`), and the API's from
+`api_gateway.rate_limit`. What remains open from the proposal below is a burst
+size configured separately from the rate, per-participant limits (today one
+value applies to every session of a gateway), and a limit in the engine itself
+for processes that bypass the gateways.
 
 Difficulty: Intermediate
 Estimated effort: 1 to 2 days
@@ -407,7 +422,7 @@ Understand order lifecycle reliability and protocol discipline.
 
 **Status: Partially Implemented — Phase 2 Enhancement**
 
-*Current state*: Depth metrics via `depth_snapshot()` and `encode(f"depth.{symbol}", depth)` publication exist. New work: introduce formal `book.l1.*` and `book.l2.*` topic namespaces with contract-enforced payloads, configurable publish cadence, and sequence counters per channel.
+*Current state* (re-checked 2026-11-20): depth metrics via `depth_snapshot()` are published as `depth.<symbol>` (`make_depth_msg`), and the external CALF feed already separates top of book (`TOP`) from market depth (`DEPTH`) as channels a client subscribes to separately. New work on the internal bus: introduce formal `book.l1.*` and `book.l2.*` topic namespaces with contract-enforced payloads, configurable publish cadence, and sequence counters per channel.
 
 Difficulty: Intermediate
 Estimated effort: 2 to 3 days
@@ -564,7 +579,8 @@ Drop copy shipped as `drop_copy.event.{gateway_id}` with a session-global
 `seq`, plus `drop_copy.replay.{recipient_id}` for gap recovery — a live
 replay channel rather than the proposed end-of-session log file.
 Reconciliation is `pm-clearing-cli reconcile` rather than a standalone
-`dropcopy_reconcile.py`. Still open from the proposal: the durable
+`dropcopy_reconcile.py`, and `pm-dc-gwy` relays the feed to external consumers
+over the DC1 protocol, with replay. Still open from the proposal: the durable
 `dropcopy_YYYYMMDD.log` JSON-lines artifact, if you want reconciliation
 against a file rather than against the clearing database.
 

@@ -481,8 +481,8 @@ Three rules define these dictionaries:
    `best_bid_ticks()` (`max` over the keys) and `bid_levels` rely on.
 3. **Not used for matching.** `_sweep` walks the heaps. Because of rule 1 the
    index *under-counts* liquidity when icebergs rest, which is why the FOK
-   pre-check (`_fok_available_qty`) and the combo pre-check
-   (`fillable_quantity`) walk the heap entries instead.
+   pre-check (`fillable_quantity`) and the combo pre-check
+   (`fillable_quantities`) walk the heap entries instead.
 
 Why two dicts instead of one keyed by `(side, price)`? The two sides are
 queried separately (best bid vs best ask, bid depth vs ask depth), and during
@@ -1024,7 +1024,7 @@ fine, the rest is cancelled with `INSUFFICIENT_LIQUIDITY` and reported.
 
 Fill-or-kill is the only matcher that looks **before** it trades: a partial
 fill cannot be undone, so the decision is made up front by
-`_fok_available_qty`. It cannot use `_ask_qty`/`_bid_qty`, because those
+`fillable_quantity`. It cannot use `_ask_qty`/`_bid_qty`, because those
 under-count icebergs, so it walks the real resting orders in priority order:
 
 ```python
@@ -1059,9 +1059,13 @@ orders), and then the FOK becomes either **CANCELLED** with
 liquidity shortfall). A safety net after the sweep cancels any remainder,
 which should never fire given an accurate pre-check.
 
-`fillable_quantity(side, price_limit)` is a simpler public cousin (counts all
-hidden quantity, no SMP); the engine's all-or-none combo pre-check uses it
-(finding **M5**).
+The walk lives in `_walk_fillable_quantities` and has two public faces.
+`fillable_quantity` is the FOK pre-check: it applies the gateway's SMP policy
+and stops counting once it has found the quantity it needs. `fillable_quantities`
+returns two totals from one walk — what the order could trade with SMP applied,
+and what it could trade without — and is what the engine's all-or-none combo
+pre-check uses (finding **M5**), so it can tell a self-match from a genuine
+shortage.
 
 ### ICEBERG — `_match_iceberg`
 
@@ -2090,7 +2094,7 @@ advertised 600 and the print would have been 60.
 | **Imbalance is post-SMP.** | Publishing an imbalance that counts doomed orders misleads participants. | Totals are taken from the survivors. |
 | **Icebergs.** | The hidden reserve counts toward volume but trades only slice by slice, and a SMP cancel kills the reserve too. | Volume uses the full quantity; a fill is the shown slice, refilling at the back of the level; a cancel removes the whole order. |
 | **Overridden price.** | An operator or breaker can assert a price that the walk did not pick. | The walk and the resolve pass run at that price; the reported `eq_qty` is what actually executed. |
-| **Verification.** | An independent check has to model the same rules or it reports every SMP auction as wrong. | The simulation forensics replay (`tools/sim_forensics/checks/matching.py`, `_walk`) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against `compute_equilibrium`. |
+| **Verification.** | An independent check has to model the same rules or it reports every SMP auction as wrong. | The simulation forensics replay (`src/edumatcher/sim_forensics/checks/matching.py`, `_walk`) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against `compute_equilibrium`. |
 
 ### Where this lives in the code
 
@@ -2483,7 +2487,7 @@ logger narrates matching without a debugger:
    `_compact_heaps` rebuilds the heap.
 6. **FOK and hidden quantity.** Rest an ICEBERG 1000/100 and send a FOK BUY 500.
    `_ask_qty` shows only 100, yet the FOK fills — step through
-   `_fok_available_qty` to see why.
+   `fillable_quantity` to see why.
 
 ### 7. Gotchas while debugging
 
@@ -2517,7 +2521,7 @@ All in `src/edumatcher/engine/order_book.py` unless stated otherwise:
 | Amends and priority | `amend_order`; the crossing-amend re-match in `Engine._handle_amend` (`engine/main.py`) |
 | Stops | `_add_stop`, `_stop_is_triggered`, `_trigger_stop_now`, `_check_stops`, the cascade loop in `run_stops` |
 | Trailing stops | `_add_trailing_stop`, `_check_trailing_stops`; initial trigger in `Engine._handle_new_order` |
-| FOK | `_match_fok`, `_fok_available_qty` |
+| FOK | `_match_fok`, `fillable_quantity` |
 | Auctions | `engine/auction.py`: `compute_equilibrium`, `execute_uncross`; `Engine._run_uncross` |
 | The engine side | `engine/main.py`: `_book`, `_handle_new_order`, `_publish_dispatch`, `_flush_snapshots` |
 | What "correct" means | `tests/engine_invariants.py`, `tests/test_book_invariants_random_ops.py`, `tests/reference_matcher.py` (a deliberately naive matcher written from the documentation, used as an oracle) |

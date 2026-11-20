@@ -64,7 +64,7 @@ def make_puller(addr: str) -> zmq.Socket[bytes]:
 
 def make_publisher(addr: str) -> "CausalPublisher":
     """PUB socket — broadcasts events, sequenced and causally stamped."""
-    sock = get_context().socket(zmq.PUB)
+    sock = get_context().socket(zmq.PUB, socket_class=BusSocket)
     sock.bind(addr)
     return CausalPublisher(SequencedPublisher(sock))
 ```
@@ -82,7 +82,7 @@ carries it:
 The envelope is metadata, not content, which is why it rides in frames
 instead of in the JSON: the hot publish path never decodes and re-encodes a
 message to stamp it, and the same three fields do not have to be declared on
-each of the 121 message types in `spec/messages/`. Sections 3, 4 and 8 show
+each of the 136 message types in `spec/messages/`. Sections 3, 4 and 8 show
 it being written and read; if you only care about the order flow, the one
 thing to know is that `decode()` ignores it entirely.
 
@@ -189,20 +189,28 @@ run maintenance, repeat.
 while self._running:
     socks = dict(poller.poll(timeout=200))          # 200 ms tick
     if self.pull_sock in socks:
-        frames = self.pull_sock.recv_multipart()
-        topic, payload = decode(frames)
-        cause = decode_push_envelope(frames)        # the gateway's msg_id
+        frames = self.pull_sock.recv_multipart()     # receive + decode are
+        topic, payload = decode(frames)              # guarded: a bad message is
+        cause = decode_push_envelope(frames)         # counted, not fatal
 
-        self.pub_sock.set_cause(cause)
+        recorded = self._echo_command(topic, frames)  # into the audit trail first
+        self.pub_sock.set_cause(cause if recorded else None)
         try:
             self._dispatch_pull_message(topic, payload)
         finally:
             self.pub_sock.clear_cause()
-    self._run_maintenance()
+    if idle or 10 ms since the last pass:             # (paraphrased)
+        self._run_maintenance()
 ```
 
-Those three extra lines are the entire causality mechanism on the engine
-side. While a cause is set, **everything** published — the ACK, the fills,
+`_echo_command` re-publishes the command onto the PUB socket before it is
+handled, so the audit trail holds the request ahead of its ACK — and holds it
+even if the engine dies while handling it. A read query (a `*_request` topic)
+is not echoed, so its reply is not attributed to it: a reply citing a message
+nobody recorded would look exactly like one whose cause was lost.
+
+The `set_cause`/`clear_cause` pair is the entire causality mechanism on the
+engine side. While a cause is set, **everything** published — the ACK, the fills,
 the trade print, a cascade of OCO cancels — is attributed to this message
 and inherits its chain, without a single publish site knowing. Three things
 about that are worth understanding rather than skimming:
@@ -262,7 +270,9 @@ order, each with the real check.
 
 ```mermaid
 flowchart TD
-    A["order.new received"] --> B{"Gateway connected & allowed?"}
+    A["order.new received"] --> A2{"Payload builds an Order?"}
+    A2 -- "no" --> RA["REJECT: MALFORMED_MESSAGE"]
+    A2 -- "yes" --> B{"Gateway connected & allowed?"}
     B -- "no" --> RB["REJECT: GATEWAY_NOT_CONFIGURED / AUTH_REQUIRED"]
     B -- "yes" --> C{"Symbol in allowlist?"}
     C -- "no" --> RC["REJECT: UNKNOWN_SYMBOL"]
@@ -281,7 +291,9 @@ flowchart TD
     J -- "yes" --> RJ["REJECT: COLLAR_BREACH"]
     J -- "no" --> K{"do_match is False and order is MARKET/FOK/IOC?"}
     K -- "yes" --> RK["REJECT: SESSION_NOT_PERMITTED, cannot rest"]
-    K -- "no" --> L["ACCEPT: send ACK (Section 6)"]
+    K -- "no" --> K2{"TRAILING_STOP with no stop price and no last trade?"}
+    K2 -- "yes" --> RK2["REJECT: MISSING_FIELD"]
+    K2 -- "no" --> L["ACCEPT: send ACK (Section 6)"]
     L --> M["book.process(order) (Section 7)"]
 ```
 
@@ -360,6 +372,14 @@ configured band. Assume it passes.
 **Gate 8 — no-match-phase rejection.** Only bites `MARKET`/`FOK`/`IOC`
 orders when `do_match` is `False` (auction phase or halted symbol forcing
 LIMIT-only resting). Our order is `LIMIT`, so this is a no-op either way.
+
+**Gate 9 — a trailing stop needs something to trail.** A `TRAILING_STOP` with
+no explicit stop price, on a symbol that has not traded yet, is refused with
+`MISSING_FIELD`. Not our case.
+
+The source numbers these checks `[1]`–`[10]` in comments (the book-creation
+step is `[3]`), and runs one more before them all: a payload that does not
+even build an `Order` is refused with `MALFORMED_MESSAGE`.
 
 Every gate passed. The order is now **accepted**.
 
@@ -445,7 +465,7 @@ sequenceDiagram
 ```
 
 `pm-alf-gwy` then relays the ACK into the ALF text protocol
-(`_dispatch_response` → `ACK|ORDER_ID=...|ACCEPTED=TRUE`), and `TRADER01`'s
+(`_handle_engine_event` → `ACK|ORDER_ID=...|ACCEPTED=TRUE`), and `TRADER01`'s
 terminal prints it.
 
 One caveat: this ACK means *"the engine accepted the order for
@@ -724,8 +744,9 @@ engine ever expires a DAY order on a clock. It rests exactly as long as a
 def _shutdown(self) -> None:
     all_resting = self._resting_gtc_orders()      # TIF in (GTC, DAY)
     save_gtc_orders(all_resting, GTC_ORDERS_FILE)
-    save_book_stats(self.books, BOOK_STATS_FILE)
-    ...
+    save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
+    save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE, halts)
+    ...                                           # then checkpoints + system.eod
 ```
 
 ```python
@@ -735,7 +756,7 @@ gtc = [
     if o.tif in (TIF.GTC, TIF.DAY)
     and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
 ]
-_atomic_write_text(path, json.dumps(gtc, indent=2))
+atomic_write_text(path, json.dumps(gtc, indent=2))   # temp file, fsync, rename
 ```
 
 **A `TIF=DAY` order is persisted to `data/gtc_orders.json` on shutdown,
@@ -750,19 +771,20 @@ is not a day boundary.**
 
 ```python
 # engine/main.py — _restore_gtc (trimmed)
-today = datetime.now().date()
+session_tz = self._session_tz()                       # locale.session_timezone
+today = self._business_date()
+orders.sort(key=lambda o: (o.symbol, o.arrival_seq))  # keep queue order
 for order in orders:                                  # loaded from the JSON file
     if order.tif == TIF.DAY:
-        order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
+        order_day = datetime.fromtimestamp(order.ts_ns / 1e9, session_tz).date()
         if order_day < today:
             log.info(f"Discarding stale TIF=DAY order {order.id[:8]} ...")
             continue                                   # <- never restored, never expired
-    order.status = OrderStatus.NEW
     book.process(order, match=False)                  # rest it, no sweep
 ```
 
-The check is a plain calendar-date comparison against the order's original
-`timestamp`, evaluated **once, at process startup** — not continuously, not
+The check is a calendar-date comparison, in the exchange's session timezone,
+against the order's original `ts_ns`, evaluated **once, at process startup** — not continuously, not
 at midnight, not tied to the scheduler in any way. Two consequences follow
 directly from that:
 
@@ -819,7 +841,7 @@ The envelope turns the awkward part of a post-mortem into two greps:
 ```bash
 # 1. find the submission
 grep 'order.new' data/audit.log | grep 'AAPL' | tail -1
-# ... [order.new] [seq=8812 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV chain=01ARZ3ND...] {...}
+# ... [order.new] [seq=8812 eseq=90311 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV chain=01ARZ3ND...] {...}
 
 # 2. everything it caused, in order — acks, fills, trade prints, cascades,
 #    across every topic and both counterparties
@@ -844,7 +866,7 @@ sequenceDiagram
     GW->>E: PUSH  order.new  + envelope(msg=A, cause=-, chain=A)
     E->>E: decode() + decode_push_envelope() -> set_cause(A)
     E->>E: _dispatch_pull_message -> _handle_new_order
-    E->>E: gate 1..8 (Section 5) — all pass
+    E->>E: gates 1..9 (Section 5) — all pass
     E->>GW: PUB  order.ack.TRADER01  {accepted: true}  + (msg=B, cause=A, chain=A)
     GW->>T: ACK  order accepted
     E->>B: book.process(order, match=True)
@@ -854,19 +876,21 @@ sequenceDiagram
 
     E->>E: clear_cause()  (finally — attribution ends with the dispatch)
 
-    Note over E: ... later, session scheduler fires ...
+    Note over E: ... later, pm-scheduler PUSHes session.transition (msg=S, chain=S) ...
     E->>E: _handle_session_transition(to=CLOSED)
     E->>E: _expire_tif(TIF.DAY) -> book.cancel_order(...)
-    E->>GW: PUB  order.expired.TRADER01  + (msg=Z, cause=-, chain=Z)
+    E->>GW: PUB  order.expired.TRADER01  + (msg=Z, cause=S, chain=S)
     GW->>T: EXPIRED  {order_id}
 ```
 
-Note the last message. The expiry carries **no** `cause`: hours after the
-submission, a session transition removed the order, and nothing the trader
-sent caused it. A new chain starts there, and that is the honest record —
-the alternative, attributing the expiry to the original submission, would
-make an automatic venue action look like a consequence of something the
-trader did.
+Note the last message. The expiry is **not** in the order's chain: hours
+after the submission, a session transition removed the order, and nothing the
+trader sent caused it. Its `cause` is the scheduler's `session.transition`
+command — the message whose handling produced it — and it belongs to that
+command's chain, together with the `session.state` broadcast and every other
+expiry of that close. That is the honest record: attributing the expiry to the
+original submission would make an automatic venue action look like a
+consequence of something the trader did.
 
 Every arrow in that diagram is a function call or a ZMQ message you can grep
 for by name. The messages are two frames of content — topic and payload —
