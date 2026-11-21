@@ -36,7 +36,11 @@ from edumatcher.ai_trader.market_state import MarketState, SymbolState
 from edumatcher.ai_trader.orders import LiveOrder, OrderManager, OrderState, Purpose
 from edumatcher.ai_trader.preset import Preset
 from edumatcher.ai_trader.risk import RejectBreaker, allowed_qty
-from edumatcher.ai_trader.session_policy import is_call_phase, order_allowed
+from edumatcher.ai_trader.session_policy import (
+    is_call_phase,
+    order_allowed,
+    symbol_phase,
+)
 from edumatcher.ai_trader.strategies import BasketIntent, DecisionContext
 from edumatcher.models.order import TIF, OrderType
 
@@ -79,6 +83,14 @@ def intraday_multiplier(market: MarketState, wall: float) -> float:
     x = min(1.0, max(0.0, (wall - market.phase_since) / span))
     u = (2 * x - 1) ** 2
     return (0.6 + 1.6 * u) / (17.0 / 15.0) * (1.0 + RUSH_EXTRA * u)
+
+
+def _in_halt_call(market: MarketState, symbol: str) -> bool:
+    st = market.symbols.get(symbol)
+    return (
+        st is not None
+        and symbol_phase(market.phase, st.halted, st.halt_source) == "HALTED"
+    )
 
 
 @dataclass
@@ -172,6 +184,8 @@ class Agent:
         if isinstance(intent, BasketIntent):
             return self._basket(intent, phase, market)
         st = market.symbols[intent.symbol]
+        # A circuit-breaker halt puts this one symbol in a call phase.
+        phase = symbol_phase(phase, st.halted, st.halt_source)
         live = [o for o in self.orders.live(intent.symbol) if o.tif != TIF.GTC]
         if len(live) >= self.preset.risk.max_live_orders_per_symbol:
             return []
@@ -288,16 +302,21 @@ class Agent:
         out: list[Action] = []
         # In a call phase an order waits for the uncross by design, and a
         # call book's touch is no market price: no stale sweep there. What
-        # is left after the uncross goes at the first continuous sweep.
+        # is left after the uncross goes at the first continuous sweep. A
+        # circuit-breaker halt is one symbol's call phase.
         stale = (
             []
             if is_call_phase(market.phase)
-            else self.orders.stale(
-                now,
-                max_age=risk.max_order_age_sec,
-                drift_ticks=risk.stale_price_ticks,
-                touch=touch,
-            )
+            else [
+                o
+                for o in self.orders.stale(
+                    now,
+                    max_age=risk.max_order_age_sec,
+                    drift_ticks=risk.stale_price_ticks,
+                    touch=touch,
+                )
+                if not _in_halt_call(market, o.symbol)
+            ]
         )
         for o in stale:
             out += self._amend(o, touch, now) or self._cancel(o, now)

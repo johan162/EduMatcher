@@ -19,6 +19,7 @@ from edumatcher.ai_trader.session_policy import (
     auction_tif,
     is_call_phase,
     order_allowed,
+    symbol_phase,
 )
 from edumatcher.ai_trader.strategies import BasketIntent, Intent
 from edumatcher.models.order import TIF, OrderType
@@ -45,8 +46,40 @@ class TestSessionPolicy:
                 resting and (tif in (TIF.DAY, TIF.GTC) or tif == auction)
             )
 
-    def test_halted_blocks_everything(self) -> None:
+    @pytest.mark.parametrize("phase", PHASES)
+    def test_halted_blocks_everything_in_the_session_phase(self, phase: str) -> None:
+        # A path that has not put the symbol in its HALTED phase sends nothing.
+        for otype in OrderType:
+            for tif in TIF:
+                assert not order_allowed(phase, otype, tif, halted=True)
+
+    @pytest.mark.parametrize("otype", list(OrderType))
+    @pytest.mark.parametrize("tif", list(TIF))
+    def test_halted_phase_rests_like_the_engine(
+        self, otype: OrderType, tif: TIF
+    ) -> None:
+        # The engine rests LIMIT/ICEBERG during a halt and rejects the rest;
+        # a halt is no scheduled auction, so no ATO/ATC.
+        allowed = order_allowed("HALTED", otype, tif, halted=True)
+        assert allowed is (
+            otype in (OrderType.LIMIT, OrderType.ICEBERG) and tif in (TIF.DAY, TIF.GTC)
+        )
+
+    @pytest.mark.parametrize("phase", [p for p in PHASES if p != "CLOSED"])
+    def test_symbol_phase_cb_halt_is_a_call_phase(self, phase: str) -> None:
+        assert symbol_phase(phase, True, "CB") == "HALTED"
+        assert is_call_phase("HALTED") and auction_tif("HALTED") is None
+
+    @pytest.mark.parametrize("source", ["ADMIN", None])
+    def test_symbol_phase_leaves_operator_and_unknown_halts_alone(
+        self, source: str | None
+    ) -> None:
+        assert symbol_phase("CONTINUOUS", True, source) == "CONTINUOUS"
         assert not order_allowed("CONTINUOUS", OrderType.LIMIT, TIF.DAY, halted=True)
+
+    def test_symbol_phase_closed_and_unhalted(self) -> None:
+        assert symbol_phase("CLOSED", True, "CB") == "CLOSED"
+        assert symbol_phase("CONTINUOUS", False, None) == "CONTINUOUS"
 
     def test_auction_helpers(self) -> None:
         assert auction_tif("OPENING_AUCTION") == TIF.ATO
@@ -233,7 +266,8 @@ class TestContinuous:
         assert out == []
 
     def test_halted_no_order(self) -> None:
-        _, out = _orders(ExecutionSpec(), st=_st(halted=True))
+        # Still in its session phase: the caller did not make it HALTED.
+        _, out = _orders(ExecutionSpec(), st=_st(halted=True, halt_source="CB"))
         assert out == []
 
 
@@ -286,6 +320,42 @@ class TestCallPhases:
             ExecutionSpec(auction_participation=0.0), phase="OPENING_AUCTION"
         )
         assert out == []
+
+    @pytest.mark.parametrize(
+        "style", ["passive", "marketable", "sweep", "iceberg", "twap"]
+    )
+    def test_a_halt_call_gets_a_straddling_day_limit(self, style: str) -> None:
+        # No indicative during a CB halt: the halted book's mid is the anchor.
+        st = _st(halted=True, halt_source="CB")
+        prices = set()
+        for seed in range(200):
+            _, out = _orders(
+                ExecutionSpec(style=style, auction_participation=1.0, offset_ticks=1),
+                st=st,
+                phase="HALTED",
+                seed=seed,
+            )
+            [o] = out
+            assert (o.order_type, o.tif) == (OrderType.LIMIT, TIF.DAY)
+            prices.add(o.price_ticks)
+        assert min(prices) < 1000 < max(prices)
+
+    def test_a_halt_call_honours_participation_and_the_collar(self) -> None:
+        st = _st(halted=True, halt_source="CB", collar_dynamic_pct=0.001)
+        _, out = _orders(
+            ExecutionSpec(auction_participation=0.0), st=st, phase="HALTED"
+        )
+        assert out == []
+        band = st.collar_band()
+        assert band is not None
+        for seed in range(50):
+            _, [o] = _orders(
+                ExecutionSpec(auction_participation=1.0, offset_ticks=10),
+                st=st,
+                phase="HALTED",
+                seed=seed,
+            )
+            assert o.price_ticks is not None and band[0] <= o.price_ticks <= band[1]
 
     def test_sweep_style_becomes_a_limit_in_auctions(self) -> None:
         _, [o] = _orders(

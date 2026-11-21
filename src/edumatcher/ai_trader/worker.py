@@ -287,7 +287,11 @@ class Worker:
         elif topic.startswith(PREFIX_AUCTION_INDICATIVE):
             m.on_indicative(topic[len(PREFIX_AUCTION_INDICATIVE) :].upper(), payload)
         elif topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
-            m.on_halt(topic[len(PREFIX_CIRCUIT_BREAKER_HALT) :].upper(), True)
+            m.on_halt(
+                topic[len(PREFIX_CIRCUIT_BREAKER_HALT) :],
+                True,
+                payload.get("halt_source"),
+            )
         elif topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
             m.on_halt(topic[len(PREFIX_CIRCUIT_BREAKER_RESUME) :].upper(), False)
         elif topic == TOPIC_SESSION_STATE:

@@ -36,10 +36,12 @@ whole sends the actions per second it was given.
 
 The trader reads the market from the engine's public feed — book snapshots,
 trades, the session, halts — and from `pm-market-sim` the true values and
-the news. It sends nothing for a halted symbol, nothing while the market is
-closed, and only what each phase allows: resting LIMIT and ICEBERG orders in
-the call phases, ATO in the opening auction, ATC in the closing auction,
-everything during continuous trading.
+the news. It sends nothing while the market is closed, nothing for a symbol
+an operator has halted, and only what each phase allows: resting LIMIT and
+ICEBERG orders in the call phases, ATO in the opening auction, ATC in the
+closing auction, everything during continuous trading. A symbol halted by
+its circuit breaker is in a call phase of its own, its reopening auction,
+and gets resting LIMIT orders whatever phase the rest of the market is in.
 
 ## Strategies: what to trade
 
@@ -111,10 +113,16 @@ It goes with the `combo` execution style, and only with it.
 Any style becomes marketable when the intent's urgency reaches
 `urgency_cross`. A crossing order (marketable, IOC, FOK) is priced at the
 strategy's limit when it gives one (`value` and `news` do), otherwise
-`cross_ticks` past the touch. In the call phases — pre-open and the auctions — a trader
+`cross_ticks` past the touch. In the call phases — pre-open, the auctions and
+a circuit breaker's reopening auction — a trader
 takes part in a decision with probability `auction_participation`, and then
 sends a limit order straddling the reference price (with TIF ATO or ATC in
-the auctions), so that buyers and sellers overlap at the uncross. Prices are
+the scheduled auctions, the preset's `tif` in a reopening), so that buyers
+and sellers overlap at the uncross. No indicative price is published during
+a halt, so a reopening's reference is the halted book's mid, or else the
+last trade. An order sent during a halt is not swept as stale until the
+symbol has reopened. No combo, basket leg, TWAP slice or protective stop is
+sent for a halted symbol. Prices are
 kept inside the symbol's price collar and quantities inside its order
 limits: an AI trader does not send what the engine would refuse.
 

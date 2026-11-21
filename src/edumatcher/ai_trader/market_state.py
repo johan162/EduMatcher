@@ -78,6 +78,8 @@ class SymbolState:
     indicative_side: str | None = None
     indicative_qty: int = 0
     halted: bool = False
+    #: Who halted it, ``CB`` or ``ADMIN``; None when not halted or not said.
+    halt_source: str | None = None
     collar_static_pct: float | None = None
     collar_dynamic_pct: float | None = None
     max_order_qty: int | None = None
@@ -372,9 +374,17 @@ class MarketState:
         )
 
     def on_halt_status(self, payload: dict[str, Any]) -> None:
+        """Every symbol halted now; any other is not. A resume missed while
+        the worker was away would otherwise leave a symbol halted for good."""
+        listed: set[str] = set()
         for entry in payload.get("halted", []):
             if isinstance(entry, dict) and entry.get("symbol"):
-                self.get(str(entry["symbol"]).upper()).halted = True
+                symbol = str(entry["symbol"]).upper()
+                listed.add(symbol)
+                self.on_halt(symbol, True, entry.get("halt_source"))
+        for symbol, st in self.symbols.items():
+            if st.halted and symbol not in listed:
+                self.on_halt(symbol, False)
 
     # --- market data ------------------------------------------------------------
     def on_book(self, symbol: str, payload: dict[str, Any], now: float) -> None:
@@ -428,8 +438,10 @@ class MarketState:
         st.indicative_side = str(side).upper() if side else None
         st.indicative_qty = int(payload.get("imbalance_qty") or 0)
 
-    def on_halt(self, symbol: str, halted: bool) -> None:
-        self.get(symbol).halted = halted
+    def on_halt(self, symbol: str, halted: bool, source: Any = None) -> None:
+        st = self.get(symbol.upper())
+        st.halted = halted
+        st.halt_source = str(source).upper() if halted and source else None
 
     def clear_indicatives(self) -> None:
         for st in self.symbols.values():
