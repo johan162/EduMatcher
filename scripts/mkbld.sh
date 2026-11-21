@@ -50,6 +50,7 @@ DRY_RUN=false
 HELP=false
 BUILD_INTRO=false
 NO_DOCS=false
+NO_NPM=false
 
 # Determine available number of CPU cores for parallel execution
 # For both Linux and macOS
@@ -392,6 +393,10 @@ while [[ $# -gt 0 ]]; do
             NO_DOCS=true
             shift
             ;;
+        --no-npm)
+            NO_NPM=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1" >&2
             echo "Use --help for usage information" >&2
@@ -529,38 +534,41 @@ else
     run_command "poetry run pm-config-deploy --example s3-basic" "Deploying 's3-basic' example config"
 fi
 
-print_sub_step "Running npm tests for web applications"
-# Step 3.1: Run npm verification and tests for up to three web applications at a time
-if [ -d "web-apps" ]; then
-    pending_command=""
-    pending_description=""
-    pending_command2=""
-    pending_description2=""
-    for app_dir in web-apps/*; do
-        if [ -d "$app_dir" ]; then
-            printf -v app_command '(cd %q && npm install && npm run typecheck && npm run lint && npm test)' "$app_dir"
-            app_description="npm verification and tests for $app_dir"
-            if [ -z "$pending_command" ]; then
-                pending_command="$app_command"
-                pending_description="$app_description"
-            elif [ -z "$pending_command2" ]; then
-                pending_command2="$app_command"
-                pending_description2="$app_description"
-            else
-                run_parallel_commands3 "$pending_command" "$pending_description" \
-                    "$pending_command2" "$pending_description2" "$app_command" "$app_description"
-                pending_command=""
-                pending_command2=""
+
+if [ "$NO_NPM" = false ]; then
+    print_sub_step "Running npm tests for web applications"
+    # Step 3.1: Run npm verification and tests for up to three web applications at a time
+    if [ -d "web-apps" ]; then
+        pending_command=""
+        pending_description=""
+        pending_command2=""
+        pending_description2=""
+        for app_dir in web-apps/*; do
+            if [ -d "$app_dir" ]; then
+                printf -v app_command '(cd %q && npm install && npm run typecheck && npm run lint && npm test)' "$app_dir"
+                app_description="npm verification and tests for $app_dir"
+                if [ -z "$pending_command" ]; then
+                    pending_command="$app_command"
+                    pending_description="$app_description"
+                elif [ -z "$pending_command2" ]; then
+                    pending_command2="$app_command"
+                    pending_description2="$app_description"
+                else
+                    run_parallel_commands3 "$pending_command" "$pending_description" \
+                        "$pending_command2" "$pending_description2" "$app_command" "$app_description"
+                    pending_command=""
+                    pending_command2=""
+                fi
             fi
+        done
+        if [ -n "$pending_command2" ]; then
+            run_parallel_commands2 "$pending_command" "$pending_description" "$pending_command2" "$pending_description2"
+        elif [ -n "$pending_command" ]; then
+            run_command "$pending_command" "$pending_description"
         fi
-    done
-    if [ -n "$pending_command2" ]; then
-        run_parallel_commands2 "$pending_command" "$pending_description" "$pending_command2" "$pending_description2"
-    elif [ -n "$pending_command" ]; then
-        run_command "$pending_command" "$pending_description"
+    else
+        print_warning "web-apps directory not found; skipping npm tests for web applications"
     fi
-else
-    print_warning "web-apps directory not found; skipping npm tests for web applications"
 fi
 
 # Start a watcher that launches the documentation build when pytest reaches 99%
