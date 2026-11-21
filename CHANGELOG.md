@@ -1,3 +1,32 @@
+## [v0.83.0] - 2026-11-21
+
+Release Type: major
+
+### 📋 Summary
+This release enables AI traders to participate in circuit-breaker reopening auctions and improves the terminal's auction and index views. It also updates documentation and streamlines documentation builds.
+
+### ✨ Additions
+- Added AI trader participation in circuit-breaker reopening auctions; operator-halted symbols remain excluded
+- Added optional `interval` sampling to the index-snapshots REST endpoint and `--interval` to `pm-stats-cli index-snapshots`
+- Added pagination to the terminal's session auctions table
+
+### 🚀 Improvements
+- Improved terminal handling of `BACKSTOP` and `ADMIN_MANUAL` auction reasons
+- Improved documentation `make help` startup time by skipping book rule loading for help-only requests
+
+### 🐛 Bug Fixes
+- Fixed terminal 1D and 5D index charts dropping snapshots or stopping before the full session was shown
+- Fixed Linux documentation builds failing when rewriting Exchange Introduction asset links
+
+### 📚 Documentation
+- Updated AI trader, statistics, REST API, protocol, and website documentation
+- Regenerated the single-page Exchange Introduction and expanded its implied-order examples
+
+### 🛠 Internal
+- Made documentation site builds and previews regenerate the single-page Exchange Introduction when needed
+- Added `--no-npm` to the build script to skip web-application npm verification and tests
+- Updated third-party dependencies and added regression tests for AI halt participation, index sampling, and terminal views
+
 ## [v0.82.3] - 2026-11-21
 
 Release Type: patch
