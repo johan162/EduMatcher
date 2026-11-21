@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +36,9 @@ def test_the_close_archives_the_books_long_orders(
     for p in (gtc, day):
         e._handle_new_order(p)
     e._handle_session_transition({"to_state": "CLOSED"})
-    archive = tmp_path / "eod" / datetime.now().date().isoformat()
+    # The business date in the session timezone, not the host's date: on a
+    # UTC CI runner the two differ for part of the day.
+    archive = tmp_path / "eod" / e._business_date().isoformat()
     kept = json.loads((archive / "gtc_orders.json").read_text())
     assert [o["id"] for o in kept] == [gtc["id"]]  # the DAY order expired
     assert (archive / "book_stats.json").is_file() and (archive / "gtc_combos.json").is_file()  # fmt: skip

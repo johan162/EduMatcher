@@ -1,10 +1,14 @@
-## [v0.82.2] - 2026-11-21
+## [v0.82.3] - 2026-11-21
 
 Release Type: patch
 
 ### 📋 Summary
 This patch completes the Exchange Introduction as a single HTML page usede in the documentation and
 web-site which was outdated.
+
+### 🐛 Bug Fixes
+- Fixed a flaky EOD tests that would get the date wrong around midnight due to difference in date 
+between UTC and local time
 
 ### 📚 Documentation
 - Updated the single-file Exchange Introduction with the forgotten content refresh and revised illustrations
