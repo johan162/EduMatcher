@@ -1,4 +1,4 @@
-## [v0.83.0] - 2026-11-21
+## [v0.83.1] - 2026-11-21
 
 Release Type: major
 
@@ -17,6 +17,7 @@ This release enables AI traders to participate in circuit-breaker reopening auct
 ### 🐛 Bug Fixes
 - Fixed terminal 1D and 5D index charts dropping snapshots or stopping before the full session was shown
 - Fixed Linux documentation builds failing when rewriting Exchange Introduction asset links
+- Fixed a race condition on slow CI/CD server. The tests use _server is not None to mean "ready to connect", so a slow CI runner could pause the server thread between those lines and the test's connect() was refused.
 
 ### 📚 Documentation
 - Updated AI trader, statistics, REST API, protocol, and website documentation
