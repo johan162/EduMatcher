@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v0822-2026-11-21" class="md-skip">
+        <a href="#v0823-2026-11-21" class="md-skip">
           Skip to content
         </a>
       
@@ -7666,11 +7666,16 @@
 
   <h1>CHANGELOG</h1>
 
-<h2 id="v0822-2026-11-21">[v0.82.2] - 2026-11-21<a class="headerlink" href="#v0822-2026-11-21" title="Permanent link">&para;</a></h2>
+<h2 id="v0823-2026-11-21">[v0.82.3] - 2026-11-21<a class="headerlink" href="#v0823-2026-11-21" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
 <h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
 <p>This patch completes the Exchange Introduction as a single HTML page usede in the documentation and
 web-site which was outdated.</p>
+<h3 id="bug-fixes">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Fixed a flaky EOD tests that would get the date wrong around midnight due to difference in date 
+between UTC and local time</li>
+</ul>
 <h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated the single-file Exchange Introduction with the forgotten content refresh and revised illustrations</li>
@@ -7721,7 +7726,7 @@ web-site which was outdated.</p>
 <li>Improved engine startup reliability by waiting for log-server availability and successful audit health checks</li>
 <li>Updated ALF console and market-maker bot help to list FOK/IOC combo leg types, and logged sent quotes at tick precision</li>
 </ul>
-<h3 id="bug-fixes">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_1">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed console hangup/logout handling and duplicate-session messaging</li>
 <li>Fixed noisy CALF index levels, end-of-day monetary formatting, and auction display formatting</li>
@@ -7752,7 +7757,7 @@ web-site which was outdated.</p>
 <li>Improved <code>pm-admin</code> <code>BOOK</code> output after an engine restart, using the instrument's tick scale and omitting an unknown last-trade quantity</li>
 <li>Improved message sending performance in the messaging layer</li>
 </ul>
-<h3 id="bug-fixes_1">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_1" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_2">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed configuration loaders accepting invalid values, such as <code>tick_decimals: true</code>, <code>max_order_qty: 1.5</code> (silently truncated) or a non-mapping <code>schedule</code>; they are now refused at load</li>
 <li>Fixed auction fills being reported as <code>MAKER</code> on both sides; <code>order.fill</code> and drop-copy events now carry the new <code>AUCTION</code> liquidity flag, which consumers must accept</li>
@@ -7802,7 +7807,7 @@ web-site which was outdated.</p>
 <li>Made Trader GUI mass cancellation more visible</li>
 <li>Improved admin position and order queries to answer for any configured participant, with its connection status, instead of showing a disconnected trader as flat with no orders</li>
 </ul>
-<h3 id="bug-fixes_2">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_2" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_3">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed engine restarts silently clearing operator and circuit-breaker halts; operator halts are now restored, and breaker halts end with a published resume</li>
 <li>Fixed sessions that never send a heartbeat holding their gateway id indefinitely; they now time out at the default 60-second interval, so clients must send heartbeats</li>
@@ -7848,7 +7853,7 @@ web-site which was outdated.</p>
 <li>Improved configuration validation and deployment consistency, and expanded simulator support for multi-leg combo strategies</li>
 <li>Improved dashboard and clearing interfaces with searchable, paginated views and more consistent layouts</li>
 </ul>
-<h3 id="bug-fixes_3">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_3" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_4">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed gateway reconnects and shutdown paths that could lose queued events or leave stale participant state</li>
 <li>Fixed end-of-day settlement calculations and reruns to use the recorded baseline consistently</li>
@@ -7872,7 +7877,7 @@ web-site which was outdated.</p>
 <ul>
 <li>Removed the unused <code>verbose</code> argument from <code>Engine</code>; Python callers passing it must remove that argument</li>
 </ul>
-<h3 id="bug-fixes_4">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_4" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_5">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_5" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed exchange-initiated cancellations and expiries leaving OCO pairs or combos partially live</li>
 <li>Fixed malformed or failed OCO, combo and quote requests going unanswered or leaving accepted structures without proper cleanup</li>
@@ -7907,7 +7912,7 @@ web-site which was outdated.</p>
 <li>Batched WebSocket monitor events and increased buffering to better handle bursts during market openings</li>
 <li>Updated simulation setup instructions to start and configure the additional API gateway automatically</li>
 </ul>
-<h3 id="bug-fixes_5">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_5" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_6">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_6" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed the Book GUI company-information button becoming hidden in constrained layouts</li>
 <li>Fixed the Clearing GUI application name wrapping across multiple lines</li>
@@ -7954,7 +7959,7 @@ web-site which was outdated.</p>
 <li>Applied venue-session timezone boundaries consistently when filtering clearing gateway sessions</li>
 <li>Cleared cached trader data on logout so a later login cannot see the previous user's results</li>
 </ul>
-<h3 id="bug-fixes_6">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_6" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_7">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_7" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed false clearing reconciliation discrepancies when a symbol's tick precision changes during a trading day</li>
 <li>Replaced tracebacks with a critical diagnostic when a deployed configuration artifact is incompatible with the running version</li>
@@ -8006,7 +8011,7 @@ web-site which was outdated.</p>
 <li>Let the scheduler idle when trading sessions are disabled</li>
 <li>Raised process-ending fatal messages to CRITICAL severity</li>
 </ul>
-<h3 id="bug-fixes_7">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_7" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_8">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_8" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed unreadable configuration files being treated as if symbol restrictions were disabled</li>
 <li>Preserved unreadable GTC state files for recovery instead of silently proceeding without them</li>
@@ -8032,7 +8037,7 @@ web-site which was outdated.</p>
 <li>Improved simulator-forensics reports with an overview of the checks and explanations for their results</li>
 <li>Updated audit-replay version reporting to use the current source checkout version</li>
 </ul>
-<h3 id="bug-fixes_8">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_8" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_9">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_9" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed order-expiry events varying with gateway IDs or order IDs instead of following book priority</li>
 </ul>
@@ -8073,7 +8078,7 @@ web-site which was outdated.</p>
 <li>Added combo cancellation support to the AI-sim ALF client</li>
 <li>Added engine garbage-collection scheduling that defers collection during active trading and runs it during idle or near-idle periods, with a memory backstop</li>
 </ul>
-<h3 id="bug-fixes_9">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_9" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_10">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_10" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed audit replay restart handling while the exchange is closed</li>
 <li>Fixed the health monitor warning about expected memory growth when continuous trading starts</li>
@@ -8105,7 +8110,7 @@ web-site which was outdated.</p>
 <li>Increased API gateway WebSocket event buffering and filtered delivery to subscribed event types, avoiding queued events clients would discard</li>
 <li>Improved index history, listing and restored-session phase handling</li>
 </ul>
-<h3 id="bug-fixes_10">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_10" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_11">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_11" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Returned HTTP 409 for illegal session transitions in the REST API</li>
 </ul>
@@ -8132,7 +8137,7 @@ web-site which was outdated.</p>
 <li>Improved replay timing by anchoring reruns to each input's first engine timestamp</li>
 <li>Preserved circuit-breaker reference windows in checkpoints and excluded tainted combo commands from reruns</li>
 </ul>
-<h3 id="bug-fixes_11">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_11" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_12">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_12" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed DAY quotes not being cancelled when their legs expire at the close</li>
 <li>Fixed the global kill switch leaving a hit quote's remainder in the book</li>
@@ -8195,7 +8200,7 @@ web-site which was outdated.</p>
 <li>Increased simulator order throughput to support approximately 3 million orders per day</li>
 <li>Reduced deployment-screen flicker while parallel Podman image downloads are in progress</li>
 </ul>
-<h3 id="bug-fixes_12">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_12" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_13">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_13" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed admin and ALF consoles remaining open after losing their engine connection</li>
 <li>Fixed ordinary order fills appearing as quote legs in ALF console status counts</li>
@@ -8221,7 +8226,7 @@ web-site which was outdated.</p>
 <ul>
 <li>Updated <code>pm-opctl-cli</code> to wait for <code>pm-audit</code> readiness before starting the engine</li>
 </ul>
-<h3 id="bug-fixes_13">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_13" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_14">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_14" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed combo child orders not being persisted and restored correctly across engine restarts</li>
 <li>Fixed disconnect and participant kill-switch paths leaving partially filled quote remainders resting in the book</li>
@@ -8281,7 +8286,7 @@ web-site which was outdated.</p>
 <li>Improved log-server write backpressure, bounded historical backfill work and aligned filtering between historical and live log delivery</li>
 <li>Aligned line-gateway heartbeat and idle-timeout defaults to 2 and 20 seconds respectively</li>
 </ul>
-<h3 id="bug-fixes_14">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_14" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_15">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_15" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed ALF shutdown dropping queued replies and order events instead of attempting to drain them</li>
 <li>Fixed log-server shutdown leaving acknowledged log messages unwritten</li>
@@ -8315,7 +8320,7 @@ web-site which was outdated.</p>
 <li>Added a 4096-byte inbound line limit and explicit <code>peer_reset</code> handling across line gateways</li>
 <li>Improved CALF and RALF replay responses to report unavailable sequence ranges instead of silently returning an empty replay</li>
 </ul>
-<h3 id="bug-fixes_15">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_15" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_16">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_16" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed duplicate CALF trades consuming sequence numbers and creating false replay gaps</li>
 <li>Fixed replay requests beyond the available stream being treated as successful</li>
@@ -8350,7 +8355,7 @@ web-site which was outdated.</p>
 <li>Improved replay handling of engine restarts, silent-gateway timeouts, sequence gaps and missing startup configuration</li>
 <li>Improved queue reconstruction to account for stop orders and strengthened audit-manifest recovery after torn writes</li>
 </ul>
-<h3 id="bug-fixes_16">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_16" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_17">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_17" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed gateway refusals being combined across peer hosts and audit tails not being synchronized when the recorder was otherwise quiet</li>
 <li>Fixed replay accepting runs with a proven sequence hole and corrected reruns across engine restarts</li>
@@ -8382,7 +8387,7 @@ web-site which was outdated.</p>
 <li>Moved API gateway history SQLite queries off the event loop, so a slow query no longer stalls other requests</li>
 <li>Reduced hot-path cost with a single-pass auction equilibrium scan, a symbol-indexed clearing re-mark, a deque-based stop-order cascade, a cached index aggregate capitalisation, a shared API gateway last price and a covering <code>trade_log(symbol, quantity DESC, ts)</code> index for <code>pm-stats</code> rehydration</li>
 </ul>
-<h3 id="bug-fixes_17">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_17" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_18">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_18" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed BALF orders received before symbol metadata arrived being priced with the default two-decimal tick scale</li>
 <li>Fixed pipelined BALF cancels and amends overwriting each other's pending request, so only one received a correlated reply; requests now carry a per-request tag</li>
@@ -8426,7 +8431,7 @@ web-site which was outdated.</p>
 <li>Added the <code>--jobs N</code> option to simulation forensics to run checks in parallel processes, defaulting to one per CPU</li>
 <li>Reduced auction self-match and OCO simulation cost from about 439 ms to about 15 ms per indicative calculation for 3,000 resting orders</li>
 </ul>
-<h3 id="bug-fixes_18">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_18" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_19">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_19" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed auction uncrosses filling both legs of an OCO order and matching orders from the same gateway despite self-match prevention; the published indicative quantity now matches the uncross</li>
 <li>Fixed the closing auction leaving crossed interest when self-match prevention or OCO cancellation consumed the whole overlap</li>
@@ -8469,7 +8474,7 @@ web-site which was outdated.</p>
 <ul>
 <li>Improved simulation forensics performance when scanning order events</li>
 </ul>
-<h3 id="bug-fixes_19">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_19" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_20">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_20" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed generated configuration command comments losing quotes around arguments containing spaces</li>
 <li>Fixed unquoted participant descriptions being silently interpreted as additional participant IDs</li>
@@ -8486,7 +8491,7 @@ web-site which was outdated.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_28">📋 Summary<a class="headerlink" href="#summary_28" title="Permanent link">&para;</a></h3>
 <p>This patch improves recovery after intraday restarts and reduces false positives in simulation forensics.</p>
-<h3 id="bug-fixes_20">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_20" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_21">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_21" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed startup book snapshots missing restored last prices after order recovery</li>
 <li>Fixed restarted AI traders reusing order tags and OCO or combo identifiers from earlier runs</li>
@@ -8504,7 +8509,7 @@ web-site which was outdated.</p>
 <ul>
 <li>Updated trader GUI administrator labels and help text to use participant terminology</li>
 </ul>
-<h3 id="bug-fixes_21">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_21" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_22">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_22" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed the administrator participant drawer being partially hidden, making its close button inaccessible</li>
 <li>Reduced false degraded-status alerts from small memory increases and growth that has levelled off</li>
@@ -8557,7 +8562,7 @@ web-site which was outdated.</p>
 <li>Added atomic settlement recomputation with <code>--redo</code>, which replaces the selected date and removes later settlements for subsequent catch-up</li>
 <li>Improved settlement performance by reading the relevant day's trades and snapshot dates through indexes</li>
 </ul>
-<h3 id="bug-fixes_22">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_22" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_23">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_23" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed engine startup before market open being mistaken for a trading-day close</li>
 <li>Fixed later restarts overwriting a finalized clearing close snapshot</li>
@@ -8586,7 +8591,7 @@ web-site which was outdated.</p>
 <li>Improved book-heap health monitoring to measure heap size against the compaction bound instead of warning during normal accumulation of stale entries</li>
 <li>Improved <code>pm-opctl-cli stop</code> to wait for gateways and other processes, then the engine, recorders and finally the log server in order</li>
 </ul>
-<h3 id="bug-fixes_23">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_23" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_24">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_24" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed book heaps growing without compaction after priority-losing amendments and iceberg replenishments</li>
 <li>Fixed clearing potentially losing engine messages during shutdown by draining its feed before exiting</li>
@@ -8610,7 +8615,7 @@ web-site which was outdated.</p>
 <li>Added detection of unknown configuration keys in engine settings, helping catch misspelled options before they are silently ignored</li>
 <li>Added API gateway engine-authentication, engine-reply and acknowledgement timeout fields to the configuration GUI</li>
 </ul>
-<h3 id="bug-fixes_24">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_24" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_25">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_25" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed configuration verification reporting false positives and missing configuration errors, including market-maker spread checks that now use the effective gateway- and symbol-specific limits</li>
 </ul>
@@ -8628,7 +8633,7 @@ produces.</li>
 <p>Release Type: patch</p>
 <h3 id="summary_34">📋 Summary<a class="headerlink" href="#summary_34" title="Permanent link">&para;</a></h3>
 <p>This patch improves log-server startup reliability so client processes are less likely to miss a server that is still starting.</p>
-<h3 id="bug-fixes_25">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_25" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_26">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_26" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed client processes permanently falling back to stdout when the log server was still starting by retrying discovery and starting the server before other profile processes</li>
 </ul>
@@ -8649,7 +8654,7 @@ produces.</li>
 <ul>
 <li>Improved the ALF console's order cache to display acknowledged combo and OCO children and reflect OCO sibling cancellations</li>
 </ul>
-<h3 id="bug-fixes_26">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_26" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_27">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_27" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed gateway and global kill switches, quote cancellation and reference reload reporting command timeouts despite successful execution because their acknowledgement topics were not subscribed</li>
 <li>Fixed index commands failing immediately while their connection to <code>pm-index</code> was still establishing by retrying sends within the command timeout</li>
@@ -8699,7 +8704,7 @@ produces.</li>
 <li>Improved administrator scoped cancellation to retain the operator's identity in the audit trail and work when the target gateway is disconnected</li>
 <li>Improved order replacement by checking symbol readiness before cancellation, preventing symbol changes and correlating cancellation refusals before submitting a replacement</li>
 </ul>
-<h3 id="bug-fixes_27">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_27" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_28">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_28" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed audit shutdown losing in-flight end-of-day checkpoints by draining until <code>system.eod</code>, and corrected G3 forensics checkpoint-round selection</li>
 <li>Fixed audit replay placing republished gateway-originated messages ahead of earlier engine publications by ordering on <code>eseq</code> within startup runs instead of ULID timestamps</li>
@@ -8776,7 +8781,7 @@ produces.</li>
 <h3 id="summary_39">📋 Summary<a class="headerlink" href="#summary_39" title="Permanent link">&para;</a></h3>
 <p>This release fixes race condition in tests that could sometimes fail depending on in which order
 ndist would run the tests.</p>
-<h3 id="bug-fixes_28">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_28" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_29">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_29" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Monkeypatch saves and restores the clock's high-water mark before <code>test_old_gtc_orders_come_back_and_still_trade</code></li>
 </ul>
@@ -8784,7 +8789,7 @@ ndist would run the tests.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_40">📋 Summary<a class="headerlink" href="#summary_40" title="Permanent link">&para;</a></h3>
 <p>This release fixes reopening after an administrator resumes halted symbols, closes collar and all-or-none combo edge cases, and corrects simulation-forensics replay and validation.</p>
-<h3 id="bug-fixes_29">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_29" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_30">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_30" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed administrator resume commands leaving crossed books after a halt by running a reopening auction before returning to continuous trading; outside a matching phase, the session's own auction performs the uncrossing</li>
 <li>Fixed live OCO and combo legs bypassing price collars; a collar breach now rejects the whole submission before any leg enters a book, while market-maker quotes and configuration-seeded combos remain exempt</li>
@@ -8811,7 +8816,7 @@ ndist would run the tests.</p>
 <li>Added <code>session_timezone</code> to API bootstrap responses and used the exchange session timezone for trader and terminal clocks, dates, trade timestamps, and auction and halt times</li>
 <li>Improved ALF example event displays with drop-copy acknowledgements and fills, fill liquidity, and trade IDs, without double-counting drop-copy executions in local positions</li>
 </ul>
-<h3 id="bug-fixes_30">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_30" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_31">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_31" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed MARKET OVERVIEW header tooltips overlapping their icons and inheriting inappropriate table-header formatting</li>
 <li>Fixed Python and C ALF examples retaining the wrong average cost when a fill reverses a position</li>
@@ -8834,7 +8839,7 @@ ndist would run the tests.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_42">📋 Summary<a class="headerlink" href="#summary_42" title="Permanent link">&para;</a></h3>
 <p>This release fixes a broken <code>pm-trader</code> login.</p>
-<h3 id="bug-fixes_31">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_31" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_32">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_32" title="Permanent link">&para;</a></h3>
 <ul>
 <li>In v0.65.0 it was not possible to login to <code>pm-trader</code> GUI due to a stricter type check on CB values. </li>
 </ul>
@@ -8866,7 +8871,7 @@ ndist would run the tests.</p>
 <li>Improved simulator stale-order handling by amending orders and avoiding stale-order sweeps during pre-open and auction calls</li>
 <li>Improved company figures with explanatory tooltips and documentation</li>
 </ul>
-<h3 id="bug-fixes_32">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_32" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_33">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_33" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed engine restart handling for OCO links, restored last price and priority, and premature uncrossing</li>
 <li>Fixed stale-order sweeps running during pre-open and auction calls</li>
@@ -8907,7 +8912,7 @@ ndist would run the tests.</p>
 <li>Initialized the simulation's company database automatically on first startup without overwriting existing profiles</li>
 <li>Added configuration warning <code>M032</code> when no read-only API credential is available for dashboard schedules, terminal history, and order-book data</li>
 </ul>
-<h3 id="bug-fixes_33">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_33" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_34">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_34" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed auction-triggered stops bypassing the FIFO stop cascade used during continuous trading</li>
 </ul>
@@ -8949,7 +8954,7 @@ ndist would run the tests.</p>
 <li>Added day-part and archive counts, sizes and compression ratio to <code>pm-audit-cli health --extended --verbose</code></li>
 <li>Changed the <code>ai-swarm</code> and <code>ai-sim</code> emo profiles to keep a week of daily audit archives (about 7 GB instead of about 25 GB of rotated files); <code>emo clean --all</code> now also removes the audit directory</li>
 </ul>
-<h3 id="bug-fixes_34">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_34" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_35">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_35" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed upcoming bank holiday names appearing in the host's locale language instead of the market country's language</li>
 </ul>
@@ -8984,7 +8989,7 @@ ndist would run the tests.</p>
 <li>Improved price-jump forensics to count sustained moves rather than brief excursions and account for news and same-direction value-model jumps</li>
 <li>Added the read-only dashboard API key to the curl installer's displayed credentials</li>
 </ul>
-<h3 id="bug-fixes_35">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_35" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_36">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_36" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed forensic matching replay processing triggered stops out of the engine's FIFO order</li>
 </ul>
@@ -9014,7 +9019,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <ul>
 <li>Added setup checks for Python 3.14 or newer, Expect, and Zstandard, with installation guidance and optional installation of missing Expect and Zstandard tools</li>
 </ul>
-<h3 id="bug-fixes_36">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_36" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_37">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_37" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed combo orders remaining active when a child leg is rejected, cancelled, or expires during entry; already-posted siblings are now cancelled and later legs are not posted</li>
 <li>Fixed combo acknowledgements and registration occurring after child-leg processing instead of before it</li>
@@ -9050,7 +9055,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <li>Added contextual help and tooltips across Terminal GUI tables and fields</li>
 <li>Improved session-status and schedule handling across generated message models, gateways, and the scheduler</li>
 </ul>
-<h3 id="bug-fixes_37">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_37" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_38">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_38" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed Terminal GUI auction and session times displaying in UTC instead of the configured session timezone</li>
 </ul>
@@ -9085,7 +9090,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <li>Made batch cancellation follow order arrival order for deterministic event sequences and reproducible engine re-runs</li>
 <li>Preserved rejection codes, quote rejection events, and OCO sibling cancellations in statistics, and drained queued messages during shutdown</li>
 </ul>
-<h3 id="bug-fixes_38">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_38" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_39">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_39" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed OCO legs ignoring their gateway's default self-match prevention policy</li>
 <li>Fixed unfillable fill-or-kill orders receiving an accepted acknowledgement before their rejection instead of a single rejecting acknowledgement</li>
@@ -9128,7 +9133,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <li>Enabled the same 09:00–16:05 session schedule on weekdays and weekends in both 300-symbol example setups</li>
 <li>Moved Trading Workstation navigation to its own row and placed session information in the top bar</li>
 </ul>
-<h3 id="bug-fixes_39">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_39" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_40">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_40" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed missing fill events for cascaded and triggered-stop orders that execute before being cancelled</li>
 <li>Fixed triggered stops matching against a quote's stale sibling leg after the other leg fills</li>
@@ -9177,7 +9182,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <li>Standardized top-bar control ordering, active-navigation styling, and connection badges across the GUIs</li>
 <li>Expanded Trade Terminal help and field explanations</li>
 </ul>
-<h3 id="bug-fixes_40">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_40" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_41">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_41" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed the log GUI failing to show the server-DOWN state correctly</li>
 </ul>
@@ -9203,7 +9208,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <ul>
 <li>Improved iceberg handling in auctions and priority handling when iceberg orders are amended</li>
 </ul>
-<h3 id="bug-fixes_41">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_41" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_42">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_42" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed fill-or-kill order behavior under self-match prevention</li>
 <li>Fixed the market-data gateway reporting an assumed continuous session instead of the engine's actual session state</li>
@@ -9234,7 +9239,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <li>Added health-monitoring and operator-dashboard guides, and screenshots across the web-application documentation</li>
 <li>Added a presentation on discrete option pricing</li>
 </ul>
-<h3 id="bug-fixes_42">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_42" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_43">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_43" title="Permanent link">&para;</a></h3>
 <ul>
 <li>A number of minor edge-case bugs that was found during stress- and pm-monitor testing have been fixed</li>
 </ul>
@@ -9253,7 +9258,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <li>Added the health-check ports 5561–5564 (pm-stats, pm-audit, pm-clearing, pm-index) to the port map shown by <code>pm-config-show</code></li>
 <li>Extended the <code>pm-cverifier</code> port-collision check (<code>M018</code>) to report configured ports that clash with the engine, market-simulator, market-index, and health-check listeners, honouring any <code>EDUMATCHER_*_PORT</code> overrides</li>
 </ul>
-<h3 id="bug-fixes_43">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_43" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_44">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_44" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>pm-config-show</code> reporting the market simulator's ports 5553/5554 with the engine's bind host instead of <code>EDUMATCHER_SIM_BIND_HOST</code></li>
 <li>Fixed the log GUI container failing to read the shared data mount on SELinux-enabled Linux hosts</li>
@@ -9298,7 +9303,7 @@ engine. Any FAILED/PARTIAL et,c will come next. </li>
 <p>This release fixes container setup permission errors on SELinux-enabled Linux
 hosts for both the plain exchange and AI-trader simulation. It also updates
 release tooling checks and clarifies installation examples.</p>
-<h3 id="bug-fixes_44">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_44" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_45">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_45" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed container setup failing to create <code>/data/ref_data</code> on SELinux-enabled hosts by requesting shared SELinux labels (<code>:z</code>) for the curl deployment's data and configuration bind mounts, including the log viewer's read-only data mount</li>
 </ul>
@@ -9338,7 +9343,7 @@ dependencies reproducible.</p>
 <ul>
 <li>Commit mermaid cache to repo to speed up a build from a freshly checked out repo</li>
 </ul>
-<h3 id="bug-fixes_45">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_45" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_46">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_46" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed Information Terminal news timestamps and the Overview clock showing UTC instead of the configured <code>engine.locale.session_timezone</code></li>
 <li>Fixed <code>pm-stats</code> recording an empty cancel reason for orders whose cancel event carried <code>cancel_reason</code></li>
@@ -9371,7 +9376,7 @@ traders a longer order-history retention than bot swarms.</p>
 <li>Improved <code>pm-log-cli diagnose</code> to report a connected but quiet process as a single <code>[INFO]</code> observation instead of one warning per process; informational findings alone no longer set exit code 3</li>
 <li>Improved the <code>fallback_to_file</code> heuristic to report once per process rather than once per historical session, cutting 1330 findings to 19 on a half-day database</li>
 </ul>
-<h3 id="bug-fixes_46">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_46" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_47">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_47" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>pm-clearing-cli gateway</code> reporting zero realized and unrealized P&amp;L for gateways holding open positions</li>
 <li>Fixed Trade History omitting fills that had already been pruned, by retaining human traders' order events for longer than bot swarms'</li>
@@ -9400,7 +9405,7 @@ documentation in the dev-gudies for all SQLite based file formats.</p>
 <li>Updated the Log GUI and Trade Terminal clocks to use <code>engine.locale.session_timezone</code> instead of UTC</li>
 <li>Improved Trade History to fetch every page of fills, so busy sessions are not limited to the first 200 results</li>
 </ul>
-<h3 id="bug-fixes_47">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_47" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_48">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_48" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed Trade History omitting older fills when the backend returned multiple pages</li>
 </ul>
@@ -9451,7 +9456,7 @@ documentation in the dev-gudies for all SQLite based file formats.</p>
 <li>Refactor all existing ref-data generating scripts under <code>docs/examples/ref_data/*</code> to use a central data driven script instead of individual scripts. </li>
 <li>pm-alf-console now surfaces cancel_reason on CANCELLED, matching every other ALF client.</li>
 </ul>
-<h3 id="bug-fixes_48">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_48" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_49">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_49" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed ALF order IDs losing their original case and missing responses to <code>QLEGS</code> requests</li>
 <li>Fixed parallel Exchange Intro builds intermittently failing because the EPUB stylesheet or other shared intermediates disappeared</li>
@@ -9496,7 +9501,7 @@ documentation in the dev-gudies for all SQLite based file formats.</p>
 <li>Improved the commented default-fields block from <code>pm-config-gen</code> so it now covers <code>alf_gateway</code>, <code>balf_gateway</code> and the previously missing market-data, log-server and API gateway fields</li>
 <li>Improved <code>pm-config-show</code> so participants show the disconnect behaviour they inherit from <code>gateway_defaults</code></li>
 </ul>
-<h3 id="bug-fixes_49">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_49" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_50">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_50" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>pm-alf-gwy</code> ignoring <code>alf_gateway.handshake_timeout_sec</code> and always using 10 seconds</li>
 <li>Fixed a second connection under an already-connected gateway ID sharing one session, so that either disconnect could cancel the other's orders; the engine now refuses it</li>
@@ -9549,7 +9554,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Improved verifier diagnostics so absent, non-enforced market-maker obligations do not produce unnecessary completeness warnings</li>
 <li>Improved <code>pm-config-gen</code> validation to reject seed quotes whose total spread exceeds the effective market-maker obligation</li>
 </ul>
-<h3 id="bug-fixes_50">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_50" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_51">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_51" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed generated market-maker seed quotes exceeding the configured <code>mm_max_spread_ticks</code></li>
 <li>Fixed no-MM example profiles lacking reference prices needed by verifier checks</li>
@@ -9581,7 +9586,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Seeded market-maker quotes now open with a 20-tick half-spread instead of a single tick, so a generated configuration starts with a realistic market rather than a near-crossed one; every bundled reference configuration has been regenerated to match</li>
 <li>Improved <code>pm-viewer</code> to show prices at each symbol's own number of decimals instead of a fixed four</li>
 </ul>
-<h3 id="bug-fixes_51">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_51" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_52">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_52" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>pm-viewer</code> deriving its session statistics and trade tape from book snapshots, which under-counted volume and missed prints; both are now built from individual trades, seeded from the statistics database and de-duplicated across delivery paths</li>
 <li>Fixed <code>pm-viewer</code> showing the date and times in the local machine's timezone rather than the exchange session timezone</li>
@@ -9646,7 +9651,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <ul>
 <li>Improved bundled example naming with consistent <code>s1</code>, <code>s3</code>, <code>s10</code>, <code>s30</code>, and <code>s150</code> prefixes across configs, deployment tools, and shell completion</li>
 </ul>
-<h3 id="bug-fixes_52">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_52" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_53">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_53" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>pm-setup</code> and <code>pm-config-deploy</code> using different default data directories in source checkouts</li>
 </ul>
@@ -9672,7 +9677,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Improved GUI branding text and colors across the web applications</li>
 <li>Improved GUI version reporting to use the main project version consistently</li>
 </ul>
-<h3 id="bug-fixes_53">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_53" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_54">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_54" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed default API keys generating unnecessarily long random values</li>
 </ul>
@@ -9695,7 +9700,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Improved <code>pm-trading-ui-serve</code> to proxy WebSocket upgrades reliably</li>
 <li>Improved <code>pm-config-show</code> to display <code>require_mm_seed_quotes</code></li>
 </ul>
-<h3 id="bug-fixes_54">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_54" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_55">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_55" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed the cancel reason for iceberg aggressors cancelled by self-match prevention</li>
 </ul>
@@ -9721,7 +9726,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Improved config validation and diagnostics so runtime defaults, generated config, and schema output stay aligned</li>
 <li>Improved gateway config consistency across raw-reading, dataclass defaults, and generated output</li>
 </ul>
-<h3 id="bug-fixes_55">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_55" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_56">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_56" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed mismatched gateway default values between dataclasses and raw config loading</li>
 <li>Fixed config generation and GUI output to honor symbol-local tick defaults instead of global defaults</li>
@@ -9744,7 +9749,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Improved documentation coverage for sequence handling, causal-envelope frames, and current source behavior</li>
 <li>Improved training-material publishing by rendering and including the EPUB artifact</li>
 </ul>
-<h3 id="bug-fixes_56">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_56" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_57">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_57" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed stale <code>DC|ON</code> help text and the <code>book_depth()</code> client docstring</li>
 </ul>
@@ -9761,7 +9766,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <p>Release Type: patch</p>
 <h3 id="summary_73">📋 Summary<a class="headerlink" href="#summary_73" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes OCO leg price and trigger serialization, improves browser-to-bridge WebSocket recovery, and corrects documentation and build-pipeline issues. It also brings the config GUI up to date with the latest config specification.</p>
-<h3 id="bug-fixes_57">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_57" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_58">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_58" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed ALF gateway and console handling so OCO leg prices, stop prices, and trailing offsets are sent as tick values</li>
 <li>Fixed terminal GUI detection of half-open browser-to-bridge WebSocket connections</li>
@@ -9783,7 +9788,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <li>Improved Trader GUI behavior for quote form refreshes, shortcut context, and order-detail timeline deduplication</li>
 <li>Improved training documentation for current CLI output, session sequencing, and protocol details</li>
 </ul>
-<h3 id="bug-fixes_58">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_58" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_59">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_59" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed Trader GUI issues with stale order snapshots, cancel/replace over-trades, rejected cancel/amend handling, and incorrect auto-logout on auth failure</li>
 <li>Fixed order-detail and symbol seeding problems, including missing <code>client_tag</code> propagation and quote prefill on reopen</li>
@@ -9802,7 +9807,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <p>Release Type: patch</p>
 <h3 id="summary_75">📋 Summary<a class="headerlink" href="#summary_75" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes Trader GUI state handling around private-stream gaps, hydration, and cancel/replace edge cases. It also strengthens venue resync and trade deduplication across the web app stack.</p>
-<h3 id="bug-fixes_59">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_59" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_60">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_60" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed private-stream gaps and stale hydration in the Trader GUI by making hydration authoritative and reading <code>ts_ns</code> from the stream</li>
 <li>Fixed cancel/replace over-trades, stale order snapshots, and rejected cancel/amend handling in the Trader GUI</li>
@@ -9818,7 +9823,7 @@ verifier and configuration generator, and refreshes the bundled example profiles
 <h3 id="summary_76">📋 Summary<a class="headerlink" href="#summary_76" title="Permanent link">&para;</a></h3>
 <p>Fixes a path issue with the new shell completion which made <code>make competion</code> work on either MacOS or Linux, but not
 both with re-making the completion.</p>
-<h3 id="bug-fixes_60">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_60" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_61">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_61" title="Permanent link">&para;</a></h3>
 <ul>
 <li>The completion generator now scrubs the HOME path out of each parser's help text</li>
 </ul>
@@ -9859,7 +9864,7 @@ both with re-making the completion.</p>
 <ul>
 <li>Improved web build integration and local-storage handling for web-apps</li>
 </ul>
-<h3 id="bug-fixes_61">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_61" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_62">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_62" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed fill events to publish the incremental fill quantity instead of the running total</li>
 <li>Fixed malformed iceberg orders hanging the matching engine</li>
@@ -9899,7 +9904,7 @@ be more important than speed.</p>
 <li>Unified <code>order.ack</code> and <code>order.fill</code> message prices to consistently use display money</li>
 <li>Enhanced audit trail capture to record inbound commands and maintain causal chain links across edge boundaries</li>
 </ul>
-<h3 id="bug-fixes_62">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_62" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_63">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_63" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed loss of causality headers and edge messages in the audit trail</li>
 <li>Fixed transport declaration for inbound commands in message specifications</li>
@@ -9928,7 +9933,7 @@ As a result the order log is now much more complete </p>
 <ul>
 <li>Changed <code>timestamp</code>to <code>ts_ns</code> in many places for consistency</li>
 </ul>
-<h3 id="bug-fixes_63">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_63" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_64">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_64" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Order ID comparison was case sensitive which made a user entered order ID never match</li>
 <li>Hardcode string literals as topic id's changed to proper canonical constants</li>
@@ -10016,7 +10021,7 @@ migration is needed once that tool is built.</p>
   reply is about.</p>
 </li>
 </ul>
-<h3 id="bug-fixes_64">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_64" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_65">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_65" title="Permanent link">&para;</a></h3>
 <ul>
 <li>
 <p><code>pm-mm-bot</code> now supplies its own <code>quote_id</code> on every <code>quote.new</code> and matches
@@ -10119,7 +10124,7 @@ is a breaking wire change with no compatibility shim.</p>
   of <code>Trade.to_dict()</code> / <code>Trade.from_dict()</code>, which are the internal
   persistence and round-trip shape.</li>
 </ul>
-<h3 id="bug-fixes_65">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_65" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_66">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_66" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Removed clearing's <code>_to_timestamp_ns</code> magnitude guard (finding CL-M6). It
   existed only because a float named <code>timestamp</code> could not be distinguished
@@ -10169,7 +10174,7 @@ EduMatcher command documentation from the terminal.</p>
 <h3 id="summary_84">📋 Summary<a class="headerlink" href="#summary_84" title="Permanent link">&para;</a></h3>
 <p>This patch release improves local gateway quote-leg reporting and tightens
 test and documentation reliability.</p>
-<h3 id="bug-fixes_66">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_66" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_67">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_67" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>QLEGS</code> output missing the symbol, quantity, and price for cached quote legs</li>
 <li>Fixed test failures caused by ambiguous dictionary keys and timing races on slower CI environments</li>
@@ -10227,7 +10232,7 @@ a MM in multiple order books (symbols).</p>
 <li>Improved ticker startup recovery by requesting drop-copy state immediately</li>
 <li>Improved matching-engine performance and Multipass VM recovery tooling</li>
 </ul>
-<h3 id="bug-fixes_67">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_67" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_68">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_68" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed partially filled market-maker quote legs remaining on the order book after replacement</li>
 <li>Fixed tick-decimal registration in <code>pm-mm-bot</code></li>
@@ -10275,7 +10280,7 @@ operator, and GUI visibility for the new risk controls.</p>
 <p>This patch release fixes the GitHub Actions frontend container builds by
 pinning a compatible npm version and updates the system trading verification
 documentation to reflect the latest implementation.</p>
-<h3 id="bug-fixes_68">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_68" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_69">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_69" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GHCR frontend image builds failing during npm workspace dependency resolution with an Arborist <code>edgesOut</code> error</li>
 </ul>
@@ -10302,7 +10307,7 @@ container builds in GitHub Actions.</p>
 <li>Improved VM upgrade and installation workflows, including automatic restart and snapshot handling</li>
 <li>Improved npm install compatibility for lockfile-free frontend container builds</li>
 </ul>
-<h3 id="bug-fixes_69">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_69" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_70">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_70" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed missing client tags on exchange events</li>
 <li>Fixed frontend GHCR builds failing with npm's Arborist deduplication error</li>
@@ -10359,7 +10364,7 @@ introduction while tightening documentation builds and process-control output.</
 <li>Improved documentation builds to avoid unnecessary PDF regeneration</li>
 <li>Updated project dependencies and bundled example version references</li>
 </ul>
-<h3 id="bug-fixes_70">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_70" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_71">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_71" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed duplicated process entries in <code>pm-opctl-cli</code></li>
 <li>Fixed a duplicated documentation Makefile target</li>
@@ -10401,7 +10406,7 @@ machine-readable rejections, and restart-safe persistence.</p>
 <li>Improved CALF replay handling by suppressing repeated trade IDs before client callbacks and state updates</li>
 <li>Improved reconciliation by using durable trade IDs as the sole clearing and statistics execution identity</li>
 </ul>
-<h3 id="bug-fixes_71">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_71" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_72">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_72" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed executions disappearing from clearing after an engine restart due to reused trade IDs</li>
 <li>Fixed ALF <code>FILL</code> messages dropping the trade IDs already present on private fills</li>
@@ -10428,7 +10433,7 @@ market-maker seed quotes while preserving the existing seeded-book default.</p>
 <li>Added <code>--no-mm-seed-quotes</code> to <code>pm-config-gen</code> for generating configurations without market-maker quote seeds</li>
 <li>Added twelve bundled <code>-nomm</code> example configurations covering every existing book-count and complexity profile</li>
 </ul>
-<h3 id="bug-fixes_72">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_72" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_73">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_73" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Test of invalid sessions was dependent on the current engine config</li>
 </ul>
@@ -10450,7 +10455,7 @@ market-maker seed quotes while preserving the existing seeded-book default.</p>
 <h3 id="summary_94">📋 Summary<a class="headerlink" href="#summary_94" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes and streamlines the release workflow, reduces redundant
 CI runs, and refreshes release references across the documentation.</p>
-<h3 id="bug-fixes_73">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_73" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_74">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_74" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Restored direct execution of <code>scripts/mkrelease.sh</code></li>
 <li>Fixed release monitoring to follow the CI run for the exact commit pushed to <code>main</code></li>
@@ -10513,7 +10518,7 @@ never deployed the configuration at all before starting the engine. All three ar
 fixed, the AI traders are now used in the trade-generation exercise, and a backup
 step warns before the overwrite.</li>
 </ul>
-<h3 id="bug-fixes_74">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_74" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_75">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_75" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Corrected the documented bind-host precedence: the four protocol gateways take
 <code>--bind</code>, not <code>--host</code> (only <code>pm-log-srv</code> and <code>pm-api-gwy</code> use <code>--host</code>).</li>
@@ -10619,7 +10624,7 @@ than the literal in the YAML.</li>
 <li>Rewrote the networking sections of the installation guide and the container
 and networks developer chapter around the two-plane model.</li>
 </ul>
-<h3 id="bug-fixes_75">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_75" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_76">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_76" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>web-apps/trader-gui/Makefile</code>: <code>build-debug</code> was indented with spaces,
 which made the whole Makefile unparseable, and the <code>install</code> target was
@@ -10635,7 +10640,7 @@ the guidance for installing, inspecting, and operating the container stack.</p>
 <ul>
 <li>Added <code>mounts</code> commands to show each container's host mounts, runtime state, and image source</li>
 </ul>
-<h3 id="bug-fixes_76">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_76" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_77">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_77" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed container startup attaching to a same-named container from a different EduMatcher install</li>
 </ul>
@@ -10647,7 +10652,7 @@ the guidance for installing, inspecting, and operating the container stack.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_98">📋 Summary<a class="headerlink" href="#summary_98" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes the container image publishing workflow.</p>
-<h3 id="bug-fixes_77">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_77" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_78">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_78" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed name-prefix collision, <code>edumatcher</code> is a prefix of all four
 <code>edumatcher-*-gui</code> names, so that glob over-matches.</li>
@@ -10661,7 +10666,7 @@ the guidance for installing, inspecting, and operating the container stack.</p>
 <h3 id="summary_99">📋 Summary<a class="headerlink" href="#summary_99" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes the container image publishing workflow and clarifies
 the one-time GitHub Container Registry permissions needed for releases.</p>
-<h3 id="bug-fixes_78">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_78" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_79">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_79" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed backend image publishing on Ubuntu 24.04 by selecting the Python version required by the project</li>
 </ul>
@@ -10723,7 +10728,7 @@ the one-time GitHub Container Registry permissions needed for releases.</p>
 <li>Improved gateway port and configuration handling used by containerized and local workflows</li>
 <li>Improved log CLI and command console behavior for day-to-day exchange operations</li>
 </ul>
-<h3 id="bug-fixes_79">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_79" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_80">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_80" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed command and engine handling gaps around order-level inspection and acknowledgement flow</li>
 <li>Fixed runtime edge cases in board/order processing paths that could degrade live monitoring output</li>
@@ -10780,7 +10785,7 @@ the one-time GitHub Container Registry permissions needed for releases.</p>
 <li>Improved basic reference-data setups by handling configurations without enabled sessions</li>
 <li>Improved the documentation build pipeline with quieter output and expanded setup guidance</li>
 </ul>
-<h3 id="bug-fixes_80">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_80" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_81">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_81" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>pm-opctl-cli</code> version reporting and corrected formatting issues in the operational scripts</li>
 <li>Fixed Pyright-reported type issues and related lint failures</li>
@@ -10811,7 +10816,7 @@ the one-time GitHub Container Registry permissions needed for releases.</p>
 <li>Improved VM bootstrap and local virtual-environment setup to handle initial environment creation and cleanup more reliably</li>
 <li>Improved the Trader GUI and web-app documentation flow for easier onboarding and maintenance</li>
 </ul>
-<h3 id="bug-fixes_81">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_81" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_82">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_82" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed web-app startup and build issues caused by port conflicts, cleanup gaps, and compatibility problems in the local development flow</li>
 </ul>
@@ -10852,7 +10857,7 @@ the one-time GitHub Container Registry permissions needed for releases.</p>
 <li>Improved engine resilience when receiving malformed or faulty messages</li>
 <li>Improved VM, virtual-environment, npm, and installation workflows for more reliable development setup</li>
 </ul>
-<h3 id="bug-fixes_82">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_82" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_83">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_83" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed configuration examples and generator/compiler mismatches that could produce stale or invalid reference-data files</li>
 <li>Fixed CI test failures caused by timing and leaked log-level state</li>
@@ -10887,7 +10892,7 @@ the one-time GitHub Container Registry permissions needed for releases.</p>
 <li>Improved dark-theme PDF link color contrast for better readability</li>
 <li>Improved training documentation coverage for configuration and API sections</li>
 </ul>
-<h3 id="bug-fixes_83">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_83" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_84">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_84" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed PDF chapter links that were emitted as literal markdown file links instead of internal document anchors</li>
 </ul>
@@ -11178,7 +11183,7 @@ Finally a new gateway was added, <code>pm-dc-gwy</code> to make the Drop-Copy av
 <li>Improved engine PULL-socket dispatch structure and unknown-topic observability through warning logs and counters</li>
 <li>Improved CALF and RALF example clients with broader protocol-coverage updates</li>
 </ul>
-<h3 id="bug-fixes_84">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_84" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_85">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_85" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed a large set of reviewed matching-engine defects covering persistence, auctioning, SMP, fills, OCO, order handling, snapshots, validation, exceptions, and related runtime edge cases</li>
 <li>Fixed scheduler state-sync, config-ingestion, and schedule-interpretation defects that could desynchronize runtime session behavior</li>
@@ -11270,7 +11275,7 @@ gateways, and adds build and Exchange Intro tooling improvements.</p>
 <li>Improved the Exchange Intro structure and content in the 1.1.0 revision</li>
 <li>Improved protocol example descriptions and supporting reference coverage in the Exchange Intro materials</li>
 </ul>
-<h3 id="bug-fixes_85">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_85" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_86">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_86" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed a resource leak caused by non-closed DB connections in clearing handler tests</li>
 </ul>
@@ -11295,7 +11300,7 @@ gateways, and adds build and Exchange Intro tooling improvements.</p>
 <ul>
 <li>Updated all example configurations in the user-guide to cover the latest <code>pm-config-gen</code> options</li>
 </ul>
-<h3 id="bug-fixes_86">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_86" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_87">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_87" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed a possible deadlock in a rare concurrent execution path in clearing process</li>
 <li>Fixed a unit misidentification bug (ns vs. ms) that could produce incorrect timing calculations in the clearing process</li>
@@ -11325,7 +11330,7 @@ gateways, and adds build and Exchange Intro tooling improvements.</p>
 <li>Improved reconciliation logic to validate both buy-side and sell-side aggregates</li>
 <li>Improved clearing design documentation with secondary-message flow details</li>
 </ul>
-<h3 id="bug-fixes_87">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_87" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_88">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_88" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed double normalization in clearing output calculations</li>
 <li>Fixed duplicate target declarations in the docs-design Makefile that emitted override warnings</li>
@@ -11401,7 +11406,7 @@ It also standardizes the API gateway process command name to match the gateway n
 <li>Improved <code>pm-cverifier</code> semantic and schema validation around market-maker settings and BALF gateway checks</li>
 <li>Improved verifier robustness for malformed config shapes to avoid crashes and return actionable findings</li>
 </ul>
-<h3 id="bug-fixes_88">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_88" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_89">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_89" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed intermittent timeout in <code>test_python_example_subscribes_and_parses_gateway_exec</code> by making the RALF PUB/SUB test resilient to subscription propagation timing</li>
 </ul>
@@ -11427,7 +11432,7 @@ It also standardizes the API gateway process command name to match the gateway n
 <p>Release Type: patch</p>
 <h3 id="summary_121">📋 Summary<a class="headerlink" href="#summary_121" title="Permanent link">&para;</a></h3>
 <p>This patch release stabilizes documentation publishing by fixing the GitHub Pages deployment workflow due to deprecated deployment verbs.</p>
-<h3 id="bug-fixes_89">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_89" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_90">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_90" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GitHub Pages documentation deployment by switching to the supported artifact-based actions flow</li>
 </ul>
@@ -11443,7 +11448,7 @@ It also standardizes the API gateway process command name to match the gateway n
 <ul>
 <li>Improved documentation build portability by making the docs Makefile work on Linux environments</li>
 </ul>
-<h3 id="bug-fixes_90">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_90" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_91">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_91" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed decimal-mark interpretation so dot-based numeric parsing is handled correctly</li>
 </ul>
@@ -11509,7 +11514,7 @@ scheduler, and stats workflows.</p>
 <li>Improved RALF end-of-day reporting by tracking and emitting per-symbol trade counts in EOD events</li>
 <li>Improved build portability by adapting Puppeteer path handling for different operating systems</li>
 </ul>
-<h3 id="bug-fixes_91">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_91" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_92">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_92" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed leaked SQLite connections in <code>pm-stats</code> teardown paths that surfaced as <code>ResourceWarning</code> during full test runs</li>
 <li>Fixed leaked file, TCP, and ZMQ handles across clearing, index history, CALF, RALF, ticker, and related test fixtures by adding explicit cleanup paths and closing replaced sockets</li>
@@ -11534,7 +11539,7 @@ process modules, eliminating socket leaks, over-broad exception catches, and
 signal-handler safety violations. The CALF documentation is significantly
 expanded with a full channel reference, protocol comparison table, and annotated
 Python subscriber examples.</p>
-<h3 id="bug-fixes_92">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_92" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_93">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_93" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>bids[0]["price"]</code> / <code>asks[0]["price"]</code> dict access in <code>board</code>, <code>ticker</code>, <code>stats</code>, and MM bot — raises <code>KeyError</code> on malformed book levels; changed to <code>.get("price")</code></li>
 <li>Fixed <code>except zmq.ZMQError: break</code> in receive loops across <code>board</code>, <code>ticker</code>, <code>api_gateway</code>, <code>audit</code>, <code>clearing</code>, <code>index</code>, <code>stats</code>, and <code>md_gateway</code> — was catching all errors including real failures; now checks <code>errno.EINTR</code> and re-raises others</li>
@@ -11565,7 +11570,7 @@ Python subscriber examples.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_128">📋 Summary<a class="headerlink" href="#summary_128" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes eight bugs across the matching engine and MM bot, and refactors the ALF Gateway into separate submodules for better maintainability. Documentation is updated with improved API Gateway guidance, an expanded AI Trader design, and an index-controlled circuit-breaker design refresh.</p>
-<h3 id="bug-fixes_93">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_93" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_94">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_94" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed <code>_run_uncross()</code> not triggering stop orders whose stop price was reached by the equilibrium price</li>
 <li>Fixed <code>_run_uncross()</code> not updating the position ledger for auction fills, leaving position snapshots stale</li>
@@ -11618,7 +11623,7 @@ Python subscriber examples.</p>
 <li>Improved API Gateway reliability and behavior across hardened runtime and route paths</li>
 <li>Improved MM bot resilience to dropped <code>quote.ack</code> and missed status flows with self-healing reissue behavior</li>
 </ul>
-<h3 id="bug-fixes_94">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_94" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_95">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_95" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed MM bot reissue liveness gaps that could leave quoting stalled after dropped acknowledgement paths</li>
 </ul>
@@ -11659,7 +11664,7 @@ Python subscriber examples.</p>
 <ul>
 <li>Improved PDF build robustness with fail-fast LaTeX toolchain checks across documentation Makefiles</li>
 </ul>
-<h3 id="bug-fixes_95">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_95" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_96">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_96" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed three critical matcher defects affecting auction uncross handling after circuit-breaker resume, iceberg peek-quantity accounting, and aggressive sweep event duplication</li>
 <li>Fixed <code>OrderBook.cancel_order</code> corruption of quantity indexes when canceling untriggered STOP_LIMIT orders</li>
@@ -11681,7 +11686,7 @@ Python subscriber examples.</p>
 <li>Improved generated config comments with fuller per-setting explanations and previously missing <code>risk_level</code> settings</li>
 <li>Improved per-symbol risk-level configuration support in <code>pm-config-gen</code></li>
 </ul>
-<h3 id="bug-fixes_96">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_96" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_97">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_97" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed a Mermaid rendering race condition with color themes that could produce inconsistent diagrams</li>
 </ul>
@@ -11760,7 +11765,7 @@ Python subscriber examples.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_137">📋 Summary<a class="headerlink" href="#summary_137" title="Permanent link">&para;</a></h3>
 <p>This patch release hardens cross-platform reliability for the RALF example integration tests, especially on Linux CI runners. It also improves protocol discoverability in the User Guide by adding a dedicated overview page that maps ALF, BALF, CALF, and RALF usage and references.</p>
-<h3 id="bug-fixes_97">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_97" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_98">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_98" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed Linux PTY read handling in RALF C example tests where EOF can surface as <code>EIO</code></li>
 <li>Fixed Linux portability issues in RALF C example sources and build flags to avoid platform-specific crashes</li>
@@ -11825,7 +11830,7 @@ Python subscriber examples.</p>
 <li>Added symbol metadata to <code>system.symbols.{GW}</code> replies and extended the gateway <code>SYMBOLS</code> command to display tick size and MM obligation metadata</li>
 <li>Added new training chapters covering advanced admin operations, drop-copy replay/recovery, and automation with <code>ExchangeCommandClient</code> and <code>pm-mm-bot</code></li>
 </ul>
-<h3 id="bug-fixes_98">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_98" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_99">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_99" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed Mermaid rendering failures in MM design documentation caused by unescaped pipe characters in graph labels</li>
 </ul>
@@ -11901,7 +11906,7 @@ faster with fewer manual YAML errors.</p>
 <li>Improved docs build flow by moving PDF bundle orchestration into Makefiles instead of <code>mkbld.sh</code></li>
 <li>Improved docs Makefile consistency by reusing the same <code>node_modules</code> build-tools directory across docs pipelines</li>
 </ul>
-<h3 id="bug-fixes_99">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_99" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_100">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_100" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed PDF rendering of <code>note</code> admonitions and Lua-filtered admonition boxes which was missing</li>
 </ul>
@@ -11983,7 +11988,7 @@ faster with fewer manual YAML errors.</p>
 <li>Added AI Traders user guide section covering <code>pm-ai-trader</code> and <code>pm-ai-swarm</code>, personality profiles, decision loop, risk mechanisms, and classroom demo setup</li>
 <li>Added CLI Statistics commands design proposal identifying server-side commands for querying <code>stats.db</code> without raw SQL</li>
 </ul>
-<h3 id="bug-fixes_100">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_100" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_101">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_101" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GTC quote legs being written to <code>gtc_orders.json</code> at shutdown, causing duplicate resting orders in the book on subsequent engine restarts</li>
 </ul>
@@ -12061,7 +12066,7 @@ faster with fewer manual YAML errors.</p>
 <li>Added AI Traders user guide section covering <code>pm-ai-trader</code> and <code>pm-ai-swarm</code>, personality profiles, decision loop, risk mechanisms, and classroom demo setup</li>
 <li>Added CLI Statistics commands design proposal identifying server-side commands for querying <code>stats.db</code> without raw SQL</li>
 </ul>
-<h3 id="bug-fixes_101">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_101" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_102">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_102" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GTC quote legs being written to <code>gtc_orders.json</code> at shutdown, causing duplicate resting orders in the book on subsequent engine restarts</li>
 </ul>
@@ -12110,7 +12115,7 @@ faster with fewer manual YAML errors.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_154">📋 Summary<a class="headerlink" href="#summary_154" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes chapter numbering in generated User Guide PDFs and cleans up related documentation build templates and Makefile flow.</p>
-<h3 id="bug-fixes_102">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_102" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_103">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_103" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed User Guide chapter numbering by switching LaTeX templates from front matter to main matter before chapter content</li>
 <li>Fixed incorrect imprint text in User Guide templates</li>
@@ -12146,7 +12151,7 @@ faster with fewer manual YAML errors.</p>
 <ul>
 <li>Improved release packaging validation to only verify Python distribution artifacts with Twine</li>
 </ul>
-<h3 id="bug-fixes_103">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_103" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_104">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_104" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GitHub release script behavior during release execution</li>
 </ul>
@@ -12174,7 +12179,7 @@ faster with fewer manual YAML errors.</p>
 <p>Release Type: patch</p>
 <h3 id="summary_159">📋 Summary<a class="headerlink" href="#summary_159" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes issues in the GitHub release automation flow and stabilizes post-release branch synchronization after v0.1.2.</p>
-<h3 id="bug-fixes_104">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_104" title="Permanent link">&para;</a></h3>
+<h3 id="bug-fixes_105">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_105" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GitHub release script behavior for release creation flow</li>
 </ul>
