@@ -157,7 +157,7 @@ export interface DepthFrame {
   asks: DepthLevel[];
 }
 
-export type AuctionReason = "SCHEDULED" | "REOPEN" | "RECOVERY";
+export type AuctionReason = "SCHEDULED" | "REOPEN" | "RECOVERY" | "BACKSTOP" | "ADMIN_MANUAL";
 
 export type HaltSource = "CB" | "ADMIN";
 

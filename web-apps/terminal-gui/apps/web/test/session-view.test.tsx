@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientFrame, ServerFrame } from "@edumatcher/terminal-types";
 
@@ -210,6 +210,81 @@ describe("recent auction results", () => {
 
     expect(screen.getByText("(no cross)")).toBeDefined();
   });
+
+  const auction = (sym: string, seq: number, over: Record<string, unknown> = {}): ServerFrame =>
+    ({
+      type: "auction_result",
+      sym,
+      seq,
+      ts: "2026-07-30T09:30:02.000Z",
+      eqQty: 0,
+      tradesCount: 0,
+      imbalanceQty: 0,
+      ...over,
+    }) as ServerFrame;
+  const symbolsShown = () =>
+    screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.querySelector("td")?.textContent);
+
+  it("names the uncross path, so a reopening is not mistaken for the open", () => {
+    apply(
+      auction("AAPL", 1, { reason: "SCHEDULED", eqPrice: 150 }),
+      auction("MSFT", 2, { reason: "REOPEN" }),
+    );
+    show();
+    // The filter's options carry the same labels; the cells are what count.
+    expect(screen.getByRole("cell", { name: "Scheduled" })).toBeDefined();
+    expect(screen.getByRole("cell", { name: "Reopen" })).toBeDefined();
+  });
+
+  it("pages the results, newest first", () => {
+    for (let i = 1; i <= 20; i++) apply(auction(`S${i}`, i));
+    show();
+
+    expect(screen.getByText("Page 1/2")).toBeDefined();
+    expect(symbolsShown()).toHaveLength(15);
+    expect(symbolsShown()[0]).toBe("S20");
+    expect(screen.getByRole("button", { name: "Previous page" }).hasAttribute("disabled")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("Page 2/2")).toBeDefined();
+    expect(symbolsShown()).toEqual(["S5", "S4", "S3", "S2", "S1"]);
+    expect(screen.getByRole("button", { name: "Next page" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("filters by symbol, reason and crossing, and counts what is left", () => {
+    apply(
+      auction("AAPL", 1, { reason: "SCHEDULED", eqPrice: 150, eqQty: 100, tradesCount: 2 }),
+      auction("MSFT", 2, { reason: "SCHEDULED" }),
+      auction("AAPL", 3, { reason: "REOPEN" }),
+    );
+    show();
+
+    fireEvent.change(screen.getByLabelText("Find symbol"), { target: { value: "aap" } });
+    expect(symbolsShown()).toEqual(["AAPL", "AAPL"]);
+    expect(screen.getByText("2 of 3")).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText("Auction reason"), { target: { value: "REOPEN" } });
+    expect(screen.getByText("1 of 3")).toBeDefined();
+    expect(screen.getByText("(no cross)")).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText("Crossed only"));
+    expect(screen.getByText("No auction results match the filter")).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText("Auction reason"), { target: { value: "ALL" } });
+    expect(symbolsShown()).toEqual(["AAPL"]);
+    expect(screen.getByText("150.00")).toBeDefined();
+  });
+
+  it("returns to the first page when the filter changes", () => {
+    for (let i = 1; i <= 20; i++) apply(auction(`S${i}`, i));
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.change(screen.getByLabelText("Find symbol"), { target: { value: "S1" } });
+    expect(screen.getByText("Page 1/1")).toBeDefined();
+  });
 });
 
 describe("column help", () => {
@@ -231,6 +306,7 @@ describe("column help", () => {
       "Reference",
       "Resumes",
       "Since",
+      "Reason",
       "Eq. price",
       "Trades",
       "Imbalance",

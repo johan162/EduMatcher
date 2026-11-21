@@ -289,12 +289,14 @@ describe("decodeAuction", () => {
     expect(decoded.reason).toBe("REOPEN");
   });
 
-  it("reads the scheduled and startup reasons too", () => {
+  it("reads the scheduled, startup, backstop and operator reasons too", () => {
     const of = (reason: string) =>
       decodeAuction(fieldsOf(`AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQQTY=0|TRADES=0|IMBQTY=0|REASON=${reason}`))
         .reason;
     expect(of("SCHEDULED")).toBe("SCHEDULED");
     expect(of("RECOVERY")).toBe("RECOVERY");
+    expect(of("BACKSTOP")).toBe("BACKSTOP");
+    expect(of("ADMIN_MANUAL")).toBe("ADMIN_MANUAL");
   });
 
   it("omits the reason when an older gateway sends none", () => {

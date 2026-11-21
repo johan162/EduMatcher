@@ -2,8 +2,14 @@
 
 The engine is the authority; this table keeps agents from sending what it
 would refuse (MARKET/IOC/FOK outside CONTINUOUS, ATO/ATC outside their
-auction) and encodes the agents' own policy on top: nothing for a halted
-symbol, no stops outside continuous trading.
+auction) and encodes the agents' own policy on top: no stops outside
+continuous trading, and nothing for a halted symbol unless the caller has
+put it in its ``HALTED`` phase.
+
+A circuit-breaker halt is the symbol's reopening auction: the engine rests
+LIMIT/ICEBERG orders and rejects the rest, so ``symbol_phase`` gives such a
+symbol the call phase ``HALTED`` whatever the session is doing. An operator
+halt (source ADMIN) ends only at the operator's word and is left alone.
 """
 
 from __future__ import annotations
@@ -17,11 +23,20 @@ _ALLOWED: dict[str, tuple[set[OrderType], set[TIF]]] = {
     "OPENING_AUCTION": (_RESTING, {TIF.DAY, TIF.GTC, TIF.ATO}),
     "CONTINUOUS": (set(OrderType), {TIF.DAY, TIF.GTC}),
     "CLOSING_AUCTION": (_RESTING, {TIF.DAY, TIF.GTC, TIF.ATC}),
+    "HALTED": (_RESTING, {TIF.DAY, TIF.GTC}),
 }
 
 
+def symbol_phase(phase: str, halted: bool, halt_source: str | None) -> str:
+    """The phase order entry on one symbol follows: ``HALTED`` during a
+    circuit-breaker halt in an open session, else the session's own."""
+    if halted and halt_source == "CB" and phase in _ALLOWED:
+        return "HALTED"
+    return phase
+
+
 def order_allowed(phase: str, order_type: OrderType, tif: TIF, halted: bool) -> bool:
-    if halted:
+    if halted and phase != "HALTED":
         return False
     allowed = _ALLOWED.get(phase)
     if allowed is None:  # CLOSED or unknown
@@ -40,4 +55,4 @@ def auction_tif(phase: str) -> TIF | None:
 
 
 def is_call_phase(phase: str) -> bool:
-    return phase in ("PRE_OPEN", "OPENING_AUCTION", "CLOSING_AUCTION")
+    return phase in ("PRE_OPEN", "OPENING_AUCTION", "CLOSING_AUCTION", "HALTED")

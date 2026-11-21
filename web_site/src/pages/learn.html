@@ -18,36 +18,53 @@ nav: learn
     <div class="crumbs">EduMatcher / Learn</div>
     <div class="eyebrow">Education</div>
     <h1 class="display">Learn markets by<br><span class="accent">running one</span></h1>
-    <p class="lede">Textbooks describe order books. EduMatcher lets you place an order, watch it rest, get hit, and appear in the audit trail — and then read exactly which lines of code did it.</p>
+    <p class="lede">Textbooks describe market microstructure. EduMatcher starts a living market with one command ({{F_SIM_SYMBOLS}} symbols, the {{F_SIM_INDEX}} index and {{F_SIM_TRADERS}} AI traders) so you can watch prices form, spreads move and auctions uncross, trade in it yourself, and then read exactly why it behaves as it does.</p>
+    <div class="btn-row" style="margin-top:24px"><a class="btn primary" href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Start the market</a><a class="btn ghost" href="#paths">Learning paths</a></div>
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
-  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#engine">Order book</a><a href="#library">Library</a><a href="#intro">Intro book</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
+  <a href="#approach">Approach</a><a href="#classroom">The market</a><a href="#paths">Learning paths</a><a href="#engine">Order book</a><a href="#library">Library</a><a href="#intro">Intro book</a><a href="#training">Training</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
 </div></nav>
 
 <section class="section" id="approach">
   <div class="wrap">
     <div class="grid g3">
-      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9z"/></svg></div><h3>See it run first</h3><p class="muted">The Quick Start gets a live exchange on screen in minutes, then a first trade, a full trading day and your own configuration — with a checkpoint at every step.</p></div>
+      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9z"/></svg></div><h3>See it run first</h3><p class="muted">One command starts a market that is already trading: AI traders, a market maker, news and auctions. Watch it from every view first, then learn what you are watching, with a checkpoint at every step.</p></div>
       <div class="card rv d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div><h3>Concepts, then code</h3><p class="muted">Every chapter opens with learning objectives and builds from the finance idea to the data structure to the source file that implements it.</p></div>
       <div class="card rv d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.500 4.500L18.500 21 12 16.500 5.500 21l2-7.500L2 9h7z"/></svg></div><h3>Break it on purpose</h3><p class="muted">Halt a symbol, trip a circuit breaker, kill a process, replay the audit trail. A venue that can be broken safely is one you can understand.</p></div>
     </div>
   </div>
 </section>
 
-<section class="section band" id="paths">
+<section class="section band" id="classroom">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">The simulated market</div>
+      <h2 class="display">A living market,<br>on demand</h2>
+      <p class="lede">One command starts it; it runs for weeks on real trading hours, or as fast as your lecture needs.</p>
+    </div>
+    <div class="grid g2">
+      <div class="card rv"><h3>An exchange that is never empty</h3><p class="muted">A single container runs {{F_SIM_TRADERS}} AI traders of {{F_SIM_PRESETS}} kinds and a market maker across {{F_SIM_SYMBOLS}} symbols and the {{F_SIM_INDEX}} index, with a hidden true value, headlines and rumours. Students trade next to the bots and see prices react to news they can read.</p></div>
+      <div class="card rv d1"><h3>Accelerated time</h3><p class="muted">Compress a trading day into minutes so a lecture can include an opening auction, a news shock and a close.</p></div>
+      <div class="card rv"><h3>One URL per student</h3><p class="muted">API keys map to participants and roles. Give each student a trader key; put TapeDeck on the projector; keep the Operator Dashboard on your own screen.</p></div>
+      <div class="card rv d1"><h3>Grade the evidence</h3><p class="muted">The audit trail and clearing P&amp;L record exactly what each participant did — perfect for post-session debriefs and assignments.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="paths">
   <div class="wrap">
     <div class="center rv" style="margin-bottom:38px">
       <div class="eyebrow">Learning paths</div>
       <h2 class="display">Start anywhere,<br>go as deep as you like</h2>
-      <p class="lede">If markets are new, start with <a href="{{INTRO_URL}}">{{INTRO_TITLE}}</a> (a general book about exchanges, not about EduMatcher). Then work through the Quick Start and branch by what you want to do.</p>
+      <p class="lede">If markets are new, start with <a href="{{INTRO_URL}}">{{INTRO_TITLE}}</a> (a general book about exchanges, not about EduMatcher). Then start the simulated market with the <a href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Ten-Minute Start</a>, work through the Quick Start and branch by what you want to do.</p>
     </div>
     <div class="rv">{{> diagram-paths}}</div>
     <p class="center muted small rv" style="margin-top:14px">Every box in the map is a link.</p>
   </div>
 </section>
 
-<section class="section" id="engine">
+<section class="section band" id="engine">
   <div class="wrap">
     <div class="feature" style="margin-bottom:0">
       <div class="copy-col rv">
@@ -107,23 +124,7 @@ nav: learn
   </div>
 </section>
 
-
-<section class="section" id="classroom">
-  <div class="wrap">
-    <div class="center rv" style="margin-bottom:44px">
-      <div class="eyebrow">For instructors</div>
-      <h2 class="display">A class-sized market,<br>on demand</h2>
-    </div>
-    <div class="grid g2">
-      <div class="card rv"><h3>An exchange that is never empty</h3><p class="muted">A single container runs {{F_SIM_TRADERS}} AI traders across {{F_SIM_SYMBOLS}} symbols, with a hidden true value, headlines and rumours. Students trade next to the bots and see prices react to news they can read.</p></div>
-      <div class="card rv d1"><h3>Accelerated time</h3><p class="muted">Compress a trading day into minutes so a lecture can include an opening auction, a news shock and a close.</p></div>
-      <div class="card rv"><h3>One URL per student</h3><p class="muted">API keys map to participants and roles. Give each student a trader key; put TapeDeck on the projector; keep the Operator Dashboard on your own screen.</p></div>
-      <div class="card rv d1"><h3>Grade the evidence</h3><p class="muted">The audit trail and clearing P&amp;L record exactly what each participant did — perfect for post-session debriefs and assignments.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="section band" id="decks">
+<section class="section" id="decks">
   <div class="wrap">
     <div class="center rv" style="margin-bottom:38px">
       <div class="eyebrow">Teaching material</div>
@@ -134,7 +135,7 @@ nav: learn
   </div>
 </section>
 
-<section class="section" id="experiments">
+<section class="section band" id="experiments">
   <div class="wrap" style="max-width:880px">
     <div class="center rv">
       <div class="eyebrow">Go further</div>

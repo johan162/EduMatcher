@@ -362,7 +362,7 @@ export function decodeAuction(fields: Record<string, string>): AuctionPayload {
  * every consumer already handles — instead of asserting a variant that does
  * not exist and failing somewhere further downstream.
  */
-const AUCTION_REASONS: readonly string[] = ["SCHEDULED", "REOPEN", "RECOVERY"];
+const AUCTION_REASONS: readonly string[] = ["SCHEDULED", "REOPEN", "RECOVERY", "BACKSTOP", "ADMIN_MANUAL"];
 const HALT_SOURCES: readonly string[] = ["CB", "ADMIN"];
 const IMBALANCE_SIDES: readonly string[] = ["BUY", "SELL"];
 

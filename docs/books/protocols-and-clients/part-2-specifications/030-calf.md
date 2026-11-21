@@ -869,9 +869,9 @@ uncross, even when there was no crossable interest at all.
 | `TRADES`  | Yes | Number of trades produced by the uncross (`0` when no cross)                |
 | `IMBSIDE` | No  | Residual imbalance side, `BUY` or `SELL`; omitted when balanced or no cross |
 | `IMBQTY`  | Yes | Residual imbalance quantity at `EQPX` (`0` when balanced or no cross)       |
-| `REASON`  | No  | Which uncross this was: `SCHEDULED` (leaving an auction or other non-matching phase), `REOPEN` (a halted symbol reopening) or `RECOVERY` (restored GTC orders at engine startup) |
+| `REASON`  | No  | Which uncross this was: `SCHEDULED` (leaving an auction or other non-matching phase), `REOPEN` (a halted symbol reopening), `RECOVERY` (restored GTC orders at engine startup), `BACKSTOP` (the closing backstop forcing a still-halted symbol to reopen) or `ADMIN_MANUAL` (an operator force-uncrossing one symbol) |
 
-Without `REASON` the three are indistinguishable — the fields are otherwise
+Without `REASON` the five are indistinguishable — the fields are otherwise
 identical — so a client cannot tell a circuit-breaker reopening from the
 closing auction. Treat an unrecognised value as absent rather than as an
 error: it means a gateway newer than the client.
