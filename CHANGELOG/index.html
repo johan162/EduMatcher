@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v0830-2026-11-21" class="md-skip">
+        <a href="#v0831-2026-11-21" class="md-skip">
           Skip to content
         </a>
       
@@ -7666,7 +7666,7 @@
 
   <h1>CHANGELOG</h1>
 
-<h2 id="v0830-2026-11-21">[v0.83.0] - 2026-11-21<a class="headerlink" href="#v0830-2026-11-21" title="Permanent link">&para;</a></h2>
+<h2 id="v0831-2026-11-21">[v0.83.1] - 2026-11-21<a class="headerlink" href="#v0831-2026-11-21" title="Permanent link">&para;</a></h2>
 <p>Release Type: major</p>
 <h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
 <p>This release enables AI traders to participate in circuit-breaker reopening auctions and improves the terminal's auction and index views. It also updates documentation and streamlines documentation builds.</p>
@@ -7685,6 +7685,7 @@
 <ul>
 <li>Fixed terminal 1D and 5D index charts dropping snapshots or stopping before the full session was shown</li>
 <li>Fixed Linux documentation builds failing when rewriting Exchange Introduction asset links</li>
+<li>Fixed a race condition on slow CI/CD server. The tests use _server is not None to mean "ready to connect", so a slow CI runner could pause the server thread between those lines and the test's connect() was refused.</li>
 </ul>
 <h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
