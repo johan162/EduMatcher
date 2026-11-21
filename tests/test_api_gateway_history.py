@@ -25,7 +25,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pytest
 from fastapi import HTTPException
@@ -279,6 +279,7 @@ async def _call_index_snapshots(
     from_ts: str | None = None,
     to_ts: str | None = None,
     limit: int = 500,
+    interval: Literal["1m", "5m", "15m", "1h"] | None = None,
 ) -> dict[str, Any]:
     result = await history.history_index_snapshots(
         request,
@@ -288,6 +289,7 @@ async def _call_index_snapshots(
         from_ts=from_ts,
         to_ts=to_ts,
         limit=limit,
+        interval=interval,
     )
     check_contract(history.history_index_snapshots, result)
     return result
@@ -481,6 +483,29 @@ async def test_index_snapshots_chronological_order(seeded_db: Path) -> None:
     )
     timestamps = [row["ts"] for row in result["snapshots"]]
     assert timestamps == sorted(timestamps)
+
+
+@pytest.mark.anyio
+async def test_index_snapshots_interval_returns_last_level_per_bucket(
+    seeded_db: Path,
+) -> None:
+    """``interval`` reaches pm-stats: a 09:20 tick replaces 09:00 as the
+    close of the 09:00 hour, while 16:00 stays alone in its own."""
+    conn = sqlite3.connect(seeded_db)
+    conn.execute(
+        "INSERT INTO index_level_snapshots "
+        "(ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low) "
+        "VALUES ('2026-06-14T09:20:00.000+00:00', 'EDU100', 1001.0, 1.0, 1.0, "
+        "'CONTINUOUS', NULL, NULL, NULL)"
+    )
+    conn.commit()
+    conn.close()
+    request = _request_for(seeded_db)
+    hourly = await _call_index_snapshots(
+        request, _readonly_session(), index_id="edu100", interval="1h"
+    )
+    assert [r["ts"][11:16] for r in hourly["snapshots"]] == ["09:20", "16:00"]
+    assert hourly["snapshots"][-1]["session_state"] == "CLOSED"
 
 
 @pytest.mark.anyio

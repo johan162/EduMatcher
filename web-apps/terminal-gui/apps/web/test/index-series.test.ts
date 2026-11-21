@@ -4,14 +4,15 @@ import {
   dailySeries,
   indexRangeStart,
   recentChanges,
+  snapshotInterval,
   snapshotSeries,
   usesSnapshots,
   withLiveTail,
 } from "../src/lib/index-series.js";
 
-const snap = (timestamp: string, level: number | null): IndexSnapshotRow => ({
+const snap = (ts: string, level: number | null): IndexSnapshotRow => ({
   index_id: "EDU100",
-  timestamp,
+  ts,
   level,
 });
 
@@ -35,6 +36,13 @@ describe("preset routing", () => {
     expect(usesSnapshots("All")).toBe(false);
   });
 
+  it("asks pm-stats for 1-minute points on 1D and 5-minute on 5D", () => {
+    // A sim session is ~23k raw ticks; unbucketed, 1D stopped at the first
+    // 5,000-row page in mid-morning.
+    expect(snapshotInterval("1D")).toBe("1m");
+    expect(snapshotInterval("5D")).toBe("5m");
+  });
+
   it("asks for no lower bound on All", () => {
     expect(indexRangeStart("All")).toBeUndefined();
   });
@@ -53,6 +61,13 @@ describe("preset routing", () => {
 });
 
 describe("snapshotSeries", () => {
+  it("reads the `ts` field pm-stats actually sends", () => {
+    // The row type once said `timestamp`; every real row then parsed as NaN
+    // and was dropped, leaving the intraday chart with only the live tail.
+    const row = { index_id: "EDU50", ts: "2026-11-21T15:05:00.493+00:00", level: 990.12 };
+    expect(snapshotSeries([row])).toEqual([{ time: 1_795_273_500, value: 990.12 }]);
+  });
+
   it("orders oldest first regardless of how rows arrived", () => {
     const rows = [snap("2026-07-30T10:00:00Z", 1050), snap("2026-07-30T09:30:00Z", 1042)];
     expect(snapshotSeries(rows).map((p) => p.value)).toEqual([1042, 1050]);

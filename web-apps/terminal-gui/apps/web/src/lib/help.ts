@@ -66,6 +66,8 @@ const HALT: Record<string, string> = {
 /** The Session view's recent-auction-results table. */
 const AUCTION: Record<string, string> = {
   Symbol: "The instrument that uncrossed.",
+  Reason:
+    "Why the uncross ran. Scheduled: the opening or closing auction. Reopen: a halted symbol resuming; it shows (no cross) when nobody added crossing orders during the halt. Backstop: a still-halted symbol forced open at the close. Manual: an operator reopen. Recovery: restored orders uncrossed at engine startup.",
   "Eq. price": "The equilibrium price: the single price the auction matched at. (no cross): bids and offers did not overlap, so nothing traded.",
   Qty: "The quantity matched at the equilibrium price.",
   Trades: "The number of trades the uncross printed.",

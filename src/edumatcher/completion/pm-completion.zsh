@@ -5202,6 +5202,7 @@ _shtab_pm_stats_cli_index_snapshots_options=(
   "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
+  "--interval[Show only the last level in each bucket of this width (UTC-aligned)]:interval:(1m 5m 15m 1h)"
 )
 
 # guard to ensure default positional specs are added only once per session

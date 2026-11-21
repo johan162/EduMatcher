@@ -931,6 +931,10 @@ def _query_index_daily_range(
     return results, next_cursor
 
 
+#: Bucket widths, in seconds, accepted by ``query_index_snapshots(interval=)``.
+INDEX_SNAPSHOT_INTERVALS: dict[str, int] = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600}
+
+
 def query_index_snapshots(
     conn: sqlite3.Connection,
     *,
@@ -941,19 +945,39 @@ def query_index_snapshots(
     limit: int,
     tz: tzinfo,
     after: str | None = None,
+    interval: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* index snapshots plus a next-page cursor.
 
     Several updates, of one index or of different ones, can share a ``ts``
     (millisecond resolution), so ``rowid`` (the arrival ``seq``) is the
     tiebreaker for same-``ts`` rows.
+
+    With *interval* (a key of ``INDEX_SNAPSHOT_INTERVALS``) only the last
+    snapshot of each bucket is returned — the bar's close, which is what a
+    line chart plots — with its real ``ts``. pm-index publishes many updates
+    a second, so a full session of raw ticks overruns any sensible page.
+    Buckets are aligned to multiples of the interval in Unix time. The cursor
+    still works: a page ends on the last row of a bucket, so the next page
+    starts in the next one.
     """
+    if interval is not None and interval not in INDEX_SNAPSHOT_INTERVALS:
+        raise ValueError(
+            f"interval must be one of {', '.join(INDEX_SNAPSHOT_INTERVALS)}"
+        )
     sql = (
         "SELECT rowid AS _rowid, ts, index_id, level, aggregate_cap, divisor, "
-        "session_state, day_open, day_high, day_low "
-        "FROM index_level_snapshots WHERE index_id = ?"
+        "session_state, day_open, day_high, day_low"
     )
-    params: list[Any] = [index_id]
+    params: list[Any] = []
+    if interval is not None:
+        sql += (
+            ", ROW_NUMBER() OVER (PARTITION BY CAST(strftime('%s', ts) AS INTEGER) / ? "
+            "ORDER BY ts DESC, rowid DESC) AS _rn"
+        )
+        params.append(INDEX_SNAPSHOT_INTERVALS[interval])
+    sql += " FROM index_level_snapshots WHERE index_id = ?"
+    params.append(index_id)
 
     sql = _apply_time_filters(
         sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
@@ -963,7 +987,14 @@ def query_index_snapshots(
         sql += " AND (ts > ? OR (ts = ? AND rowid > ?))"
         params.extend([after_ts, after_ts, after_rowid])
 
-    sql += " ORDER BY ts ASC, rowid ASC LIMIT ?"
+    if interval is not None:
+        sql = (
+            "SELECT _rowid, ts, index_id, level, aggregate_cap, divisor, "
+            "session_state, day_open, day_high, day_low "
+            f"FROM ({sql}) WHERE _rn = 1 ORDER BY ts ASC, _rowid ASC LIMIT ?"
+        )
+    else:
+        sql += " ORDER BY ts ASC, rowid ASC LIMIT ?"
     params.append(limit)
 
     rows = _execute_fetchall(conn, sql, params)

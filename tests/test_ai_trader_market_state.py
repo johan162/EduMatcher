@@ -213,8 +213,39 @@ class TestReference:
         m = MarketState()
         m.on_halt_status({"halted": [{"symbol": "a"}]})
         assert m.symbols["A"].halted
+        assert m.symbols["A"].halt_source is None
         m.on_halt("A", False)
         assert not m.symbols["A"].halted
+
+    def test_halt_source(self) -> None:
+        m = MarketState()
+        m.on_halt_status(
+            {
+                "halted": [
+                    {"symbol": "a", "halt_source": "CB"},
+                    {"symbol": "B", "halt_source": "ADMIN"},
+                ]
+            }
+        )
+        assert (m.symbols["A"].halted, m.symbols["A"].halt_source) == (True, "CB")
+        assert m.symbols["B"].halt_source == "ADMIN"
+        m.on_halt("c", True, "cb")
+        assert m.symbols["C"].halt_source == "CB"
+        # A resume clears both, whatever it says.
+        m.on_halt("A", False, "CB")
+        assert (m.symbols["A"].halted, m.symbols["A"].halt_source) == (False, None)
+
+    def test_halt_status_is_the_whole_picture(self) -> None:
+        # A resume missed while disconnected must not leave a symbol halted:
+        # a stale CB flag would keep it in a call phase, its orders unswept.
+        m = MarketState()
+        m.on_halt("A", True, "CB")
+        m.on_halt("B", True, "ADMIN")
+        m.on_halt_status({"halted": [{"symbol": "B", "halt_source": "ADMIN"}]})
+        assert (m.symbols["A"].halted, m.symbols["A"].halt_source) == (False, None)
+        assert m.symbols["B"].halted
+        m.on_halt_status({"halted": []})
+        assert not m.symbols["B"].halted
 
     def test_indicative(self) -> None:
         m = MarketState()

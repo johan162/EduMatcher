@@ -67,10 +67,21 @@ class Strategy(Protocol):
 
 
 def _priced(ctx: DecisionContext, symbol: str) -> SymbolState | None:
+    """The symbol's state if it has a price and orders may be sent to it. A
+    circuit-breaker halt is a reopening auction and counts; an operator halt
+    does not."""
     st = ctx.market.symbols.get(symbol)
-    if st is None or st.reference(auction=True) is None or st.halted:
+    if st is None or st.reference(auction=True) is None:
+        return None
+    if st.halted and st.halt_source != "CB":
         return None
     return st
+
+
+def _combinable(ctx: DecisionContext, symbol: str) -> bool:
+    """Priced and not halted at all: a combo trades in continuous only."""
+    st = _priced(ctx, symbol)
+    return st is not None and not st.halted
 
 
 def _side(rng: random.Random, score: float, strength: float) -> str:
@@ -310,7 +321,7 @@ class BasketStrategy:
         if shape == "rotation":
             legs = self._rotation(ctx, n)
         else:
-            priced = [s for s in ctx.universe if _priced(ctx, s) is not None]
+            priced = [s for s in ctx.universe if _combinable(ctx, s)]
             if len(priced) < 2:
                 return None
             symbols = ctx.rng.sample(priced, min(n, len(priced)))
@@ -332,7 +343,7 @@ class BasketStrategy:
     @staticmethod
     def _rotation(ctx: DecisionContext, n: int) -> tuple[tuple[str, str], ...]:
         by_sector = {
-            name: [s for s in ctx.universe if s in members and _priced(ctx, s)]
+            name: [s for s in ctx.universe if s in members and _combinable(ctx, s)]
             for name, members in ctx.market.sectors.items()
         }
         usable = sorted(name for name, syms in by_sector.items() if syms)

@@ -1,6 +1,6 @@
 ---
 title: Download — EduMatcher
-desc: Install EduMatcher with one command, or download the wheel, source and the complete documentation as PDF and EPUB for every release.
+desc: Start a simulated stock market with one command, or download the wheel, source and the complete documentation as PDF and EPUB for every release.
 nav: download
 ---
 <!doctype html>
@@ -17,9 +17,9 @@ nav: download
   <div class="wrap">
     <div class="crumbs">EduMatcher / Download</div>
     <div class="eyebrow">Release v{{VERSION}} · MIT licensed</div>
-    <h1 class="display">Get the<br><span class="accent">exchange</span></h1>
-    <p class="lede">One command for a running venue, or download the package, the source and every book. The source lives on <a href="{{REPO_URL}}" rel="noopener">GitHub</a>.</p>
-    <div class="btn-row" style="margin-top:24px"><a class="btn primary" href="#install">Install in one command</a><a class="btn ghost" href="#books">Documentation downloads</a><a class="btn ghost" href="{{RELEASE_URL}}" rel="noopener">Release notes</a></div>
+    <h1 class="display">Get the<br><span class="accent">market</span></h1>
+    <p class="lede">One command for a living market of {{F_SIM_SYMBOLS}} symbols and {{F_SIM_TRADERS}} AI traders, or download the package, the source and every book. The source lives on <a href="{{REPO_URL}}" rel="noopener">GitHub</a>.</p>
+    <div class="btn-row" style="margin-top:24px"><a class="btn primary" href="#install">Start the market in one command</a><a class="btn ghost" href="#books">Documentation downloads</a><a class="btn ghost" href="{{RELEASE_URL}}" rel="noopener">Release notes</a></div>
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
@@ -31,16 +31,16 @@ nav: download
     <div class="center rv" style="margin-bottom:40px"><div class="eyebrow">The system</div><h2 class="display">Pick how you want to run it</h2></div>
     <div class="dl-grid">
       <div class="card method rv">
-        <div class="head"><h3>A clean exchange</h3><span class="badge">recommended</span></div>
-        <p class="muted small">Docker or Podman. Starts the exchange and the six web applications with a bundled configuration — you are the only trader.</p>
-        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c1">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash</code><button class="copy" data-copy="#c1">copy</button></div>
-        <p class="muted small" style="margin:0">Then <code>cd ~/.edumatcher</code> and run <code>./edumatcher.sh shell</code>.</p>
+        <div class="head"><h3>A living market</h3><span class="badge">recommended</span></div>
+        <p class="muted small">Docker or Podman. Starts a complete simulated market: {{F_SIM_SYMBOLS}} symbols, the {{F_SIM_INDEX}} index, a market maker and {{F_SIM_TRADERS}} AI traders trading on hidden values, news and rumours, with six browser views on it.</p>
+        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c1">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim</code><button class="copy" data-copy="#c1">copy</button></div>
+        <p class="muted small" style="margin:0">Then <code>cd ~/.edumatcher-sim</code> and follow the <a href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Ten-Minute Start</a>.</p>
       </div>
       <div class="card method rv d1">
-        <div class="head"><h3>A living market</h3><span class="badge">for classes</span></div>
-        <p class="muted small">The same, plus {{F_SIM_SYMBOLS}} symbols and {{F_SIM_TRADERS}} AI traders trading on hidden values, news and rumours.</p>
-        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c2">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim</code><button class="copy" data-copy="#c2">copy</button></div>
-        <p class="muted small" style="margin:0">Then <code>cd ~/.edumatcher-sim</code>.</p>
+        <div class="head"><h3>A clean exchange</h3><span class="badge">build your own</span></div>
+        <p class="muted small">Docker or Podman. The same exchange with no AI traders, a bundled configuration and seven web applications, including the Config Builder: you are the only trader.</p>
+        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c2">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash</code><button class="copy" data-copy="#c2">copy</button></div>
+        <p class="muted small" style="margin:0">Then <code>cd ~/.edumatcher</code> and run <code>./edumatcher.sh shell</code>.</p>
       </div>
       <div class="card method rv">
         <div class="head"><h3>Python package</h3><span class="badge" style="background:transparent;color:var(--muted);border-color:var(--line-strong)">PyPI</span></div>
@@ -55,7 +55,7 @@ nav: download
         <p class="muted small" style="margin:0">See the <a href="docs/books/architecture-and-development/part-4-developing/010-development-practice/">Development Practice</a> chapter.</p>
       </div>
     </div>
-    <div class="callout rv" style="margin-top:28px"><b>Once it is running:</b> Trading GUI <code>:8093</code> · TapeDeck <code>:8090</code> · Order Book <code>:8094</code> · Dashboard <code>:8095</code> · Log Console <code>:8091</code> · Config Builder <code>:8092</code> · REST docs <code>:8080/docs</code>. The Trading GUI needs an API key — <code>./edumatcher.sh shell pm-config-show -a</code> prints them.</div>
+    <div class="callout rv" style="margin-top:28px"><b>Once it is running:</b> Trading GUI <code>:8093</code> · TapeDeck <code>:8090</code> · Order Book <code>:8094</code> · Dashboard <code>:8095</code> · Log Console <code>:8091</code> · Clearing <code>:8096</code> · Config Builder <code>:8092</code> (clean exchange only) · REST docs <code>:8080/docs</code>. The Trading GUI needs an API key: the simulation's student desks and keys are listed in the <a href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Ten-Minute Start</a>; on a clean exchange <code>./edumatcher.sh shell pm-config-show -a</code> prints them.</div>
   </div>
 </section>
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 import random
 
+import pytest
+
 from edumatcher.ai_trader.market_state import MarketState, SymbolState
 from edumatcher.ai_trader.strategies import (
     SHAPES,
@@ -75,15 +77,26 @@ def test_zero_strength_ignores_the_signal() -> None:
     assert 0.47 <= share <= 0.53
 
 
-def test_unpriced_and_halted_symbols_are_skipped() -> None:
+def test_unpriced_and_operator_halted_symbols_are_skipped() -> None:
     m = MarketState()
     m.get("NOPRICE")
     halted = m.get("HALTED")
-    halted.best_bid, halted.best_ask, halted.halted = 99, 101, True
+    halted.best_bid, halted.best_ask = 99, 101
+    m.on_halt("HALTED", True, "ADMIN")
     ctx = _ctx(m)
-    assert NoiseStrategy().decide(ctx) is None or False
     for _ in range(50):
+        assert NoiseStrategy().decide(ctx) is None
         assert TrendStrategy().decide(ctx) is None
+
+
+def test_a_circuit_breaker_halt_is_still_traded() -> None:
+    # Its reopening auction needs the interest.
+    m = MarketState()
+    st = m.get("CB")
+    st.best_bid, st.best_ask = 99, 101
+    m.on_halt("CB", True, "CB")
+    picks = {NoiseStrategy().decide(_ctx(m, seed=s)) for s in range(20)}
+    assert {p.symbol for p in picks if p is not None} == {"CB"}
 
 
 def test_signal_strategy_picks_the_strongest_symbol() -> None:
@@ -287,6 +300,16 @@ class TestBasketStrategy:
 
     def _sectors(self, m: MarketState) -> None:
         m.sectors = {"tech": frozenset("ABC"), "oil": frozenset("DEF")}
+
+    @pytest.mark.parametrize("source", ["CB", "ADMIN"])
+    def test_halted_symbols_never_join_a_basket(self, source: str) -> None:
+        # A combo trades in continuous only: a halted leg would drop it.
+        m = _trending_market(True, self.SYMBOLS)
+        self._sectors(m)
+        m.on_halt("A", True, source)
+        m.on_halt("D", True, source)
+        for i in self._decisions(BasketStrategy(max_legs=5), m):
+            assert not {"A", "D"} & {sym for sym, _ in i.legs}
 
     def test_every_shape_and_leg_count_up_to_five_occurs(self) -> None:
         m = _trending_market(True, self.SYMBOLS)

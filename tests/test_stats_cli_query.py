@@ -5,6 +5,7 @@ import json
 import sqlite3
 from datetime import timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -507,6 +508,130 @@ def test_query_index_snapshots_paginates_without_gaps_or_duplicates(
     conn.close()
 
     assert paged_ts == [row["ts"] for row in full_rows]
+
+
+def _seed_dense_index_db(path: Path, rows: int) -> None:
+    """One EDU100 level every 5 s from 09:00:00 UTC, level = row number —
+    more rows than the 5,000-row REST page, like a real sim session."""
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    conn.executemany(
+        "INSERT INTO index_level_snapshots "
+        "(ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low) "
+        "VALUES (?, 'EDU100', ?, 1.0, 1.0, 'CONTINUOUS', NULL, NULL, NULL)",
+        [
+            (
+                f"2026-06-14T{9 + i * 5 // 3600:02d}:{i * 5 // 60 % 60:02d}:"
+                f"{i * 5 % 60:02d}.000+00:00",
+                float(i),
+            )
+            for i in range(rows)
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+
+def _snapshots(db: Path, **kwargs: Any) -> tuple[list[dict[str, Any]], str | None]:
+    conn = open_readonly_connection(db)
+    try:
+        params: dict[str, Any] = {
+            "index_id": "EDU100",
+            "date_value": None,
+            "from_ts": None,
+            "to_ts": None,
+            "limit": 5000,
+            "tz": timezone.utc,
+        }
+        params.update(kwargs)
+        return query_index_snapshots(conn, **params)
+    finally:
+        conn.close()
+
+
+def test_query_index_snapshots_interval_covers_a_session_beyond_one_page(
+    tmp_path: Path,
+) -> None:
+    """Regression: 6,000 raw ticks overrun a 5,000-row page, which cut the
+    terminal's 1D index chart off mid-morning. At 1m the whole session fits,
+    and each bucket carries its last tick (the bar's close)."""
+    db = tmp_path / "stats.db"
+    _seed_dense_index_db(db, 6000)  # 09:00:00 .. 17:19:55
+
+    raw, raw_cursor = _snapshots(db)
+    assert len(raw) == 5000 and raw_cursor is not None
+
+    rows, cursor = _snapshots(db, interval="1m")
+    assert cursor is None
+    assert len(rows) == 500
+    assert rows[0]["ts"] == "2026-06-14T09:00:55.000+00:00"
+    assert rows[0]["level"] == 11.0
+    assert rows[-1]["ts"] == "2026-06-14T17:19:55.000+00:00"
+    assert rows[-1]["level"] == 5999.0
+    assert [r["ts"] for r in rows] == sorted(r["ts"] for r in rows)
+
+
+def test_query_index_snapshots_interval_buckets_are_utc_aligned(
+    seeded_db: Path,
+) -> None:
+    # EDU100 has ticks at 09:00, 09:15, 09:30 — three 15m buckets, one 1h.
+    fifteen, _ = _snapshots(seeded_db, interval="15m")
+    hour, _ = _snapshots(seeded_db, interval="1h")
+    assert [r["ts"][11:16] for r in fifteen] == ["09:00", "09:15", "09:30"]
+    assert [r["level"] for r in hour] == [1048.73]
+    assert hour[0]["index_id"] == "EDU100"
+
+
+def test_query_index_snapshots_interval_honours_time_window(tmp_path: Path) -> None:
+    db = tmp_path / "stats.db"
+    _seed_dense_index_db(db, 6000)
+    rows, _ = _snapshots(
+        db,
+        interval="1h",
+        from_ts="2026-06-14T10:00:00+00:00",
+        to_ts="2026-06-14T11:30:00+00:00",
+    )
+    # 10:00 bucket closes at 10:59:55; the 11:00 bucket is cut at the bound.
+    assert [r["ts"][11:19] for r in rows] == ["10:59:55", "11:30:00"]
+
+
+def test_query_index_snapshots_interval_tie_breaks_on_arrival(
+    seeded_db: Path,
+) -> None:
+    """Two updates in the same millisecond: the later arrival is the close."""
+    conn = sqlite3.connect(seeded_db)
+    conn.execute(
+        "INSERT INTO index_level_snapshots "
+        "(ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low) "
+        "VALUES ('2026-06-14T09:30:00.000+00:00', 'EDU100', 1050.0, 1.0, 1.0, "
+        "'CONTINUOUS', NULL, NULL, NULL)"
+    )
+    conn.commit()
+    conn.close()
+    rows, _ = _snapshots(seeded_db, interval="1h")
+    assert [r["level"] for r in rows] == [1050.0]
+
+
+def test_query_index_snapshots_interval_paginates_without_gaps_or_duplicates(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "stats.db"
+    _seed_dense_index_db(db, 2000)
+    full, _ = _snapshots(db, interval="5m")
+
+    paged: list[str] = []
+    after = None
+    for _ in range(len(full) + 1):
+        page, after = _snapshots(db, interval="5m", limit=7, after=after)
+        paged.extend(r["ts"] for r in page)
+        if after is None:
+            break
+    assert paged == [r["ts"] for r in full]
+
+
+def test_query_index_snapshots_rejects_unknown_interval(seeded_db: Path) -> None:
+    with pytest.raises(ValueError, match="interval must be one of"):
+        _snapshots(seeded_db, interval="2m")
 
 
 def test_query_price_snapshots_filters_by_time_window(seeded_db: Path) -> None:

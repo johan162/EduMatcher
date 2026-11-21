@@ -2000,12 +2000,18 @@ Purpose: return intraday index snapshots.
 | `to` | `DateTime` | no | Range end |
 | `limit` | `Int` | no | Page size |
 | `after` | `Cursor` | no | Opaque page cursor |
+| `interval` | `1m` \| `5m` \| `15m` \| `1h` | no | Return only the last level in each bucket of this width, aligned in UTC; omit for every raw tick |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
 | `200 OK` | paginated list envelope | Intraday index series |
+
+pm-index publishes many updates a second, so a whole session of raw ticks runs
+to tens of thousands of rows. To chart a session in one page, pass `interval`:
+each row is then the last snapshot of its bucket (the bar's close), with its
+real `ts`. The row shape and the cursor are unchanged.
 
 **Errors**
 

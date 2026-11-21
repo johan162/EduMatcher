@@ -25,6 +25,7 @@ def _run_npm_section(
     tmp_path: Path,
     *,
     dry_run: bool = False,
+    no_npm: bool = False,
     failed_app: Path | None = None,
     synchronize: int = 0,
 ) -> subprocess.CompletedProcess[str]:
@@ -35,12 +36,8 @@ def _run_npm_section(
             "# Build all documentation", 1
         )[0]
     )
-    section = (
-        source.split('print_sub_step "Running npm tests for web applications"', 1)[
-            1
-        ].split("\nfi\n", 1)[0]
-        + "\nfi\n"
-    )
+    guard = 'if [ "$NO_NPM" = false ]; then'
+    section = guard + source.split(guard, 1)[1].split("\nfi\n", 1)[0] + "\nfi\n"
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -100,7 +97,8 @@ fi
     script = (
         "set -euo pipefail\n"
         "CI_MODE=true\nBLUE=\nYELLOW=\nGREEN=\nRED=\nNC=\n"
-        f"DRY_RUN={'true' if dry_run else 'false'}\n" + helpers + section
+        f"DRY_RUN={'true' if dry_run else 'false'}\n"
+        f"NO_NPM={'true' if no_npm else 'false'}\n" + helpers + section
     )
     return subprocess.run(
         ["/bin/bash", "-c", script],
@@ -195,3 +193,12 @@ def test_missing_web_apps_directory_warns(tmp_path: Path) -> None:
     result = _run_npm_section(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "web-apps directory not found" in result.stdout
+
+
+def test_no_npm_skips_web_apps(tmp_path: Path) -> None:
+    apps = _make_apps(tmp_path, 2)
+    result = _run_npm_section(tmp_path, no_npm=True)
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "Running npm tests" not in output
+    assert all(not (app / "npm-commands.log").exists() for app in apps)

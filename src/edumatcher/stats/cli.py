@@ -23,6 +23,7 @@ from edumatcher.healthcheck import (
 from edumatcher.stats.event_types import EVENT_TYPES
 from edumatcher.stats.main import SCHEMA_VERSION
 from edumatcher.stats.query import (
+    INDEX_SNAPSHOT_INTERVALS,
     InvalidCursorError,
     open_readonly_connection,
     query_daily,
@@ -371,6 +372,11 @@ def build_parser() -> argparse.ArgumentParser:
     index_snapshots.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=_TO_HELP)
     index_snapshots.add_argument("--limit", type=int, default=500, metavar="N")
     index_snapshots.add_argument("--after", metavar="CURSOR", help=_AFTER_HELP)
+    index_snapshots.add_argument(
+        "--interval",
+        choices=list(INDEX_SNAPSHOT_INTERVALS),
+        help="Show only the last level in each bucket of this width (UTC-aligned)",
+    )
 
     index_ids = sub.add_parser("index-ids", help="List index IDs present in stats DB")
     index_ids.add_argument("--date", metavar="YYYY-MM-DD")
@@ -710,6 +716,7 @@ def _run_query(
             limit=args.limit,
             tz=tz,
             after=args.after,
+            interval=args.interval,
         )
         return _INDEX_SNAPSHOTS_COLUMNS, rows, next_cursor
 

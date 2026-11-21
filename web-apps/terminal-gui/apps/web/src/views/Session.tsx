@@ -13,7 +13,9 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import type { AuctionReason, AuctionResultFrame } from "@edumatcher/terminal-types";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { SessionBadge } from "../components/Badge.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { SessionTimetable } from "../components/SessionTimetable.js";
@@ -22,6 +24,7 @@ import { api } from "../lib/api.js";
 import { auctionHelp, haltHelp } from "../lib/help.js";
 import { ABSENT, clockInTimezone, elapsed, price, qty, resumeAt } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
+import { clampPage, pageCount, pageSlice } from "../lib/paging.js";
 import { useNow } from "../lib/staleness.js";
 import { sendControl } from "../lib/useTerminalStream.js";
 import { sortHalted, useLiveStore } from "../store/useLiveStore.js";
@@ -125,71 +128,211 @@ export function SessionView() {
         )}
       </Panel>
 
-      <Panel title="Recent auction results">
-        {auctions.length === 0 ? (
-          <EmptyState>No auctions completed yet this session</EmptyState>
-        ) : (
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-                <th className="py-1 font-medium">
-                  Symbol <InfoTip label="Symbol" help={auctionHelp("Symbol")!} />
-                </th>
-                <th className="py-1 text-right font-medium">
-                  Eq. price <InfoTip label="Eq. price" help={auctionHelp("Eq. price")!} />
-                </th>
-                <th className="py-1 text-right font-medium">
-                  Qty <InfoTip label="Qty" help={auctionHelp("Qty")!} />
-                </th>
-                <th className="py-1 text-right font-medium">
-                  Trades <InfoTip label="Trades" help={auctionHelp("Trades")!} />
-                </th>
-                <th className="py-1 font-medium">
-                  Imbalance <InfoTip label="Imbalance" help={auctionHelp("Imbalance")!} />
-                </th>
-                <th className="py-1 font-medium">
-                  Time <InfoTip label="Time" help={auctionHelp("Time")!} />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {auctions.map((auction) => (
-                <tr
-                  key={`${auction.sym}-${auction.seq}-${auction.ts}`}
-                  className={`border-b border-border-subtle ${rowClass}`}
-                >
-                  <td className="font-semibold">{auction.sym}</td>
-                  {/*
-                   * An omitted EQPX means the auction found no crossable
-                   * interest at all — meaningfully different from crossing at
-                   * a price, so it is labelled rather than shown as a dash.
-                   */}
-                  <td className="text-right tabular">
-                    {auction.eqPrice === undefined ? (
-                      <span className="text-fg-faint">(no cross)</span>
-                    ) : (
-                      price(auction.eqPrice, tickDecimals(auction.sym))
-                    )}
-                  </td>
-                  <td className="text-right tabular">{qty(auction.eqQty)}</td>
-                  <td className="text-right tabular">{qty(auction.tradesCount)}</td>
-                  <td>
-                    {auction.imbalanceSide ? (
-                      <span className={auction.imbalanceSide === "BUY" ? "text-up" : "text-down"}>
-                        {auction.imbalanceSide} {qty(auction.imbalanceQty)}
-                      </span>
-                    ) : (
-                      <span className="text-fg-faint">{ABSENT}</span>
-                    )}
-                  </td>
-                  <td className="tabular text-fg-subtle">{clockInTimezone(auction.ts, sessionTimezone)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
+      <AuctionResults
+        auctions={auctions}
+        rowClass={rowClass}
+        tickDecimals={tickDecimals}
+        timeZone={sessionTimezone}
+      />
     </div>
+  );
+}
+
+const AUCTION_ROWS_PER_PAGE = 15;
+
+/** Short labels for the uncross paths, in the order the filter offers them. */
+const REASON_LABEL: Record<AuctionReason, string> = {
+  SCHEDULED: "Scheduled",
+  REOPEN: "Reopen",
+  BACKSTOP: "Backstop",
+  ADMIN_MANUAL: "Manual",
+  RECOVERY: "Recovery",
+};
+
+/**
+ * The session's auction results, newest first, filtered and paged.
+ *
+ * A circuit-breaker day produces hundreds of reopening auctions, and a
+ * reopening is often a no-cross because nobody added interest during the
+ * halt. Without the reason column and filter those rows read as failed
+ * scheduled auctions and bury the open and close.
+ *
+ * New results arrive at the top, so a viewer on a later page sees its rows
+ * shift down; the page index is held, not the rows.
+ */
+function AuctionResults({
+  auctions,
+  rowClass,
+  tickDecimals,
+  timeZone,
+}: {
+  auctions: AuctionResultFrame[];
+  rowClass: string;
+  tickDecimals: (sym: string) => number;
+  timeZone: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [reason, setReason] = useState<AuctionReason | "ALL">("ALL");
+  const [crossedOnly, setCrossedOnly] = useState(false);
+  // Reset to the first page whenever the filter changes, so a narrowed list
+  // starts from its newest result.
+  const [page, setPage] = useState(0);
+
+  const shown = useMemo(() => {
+    const needle = query.trim().toUpperCase();
+    return auctions.filter(
+      (a) =>
+        a.sym.toUpperCase().includes(needle) &&
+        (reason === "ALL" || a.reason === reason) &&
+        (!crossedOnly || a.eqPrice !== undefined),
+    );
+  }, [auctions, query, reason, crossedOnly]);
+
+  const pages = pageCount(shown.length, AUCTION_ROWS_PER_PAGE);
+  const current = clampPage(page, shown.length, AUCTION_ROWS_PER_PAGE);
+  const visible = pageSlice(shown, current, AUCTION_ROWS_PER_PAGE);
+
+  return (
+    <Panel
+      title="Recent auction results"
+      right={
+        auctions.length > 0 ? (
+          <div className="flex items-center gap-2 text-xs">
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(0);
+              }}
+              placeholder="Find symbol"
+              aria-label="Find symbol"
+              className="w-28 rounded border border-border bg-bg-inset px-2 py-0.5 text-xs placeholder:text-fg-faint"
+            />
+            <select
+              value={reason}
+              onChange={(event) => {
+                setReason(event.target.value as AuctionReason | "ALL");
+                setPage(0);
+              }}
+              aria-label="Auction reason"
+              className="rounded border border-border bg-bg-inset px-1 py-0.5 text-xs"
+            >
+              <option value="ALL">All reasons</option>
+              {Object.entries(REASON_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <label className="flex items-center gap-1 text-fg-subtle">
+              <input
+                type="checkbox"
+                checked={crossedOnly}
+                onChange={(event) => {
+                  setCrossedOnly(event.target.checked);
+                  setPage(0);
+                }}
+              />
+              Crossed only
+            </label>
+            <span className="tabular text-fg-subtle">
+              {shown.length === auctions.length ? shown.length : `${shown.length} of ${auctions.length}`}
+            </span>
+            <span className="tabular text-fg-subtle">
+              Page {current + 1}/{pages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(current - 1)}
+              disabled={current === 0}
+              aria-label="Previous page"
+              className="rounded p-1 text-fg-subtle hover:bg-bg-inset hover:text-fg disabled:opacity-30"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(current + 1)}
+              disabled={current >= pages - 1}
+              aria-label="Next page"
+              className="rounded p-1 text-fg-subtle hover:bg-bg-inset hover:text-fg disabled:opacity-30"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        ) : undefined
+      }
+    >
+      {auctions.length === 0 ? (
+        <EmptyState>No auctions completed yet this session</EmptyState>
+      ) : shown.length === 0 ? (
+        <EmptyState>No auction results match the filter</EmptyState>
+      ) : (
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
+              <th className="py-1 font-medium">
+                Symbol <InfoTip label="Symbol" help={auctionHelp("Symbol")!} />
+              </th>
+              <th className="py-1 font-medium">
+                Reason <InfoTip label="Reason" help={auctionHelp("Reason")!} />
+              </th>
+              <th className="py-1 text-right font-medium">
+                Eq. price <InfoTip label="Eq. price" help={auctionHelp("Eq. price")!} />
+              </th>
+              <th className="py-1 text-right font-medium">
+                Qty <InfoTip label="Qty" help={auctionHelp("Qty")!} />
+              </th>
+              <th className="py-1 text-right font-medium">
+                Trades <InfoTip label="Trades" help={auctionHelp("Trades")!} />
+              </th>
+              <th className="py-1 font-medium">
+                Imbalance <InfoTip label="Imbalance" help={auctionHelp("Imbalance")!} />
+              </th>
+              <th className="py-1 font-medium">
+                Time <InfoTip label="Time" help={auctionHelp("Time")!} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((auction) => (
+              <tr
+                key={`${auction.sym}-${auction.seq}-${auction.ts}`}
+                className={`border-b border-border-subtle ${rowClass}`}
+              >
+                <td className="font-semibold">{auction.sym}</td>
+                <td className="text-fg-subtle">{auction.reason ? REASON_LABEL[auction.reason] : ABSENT}</td>
+                {/*
+                 * An omitted EQPX means the auction found no crossable
+                 * interest at all — meaningfully different from crossing at
+                 * a price, so it is labelled rather than shown as a dash.
+                 */}
+                <td className="text-right tabular">
+                  {auction.eqPrice === undefined ? (
+                    <span className="text-fg-faint">(no cross)</span>
+                  ) : (
+                    price(auction.eqPrice, tickDecimals(auction.sym))
+                  )}
+                </td>
+                <td className="text-right tabular">{qty(auction.eqQty)}</td>
+                <td className="text-right tabular">{qty(auction.tradesCount)}</td>
+                <td>
+                  {auction.imbalanceSide ? (
+                    <span className={auction.imbalanceSide === "BUY" ? "text-up" : "text-down"}>
+                      {auction.imbalanceSide} {qty(auction.imbalanceQty)}
+                    </span>
+                  ) : (
+                    <span className="text-fg-faint">{ABSENT}</span>
+                  )}
+                </td>
+                <td className="tabular text-fg-subtle">{clockInTimezone(auction.ts, timeZone)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
   );
 }
 

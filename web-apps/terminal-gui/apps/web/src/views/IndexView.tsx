@@ -22,6 +22,7 @@ import {
   dailySeries,
   indexRangeStart,
   recentChanges,
+  snapshotInterval,
   snapshotSeries,
   usesSnapshots,
   withLiveTail,
@@ -59,9 +60,10 @@ export function IndexView() {
   const from = useMemo(() => indexRangeStart(tf), [tf]);
 
   const intraday = usesSnapshots(tf);
+  const interval = snapshotInterval(tf);
   const { data: snapRows } = useQuery({
-    queryKey: ["history", "index-snapshots", indexId, from],
-    queryFn: () => api.indexSnapshots(indexId!, from),
+    queryKey: ["history", "index-snapshots", indexId, from, interval],
+    queryFn: () => api.indexSnapshots(indexId!, from, interval),
     enabled: Boolean(indexId) && intraday,
     staleTime: 5_000,
   });

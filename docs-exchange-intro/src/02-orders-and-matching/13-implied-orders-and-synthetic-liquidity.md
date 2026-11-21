@@ -1,6 +1,6 @@
 # Implied Orders and Synthetic Liquidity
 
-This concept trips up almost every developer who meets a derivatives exchange for the first time, and for good reason: it is the first place in this book where a single incoming order can trade against orders resting in *other* order books. The arithmetic is school-level, but it arrives wrapped in an unusual sign convention, the quantity rules are less obvious than they look, the priority rules are subtle, and the engineering consequences are severe. This chapter therefore climbs in explicit levels. Each level introduces one new idea and works it through with numbers before the next level begins. The numbers carry over from level to level, so read every example even when the idea feels obvious.
+This concept trips up almost every person who meets a derivatives exchange for the first time, and for good reason: it is the first place in this book where a single incoming order can trade against orders resting in *other* order books. The arithmetic is school-level, but it arrives wrapped in an unusual sign convention, the quantity rules are less obvious than they look, the priority rules are subtle, and the engineering consequences are severe. This chapter therefore climbs in explicit levels. Each level introduces one new idea and works it through with numbers before the next level begins. The numbers carry over from level to level, so read every example even when the idea feels obvious.
 
 By the end of the chapter you should be able to write a correct first-generation implied-matching module: compute implied prices and quantities, execute them atomically, keep them consistent as the books change, and test them. The chapter after this one then asks the obvious follow-up question, *why not imply from implied orders, and from those, and so on?*, and shows why every exchange stops after a few steps.
 
@@ -95,14 +95,46 @@ spread price   S  =  Near-month price  −  Far-month price
 
 ### Why this convention makes sense
 
-The convention is chosen so that **buying the spread is a bet that the number S goes up**, exactly as buying anything else is a bet that its price goes up. Work it through:
+The convention is chosen so that **buying the spread is a bet that the number S goes up**, exactly as buying anything else is a bet that its price goes up.
+
+Start with what you actually hold. Buying one Jan/Feb spread means you are **long January and short February**. You gain when January rises and lose when February rises. So a rising February is *not* good news for a spread buyer. It is good news only for someone who owns February, and the spread buyer has sold it. What the spread buyer wants is for **January to do better than February**: rise more, or fall less.
+
+Work it through:
 
 - You buy one Jan/Feb spread at S = −$2.00. Concretely, suppose you buy January at $75.00 and sell February at $77.00 (75.00 − 77.00 = −2.00).
-- A week later January is $76.00 and February is $77.50, so S = 76.00 − 77.50 = **−$1.50**. The spread price *rose* from −2.00 to −1.50.
+- A week later January is $76.00 and February is $77.50, so S = 76.00 − 77.50 = **−$1.50**.
 - Your January long gained $1.00 per barrel. Your February short lost $0.50 per barrel. Net: **+$0.50 per barrel**, which is exactly the change in S: (−1.50) − (−2.00) = +0.50.
 - Per lot that is $0.50 × 1,000 barrels = **$500**.
 
-Notice that the outright price of oil rose too, but that did not matter; only the difference did. That is the whole point of trading the spread.
+Both months rose, but January rose more, and that is all that mattered.
+
+**"But the spread got smaller. Shouldn't its price have fallen?"**
+
+That depends on which meaning of "spread" you have in mind:
+
+| | Before | After | Change |
+|---|---|---|---|
+| The **gap** between the months (how far apart they are) | $2.00 | $1.50 | narrowed |
+| The **spread price** S = Jan − Feb (a signed number) | −2.00 | −1.50 | **rose** |
+
+Both lines describe the same market. On a number line, moving from −2.00 to −1.50 is a move *up*, towards zero, even though the distance between the two months got smaller. The order book, the matching engine and your profit and loss all work with the second line, the signed number S. The first line is only how people sometimes talk about the market.
+
+Don't use "wider" and "narrower" to judge a spread position, because they flip meaning with the sign of S. In contango (S negative), a narrowing gap means S is rising. In backwardation (S positive, January above February), a narrowing gap means S is *falling*. Use one rule instead:
+
+> **Spread buyer's P&L = (S now − S paid) × 1,000 barrels per lot.**
+> If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, and whether oil as a whole rose or fell, play no part.
+
+**Three scenarios from the same starting point.**
+
+Start each one with the position above: long January at $75.00, short February at $77.00, S = −2.00.
+
+| Scenario | Jan | Feb | New S | Jan leg | Feb leg | Net per lot |
+|---|---|---|---|---|---|---|
+| A: January outperforms | 76.00 | 77.50 | −1.50 | +$1.00 | −$0.50 | **+$500** |
+| B: both rise equally | 76.00 | 78.00 | −2.00 | +$1.00 | −$1.00 | **$0** |
+| C: February outperforms | 75.50 | 78.50 | −3.00 | +$0.50 | −$1.50 | **−$1,000** |
+
+Oil rose in all three scenarios, so the overall oil price tells you nothing. Only the *relative* move of the two months decides the result. Scenario B shows why: when both legs move together, the spread position does not notice. That insensitivity to the overall price is the whole point of trading the spread, and it is why clearing houses give spread positions lower margin (Level 0, reason 3). Scenario C is the case where February rising faster helps, but it helps whoever is *short* the spread, not the buyer.
 
 ### The four things that confuse every beginner
 

@@ -163,7 +163,7 @@ class TestRouting:
         w.handle_market(
             "auction.indicative.AAPL", {"eq_price": 1.07, "imbalance_qty": 0}
         )
-        w.handle_market("circuit_breaker.halt.AAPL", {})
+        w.handle_market("circuit_breaker.halt.AAPL", {"halt_source": "CB"})
         st = w.market.symbols["AAPL"]
         assert (
             st.best_bid,
@@ -172,9 +172,11 @@ class TestRouting:
             st.last_trade,
             st.indicative_price,
         ) == (100, 120, 110, 105, 107)
-        assert st.imbalance == 0.25 and st.halted
+        assert st.imbalance == 0.25 and st.halted and st.halt_source == "CB"
         w.handle_market("circuit_breaker.resume.AAPL", {})
-        assert not st.halted
+        assert not st.halted and st.halt_source is None
+        w.handle_market("circuit_breaker.halt.AAPL", {"halt_source": "ADMIN"})
+        assert st.halted and st.halt_source == "ADMIN"
         w.close()
 
     def test_close_and_reopen(self, monkeypatch: pytest.MonkeyPatch) -> None:

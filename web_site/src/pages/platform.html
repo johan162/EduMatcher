@@ -16,14 +16,42 @@ nav: platform
   <canvas class="net" aria-hidden="true"></canvas>
   <div class="wrap">
     <div class="crumbs">EduMatcher / Platform</div>
-    <div class="eyebrow">The system</div>
+    <div class="eyebrow">Underneath the simulation</div>
     <h1 class="display">Not a toy.<br><span class="accent">A venue.</span></h1>
-    <p class="lede">{{N_COMMANDS}} commands, a brokerless message bus, five order-entry and data protocols, auctions, risk controls, clearing and an audit trail. This is what is running when you start EduMatcher.</p>
+    <p class="lede">The simulated market runs on a complete exchange: {{N_COMMANDS}} commands, a brokerless message bus, five order-entry and data protocols, auctions, risk controls, clearing and an audit trail. Every price you watch is made here, by the same rules a real venue applies.</p>
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
-  <a href="#architecture">Architecture</a><a href="#orders">Orders</a><a href="#day">Trading day</a><a href="#ipo">IPOs</a><a href="#risk">Risk</a><a href="#protocols">Protocols</a><a href="#ops">Operations</a><a href="#quality">Engineering</a><a href="#limits">Limits</a>
+  <a href="#simulation">Simulation</a><a href="#architecture">Architecture</a><a href="#orders">Orders</a><a href="#day">Trading day</a><a href="#ipo">IPOs</a><a href="#risk">Risk</a><a href="#protocols">Protocols</a><a href="#ops">Operations</a><a href="#quality">Engineering</a><a href="#limits">Limits</a>
 </div></nav>
+
+<!-- ============ SIMULATION ============ -->
+<section class="section band" id="simulation">
+  <div class="wrap">
+    <div class="feature">
+      <div class="copy-col rv">
+        <div class="eyebrow">The market model</div>
+        <h2 class="display">Three processes<br><span class="accent">bring it to life</span></h2>
+        <p class="lede">The simulation adds three processes to the exchange and changes nothing else. The AI traders log on and send orders through the same gateway a student's program uses; their orders are in the books you see, their trades on the tape.</p>
+        <ul class="checks">
+          <li><b><code>pm-market-sim</code></b> keeps a secret <b>true value</b> for every share, moving with the market, its sector and on its own, and jumping on news. It publishes the headlines and rumours.</li>
+          <li><b><code>pm-mm-bot</code></b> quotes a buy and a sell price in every symbol, around a price it moves part of the way toward the true value.</li>
+          <li><b><code>pm-ai-swarm</code></b> runs {{F_SIM_TRADERS}} traders of {{F_SIM_PRESETS}} kinds, from noise traders and scalpers to value investors, institutions and auction players.</li>
+          <li>The exchange's own <b><code>pm-scheduler</code></b> drives real trading days with auctions, or a faster calendar for a lecture.</li>
+        </ul>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/ai-traders/part-1-start-here/010-a-market-that-runs-itself/">How the simulation works</a></div>
+      </div>
+      <div class="rv d1">
+        <div class="grid g2" style="gap:14px">
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">{{F_SIM_SYMBOLS}}</div><p class="muted small" style="margin:6px 0 0">symbols, each with its own order book</p></div>
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">{{F_SIM_TRADERS}}</div><p class="muted small" style="margin:6px 0 0">AI traders plus one market maker</p></div>
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">{{F_SIM_PRESETS}}</div><p class="muted small" style="margin:6px 0 0">trading strategies in the mix</p></div>
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">1</div><p class="muted small" style="margin:6px 0 0">command to start it all</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- ============ ARCHITECTURE ============ -->
 <section class="section" id="architecture">
@@ -231,7 +259,7 @@ nav: platform
       <div class="card rv d1"><h3>List new symbols</h3><p class="muted small">Add instruments at runtime with <code>pm-new-symbol</code> and run an IPO with <code>pm-valuation</code> to derive a sensible opening price.</p></div>
       <div class="card rv d2"><h3>Observe everything</h3><p class="muted small">Central structured logs, health beacons from every process, a monitor and the Operator Dashboard. <code>pm-log-cli</code>, <code>pm-monitor-cli</code> and <code>pm-audit-cli</code> for the shell.</p></div>
       <div class="card rv"><h3>Audit &amp; replay</h3><p class="muted small">Every engine event is written to the audit trail; <code>pm-audit-replay</code> re-runs history for verification and teaching.</p></div>
-      <div class="card rv d1"><h3>Deploy</h3><p class="muted small">Container images for the engine and each GUI, a Compose bundle, a one-line installer, a VM runtime image with a pinned release, or plain <code>pipx</code>.</p></div>
+      <div class="card rv d1"><h3>Deploy</h3><p class="muted small">Container images for the engine and each GUI, a Compose bundle, a one-line installer for the simulation or a clean exchange, a VM runtime image with a pinned release, or plain <code>pipx</code>.</p></div>
       <div class="card rv d2"><h3>Multi-host ready</h3><p class="muted small">Internal buses bind to loopback by default; external gateways bind to the network. Put the pieces on different machines when you want to.</p></div>
     </div>
   </div>
@@ -284,8 +312,8 @@ nav: platform
 </section>
 
 <section class="section tight"><div class="wrap"><div class="cta rv">
-  <h2 class="display">Seen enough? <span class="accent">Run it.</span></h2>
-  <div class="btn-row" style="margin-top:20px"><a class="btn primary" href="download.html">Download</a><a class="btn ghost" href="apps.html">See the applications</a></div>
+  <h2 class="display">Seen enough? <span class="accent">Start the market.</span></h2>
+  <div class="btn-row" style="margin-top:20px"><a class="btn primary" href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">Ten-minute start</a><a class="btn ghost" href="download.html">Download</a><a class="btn ghost" href="apps.html">See the applications</a></div>
 </div></div></section>
 
 </main>

@@ -163,7 +163,7 @@ What each lever does:
 | `urgency_cross` | crosses less often (it crosses when urgency reaches this) |
 | `visible_fraction` (iceberg) | shows more of its order |
 | `slices`, `horizon_sec` (twap) | works its order in more pieces over a longer time: less impact, slower to reach the value |
-| `auction_participation` | takes part in more auction decisions |
+| `auction_participation` | takes part in more auction decisions, circuit-breaker reopenings included |
 | `tif: GTC` | leaves orders on the book overnight |
 | `gtc_fraction` | sends that share of its resting orders as GTC, whatever `tif` says: a few long orders that outlive the day (a trader keeps at most one per symbol, and never cancels it as stale) |
 | `amend_fraction` | amends more of its stale orders instead of cancelling them: re-priced to the touch, or trimmed when still at it |

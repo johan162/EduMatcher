@@ -598,3 +598,76 @@ class TestComboTrader:
             if any(leg.side == "BUY" for leg in c.legs)
         ]
         assert not longs  # no basket may buy what the agent is full of
+
+
+class TestCircuitBreakerHalt:
+    """A CB halt is the symbol's reopening auction: the agents supply its
+    interest. Sim run 2026-11-21: with nobody sending anything during a
+    halt, all 300 reopenings were no-cross."""
+
+    def _agent(self, preset: str = "noise-retail") -> Agent:
+        agent = _agent(preset, max_order_age_sec=5.0)
+        execution = replace(
+            agent.preset.execution, auction_participation=1.0, combo_fraction=1.0
+        )
+        agent.preset = replace(agent.preset, execution=execution)
+        agent.executor.spec = execution
+        return agent
+
+    def _halted(self, source: str) -> MarketState:
+        m = _market()
+        for sym in ("AAPL", "MSFT"):
+            m.on_halt(sym, True, source)
+        return m
+
+    def test_a_cb_halted_symbol_gets_resting_day_limits(self) -> None:
+        out = _run(self._agent(), self._halted("CB"), 5.0)
+        assert out
+        assert all(isinstance(a, NewOrder) for a in out)  # no combo
+        assert {(a.order_type, a.tif) for a in out} == {(OrderType.LIMIT, TIF.DAY)}
+
+    def test_an_operator_halt_is_left_alone(self) -> None:
+        assert _run(self._agent(), self._halted("ADMIN"), 5.0) == []
+
+    def test_no_protection_on_a_cb_halted_symbol(self) -> None:
+        agent = self._agent("trend-follower")
+        agent.next_decision_at = 1e9
+        agent.on_fill(
+            order_id="E1",
+            tag=None,
+            symbol="AAPL",
+            side="BUY",
+            fill_qty=100,
+            fill_price_ticks=1000,
+            remaining=0,
+        )
+        assert agent.step(0.0, 0.0, self._halted("CB")) == []
+
+    def test_a_halt_order_waits_for_the_reopen(self) -> None:
+        """Past its age and far from the touch, it is not swept while the
+        halt lasts; after the reopen the normal sweep takes it."""
+        agent = self._agent()
+        agent.next_decision_at = 1e9
+        agent.orders.track(
+            LiveOrder(
+                "D", "AAPL", "BUY", OrderType.LIMIT, TIF.DAY, 5, 5, 900, 0.0,
+                order_id="E-D", state=OrderState.LIVE,
+            )
+        )  # fmt: skip
+        m = self._halted("CB")
+        assert not any(isinstance(a, CancelOrder) for a in _run(agent, m, 30.0))
+        m.on_halt("AAPL", False)
+        after = _run(agent, m, 2.0, t0=30.0)
+        assert [a.order_id for a in after if isinstance(a, CancelOrder)] == ["E-D"]
+
+    def test_an_operator_halt_does_not_shield_from_the_sweep(self) -> None:
+        agent = self._agent()
+        agent.next_decision_at = 1e9
+        agent.orders.track(
+            LiveOrder(
+                "D", "AAPL", "BUY", OrderType.LIMIT, TIF.DAY, 5, 5, 900, 0.0,
+                order_id="E-D", state=OrderState.LIVE,
+            )
+        )  # fmt: skip
+        out = _run(agent, self._halted("ADMIN"), 10.0)
+        assert [a.order_id for a in out if isinstance(a, CancelOrder)] == ["E-D"]

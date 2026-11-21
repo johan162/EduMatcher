@@ -8986,7 +8986,7 @@ _shtab_pm_stats_cli_order_lifecycle_option_strings=(-h --help --gateway --order-
 _shtab_pm_stats_cli_symbols_option_strings=(-h --help --date)
 _shtab_pm_stats_cli_dates_option_strings=(-h --help --symbol)
 _shtab_pm_stats_cli_index_daily_option_strings=(-h --help --date --from-date --to-date --index-id --limit --after --wide)
-_shtab_pm_stats_cli_index_snapshots_option_strings=(-h --help --index-id --date --from --to --limit --after)
+_shtab_pm_stats_cli_index_snapshots_option_strings=(-h --help --index-id --date --from --to --limit --after --interval)
 _shtab_pm_stats_cli_index_ids_option_strings=(-h --help --date)
 _shtab_pm_stats_cli_instruments_option_strings=(-h --help --symbol)
 _shtab_pm_stats_cli_gaps_option_strings=(-h --help --date --from --to --limit --after)
@@ -8996,6 +8996,7 @@ _shtab_pm_stats_cli_option_strings=(-h --help --version --db --format --no-heade
 
 
 _shtab_pm_stats_cli_order_events___event_type_choices=(ACK REJECT FILL AMEND CANCEL EXPIRE COMBO_ACK COMBO_REJECT COMBO_STATUS OCO_ACK OCO_REJECT OCO_CANCEL QUOTE_ACK QUOTE_REJECT QUOTE_STATUS UNKNOWN EVENT)
+_shtab_pm_stats_cli_index_snapshots___interval_choices=(1m 5m 15m 1h)
 _shtab_pm_stats_cli_pos_0_choices=(daily snapshots trades order-events order-lifecycle symbols dates index-daily index-snapshots index-ids instruments gaps health)
 _shtab_pm_stats_cli___format_choices=(table json csv)
 

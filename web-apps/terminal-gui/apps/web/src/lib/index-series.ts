@@ -1,10 +1,10 @@
 /**
  * Chart series for the Index View (design §10.4).
  *
- * `1D`/`5D` render raw intraday level ticks from `/history/index-snapshots` —
- * pm-index writes one row per `index.update`, already fine enough to chart
- * directly, so unlike Symbol Detail there is no bucketing step. `1M` and
- * longer render the daily bars from `/history/index-daily`.
+ * `1D`/`5D` render intraday levels from `/history/index-snapshots`, bucketed
+ * server-side (`interval`): pm-index writes one row per `index.update`, tens
+ * of thousands a session, far past one page. `1M` and longer render the daily
+ * bars from `/history/index-daily`.
  */
 
 import type { IndexDailyRow, IndexEventRow, IndexSnapshotRow } from "@edumatcher/terminal-types";
@@ -16,6 +16,14 @@ export const INDEX_TIMEFRAMES: IndexTimeframe[] = ["1D", "5D", "1M", "3M", "YTD"
 /** Whether this preset charts intraday ticks or daily bars. */
 export function usesSnapshots(tf: IndexTimeframe): boolean {
   return tf === "1D" || tf === "5D";
+}
+
+/**
+ * Server-side bucket width for an intraday preset: ~1-minute points for one
+ * session, 5-minute for five — what a charting terminal shows at that span.
+ */
+export function snapshotInterval(tf: IndexTimeframe): "1m" | "5m" {
+  return tf === "1D" ? "1m" : "5m";
 }
 
 export interface IndexPoint {
@@ -52,12 +60,12 @@ function toEpochSeconds(iso: string): number | undefined {
   return Number.isNaN(ms) ? undefined : Math.floor(ms / 1000);
 }
 
-/** Intraday level ticks, oldest first, with unparseable or empty rows dropped. */
+/** Intraday levels, oldest first, with unparseable or empty rows dropped. */
 export function snapshotSeries(rows: readonly IndexSnapshotRow[]): IndexPoint[] {
   const points: IndexPoint[] = [];
   for (const row of rows) {
     if (row.level === null || row.level === undefined) continue;
-    const time = toEpochSeconds(row.timestamp);
+    const time = toEpochSeconds(row.ts);
     if (time === undefined) continue;
     points.push({ time, value: row.level });
   }
