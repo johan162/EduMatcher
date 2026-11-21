@@ -147,11 +147,13 @@ class DcGateway:
         self._last_heartbeat = time.monotonic()
 
     def run(self) -> None:
-        self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server.bind((self.config.bind_address, self.config.port))
-        self._server.listen(128)
-        self._server.setblocking(False)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.config.bind_address, self.config.port))
+        server.listen(128)
+        server.setblocking(False)
+        # Published only once listening: callers poll it as the readiness signal.
+        self._server = server
 
         self._running = True
         if threading.current_thread() is threading.main_thread():
