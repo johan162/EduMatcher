@@ -57,7 +57,7 @@ export interface IndexDailyRow {
 
 export interface IndexSnapshotRow {
   index_id: string;
-  timestamp: string;
+  ts: string;
   level: number | null;
 }
 

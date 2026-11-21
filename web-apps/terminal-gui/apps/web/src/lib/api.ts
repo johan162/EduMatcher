@@ -125,14 +125,18 @@ export const api = {
   },
 
   /**
-   * Raw intraday level ticks for the 1D/5D presets.
+   * Intraday levels for the 1D/5D presets, one per `interval` bucket.
    *
-   * pm-index writes one row per `index.update`, which is already fine enough
-   * to chart directly — unlike Symbol Detail's intraday view there is no
-   * bucketing step (design §10.4).
+   * pm-index writes one row per `index.update` — tens of thousands a session,
+   * so raw ticks would stop at the first page. pm-stats buckets them instead,
+   * keeping the last level of each (design §10.4).
    */
-  indexSnapshots: (indexId: string, from?: string) => {
-    const params = new URLSearchParams({ index_id: indexId, limit: String(MAX_LIMIT) });
+  indexSnapshots: (indexId: string, from: string | undefined, interval: "1m" | "5m") => {
+    const params = new URLSearchParams({
+      index_id: indexId,
+      limit: String(MAX_LIMIT),
+      interval,
+    });
     if (from) params.set("from", from);
     return getJson<{ snapshots: IndexSnapshotRow[] }>(`/api/history/index-snapshots?${params}`);
   },

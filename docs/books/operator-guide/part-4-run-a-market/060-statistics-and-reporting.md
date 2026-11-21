@@ -1249,7 +1249,12 @@ pm-stats-cli index-snapshots --index-id EDU100
 pm-stats-cli index-snapshots --index-id EDU100 --date 2026-06-14
 pm-stats-cli index-snapshots --index-id EDU100 --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00
 pm-stats-cli index-snapshots --index-id EDU100 --limit 50
+pm-stats-cli index-snapshots --index-id EDU100 --date 2026-06-14 --interval 1m
 ```
+
+A busy session records tens of thousands of updates. `--interval` keeps only
+the last level in each 1-minute, 5-minute, 15-minute or 1-hour bucket (aligned
+in UTC), which is what a chart of the day needs.
 
 **Options:**
 
@@ -1261,6 +1266,7 @@ pm-stats-cli index-snapshots --index-id EDU100 --limit 50
 | `--to`       | No       | —         | End timestamp (inclusive, ISO format)            |
 | `--limit`    | No       | 500       | Maximum rows to return                           |
 | `--after`    | No       | —         | Continue from a previous run's truncation cursor |
+| `--interval` | No       | raw ticks | `1m`, `5m`, `15m` or `1h`: last level per bucket  |
 
 **Example output:**
 

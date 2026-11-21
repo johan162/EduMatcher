@@ -737,6 +737,16 @@ async def history_index_snapshots(
     to_ts: _ToTs = None,
     limit: _Limit = 500,
     after: _After = None,
+    interval: Annotated[
+        Literal["1m", "5m", "15m", "1h"] | None,
+        Query(
+            description=(
+                "Return only the last level in each bucket of this width "
+                "(aligned in UTC), for charting a whole session in one "
+                "page. Omit for every raw tick."
+            )
+        ),
+    ] = None,
 ) -> dict[str, object]:
     """Intraday index level time series — public market data.
 
@@ -763,6 +773,7 @@ async def history_index_snapshots(
                 to_ts=to_ts,
                 limit=limit,
                 after=after,
+                interval=interval,
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc

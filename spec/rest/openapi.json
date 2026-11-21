@@ -8646,6 +8646,30 @@
               "title": "After"
             },
             "description": "Pagination cursor: the previous page's `next_cursor`. Opaque -- pass it back unchanged with the same filters."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "1m",
+                    "5m",
+                    "15m",
+                    "1h"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only the last level in each bucket of this width (aligned in UTC), for charting a whole session in one page. Omit for every raw tick.",
+              "title": "Interval"
+            },
+            "description": "Return only the last level in each bucket of this width (aligned in UTC), for charting a whole session in one page. Omit for every raw tick."
           }
         ],
         "responses": {

@@ -1492,7 +1492,7 @@ prints output, and exits.
 | `symbols`          | Discover symbols available in stats data                | `--date`                                                            |
 | `dates`            | Discover trading dates available in `daily_stats`        | `--symbol`                                                          |
 | `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date` or `--from-date`/`--to-date` (inclusive range), `--index-id`, `--limit`, `--after`, `--wide` |
-| `index-snapshots`  | Every recorded index level tick from `index_level_snapshots` | `--index-id` (required), `--date`, `--from`, `--to`, `--limit`, `--after` |
+| `index-snapshots`  | Every recorded index level tick from `index_level_snapshots` | `--index-id` (required), `--date`, `--from`, `--to`, `--limit`, `--after`, `--interval` |
 | `index-ids`        | Discover index IDs with recorded data                   | `--date`                                                            |
 | `instruments`      | Show instrument reference data (tick scale per symbol)  | `--symbol`                                                          |
 | `gaps`             | Show detected feed gaps (trades the recorder never received) | `--date`, `--from`, `--to`, `--limit` (default 500)            |

@@ -762,6 +762,41 @@ def test_index_snapshots_requires_index_id(
     assert exc_info.value.code == 2
 
 
+def test_index_snapshots_interval_flag_buckets_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = ["--db", str(seeded_db), "--format", "csv", "index-snapshots"]
+    _run_cli(monkeypatch, [*args, "--index-id", "EDU100"])
+    raw = capsys.readouterr().out.strip().splitlines()
+    _run_cli(monkeypatch, [*args, "--index-id", "EDU100", "--interval", "1h"])
+    hourly = capsys.readouterr().out.strip().splitlines()
+
+    assert hourly[0] == raw[0]
+    assert 1 < len(hourly) < len(raw)
+
+
+def test_index_snapshots_rejects_unknown_interval(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(
+            monkeypatch,
+            [
+                "--db",
+                str(seeded_db),
+                "index-snapshots",
+                "--index-id",
+                "EDU100",
+                "--interval",
+                "2m",
+            ],
+        )
+    assert exc_info.value.code == 2
+
+
 def test_index_snapshots_csv_output_with_header(
     monkeypatch: pytest.MonkeyPatch,
     seeded_db: Path,
