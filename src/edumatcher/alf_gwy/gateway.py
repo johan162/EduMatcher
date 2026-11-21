@@ -436,13 +436,13 @@ class AlfGateway:
 
     def run(self) -> None:
         self._ensure_fd_limit()
-        self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server.bind((self.config.bind_address, self.config.port))
-        self._server.listen(
-            min(socket.SOMAXCONN, max(128, self.config.max_connections))
-        )
-        self._server.setblocking(False)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.config.bind_address, self.config.port))
+        server.listen(min(socket.SOMAXCONN, max(128, self.config.max_connections)))
+        server.setblocking(False)
+        # Published only once listening: callers poll it as the readiness signal.
+        self._server = server
         # epoll/kqueue: one wait costs O(ready sockets), not O(connected).
         # The ZMQ sockets join through their notification fds, which are
         # edge-triggered: the loop drains them and checks zmq.EVENTS before
