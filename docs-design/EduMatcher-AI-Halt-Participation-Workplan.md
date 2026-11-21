@@ -73,8 +73,6 @@ that buyers and sellers overlap at the reopen.
 | Q1 | Do agents also take part in an **operator** halt (`halt_source: ADMIN`)? | **No.** An operator halt is discretionary and only ends when the operator says so; an instructor halting a symbol for a lesson expects it quiet. The engine's reject codes already draw this line (CB vs ADMIN). |
 | Q2 | Reuse `auction_participation` or add a separate `halt_participation` preset knob? | **Reuse.** A halt *is* a reopening auction; a second knob is configurability nobody asked for. Revisit only if WP-HP03 shows the rate needs separate tuning. |
 
-Both recommendations accepted by Johan 2026-11-21.
-
 ## 4. Design
 
 A symbol in a CB halt gets an **effective phase** `HALTED` for order entry,
