@@ -146,11 +146,11 @@ example-downloads:
 # ============================================================================================
 # MkDocs site
 # ============================================================================================
-docs: nav epub-downloads example-downloads
+docs: nav epub-downloads example-downloads web-exchange-intro
 	@printf '%b\n' "$(DARKYELLOW)- Building MkDocs site...$(NC)"
 	@cd .. && $(POETRY) run mkdocs build
 	@printf '%b\n' "$(GREEN)OK MkDocs site built$(NC)"
-serve: nav epub-downloads example-downloads
+serve: nav epub-downloads example-downloads web-exchange-intro
 	@cd .. && $(POETRY) run mkdocs serve
 
 # ============================================================================================
