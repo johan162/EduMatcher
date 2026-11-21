@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -13988,7 +13988,7 @@ stateDiagram-v2
 <p>The message flow between components in steps 1–12 can be visualised as follows:</p>
 <p><img alt="Message flow for steps 1–12, read top to bottom. Each row is one message from the component on the left to the component on the right. The sweep rows repeat once per fill." src="../assets/how-exchange-works/together-message-flow-small.png" /></p>
 <h2 id="implied-orders-and-synthetic-liquidity">Implied Orders and Synthetic Liquidity<a class="headerlink" href="#implied-orders-and-synthetic-liquidity" title="Permanent link">&para;</a></h2>
-<p>This concept trips up almost every developer who meets a derivatives exchange for the first time, and for good reason: it is the first place in this book where a single incoming order can trade against orders resting in <em>other</em> order books. The arithmetic is school-level, but it arrives wrapped in an unusual sign convention, the quantity rules are less obvious than they look, the priority rules are subtle, and the engineering consequences are severe. This chapter therefore climbs in explicit levels. Each level introduces one new idea and works it through with numbers before the next level begins. The numbers carry over from level to level, so read every example even when the idea feels obvious.</p>
+<p>This concept trips up almost every person who meets a derivatives exchange for the first time, and for good reason: it is the first place in this book where a single incoming order can trade against orders resting in <em>other</em> order books. The arithmetic is school-level, but it arrives wrapped in an unusual sign convention, the quantity rules are less obvious than they look, the priority rules are subtle, and the engineering consequences are severe. This chapter therefore climbs in explicit levels. Each level introduces one new idea and works it through with numbers before the next level begins. The numbers carry over from level to level, so read every example even when the idea feels obvious.</p>
 <p>By the end of the chapter you should be able to write a correct first-generation implied-matching module: compute implied prices and quantities, execute them atomically, keep them consistent as the books change, and test them. The chapter after this one then asks the obvious follow-up question, <em>why not imply from implied orders, and from those, and so on?</em>, and shows why every exchange stops after a few steps.</p>
 <p>One promise before we begin, which the rest of the chapter proves over and over: <strong>implied orders do not create liquidity out of nothing.</strong> An implied order is a different <em>view</em> of commitments that already rest in other books. It never adds a single lot to the total that can be traded; it only makes existing lots reachable from one more place. Hold on to that sentence. Every level below is, in the end, a demonstration of it.</p>
 <p>Implied orders are almost exclusively used in the derivatives markets (specifically forwards and futures), where multiple related instruments exist for the same underlying asset, such as different futures contracts for various delivery months or spreads between them. (A <strong>forward</strong> is the same kind of promise as a future, buy or sell at a fixed price on a later date, but usually agreed privately rather than in standardised form on an exchange.) In Swedish both futures and forward contracts are commonly called "terminskontrakt" or "terminer". Because Swedish has only one name for what in English are two distinct instruments, keep the context in mind when discussing them; in practice Swedish traders simply use the English terms when they need to avoid ambiguity.</p>
@@ -14075,14 +14075,93 @@ stateDiagram-v2
 </code></pre></div>
 <p><strong>Buying one spread</strong> means buying one lot of the near month <em>and</em> selling one lot of the far month, simultaneously, as one instruction. <strong>Selling one spread</strong> is the mirror image: sell the near month, buy the far month. CME's own description of Treasury calendar spreads states this directly: "buying the calendar spread entails buying the nearby month ... and selling the deferred month" [CME Group, <em>Treasury Futures Calendar Spreads</em>, 2016].</p>
 <h4 id="why-this-convention-makes-sense">Why this convention makes sense<a class="headerlink" href="#why-this-convention-makes-sense" title="Permanent link">&para;</a></h4>
-<p>The convention is chosen so that <strong>buying the spread is a bet that the number S goes up</strong>, exactly as buying anything else is a bet that its price goes up. Work it through:</p>
+<p>The convention is chosen so that <strong>buying the spread is a bet that the number S goes up</strong>, exactly as buying anything else is a bet that its price goes up.</p>
+<p>Start with what you actually hold. Buying one Jan/Feb spread means you are <strong>long January and short February</strong>. You gain when January rises and lose when February rises. So a rising February is <em>not</em> good news for a spread buyer. It is good news only for someone who owns February, and the spread buyer has sold it. What the spread buyer wants is for <strong>January to do better than February</strong>: rise more, or fall less.</p>
+<p>Work it through:</p>
 <ul>
 <li>You buy one Jan/Feb spread at S = −$2.00. Concretely, suppose you buy January at $75.00 and sell February at $77.00 (75.00 − 77.00 = −2.00).</li>
-<li>A week later January is $76.00 and February is <span class="arithmatex">\(77.50, so S = 76.00 − 77.50 = **−\)</span>1.50**. The spread price <em>rose</em> from −2.00 to −1.50.</li>
+<li>A week later January is $76.00 and February is <span class="arithmatex">\(77.50, so S = 76.00 − 77.50 = **−\)</span>1.50**.</li>
 <li>Your January long gained $1.00 per barrel. Your February short lost <span class="arithmatex">\(0.50 per barrel. Net: **+\)</span>0.50 per barrel**, which is exactly the change in S: (−1.50) − (−2.00) = +0.50.</li>
 <li>Per lot that is <span class="arithmatex">\(0.50 × 1,000 barrels = **\)</span>500**.</li>
 </ul>
-<p>Notice that the outright price of oil rose too, but that did not matter; only the difference did. That is the whole point of trading the spread.</p>
+<p>Both months rose, but January rose more, and that is all that mattered.</p>
+<p><strong>"But the spread got smaller. Shouldn't its price have fallen?"</strong></p>
+<p>That depends on which meaning of "spread" you have in mind:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Before</th>
+<th>After</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The <strong>gap</strong> between the months (how far apart they are)</td>
+<td>$2.00</td>
+<td>$1.50</td>
+<td>narrowed</td>
+</tr>
+<tr>
+<td>The <strong>spread price</strong> S = Jan − Feb (a signed number)</td>
+<td>−2.00</td>
+<td>−1.50</td>
+<td><strong>rose</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Both lines describe the same market. On a number line, moving from −2.00 to −1.50 is a move <em>up</em>, towards zero, even though the distance between the two months got smaller. The order book, the matching engine and your profit and loss all work with the second line, the signed number S. The first line is only how people sometimes talk about the market.</p>
+<p>Don't use "wider" and "narrower" to judge a spread position, because they flip meaning with the sign of S. In contango (S negative), a narrowing gap means S is rising. In backwardation (S positive, January above February), a narrowing gap means S is <em>falling</em>. Use one rule instead:</p>
+<blockquote>
+<p><strong>Spread buyer's P&amp;L = (S now − S paid) × 1,000 barrels per lot.</strong>
+If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, and whether oil as a whole rose or fell, play no part.</p>
+</blockquote>
+<p><strong>Three scenarios from the same starting point.</strong></p>
+<p>Start each one with the position above: long January at $75.00, short February at $77.00, S = −2.00.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Jan</th>
+<th>Feb</th>
+<th>New S</th>
+<th>Jan leg</th>
+<th>Feb leg</th>
+<th>Net per lot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A: January outperforms</td>
+<td>76.00</td>
+<td>77.50</td>
+<td>−1.50</td>
+<td>+$1.00</td>
+<td>−$0.50</td>
+<td><strong>+$500</strong></td>
+</tr>
+<tr>
+<td>B: both rise equally</td>
+<td>76.00</td>
+<td>78.00</td>
+<td>−2.00</td>
+<td>+$1.00</td>
+<td>−$1.00</td>
+<td><strong>$0</strong></td>
+</tr>
+<tr>
+<td>C: February outperforms</td>
+<td>75.50</td>
+<td>78.50</td>
+<td>−3.00</td>
+<td>+$0.50</td>
+<td>−$1.50</td>
+<td><strong>−$1,000</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Oil rose in all three scenarios, so the overall oil price tells you nothing. Only the <em>relative</em> move of the two months decides the result. Scenario B shows why: when both legs move together, the spread position does not notice. That insensitivity to the overall price is the whole point of trading the spread, and it is why clearing houses give spread positions lower margin (Level 0, reason 3). Scenario C is the case where February rising faster helps, but it helps whoever is <em>short</em> the spread, not the buyer.</p>
 <h4 id="the-four-things-that-confuse-every-beginner">The four things that confuse every beginner<a class="headerlink" href="#the-four-things-that-confuse-every-beginner" title="Permanent link">&para;</a></h4>
 <p>The convention is logical, but it produces four effects that look wrong the first time you see them. Name them now, and they will not ambush you later.</p>
 <p><strong>Confusion 1: spread prices are routinely negative.</strong> When the far month is more expensive than the near month (a market in <strong>contango</strong>, common in oil when storage is plentiful), S is negative. When the near month is more expensive (<strong>backwardation</strong>), S is positive. Both are completely normal:</p>

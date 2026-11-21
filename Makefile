@@ -87,7 +87,9 @@ COVER_TITLE_ai-traders := AI TRADERS<br><span class="accent">AND MARKET</span><b
 # ============================================================================================
 # Per-book rules (book.mk) and phony targets
 # ============================================================================================
+ifneq ($(filter-out help,$(MAKECMDGOALS)),)
 include $(BUILD_ASSETS)/book.mk
+endif
 
 .PHONY: pdf-docs epub-docs chapters-pdf book-bundles covers book-all docs-all omnibus docs serve docs-check nav \
   pdf-training-guide epub-training-guide chapters-training-guide exchange-intro \
@@ -109,7 +111,9 @@ $$($(1)_ALL): $$($(1)_PDFS) $$($(1)_EPUB) $$($(1)_CH_ZIP) $$($(1)_COVER_PNG)
 	@printf '%b\n' "$(GREEN)OK all-format bundle: $(BRIGHTCYAN)\"$(PROJECT)_$(subst -,_,$(1))_all-$(VERSION).zip\"$(GREEN)$(NC)"
 endef
 
+ifneq ($(filter-out help,$(MAKECMDGOALS)),)
 $(foreach book,$(BOOKS),$(eval $(call BOOK_BUNDLE_RULE,$(book))))
+endif
 covers: $(addprefix cover-,$(BOOKS))
 book-all: pdf-docs epub-docs
 
@@ -142,11 +146,11 @@ example-downloads:
 # ============================================================================================
 # MkDocs site
 # ============================================================================================
-docs: nav epub-downloads example-downloads
+docs: nav epub-downloads example-downloads web-exchange-intro
 	@printf '%b\n' "$(DARKYELLOW)- Building MkDocs site...$(NC)"
 	@cd .. && $(POETRY) run mkdocs build
 	@printf '%b\n' "$(GREEN)OK MkDocs site built$(NC)"
-serve: nav epub-downloads example-downloads
+serve: nav epub-downloads example-downloads web-exchange-intro
 	@cd .. && $(POETRY) run mkdocs serve
 
 # ============================================================================================
@@ -234,6 +238,7 @@ help:
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'epub-verify-<book>' 'Validate one EPUB with epubcheck'
 
 	@printf '\n$(BRIGHTCYAN)Exchange intro$(NC)\n'
+	@printf '  $(BLUE)%-30s$(NC) %s\n' 'web-exchange-intro' 'Regenerate docs/how-exchange-works.md from docs-exchange-intro/src sources'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'exchange-intro' 'Build the delegated exchange introduction'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'pdf-exchange-intro' 'Build the exchange introduction PDFs'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'epub-exchange-intro' 'Build the exchange introduction EPUB'
@@ -255,6 +260,7 @@ mp-bump: ## Bump the version for the documented multipass bootstrap sctip to the
 
 # ============================================================================================
 # Exchange Introduction Web target
+# Responsible for creating single HTML page `docs/how-exchange-works.md`
 # Assembles docs/how-exchange-works.md from the canonical source files in
 # docs-exchange-intro/src (Parts I–IV plus the References backmatter).
 #
@@ -319,12 +325,16 @@ $(HOW_EXCHANGE_WORKS): $(EXCHANGE_INTRO_SOURCES)
 			-e 's/^## /### /g' \
 			-e 's/^# /## /g' \
 		>> $@
+	@# Check that the concatenated file exists and is not empty and print error if it doesn't
+	@echo -e "$(DARKYELLOW)- Checking that $(BRIGHTCYAN)$@$(DARKYELLOW) exists and is not empty...$(NC)"
+	@test -s $@ || { echo -e "$(RED)Error: $(BRIGHTCYAN)$@$(RED) is missing or empty$(NC)"; exit 1; }
+	@echo -e "$(DARKYELLOW)- Preparing assets for $(BRIGHTCYAN)$@$(DARKYELLOW)...$(NC)"
 	@rm -rf $(HOW_EXCHANGE_WORKS_ASSETS)
 	@mkdir -p $(HOW_EXCHANGE_WORKS_ASSETS)
 	@cp -r $(EXCHANGE_INTRO_ASSETS)/*.png $(HOW_EXCHANGE_WORKS_ASSETS) 2>/dev/null || true
 	@# Convert all "/assets/" paths in the markdown to point to the correct location
 	@echo -e "$(DARKYELLOW)- Updating asset paths in $(BRIGHTCYAN)$@$(DARKYELLOW) to $(BRIGHTCYAN)$(HOW_EXCHANGE_WORKS_ASSETS)/ $(DARKYELLOW)...$(NC)"
-	@sed -i '' -E 's#\(assets/#\($(HOW_EXCHANGE_WORKS_ASSETS)/#g' $@
+	@sed $(SED_INPLACE) -E 's#\(assets/#\($(HOW_EXCHANGE_WORKS_ASSETS)/#g' $@
 	@echo -e "$(GREEN)✓ $(BRIGHTCYAN)how-exchange-works.md$(GREEN) assembled ($(words $(EXCHANGE_INTRO_SOURCES)) source files)$(NC)"
 
 web-exchange-intro: $(HOW_EXCHANGE_WORKS) ## Regenerate docs/how-exchange-works.md from docs-exchange-intro/src sources

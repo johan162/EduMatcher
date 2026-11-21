@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -13739,6 +13739,12 @@ gateway id; public history accepts any valid key.</p>
 <td>no</td>
 <td>Opaque page cursor</td>
 </tr>
+<tr>
+<td><code>interval</code></td>
+<td><code>1m</code> | <code>5m</code> | <code>15m</code> | <code>1h</code></td>
+<td>no</td>
+<td>Return only the last level in each bucket of this width, aligned in UTC; omit for every raw tick</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -13758,6 +13764,10 @@ gateway id; public history accepts any valid key.</p>
 </tr>
 </tbody>
 </table>
+<p>pm-index publishes many updates a second, so a whole session of raw ticks runs
+to tens of thousands of rows. To chart a session in one page, pass <code>interval</code>:
+each row is then the last snapshot of its bucket (the bar's close), with its
+real <code>ts</code>. The row shape and the cursor are unchanged.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>

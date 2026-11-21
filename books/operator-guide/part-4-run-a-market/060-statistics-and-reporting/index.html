@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -10765,7 +10765,11 @@ pass <code>--from-date</code>/<code>--to-date</code> for a series across days.</
 <a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
 <a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-06-14T09:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-06-14T16:30:00+00:00
 <a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--interval<span class="w"> </span>1m
 </code></pre></div>
+<p>A busy session records tens of thousands of updates. <code>--interval</code> keeps only
+the last level in each 1-minute, 5-minute, 15-minute or 1-hour bucket (aligned
+in UTC), which is what a chart of the day needs.</p>
 <p><strong>Options:</strong></p>
 <table>
 <thead>
@@ -10812,6 +10816,12 @@ pass <code>--from-date</code>/<code>--to-date</code> for a series across days.</
 <td>No</td>
 <td>—</td>
 <td>Continue from a previous run's truncation cursor</td>
+</tr>
+<tr>
+<td><code>--interval</code></td>
+<td>No</td>
+<td>raw ticks</td>
+<td><code>1m</code>, <code>5m</code>, <code>15m</code> or <code>1h</code>: last level per bucket</td>
 </tr>
 </tbody>
 </table>

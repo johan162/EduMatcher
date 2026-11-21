@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -9799,11 +9799,11 @@ uncross, even when there was no crossable interest at all.</p>
 <tr>
 <td><code>REASON</code></td>
 <td>No</td>
-<td>Which uncross this was: <code>SCHEDULED</code> (leaving an auction or other non-matching phase), <code>REOPEN</code> (a halted symbol reopening) or <code>RECOVERY</code> (restored GTC orders at engine startup)</td>
+<td>Which uncross this was: <code>SCHEDULED</code> (leaving an auction or other non-matching phase), <code>REOPEN</code> (a halted symbol reopening), <code>RECOVERY</code> (restored GTC orders at engine startup), <code>BACKSTOP</code> (the closing backstop forcing a still-halted symbol to reopen) or <code>ADMIN_MANUAL</code> (an operator force-uncrossing one symbol)</td>
 </tr>
 </tbody>
 </table>
-<p>Without <code>REASON</code> the three are indistinguishable — the fields are otherwise
+<p>Without <code>REASON</code> the five are indistinguishable — the fields are otherwise
 identical — so a client cannot tell a circuit-breaker reopening from the
 closing auction. Treat an unrecognised value as absent rather than as an
 error: it means a gateway newer than the client.</p>
