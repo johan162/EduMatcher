@@ -31,17 +31,17 @@ python = "^3.14"
 pyzmq = "^27.3.0"
 rich = "^15.0.0"
 prompt_toolkit = "^3.0"
-pyyaml = "^6.0.3"
+pyyaml = "^6.0.4"
 orjson = "^3.12.0"
-fastapi = ">=0.162.2"
+fastapi = ">=0.165.0"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
-holidays = ">=0.108"
+holidays = ">=0.109"
 reportlab = ">=5.1.0"
 psutil = "^7.2.2"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
-mkdocs-material = "^9.8.1"
+mkdocs-material = "^9.8.2"
 pytest = "^9.2.0"
 types-PyYAML = "^6.0.12.20260518"
 pytest-cov = "^7.1.0"
@@ -53,7 +53,7 @@ flake8 = "^7.5.0"
 black = "^26.5.1"
 shtab = "1.13.0"  # exact: the committed completion scripts are its byte-for-byte output
 mypy = "^2.4.1"
-types-psutil = "^7.2.2.20260906"
+types-psutil = "^7.2.2.20261111"
 
 
 [tool.poetry.group.docs.dependencies]
