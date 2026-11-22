@@ -47,7 +47,8 @@ No migration of anything (standing rule): the database schema is unchanged.
   across the whole table, so paging can't hide it).
 - **Terminal News view.** It has a window selector (1 h / 24 h / 7 d / 30 d /
   All) defaulting to 24 h, status and sentiment selectors, the existing
-  symbol/sector filter (now applied server-side) and 50 rows a page with
+  symbol/sector filter (now applied server-side) and a rows-per-page selector
+  (5/15/25/50, default 15, persisted, as on Overview) with
   "Page n of m · N headlines". Page 1 polls every 20 s. Leaving page 1 fixes
   `until`, so rows don't shift under the reader, and a "N new" chip returns
   to page 1. The selections persist in `usePrefsStore`.
