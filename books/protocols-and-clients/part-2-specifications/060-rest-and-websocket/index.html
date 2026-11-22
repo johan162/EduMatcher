@@ -9824,6 +9824,12 @@ the OpenAPI document lists all of them per operation.</p>
 <td>The company database is missing or unreadable</td>
 </tr>
 <tr>
+<td><code>NEWS_DB_UNAVAILABLE</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>UNKNOWN</code></td>
+<td>pm-market-sim's news history cannot be read</td>
+</tr>
+<tr>
 <td><code>CLEARING_DB</code></td>
 <td style="text-align: right;"><code>503</code></td>
 <td><code>UNKNOWN</code></td>
@@ -12032,8 +12038,11 @@ orders plus recently finished ones.</p>
 </tbody>
 </table>
 <h3 id="get-apiv1news"><code>GET /api/v1/news</code><a class="headerlink" href="#get-apiv1news" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the latest market-sim headlines, oldest first, plus the
-sector → symbol mapping. Access: Authenticated key (read-only keys included)
+<p>Purpose: return one page of market-sim headlines, newest first, plus the
+sector → symbol mapping. The gateway reads them read-only from
+<code>pm-market-sim</code>'s news history (<code>market_sim_news.db</code> in the data directory),
+which keeps a headline for <code>news.retention_days</code> (default 90), so a
+restarted gateway still serves them all. Access: Authenticated key (read-only keys included)
 — unlike most endpoints in this section, it does not require a trading key,
 since this is public information, not a trading action.</p>
 <p><strong>Arguments</strong></p>
@@ -12051,7 +12060,43 @@ since this is public information, not a trading action.</p>
 <td><code>limit</code></td>
 <td>int</td>
 <td>No</td>
-<td>Maximum headlines to return, <code>1</code>-<code>200</code> (default <code>50</code>)</td>
+<td>Headlines per page, <code>1</code>-<code>500</code> (default <code>50</code>)</td>
+</tr>
+<tr>
+<td><code>offset</code></td>
+<td>int</td>
+<td>No</td>
+<td>Headlines to skip, newest first (default <code>0</code>)</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td>ISO-8601</td>
+<td>No</td>
+<td>Only headlines at or after this time; one without a timezone is UTC</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td>ISO-8601</td>
+<td>No</td>
+<td>Only headlines at or before this time; one without a timezone is UTC</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>string</td>
+<td>No</td>
+<td>A symbol or a sector, any case. A symbol also matches its sector's headlines, a sector its symbols'; <code>MARKET</code> headlines always match</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>string</td>
+<td>No</td>
+<td><code>RUMOUR</code>, <code>CONFIRMED</code> or <code>RETRACTED</code></td>
+</tr>
+<tr>
+<td><code>sentiment</code></td>
+<td>string</td>
+<td>No</td>
+<td><code>positive</code> (sentiment above 0) or <code>negative</code> (below 0)</td>
 </tr>
 </tbody>
 </table>
@@ -12067,8 +12112,8 @@ since this is public information, not a trading action.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "news": [...], "sectors": {...} }</code></td>
-<td><code>news</code> is a list of <code>news.event</code>-shaped objects (see <a href="../../part-5-message-reference/010-message-reference/#newsevent">Message Reference — news.event</a>), oldest first; <code>sectors</code> maps each sector name to its sorted list of symbols. Empty <code>news</code> list when <code>pm-market-sim</code> is not running.</td>
+<td><code>{ "news": [...], "count": n, "total": n, "has_more": bool, "sectors": {...} }</code></td>
+<td><code>news</code> is a list of <code>news.event</code>-shaped objects (see <a href="../../part-5-message-reference/010-message-reference/#newsevent">Message Reference — news.event</a>), newest first, each with an added <code>resolution</code>: <code>CONFIRMED</code> or <code>RETRACTED</code> for a rumour that has been resolved (looked up across the whole history, so it is right on any page), and <code>null</code> for an open rumour or any other headline. <code>total</code> counts every match across all pages. <code>sectors</code> maps each sector name to its sorted list of symbols. The <code>news</code> list is empty when <code>pm-market-sim</code> has never run.</td>
 </tr>
 </tbody>
 </table>
@@ -12085,7 +12130,12 @@ since this is public information, not a trading action.</p>
 <tr>
 <td><code>VALIDATION</code></td>
 <td><code>400</code></td>
-<td><code>limit</code> outside <code>1</code>-<code>200</code></td>
+<td>An argument is out of range or not one of its values</td>
+</tr>
+<tr>
+<td><code>NEWS_DB_UNAVAILABLE</code></td>
+<td><code>503</code></td>
+<td><code>market_sim_news.db</code> exists but cannot be read (locked or damaged)</td>
 </tr>
 </tbody>
 </table>

@@ -8057,7 +8057,13 @@ real life so that a class sees a few each day (see
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">rumour_confirm</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.6</span>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">rumour_delay_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span><span class="w">   </span><span class="c1"># trading days</span>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">rumour_delay_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.15</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">retention_days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">90</span><span class="w">       </span><span class="c1"># days a headline stays in the news history</span>
 </code></pre></div>
+<p>Every published headline is also written to <code>market_sim_news.db</code>
+(<code>news_events</code>), the history that <code>pm-news past</code> lists. <code>pm-market-sim</code> drops the headlines older than
+<code>retention_days</code> (1–3650, default 90) on each session phase change,
+including the first one after it starts. The <code>value_jumps</code> table in the same
+file is not pruned.</p>
 <h3 id="publishing-news-yourself-pm-news">Publishing news yourself: <code>pm-news</code><a class="headerlink" href="#publishing-news-yourself-pm-news" title="Permanent link">&para;</a></h3>
 <p><code>pm-news</code> sends commands to the running <code>pm-market-sim</code> as an ADMIN
 participant (<code>--id</code>) and prints what happened:</p>

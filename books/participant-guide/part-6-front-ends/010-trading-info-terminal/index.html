@@ -8231,15 +8231,54 @@ quantity, the number of trades and the residual imbalance per symbol, and
 <h3 id="news">News<a class="headerlink" href="#news" title="Permanent link">&para;</a></h3>
 <p>The headlines <code>pm-market-sim</code> publishes (see
 <a href="../../../operator-guide/part-4-run-a-market/090-market-model/">The market model</a>),
-newest first, with the same badges and filter as the trading GUI's
+newest first, with the same badges as the trading GUI's
 <a href="../020-trading-platform-gui/#news">News</a> screen: <code>RUMOUR</code> with its
-credibility, <code>CONFIRMED</code>/<code>RETRACTED</code> when a rumour resolves (a retracted
-rumour and its retraction struck through), and a filter that takes a symbol
-or a sector.</p>
-<p>CALF carries no news, so this view reads them through the bridge's
+credibility, and <code>CONFIRMED</code>/<code>RETRACTED</code> when a rumour resolves. A retracted
+rumour and its retraction are struck through. The time has the date in
+front when it is not today.</p>
+<p>The view shows everything <code>pm-market-sim</code> has recorded, kept for
+<code>news.retention_days</code> (90 days unless your operator changed it). Restarting
+the terminal or the exchange loses none of it. Above the table:</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Symbol or sector</td>
+<td>A symbol also shows its sector's news, a sector its symbols' news; market-wide news always shows</td>
+</tr>
+<tr>
+<td>Time window</td>
+<td>Last hour, Last 24 h (the default), Last 7 days, Last 30 days, or All. The window rolls with the clock</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Any status, Rumours, Confirmed or Retracted</td>
+</tr>
+<tr>
+<td>Sentiment</td>
+<td>Any sentiment, Positive or Negative</td>
+</tr>
+<tr>
+<td>Page n/m and the arrows</td>
+<td>50 headlines a page, with the number that match beside it</td>
+</tr>
+</tbody>
+</table>
+<p>The window, status and sentiment you pick are remembered in this browser.
+Page 1 follows the news as it arrives. When you go to a later page, the view
+holds the window where it was, so new headlines don't push the rows you are
+reading down a page. A chip such as <strong>4 new</strong> counts what arrived since then,
+and clicking it goes back to page 1.</p>
+<p>CALF carries no news, so this view reads it through the bridge's
 <code>/api/news</code> proxy to <code>pm-api-gwy</code>'s <code>GET /api/v1/news</code> — the same read-only
-key as the charts — once a second while it is open. Without <code>pm-api-gwy</code> it
-says the news is unavailable; without <code>pm-market-sim</code> the list stays empty.</p>
+key as the charts — every 20 seconds while it is open. Without <code>pm-api-gwy</code>
+it says the news is unavailable; if <code>pm-market-sim</code> has never run, the list
+is empty.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
