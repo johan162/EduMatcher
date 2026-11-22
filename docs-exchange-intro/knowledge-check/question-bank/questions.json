@@ -521,11 +521,11 @@
         },
         {
           "id": "KC-01-12-3",
-          "text": "FOK requires the entire order to fill immediately or the whole order is cancelled"
+          "text": "FOK requires the entire order to fill immediately or the whole order is rejected"
         },
         {
           "id": "KC-01-12-4",
-          "text": "A DAY order is automatically cancelled at the end of the current session if unfilled"
+          "text": "A DAY order automatically expires at the end of the current session if unfilled"
         },
         {
           "id": "KC-01-12-5",
@@ -3988,7 +3988,7 @@
         },
         {
           "id": "KC-04-10-4",
-          "text": "GTD behaves like GTC plus a scheduled cancellation task"
+          "text": "GTD behaves like GTC plus a scheduled expiry task"
         },
         {
           "id": "KC-04-10-5",
@@ -5079,7 +5079,7 @@
       "statements": [
         {
           "id": "KC-05-08-1",
-          "text": "GTD orders require no automatic cancellation task from the exchange's scheduler"
+          "text": "GTD orders require no automatic expiry task from the exchange's scheduler"
         },
         {
           "id": "KC-05-08-2",
@@ -8607,11 +8607,11 @@
         },
         {
           "id": "KC-08-07-2",
-          "text": "DAY orders are cancelled automatically at session end if unfilled"
+          "text": "DAY orders expire automatically at session end if unfilled"
         },
         {
           "id": "KC-08-07-3",
-          "text": "FOK requires a full, immediate fill or the entire order is cancelled"
+          "text": "FOK requires a full, immediate fill or the entire order is rejected"
         },
         {
           "id": "KC-08-07-4",
@@ -11054,7 +11054,7 @@
       "statements": [
         {
           "id": "QZ-01-09-1",
-          "text": "A FOK order either fills completely on arrival or is cancelled without any fill"
+          "text": "A FOK order either fills completely on arrival or is rejected without any fill"
         },
         {
           "id": "QZ-01-09-2",
@@ -11062,7 +11062,7 @@
         },
         {
           "id": "QZ-01-09-3",
-          "text": "FOK allows partial fills, with the remainder cancelled"
+          "text": "FOK allows partial fills, the same way IOC does"
         },
         {
           "id": "QZ-01-09-4",
@@ -11657,7 +11657,7 @@
         },
         {
           "id": "QZ-02-04-4",
-          "text": "FOK orders always fill at least partially before being cancelled"
+          "text": "FOK orders always fill at least partially before they end"
         },
         {
           "id": "QZ-02-04-5",
@@ -11961,7 +11961,7 @@
         },
         {
           "id": "QZ-02-12-2",
-          "text": "A GTD order still resting when its expiry date/time arrives is cancelled by the exchange, even if no other event touches the order"
+          "text": "A GTD order still resting when its expiry date/time arrives is expired by the exchange, even if no other event touches the order"
         },
         {
           "id": "QZ-02-12-3",
