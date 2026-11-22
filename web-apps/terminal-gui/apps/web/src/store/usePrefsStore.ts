@@ -83,6 +83,8 @@ interface PrefsStore {
   newsWindow: NewsWindow;
   newsStatus: NewsStatusFilter;
   newsSentiment: NewsSentimentFilter;
+  /** Headlines per News page. See `ROWS_PER_PAGE_CHOICES`. */
+  newsRowsPerPage: number;
 
   setTheme: (theme: ThemePreference) => void;
   toggleTheme: () => void;
@@ -97,6 +99,7 @@ interface PrefsStore {
   setNewsWindow: (window: NewsWindow) => void;
   setNewsStatus: (status: NewsStatusFilter) => void;
   setNewsSentiment: (sentiment: NewsSentimentFilter) => void;
+  setNewsRowsPerPage: (rows: number) => void;
 }
 
 export const usePrefsStore = create<PrefsStore>()(
@@ -113,6 +116,7 @@ export const usePrefsStore = create<PrefsStore>()(
       newsWindow: "24h",
       newsStatus: "ALL",
       newsSentiment: "all",
+      newsRowsPerPage: 15,
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set({ theme: get().theme === "dark" ? "light" : "dark" }),
@@ -143,6 +147,7 @@ export const usePrefsStore = create<PrefsStore>()(
       setNewsWindow: (newsWindow) => set({ newsWindow }),
       setNewsStatus: (newsStatus) => set({ newsStatus }),
       setNewsSentiment: (newsSentiment) => set({ newsSentiment }),
+      setNewsRowsPerPage: (newsRowsPerPage) => set({ newsRowsPerPage }),
     }),
     { name: "terminal-prefs" },
   ),

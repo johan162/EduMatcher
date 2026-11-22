@@ -303,12 +303,13 @@
   template: "clearing summary: cannot read %s: %s"
   level: WARNING
   explanation: >
-    A /clearing/summary request could not read pm-eod's ledger (the path and
-    the reason are in the message). The summary was still answered, with
-    `eod_db_available: false` and no last EOD run.
+    A /clearing/summary request found pm-eod's ledger but could not read it
+    (the path and the reason are in the message). The summary was still
+    answered, with `eod_db_available: false` and no last EOD run. A missing
+    ledger is not this: before pm-eod's first run there is none, and nothing
+    is logged.
   actions:
-    - "If pm-eod is not deployed, nothing is wrong; the summary shows no EOD state."
-    - "Otherwise check that `eod_db` in this gateway's `api_gateways` block names the ledger pm-eod writes, and run `pm-eod status`."
+    - "Check that `eod_db` in this gateway's `api_gateways` block names the ledger pm-eod writes, and run `pm-eod status`."
 
 - logger: edumatcher.api_gateway.routers.ws
   template: "[%s] private stream snapshot/setup failed"

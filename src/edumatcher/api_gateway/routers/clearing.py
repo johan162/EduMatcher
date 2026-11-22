@@ -365,7 +365,10 @@ def _last_eod_run(request: Request) -> tuple[bool, dict[str, Any] | None]:
     try:
         with closing(open_ledger_readonly(path)) as conn:
             newest = runs(conn, limit=1)
-    except (FileNotFoundError, sqlite3.DatabaseError) as exc:
+    except FileNotFoundError:
+        # No ledger yet: pm-eod has not run here (fresh exchange or not deployed).
+        return False, None
+    except sqlite3.DatabaseError as exc:
         log.warning("clearing summary: cannot read %s: %s", path, exc)
         return False, None
     return True, (_eod_run(newest[0]) if newest else None)

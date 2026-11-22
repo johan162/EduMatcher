@@ -348,9 +348,9 @@ the terminal or the exchange loses none of it. Above the table:
 | Time window | Last hour, Last 24 h (the default), Last 7 days, Last 30 days, or All. The window rolls with the clock |
 | Status | Any status, Rumours, Confirmed or Retracted |
 | Sentiment | Any sentiment, Positive or Negative |
-| Page n/m and the arrows | 50 headlines a page, with the number that match beside it |
+| Page n/m, the arrows and "rows" | 15 headlines a page by default (5, 15, 25 or 50, remembered), with the number that match beside it |
 
-The window, status and sentiment you pick are remembered in this browser.
+The window, status, sentiment and page size you pick are remembered in this browser.
 Page 1 follows the news as it arrives. When you go to a later page, the view
 holds the window where it was, so new headlines don't push the rows you are
 reading down a page. A chip such as **4 new** counts what arrived since then,

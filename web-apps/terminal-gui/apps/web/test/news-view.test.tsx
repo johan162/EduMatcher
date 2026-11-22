@@ -73,7 +73,12 @@ describe("NewsView", () => {
     fetched.snapshot = page([]);
     fetched.newer = 0;
     useLiveStore.getState().reset();
-    usePrefsStore.setState({ newsWindow: "24h", newsStatus: "ALL", newsSentiment: "all" });
+    usePrefsStore.setState({
+      newsWindow: "24h",
+      newsStatus: "ALL",
+      newsSentiment: "all",
+      newsRowsPerPage: 15,
+    });
   });
   afterEach(() => {
     cleanup();
@@ -83,7 +88,7 @@ describe("NewsView", () => {
   it("asks for the last 24 hours, newest page first, and polls", async () => {
     await renderView();
     expect(last()).toEqual({
-      limit: 50,
+      limit: 15,
       offset: 0,
       from: "2026-11-21T12:00:00.000Z",
       to: undefined,
@@ -164,15 +169,15 @@ describe("NewsView", () => {
   });
 
   it("pins the window off page 1 and offers the newer headlines", async () => {
-    fetched.snapshot = page([news({})], 120);
+    fetched.snapshot = page([news({})], 40);
     await renderView();
-    expect(screen.getByText("120 headlines")).toBeTruthy();
+    expect(screen.getByText("40 headlines")).toBeTruthy();
     expect(screen.getByText("Page 1/3")).toBeTruthy();
 
     fireEvent.click(screen.getByLabelText("Next page"));
     await act(async () => {});
     const pinned = { from: "2026-11-21T12:00:00.000Z", to: "2026-11-22T12:00:00.000Z" };
-    expect(lastPageQuery()).toMatchObject({ offset: 50, ...pinned });
+    expect(lastPageQuery()).toMatchObject({ offset: 15, ...pinned });
     expect(screen.getByText("Page 2/3")).toBeTruthy();
 
     // Time moves on: page 2 keeps its ends, and the newer ones are counted.
@@ -180,17 +185,31 @@ describe("NewsView", () => {
     await act(async () => {
       vi.advanceTimersByTime(NEWS_POLL_MS);
     });
-    expect(lastPageQuery()).toMatchObject({ offset: 50, ...pinned });
+    expect(lastPageQuery()).toMatchObject({ offset: 15, ...pinned });
     expect(last()).toMatchObject({ limit: 1, from: "2026-11-22T12:00:00.001Z", to: undefined });
     fireEvent.click(screen.getByLabelText("Next page"));
     await act(async () => {});
-    expect(lastPageQuery()).toMatchObject({ offset: 100, ...pinned });
+    expect(lastPageQuery()).toMatchObject({ offset: 30, ...pinned });
 
     fireEvent.click(screen.getByText("4 new"));
     await act(async () => {});
     expect(lastPageQuery()).toMatchObject({ offset: 0, to: undefined });
     expect(lastPageQuery().from).toBe(new Date(NOW + NEWS_POLL_MS - 86_400_000).toISOString());
     expect(screen.queryByText("4 new")).toBeNull();
+  });
+
+  it("pages by the chosen page size, kept in prefs, back on page 1", async () => {
+    fetched.snapshot = page([news({})], 40);
+    await renderView();
+    fireEvent.click(screen.getByLabelText("Next page"));
+    await act(async () => {});
+    expect(lastPageQuery()).toMatchObject({ limit: 15, offset: 15 });
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "25" } });
+    await act(async () => {});
+    expect(lastPageQuery()).toMatchObject({ limit: 25, offset: 0, to: undefined });
+    expect(screen.getByText("Page 1/2")).toBeTruthy();
+    expect(usePrefsStore.getState().newsRowsPerPage).toBe(25);
   });
 
   it("says when there is no news at all", async () => {

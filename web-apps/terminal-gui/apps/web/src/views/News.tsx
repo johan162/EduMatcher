@@ -22,12 +22,16 @@ import { clockInTimezone, dateInTimezone } from "../lib/format.js";
 import { NEWS_WINDOW_LABEL, newsWindowStart, sectorIndex, type NewsWindow } from "../lib/news.js";
 import { pageCount } from "../lib/paging.js";
 import { useLiveStore } from "../store/useLiveStore.js";
-import { usePrefsStore, type NewsSentimentFilter, type NewsStatusFilter } from "../store/usePrefsStore.js";
+import {
+  ROWS_PER_PAGE_CHOICES,
+  usePrefsStore,
+  type NewsSentimentFilter,
+  type NewsStatusFilter,
+} from "../store/usePrefsStore.js";
 import { newsHelp } from "../lib/help.js";
 import { InfoTip } from "../components/shared/InfoTip.js";
 
 export const NEWS_POLL_MS = 20_000;
-export const NEWS_ROWS_PER_PAGE = 50;
 
 /** The window's ends while off page 1. */
 interface Pin {
@@ -67,6 +71,8 @@ export function NewsView() {
   const setNewsWindow = usePrefsStore((s) => s.setNewsWindow);
   const setNewsStatus = usePrefsStore((s) => s.setNewsStatus);
   const setNewsSentiment = usePrefsStore((s) => s.setNewsSentiment);
+  const perPage = usePrefsStore((s) => s.newsRowsPerPage);
+  const setNewsRowsPerPage = usePrefsStore((s) => s.setNewsRowsPerPage);
   const [snapshot, setSnapshot] = useState<NewsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -82,8 +88,8 @@ export function NewsView() {
       const now = Date.now();
       const from = pin ? pin.from : newsWindowStart(newsWindow, now);
       const query: NewsQuery = {
-        limit: NEWS_ROWS_PER_PAGE,
-        offset: page * NEWS_ROWS_PER_PAGE,
+        limit: perPage,
+        offset: page * perPage,
         from,
         to: pin?.to,
         filter: filter.trim() || undefined,
@@ -113,7 +119,7 @@ export function NewsView() {
       live = false;
       clearInterval(timer);
     };
-  }, [page, pin, filter, newsWindow, newsStatus, newsSentiment]);
+  }, [page, perPage, pin, filter, newsWindow, newsStatus, newsSentiment]);
 
   /** Any change of filter starts again from the newest headline. */
   const restart = () => {
@@ -129,7 +135,7 @@ export function NewsView() {
 
   const rows = snapshot?.news ?? [];
   const total = snapshot?.total ?? 0;
-  const pages = pageCount(total, NEWS_ROWS_PER_PAGE);
+  const pages = pageCount(total, perPage);
   const filtered =
     filter.trim() !== "" || newsWindow !== "all" || newsStatus !== "ALL" || newsSentiment !== "all";
   const today = dateInTimezone(new Date().toISOString(), sessionTimezone);
@@ -235,6 +241,21 @@ export function NewsView() {
           >
             <ChevronRight size={14} />
           </button>
+          <select
+            value={perPage}
+            onChange={(e) => {
+              setNewsRowsPerPage(Number(e.target.value));
+              restart();
+            }}
+            aria-label="Rows per page"
+            className="rounded border border-border bg-bg-inset px-1 py-0.5 text-xs text-fg-subtle"
+          >
+            {ROWS_PER_PAGE_CHOICES.map((count) => (
+              <option key={count} value={count}>
+                {count} rows
+              </option>
+            ))}
+          </select>
         </div>
       </header>
 
