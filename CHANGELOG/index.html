@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v0833-2026-11-22" class="md-skip">
+        <a href="#v0834-2026-11-22" class="md-skip">
           Skip to content
         </a>
       
@@ -7666,7 +7666,7 @@
 
   <h1>CHANGELOG</h1>
 
-<h2 id="v0833-2026-11-22">[v0.83.3] - 2026-11-22<a class="headerlink" href="#v0833-2026-11-22" title="Permanent link">&para;</a></h2>
+<h2 id="v0834-2026-11-22">[v0.83.4] - 2026-11-22<a class="headerlink" href="#v0834-2026-11-22" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
 <h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
 <p>This release adds a page-size selector to the terminal News view and removes a misleading warning on newly started exchanges.</p>
@@ -7677,6 +7677,7 @@
 <h3 id="bug-fixes">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed the clearing summary logging a warning when the end-of-day database does not yet exist; unreadable databases still produce a warning</li>
+<li>Fixed a race condition in all three API-gateway listener threads (engine_client.py, index_client.py, sim_client.py)</li>
 </ul>
 <h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
 <ul>
