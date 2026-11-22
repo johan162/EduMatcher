@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { NewsWindow } from "../lib/news.js";
 
 export type ThemePreference = "dark" | "light";
 
@@ -62,6 +63,10 @@ const DENSITY_PAGE_DELAY: Record<Density, number> = { lobby: 15, standard: 8, de
 /** Which symbols the Overview grid pages through (design §8.6). */
 export type OverviewFilter = "all" | "watchlist";
 
+/** The News view's status and sentiment selectors. */
+export type NewsStatusFilter = "ALL" | "RUMOUR" | "CONFIRMED" | "RETRACTED";
+export type NewsSentimentFilter = "all" | "positive" | "negative";
+
 interface PrefsStore {
   theme: ThemePreference;
   density: Density;
@@ -75,6 +80,9 @@ interface PrefsStore {
   overviewFilter: OverviewFilter;
   /** Last symbol viewed on Symbol Detail, so reopening the page skips picking one again. */
   lastSymbol: string | null;
+  newsWindow: NewsWindow;
+  newsStatus: NewsStatusFilter;
+  newsSentiment: NewsSentimentFilter;
 
   setTheme: (theme: ThemePreference) => void;
   toggleTheme: () => void;
@@ -86,6 +94,9 @@ interface PrefsStore {
   toggleWatchlist: (sym: string) => void;
   setOverviewFilter: (filter: OverviewFilter) => void;
   setLastSymbol: (symbol: string) => void;
+  setNewsWindow: (window: NewsWindow) => void;
+  setNewsStatus: (status: NewsStatusFilter) => void;
+  setNewsSentiment: (sentiment: NewsSentimentFilter) => void;
 }
 
 export const usePrefsStore = create<PrefsStore>()(
@@ -99,6 +110,9 @@ export const usePrefsStore = create<PrefsStore>()(
       watchlist: [],
       overviewFilter: "all",
       lastSymbol: null,
+      newsWindow: "24h",
+      newsStatus: "ALL",
+      newsSentiment: "all",
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set({ theme: get().theme === "dark" ? "light" : "dark" }),
@@ -125,6 +139,10 @@ export const usePrefsStore = create<PrefsStore>()(
       setOverviewFilter: (overviewFilter) => set({ overviewFilter }),
 
       setLastSymbol: (lastSymbol) => set({ lastSymbol }),
+
+      setNewsWindow: (newsWindow) => set({ newsWindow }),
+      setNewsStatus: (newsStatus) => set({ newsStatus }),
+      setNewsSentiment: (newsSentiment) => set({ newsSentiment }),
     }),
     { name: "terminal-prefs" },
   ),

@@ -1,6 +1,6 @@
 # News retention and News-view paging — plan
 
-Status: WP-NR01, WP-NR02 done 2026-11-22 (uncommitted); next WP-NR03.
+Status: all WPs done 2026-11-22 (WP-NR03 uncommitted).
 
 ## 1. Problem
 
@@ -58,9 +58,13 @@ No migration of anything (standing rule): the database schema is unchanged.
 |----|-------|--------|
 | WP-NR01 | `news.retention_days` config + `prune_news_events()` + call on phase change; tests; operator-guide market-model chapter + example yaml | done 2026-11-22 |
 | WP-NR02 | pm-api-gwy `GET /news` from the DB with the parameters, `total`, `has_more` and `resolution`, newest first; drop the deque; trader-gui and terminal-gui drop their `.reverse()`; REST spec + OpenAPI docs | done 2026-11-22 |
-| WP-NR03 | terminal-gui News view: window/status/sentiment selectors, server-side filter, paging with fixed `until`, prefs; bridge passes query through; help text + participant-guide terminal chapter | open |
+| WP-NR03 | terminal-gui News view: window/status/sentiment selectors, server-side filter, paging with fixed `to`, prefs; bridge passes query through; help text + participant-guide terminal chapter | done 2026-11-22 |
 
 ## 5. Open
+
+- trader-gui's News screen still shows the newest 200 (one `GET /news` page
+  plus the live WebSocket adds), unpaged and filtered client-side. Not in
+  scope; give it the terminal's paging if wanted.
 
 - `value_jumps` in the same file is never pruned. It grows by one row per
   jump (a few per symbol per day). This is left alone until forensics needs
@@ -82,3 +86,10 @@ No migration of anything (standing rule): the database schema is unchanged.
   because news ids can repeat across a sim restart.
 - `filter` is expanded in pm-api-gwy from `SimClient.sectors` (the deployed
   `market_sim.yaml`) into a target set, so the SQL needs no sector knowledge.
+- WP-NR03: the bridge needed no change (it passes the query string through).
+  `newsMatches()`/`resolutions()` were removed, because filtering and
+  resolution moved server-side. Window, status and sentiment persist in
+  `terminal-prefs`; the symbol/sector text does not. Off page 1 the view pins
+  `from`/`to` to page 1's last request and counts newer rows with a
+  `limit=1` query from `to + 1 ms`. The Time column puts the date in front
+  when it isn't today's (session timezone).

@@ -48,6 +48,23 @@ export function compact(input: number | undefined | null): string {
   return input.toFixed(0);
 }
 
+/** `YYYY-MM-DD` in the exchange's configured session timezone. */
+export function dateInTimezone(iso: string | undefined | null, timeZone: string): string {
+  if (!iso) return ABSENT;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return ABSENT;
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return ABSENT;
+  }
+}
+
 /** `HH:MM:SS` in the exchange's configured session timezone. */
 export function clockInTimezone(iso: string | undefined | null, timeZone: string): string {
   if (!iso) return ABSENT;

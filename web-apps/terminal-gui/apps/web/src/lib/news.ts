@@ -1,31 +1,3 @@
-import type { NewsEvent } from "@edumatcher/terminal-types";
-
-/**
- * Does a headline concern `filter` — a symbol or a sector name (any case)?
- * Market-wide news concerns everything; a sector headline concerns its
- * symbols, and a symbol headline its sector. An empty filter matches all.
- * (Same rule as trader-gui's lib/news.ts.)
- */
-export function newsMatches(item: NewsEvent, filter: string, sectorOf: Record<string, string>): boolean {
-  const f = filter.trim().toUpperCase();
-  if (!f || item.scope === "MARKET") return true;
-  const sectors = new Set(Object.values(sectorOf));
-  if (item.scope === "SYMBOL") {
-    return item.targets.includes(f) || (sectors.has(f) && item.targets.some((t) => sectorOf[t] === f));
-  }
-  // SECTOR
-  return item.targets.includes(f) || (sectorOf[f] !== undefined && item.targets.includes(sectorOf[f]));
-}
-
-/** Rumour id -> how it ended, for the rumours that have. */
-export function resolutions(items: readonly NewsEvent[]): Record<string, "CONFIRMED" | "RETRACTED"> {
-  const out: Record<string, "CONFIRMED" | "RETRACTED"> = {};
-  for (const n of items) {
-    if (n.related_id && n.status !== "RUMOUR") out[n.related_id] = n.status;
-  }
-  return out;
-}
-
 /** Symbol -> sector, from the snapshot's sector -> symbols. */
 export function sectorIndex(sectors: Record<string, string[]>): Record<string, string> {
   const out: Record<string, string> = {};
@@ -33,4 +5,28 @@ export function sectorIndex(sectors: Record<string, string[]>): Record<string, s
     for (const symbol of symbols) out[symbol] = sector;
   }
   return out;
+}
+
+/** How far back the News view looks; "all" is everything pm-market-sim keeps. */
+export type NewsWindow = "1h" | "24h" | "7d" | "30d" | "all";
+
+export const NEWS_WINDOW_LABEL: Record<NewsWindow, string> = {
+  "1h": "Last hour",
+  "24h": "Last 24 h",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  all: "All",
+};
+
+const HOUR_MS = 3_600_000;
+const WINDOW_MS: Record<Exclude<NewsWindow, "all">, number> = {
+  "1h": HOUR_MS,
+  "24h": 24 * HOUR_MS,
+  "7d": 7 * 24 * HOUR_MS,
+  "30d": 30 * 24 * HOUR_MS,
+};
+
+/** The window's rolling start as an ISO time; undefined for "all". */
+export function newsWindowStart(window: NewsWindow, now: number): string | undefined {
+  return window === "all" ? undefined : new Date(now - WINDOW_MS[window]).toISOString();
 }
