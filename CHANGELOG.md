@@ -1,3 +1,29 @@
+## [v0.83.2] - 2026-11-22
+
+Release Type: minor
+
+### 📋 Summary
+This release adds retained, searchable news history to the API and terminal, with configurable retention and paging.
+
+### ⚠️ Breaking Changes
+- Changed `GET /api/v1/news` to return headlines newest first instead of oldest first; update clients that rely on the previous order
+
+### ✨ Additions
+- Added `news.retention_days` to configure news history retention, defaulting to 90 days
+- Added time, symbol or sector, status, and sentiment filters and offset-based paging to `GET /api/v1/news`
+
+### 🚀 Improvements
+- Improved the terminal News view with time windows, filters, paging, remembered preferences, and a count of new headlines while viewing older pages
+- Improved news availability after gateway and terminal restarts by reading from retained history
+- Pruned expired news history on session phase changes
+
+### 📚 Documentation
+- Updated the terminal, market model, and REST API guides for news history and filtering
+
+### 🛠 Internal
+- Added an Exchange Introduction artifact-copying script
+- Added regression tests for news retention, the API, and terminal news paging and filters
+
 ## [v0.83.1] - 2026-11-21
 
 Release Type: major
