@@ -1,3 +1,22 @@
+## [v0.83.3] - 2026-11-22
+
+Release Type: minor
+
+### 📋 Summary
+This release adds a page-size selector to the terminal News view and removes a misleading warning on newly started exchanges.
+
+### ✨ Additions
+- Added a remembered rows-per-page selector to the terminal News view, with 5, 15, 25, or 50 headlines per page and a default of 15
+
+### 🐛 Bug Fixes
+- Fixed the clearing summary logging a warning when the end-of-day database does not yet exist; unreadable databases still produce a warning
+
+### 📚 Documentation
+- Updated terminal News help and the participant guide for the page-size selector
+
+### 🛠 Internal
+- Added regression coverage for News pagination and missing or unreadable end-of-day databases
+
 ## [v0.83.2] - 2026-11-22
 
 Release Type: minor
