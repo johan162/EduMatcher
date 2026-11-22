@@ -227,6 +227,9 @@ class IndexClient:
             # sockets under it: as the engine listener (L033).
             if self._running:
                 log.exception("index listener died; stopping pm-api-gwy")
+                # Before the callback, not only in ``finally``: whoever it
+                # wakes must already see is_running() False.
+                self._running = False
                 if self.on_listener_failure is not None:
                     self._loop.call_soon_threadsafe(self.on_listener_failure)
         finally:

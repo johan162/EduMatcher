@@ -631,6 +631,9 @@ class EngineClient:
             # sockets under it: the process can no longer reach the engine.
             if self._running:
                 log.exception("engine listener died; stopping pm-api-gwy")
+                # Before the callback, not only in ``finally``: whoever it
+                # wakes must already see is_running() False.
+                self._running = False
                 if self.on_listener_failure is not None:
                     self._loop.call_soon_threadsafe(self.on_listener_failure)
         finally:
