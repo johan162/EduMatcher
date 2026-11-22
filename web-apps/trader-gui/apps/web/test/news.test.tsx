@@ -59,10 +59,10 @@ describe("resolutions", () => {
 describe("useNewsStore", () => {
   beforeEach(() => useNewsStore.setState({ items: [], sectorOf: {} }));
 
-  it("loads oldest-first snapshots newest first, dedupes and caps live adds", () => {
+  it("keeps a newest-first snapshot's order, dedupes and caps live adds", () => {
     useNewsStore
       .getState()
-      .load({ news: [news({ id: "A" }), news({ id: "B" })], sectors: { TECH: ["AAPL"] } });
+      .load({ news: [news({ id: "B" }), news({ id: "A" })], sectors: { TECH: ["AAPL"] } });
     expect(useNewsStore.getState().items.map((n) => n.id)).toEqual(["B", "A"]);
     expect(useNewsStore.getState().sectorOf).toEqual({ AAPL: "TECH" });
     useNewsStore.getState().add(news({ id: "B" }));

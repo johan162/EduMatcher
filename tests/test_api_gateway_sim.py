@@ -1,4 +1,4 @@
-"""ADMIN-only access to pm-market-sim's true values (WP-D6); public news (WP-E5)."""
+"""ADMIN-only access to pm-market-sim's true values (WP-D6); live news (WP-E5)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pytest
 from fastapi import HTTPException, WebSocketDisconnect
 
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
-from edumatcher.api_gateway.routers import admin, reference, ws
+from edumatcher.api_gateway.routers import admin, ws
 from edumatcher.api_gateway.sessions import Session, SessionRegistry
 from edumatcher.api_gateway.sim_client import SimClient
 
@@ -169,18 +169,6 @@ async def test_trader_stream_is_refused() -> None:
         {"type": "error", "data": {"message": "ADMIN role required"}}
     ]
     assert socket.closed
-
-
-@pytest.mark.anyio
-async def test_news_is_kept_and_any_key_reads_it() -> None:
-    sim = _sim()
-    sim.sectors = {"TECH": frozenset({"MSFT", "AAPL"})}
-    for i in range(3):
-        sim.handle_event("news.event", {**NEWS, "id": f"N{i}"})
-    read_only = Session(api_key="k", gateway_id=None, description="")
-    body = await reference.news(_request("TRADER", sim), read_only, limit=2)
-    assert [n["id"] for n in body["news"]] == ["N1", "N2"]
-    assert body["sectors"] == {"TECH": ["AAPL", "MSFT"]}
 
 
 @pytest.mark.anyio

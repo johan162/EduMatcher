@@ -3,8 +3,9 @@
 pm-market-sim publishes the true values and the news on its own PUB socket.
 This client keeps the latest ``sim.state`` and ``sim.value`` and forwards both
 to the ADMIN streams only (the routes check the role). Headlines
-(``news.event``) are public: the last :data:`NEWS_KEPT` are kept for
-``GET /news`` and each new one goes to every market-data socket.
+(``news.event``) are public: each new one goes to every market-data socket.
+``GET /news`` reads pm-market-sim's news history instead, so it survives a
+restart of this gateway.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ import asyncio
 import errno
 import logging
 import threading
-from collections import deque
 from typing import Any, Callable
 
 import zmq
@@ -25,9 +25,6 @@ from edumatcher.models.generated.sim import TOPIC_SIM_STATE, TOPIC_SIM_VALUE
 from edumatcher.models.message import decode
 
 log = logging.getLogger(__name__)
-
-#: Headlines kept for ``GET /news``; a trading day has a few dozen.
-NEWS_KEPT = 200
 
 
 class SimClient:
@@ -50,7 +47,6 @@ class SimClient:
         self.state: dict[str, Any] | None = None
         self.values: dict[str, Any] | None = None
         self._sinks: set[asyncio.Queue[dict[str, Any]]] = set()
-        self.news: deque[dict[str, Any]] = deque(maxlen=NEWS_KEPT)
         self._news_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         #: Sector -> member symbols, so a client can tell which symbols a
         #: SECTOR headline is about.
@@ -83,14 +79,6 @@ class SimClient:
 
     def remove_news_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._news_sinks.discard(queue)
-
-    def news_snapshot(self, limit: int) -> dict[str, Any]:
-        """The latest *limit* headlines, oldest first, and the sectors."""
-        news = list(self.news)[-limit:] if limit > 0 else []
-        return {
-            "news": news,
-            "sectors": {k: sorted(v) for k, v in sorted(self.sectors.items())},
-        }
 
     def snapshot(self) -> dict[str, Any]:
         return {
@@ -130,7 +118,6 @@ class SimClient:
 
     def handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         if topic == TOPIC_NEWS_EVENT:
-            self.news.append(payload)
             _offer(
                 self._news_sinks,
                 {"type": "news", "topic": topic, "ts": now_iso(), "data": payload},

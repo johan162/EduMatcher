@@ -4959,7 +4959,7 @@
           "reference"
         ],
         "summary": "Latest news",
-        "description": "Headlines from the market simulator (`pm-market-sim`), oldest first, plus which symbols each sector holds so a headline's `targets` can be mapped to instruments. `scope` is SYMBOL, SECTOR or MARKET; `status` RUMOUR, CONFIRMED or RETRACTED; `sentiment` runs from -1 (bad) to +1 (good). Any key, read-only included. Empty lists when the simulator is not running.",
+        "description": "Headlines from the market simulator (`pm-market-sim`), newest first, read from its news history (`market_sim_news.db`, kept for `news.retention_days`, default 90), plus which symbols each sector holds so a headline's `targets` can be mapped to instruments. `scope` is SYMBOL, SECTOR or MARKET; `status` RUMOUR, CONFIRMED or RETRACTED; `sentiment` runs from -1 (bad) to +1 (good); `resolution` tells what became of a rumour. Page with `limit` and `offset`; `total` counts every match. Any key, read-only included. Empty when the simulator has never run.",
         "operationId": "news",
         "security": [
           {
@@ -4973,18 +4973,132 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
-              "description": "Most recent headlines to return (1-200).",
+              "description": "Headlines per page (1-500).",
               "default": 50,
               "title": "Limit"
             },
-            "description": "Most recent headlines to return (1-200)."
+            "description": "Headlines per page (1-500)."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Headlines to skip, newest first.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Headlines to skip, newest first."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only headlines at or after this ISO-8601 time; one without a timezone is UTC.",
+              "title": "From"
+            },
+            "description": "Only headlines at or after this ISO-8601 time; one without a timezone is UTC."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only headlines at or before this ISO-8601 time; one without a timezone is UTC.",
+              "title": "To"
+            },
+            "description": "Only headlines at or before this ISO-8601 time; one without a timezone is UTC."
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A symbol or a sector (any case). A symbol also matches its sector's headlines, a sector its symbols'; MARKET headlines always match.",
+              "title": "Filter"
+            },
+            "description": "A symbol or a sector (any case). A symbol also matches its sector's headlines, a sector its symbols'; MARKET headlines always match."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "RUMOUR",
+                    "CONFIRMED",
+                    "RETRACTED"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only headlines with this status.",
+              "title": "Status"
+            },
+            "description": "Only headlines with this status."
+          },
+          {
+            "name": "sentiment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "positive",
+                    "negative"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only good (sentiment > 0) or bad (< 0) news.",
+              "title": "Sentiment"
+            },
+            "description": "Only good (sentiment > 0) or bad (< 0) news."
           }
         ],
         "responses": {
           "200": {
-            "description": "Recent headlines and the sector map.",
+            "description": "One page of headlines and the sector map.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4992,20 +5106,6 @@
                 },
                 "example": {
                   "news": [
-                    {
-                      "id": "n-000127",
-                      "ts_ns": 1788012000000000000,
-                      "scope": "SECTOR",
-                      "targets": [
-                        "TECH"
-                      ],
-                      "kind": "REGULATORY",
-                      "status": "CONFIRMED",
-                      "headline": "Regulator opens review of cloud-contract practices",
-                      "sentiment": -0.35,
-                      "related_id": "",
-                      "credibility": 0.9
-                    },
                     {
                       "id": "n-000128",
                       "ts_ns": 1788013200000000000,
@@ -5018,10 +5118,28 @@
                       "headline": "Apple said to beat quarterly estimates",
                       "sentiment": 0.6,
                       "related_id": "",
-                      "credibility": 0.55
+                      "credibility": 0.55,
+                      "resolution": null
+                    },
+                    {
+                      "id": "n-000127",
+                      "ts_ns": 1788012000000000000,
+                      "scope": "SECTOR",
+                      "targets": [
+                        "TECH"
+                      ],
+                      "kind": "REGULATORY",
+                      "status": "CONFIRMED",
+                      "headline": "Regulator opens review of cloud-contract practices",
+                      "sentiment": -0.35,
+                      "related_id": "",
+                      "credibility": 0.9,
+                      "resolution": null
                     }
                   ],
                   "count": 2,
+                  "total": 37,
+                  "has_more": true,
                   "sectors": {
                     "TECH": [
                       "AAPL",
@@ -5124,7 +5242,7 @@
             }
           },
           "503": {
-            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry. `NEWS_DB_UNAVAILABLE`: pm-market-sim's news history cannot be read.",
             "content": {
               "application/json": {
                 "examples": {
@@ -5135,6 +5253,16 @@
                         "code": "ENGINE_UNAVAILABLE",
                         "message": "Engine unavailable",
                         "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "NEWS_DB_UNAVAILABLE": {
+                    "summary": "NEWS_DB_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "NEWS_DB_UNAVAILABLE",
+                        "message": "News history unavailable",
+                        "reject_code": "UNKNOWN"
                       }
                     }
                   }
@@ -24887,11 +25015,22 @@
           },
           "news": {
             "items": {
-              "$ref": "#/components/schemas/NewsEvent"
+              "$ref": "#/components/schemas/NewsHeadline"
             },
             "type": "array",
             "title": "News",
-            "description": "Headlines, oldest first."
+            "description": "Headlines, newest first."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total",
+            "description": "Headlines matching the query, across all pages."
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Whether another page follows."
           },
           "sectors": {
             "additionalProperties": {
@@ -24909,11 +25048,13 @@
         "required": [
           "count",
           "news",
+          "total",
+          "has_more",
           "sectors"
         ],
         "title": "News"
       },
-      "NewsEvent": {
+      "NewsHeadline": {
         "properties": {
           "id": {
             "type": "string",
@@ -25000,6 +25141,22 @@
             "maxLength": 32,
             "title": "Related Id",
             "description": "The rumour a CONFIRMED or RETRACTED event resolves."
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CONFIRMED",
+                  "RETRACTED"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution",
+            "description": "What became of a rumour: CONFIRMED or RETRACTED, null while it is open. Always null for a headline that is not a rumour."
           }
         },
         "type": "object",
@@ -25012,10 +25169,10 @@
           "status",
           "headline",
           "sentiment",
-          "related_id"
+          "related_id",
+          "resolution"
         ],
-        "title": "NewsEvent",
-        "description": "pm-market-sim to everyone: one headline, or a change in what an earlier one is\nknown to be (a rumour confirmed or retracted)."
+        "title": "NewsHeadline"
       },
       "NextTransition": {
         "properties": {

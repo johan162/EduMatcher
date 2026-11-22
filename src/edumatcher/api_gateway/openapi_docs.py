@@ -816,17 +816,6 @@ SYMBOLS: dict[str, Any] = {
 NEWS: dict[str, Any] = {
     "news": [
         {
-            "id": "n-000127",
-            "ts_ns": _T0 - 1_800_000_000_000,
-            "scope": "SECTOR",
-            "targets": ["TECH"],
-            "kind": "REGULATORY",
-            "status": "CONFIRMED",
-            "headline": "Regulator opens review of cloud-contract practices",
-            "sentiment": -0.35,
-            "credibility": 0.9,
-        },
-        {
             "id": "n-000128",
             "ts_ns": _T0 - 600_000_000_000,
             "scope": "SYMBOL",
@@ -836,6 +825,17 @@ NEWS: dict[str, Any] = {
             "headline": "Apple said to beat quarterly estimates",
             "sentiment": 0.6,
             "credibility": 0.55,
+        },
+        {
+            "id": "n-000127",
+            "ts_ns": _T0 - 1_800_000_000_000,
+            "scope": "SECTOR",
+            "targets": ["TECH"],
+            "kind": "REGULATORY",
+            "status": "CONFIRMED",
+            "headline": "Regulator opens review of cloud-contract practices",
+            "sentiment": -0.35,
+            "credibility": 0.9,
         },
     ],
     "sectors": {"TECH": ["AAPL", "MSFT"], "AUTO": ["TSLA"]},
@@ -1572,8 +1572,13 @@ HALTS_REPLY = _counted(_wire(system_msgs.HaltStatus, HALT_STATUS), "halted")
 QUOTES_REPLY = _counted(_wire(system_msgs.QuoteBootstrap, QUOTE_BOOTSTRAP), "quotes")
 QUOTE_LEGS_REPLY = _counted(_wire(system_msgs.QuoteLegs, QUOTE_LEGS), "legs")
 NEWS_REPLY: dict[str, Any] = {
-    "news": [_wire(news_msgs.NewsEvent, item) for item in NEWS["news"]],
+    "news": [
+        {**_wire(news_msgs.NewsEvent, item), "resolution": None}
+        for item in NEWS["news"]
+    ],
     "count": len(NEWS["news"]),
+    "total": 37,
+    "has_more": True,
     "sectors": NEWS["sectors"],
 }
 POSITIONS_REPLY = _counted(POSITIONS, "positions")

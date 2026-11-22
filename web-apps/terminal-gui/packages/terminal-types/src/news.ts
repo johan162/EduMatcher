@@ -20,7 +20,7 @@ export interface NewsEvent {
   related_id: string;
 }
 
-/** Oldest first, plus each sector's symbols. */
+/** One page, newest first, plus each sector's symbols. */
 export interface NewsSnapshot {
   news: NewsEvent[];
   sectors: Record<string, string[]>;

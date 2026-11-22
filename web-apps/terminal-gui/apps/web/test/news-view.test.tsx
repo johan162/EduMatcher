@@ -64,9 +64,9 @@ describe("NewsView", () => {
 
     fetched.snapshot = {
       news: [
-        news({ id: "N1", status: "RUMOUR", credibility: 0.3, headline: "Rumour: AAPL bid" }),
-        news({ id: "N2", scope: "SECTOR", targets: ["ENERGY"], headline: "Oil slumps", sentiment: -0.6 }),
         news({ id: "N3", status: "RETRACTED", related_id: "N1", headline: "AAPL bid" }),
+        news({ id: "N2", scope: "SECTOR", targets: ["ENERGY"], headline: "Oil slumps", sentiment: -0.6 }),
+        news({ id: "N1", status: "RUMOUR", credibility: 0.3, headline: "Rumour: AAPL bid" }),
       ],
       sectors: { TECH: ["AAPL"], ENERGY: ["XOM"] },
     };

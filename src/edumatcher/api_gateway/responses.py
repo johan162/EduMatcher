@@ -121,8 +121,21 @@ class SymbolList(rest_system.Symbols, _Counted):
     """The symbols the caller can trade, resolved for its gateway."""
 
 
+class NewsHeadline(rest_news.NewsEvent):
+    resolution: Literal["CONFIRMED", "RETRACTED"] | None = Field(
+        description=(
+            "What became of a rumour: CONFIRMED or RETRACTED, null while it is "
+            "open. Always null for a headline that is not a rumour."
+        )
+    )
+
+
 class News(_Counted):
-    news: list[rest_news.NewsEvent] = Field(description="Headlines, oldest first.")
+    news: list[NewsHeadline] = Field(description="Headlines, newest first.")
+    total: int = Field(
+        ge=0, description="Headlines matching the query, across all pages."
+    )
+    has_more: bool = Field(description="Whether another page follows.")
     sectors: dict[str, list[str]] = Field(description="Symbols each sector holds.")
 
 

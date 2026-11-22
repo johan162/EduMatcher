@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { NewsEvent, NewsSnapshot } from "@/types/index.js";
 
-/** Headlines kept, like the API gateway's own buffer. */
+/** Headlines kept: the newest page of GET /news, then live adds. */
 export const NEWS_KEPT = 200;
 
 export interface NewsStore {
@@ -24,7 +24,7 @@ export const useNewsStore = create<NewsStore>((set) => ({
     for (const [sector, symbols] of Object.entries(snapshot.sectors)) {
       for (const symbol of symbols) sectorOf[symbol] = sector;
     }
-    set({ items: [...snapshot.news].reverse().slice(0, NEWS_KEPT), sectorOf });
+    set({ items: snapshot.news.slice(0, NEWS_KEPT), sectorOf });
   },
 
   add: (item) =>

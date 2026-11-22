@@ -628,7 +628,7 @@ export interface NewsEvent {
   related_id: string;
 }
 
-/** GET /api/v1/news: oldest first, plus each sector's symbols. */
+/** GET /api/v1/news: one page, newest first, plus each sector's symbols. */
 export interface NewsSnapshot {
   news: NewsEvent[];
   sectors: Record<string, string[]>;

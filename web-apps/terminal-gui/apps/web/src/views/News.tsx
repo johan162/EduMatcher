@@ -59,7 +59,7 @@ export function NewsView() {
     };
   }, []);
 
-  const items = useMemo(() => [...(snapshot?.news ?? [])].reverse(), [snapshot]);
+  const items = useMemo(() => snapshot?.news ?? [], [snapshot]);
   const sectorOf = useMemo(() => sectorIndex(snapshot?.sectors ?? {}), [snapshot]);
   const ended = useMemo(() => resolutions(items), [items]);
   const rows = useMemo(

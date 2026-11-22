@@ -233,6 +233,7 @@ the OpenAPI document lists all of them per operation.
 | `STATS_DB` | `503` | `UNKNOWN` | The `pm-stats` database is not present |
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | `UNKNOWN` | The `pm-audit` index is not built or not running |
 | `COMPANY_DB_UNAVAILABLE` | `503` | `UNKNOWN` | The company database is missing or unreadable |
+| `NEWS_DB_UNAVAILABLE` | `503` | `UNKNOWN` | pm-market-sim's news history cannot be read |
 | `CLEARING_DB` | `503` | `UNKNOWN` | The `pm-clearing` ledger is missing, locked or unreadable. Never answered as an empty ledger |
 | `EOD_DB` | `503` | `UNKNOWN` | The `pm-eod` ledger is missing or unreadable, or its roster is malformed. A day without settlement is an empty list, not this |
 
@@ -1348,8 +1349,11 @@ Purpose: return instrument metadata for the caller gateway.
 
 ### `GET /api/v1/news`
 
-Purpose: return the latest market-sim headlines, oldest first, plus the
-sector → symbol mapping. Access: Authenticated key (read-only keys included)
+Purpose: return one page of market-sim headlines, newest first, plus the
+sector → symbol mapping. The gateway reads them read-only from
+`pm-market-sim`'s news history (`market_sim_news.db` in the data directory),
+which keeps a headline for `news.retention_days` (default 90), so a
+restarted gateway still serves them all. Access: Authenticated key (read-only keys included)
 — unlike most endpoints in this section, it does not require a trading key,
 since this is public information, not a trading action.
 
@@ -1357,19 +1361,26 @@ since this is public information, not a trading action.
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `limit` | int | No | Maximum headlines to return, `1`-`200` (default `50`) |
+| `limit` | int | No | Headlines per page, `1`-`500` (default `50`) |
+| `offset` | int | No | Headlines to skip, newest first (default `0`) |
+| `from` | ISO-8601 | No | Only headlines at or after this time; one without a timezone is UTC |
+| `to` | ISO-8601 | No | Only headlines at or before this time; one without a timezone is UTC |
+| `filter` | string | No | A symbol or a sector, any case. A symbol also matches its sector's headlines, a sector its symbols'; `MARKET` headlines always match |
+| `status` | string | No | `RUMOUR`, `CONFIRMED` or `RETRACTED` |
+| `sentiment` | string | No | `positive` (sentiment above 0) or `negative` (below 0) |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "news": [...], "sectors": {...} }` | `news` is a list of `news.event`-shaped objects (see [Message Reference — news.event](../part-5-message-reference/010-message-reference.md#newsevent)), oldest first; `sectors` maps each sector name to its sorted list of symbols. Empty `news` list when `pm-market-sim` is not running. |
+| `200 OK` | `{ "news": [...], "count": n, "total": n, "has_more": bool, "sectors": {...} }` | `news` is a list of `news.event`-shaped objects (see [Message Reference — news.event](../part-5-message-reference/010-message-reference.md#newsevent)), newest first, each with an added `resolution`: `CONFIRMED` or `RETRACTED` for a rumour that has been resolved (looked up across the whole history, so it is right on any page), and `null` for an open rumour or any other headline. `total` counts every match across all pages. `sectors` maps each sector name to its sorted list of symbols. The `news` list is empty when `pm-market-sim` has never run. |
 
 **Errors**
 
 | Code | Status | When |
 |---|---|---|
-| `VALIDATION` | `400` | `limit` outside `1`-`200` |
+| `VALIDATION` | `400` | An argument is out of range or not one of its values |
+| `NEWS_DB_UNAVAILABLE` | `503` | `market_sim_news.db` exists but cannot be read (locked or damaged) |
 
 ### `GET /api/v1/companies/{symbol}`
 
