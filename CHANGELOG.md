@@ -1,4 +1,4 @@
-## [v0.83.3] - 2026-11-22
+## [v0.83.4] - 2026-11-22
 
 Release Type: minor
 
@@ -10,6 +10,7 @@ This release adds a page-size selector to the terminal News view and removes a m
 
 ### 🐛 Bug Fixes
 - Fixed the clearing summary logging a warning when the end-of-day database does not yet exist; unreadable databases still produce a warning
+- Fixed a race condition in all three API-gateway listener threads (engine_client.py, index_client.py, sim_client.py)
 
 ### 📚 Documentation
 - Updated terminal News help and the participant guide for the page-size selector
