@@ -8,6 +8,7 @@ row's own display value; only display values are ever summed across symbols.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -478,12 +479,29 @@ async def test_the_summary_reports_only_stored_facts(venue: Venue) -> None:
 
 @pytest.mark.anyio
 async def test_the_summary_names_a_missing_eod_ledger(
-    venue: Venue, tmp_path: Path
+    venue: Venue, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    status, body = await _get(venue, "/summary", eod_db=tmp_path / "eod.db")
+    # A fresh exchange has no eod.db until pm-eod's first run: not a warning.
+    with caplog.at_level(logging.WARNING, logger=clearing_router.__name__):
+        status, body = await _get(venue, "/summary", eod_db=tmp_path / "eod.db")
     assert status == 200
     assert body["eod_db_available"] is False
     assert body["last_eod_run"] is None
+    assert not caplog.records
+
+
+@pytest.mark.anyio
+async def test_the_summary_warns_about_an_unreadable_eod_ledger(
+    venue: Venue, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    eod_db = tmp_path / "eod.db"
+    eod_db.write_bytes(b"not a sqlite database" * 100)
+    with caplog.at_level(logging.WARNING, logger=clearing_router.__name__):
+        status, body = await _get(venue, "/summary", eod_db=eod_db)
+    assert status == 200
+    assert body["eod_db_available"] is False
+    assert body["last_eod_run"] is None
+    assert any("clearing summary: cannot read" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
