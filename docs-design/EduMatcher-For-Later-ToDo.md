@@ -148,6 +148,7 @@ way.
 | L040 | 2026-11-16 | tests (`test_monitor_e2e.py`) | Two e2e tests expect a process event's detail to end in the bare state (`-> DEAD`, `HEALTHY -> SILENT`); since `4bc205db` the detail carries a reason, so both fail | Low | Fixed |
 | L041 | 2026-11-17 | pm-engine (collars) | A symbol that starts without a reference price gets no static collar until the next engine start, however long it trades (decided in WP-FL20 / Q11 for 1.x) | Low | Open |
 | L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Fixed 2026-11-19 (`state_since` on `system.session_status`) |
+| L043 | 2026-11-22 | pm-engine / msgen (inbound coercion) | The price-level orders filter rounds an off-grid price to the nearest tick, an amend's `qty` is truncated with `int()` (10.7 → 10), and the generated `from_dict` truncates float ticks (`int(10000.5)` → 10000) instead of refusing them (Models review 2026-11 §9) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -886,6 +887,31 @@ state entered before its day began as left over (`_left_over`) and
 `_plan_catch_up` closes it by the shortest legal route before planning the
 day from `CLOSED`. Tests: `test_scheduler_reconcile.py` (planner, boundary)
 and `test_scheduler_closed_loop.py` (wired engine, the scenario above).
+
+---
+
+## L043 — Refuse, do not round, off-grid admin filters, fractional amend quantities and float ticks
+
+**Found:** 2026-11-22, shared models review (`reviews/EduMatcher-Models-Review-2026-11.md` §9).
+
+**Finding.** Three inbound paths turn a wrong value into a different valid
+one instead of refusing it:
+
+- `Engine._handle_price_level_orders_request` converts the optional `price`
+  filter with nearest-tick `to_ticks` (`engine/main.py:3130-3132`), so an
+  off-grid `100.005` silently shows the 100.00 or 100.01 level.
+- `Engine._handle_amend` coerces `qty` with `int()` (`engine/main.py:7349-7353`),
+  so `10.7` amends to 10 and is acknowledged.
+- The generated `from_dict` of every tick-carrying message coerces with
+  `int()` (`models/generated/order.py:97`), so a producer that computes
+  `10000.5` ticks publishes 10000 without an error. In-house producers
+  compute integers today, so this is latent.
+
+**Recommendation.** The filter uses `to_ticks_exact` and answers a
+`TickViolation` with `rejected=True`; the amend refuses a non-integer `qty`
+with `INVALID_VALUE`; the msgen coercion for `int` fields refuses a float
+with a fractional part (`MessageValidationError`). Tests: one per path,
+sending the off-grid or fractional value and expecting a refusal.
 
 ---
 
