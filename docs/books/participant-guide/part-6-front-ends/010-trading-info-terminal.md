@@ -332,16 +332,35 @@ quantity, the number of trades and the residual imbalance per symbol, and
 
 The headlines `pm-market-sim` publishes (see
 [The market model](../../operator-guide/part-4-run-a-market/090-market-model.md)),
-newest first, with the same badges and filter as the trading GUI's
+newest first, with the same badges as the trading GUI's
 [News](020-trading-platform-gui.md#news) screen: `RUMOUR` with its
-credibility, `CONFIRMED`/`RETRACTED` when a rumour resolves (a retracted
-rumour and its retraction struck through), and a filter that takes a symbol
-or a sector.
+credibility, and `CONFIRMED`/`RETRACTED` when a rumour resolves. A retracted
+rumour and its retraction are struck through. The time has the date in
+front when it is not today.
 
-CALF carries no news, so this view reads them through the bridge's
+The view shows everything `pm-market-sim` has recorded, kept for
+`news.retention_days` (90 days unless your operator changed it). Restarting
+the terminal or the exchange loses none of it. Above the table:
+
+| Control | What it does |
+|---|---|
+| Symbol or sector | A symbol also shows its sector's news, a sector its symbols' news; market-wide news always shows |
+| Time window | Last hour, Last 24 h (the default), Last 7 days, Last 30 days, or All. The window rolls with the clock |
+| Status | Any status, Rumours, Confirmed or Retracted |
+| Sentiment | Any sentiment, Positive or Negative |
+| Page n/m and the arrows | 50 headlines a page, with the number that match beside it |
+
+The window, status and sentiment you pick are remembered in this browser.
+Page 1 follows the news as it arrives. When you go to a later page, the view
+holds the window where it was, so new headlines don't push the rows you are
+reading down a page. A chip such as **4 new** counts what arrived since then,
+and clicking it goes back to page 1.
+
+CALF carries no news, so this view reads it through the bridge's
 `/api/news` proxy to `pm-api-gwy`'s `GET /api/v1/news` — the same read-only
-key as the charts — once a second while it is open. Without `pm-api-gwy` it
-says the news is unavailable; without `pm-market-sim` the list stays empty.
+key as the charts — every 20 seconds while it is open. Without `pm-api-gwy`
+it says the news is unavailable; if `pm-market-sim` has never run, the list
+is empty.
 
 ## Troubleshooting
 

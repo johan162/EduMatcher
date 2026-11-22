@@ -32,6 +32,18 @@ export class HttpError extends Error {
   }
 }
 
+/** `GET /api/news` arguments; `from`/`to` are inclusive ISO times. */
+export interface NewsQuery {
+  limit: number;
+  offset: number;
+  from?: string;
+  to?: string;
+  /** A symbol or a sector. */
+  filter?: string;
+  status?: "RUMOUR" | "CONFIRMED" | "RETRACTED";
+  sentiment?: "positive" | "negative";
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path);
   if (!res.ok) {
@@ -153,8 +165,16 @@ export const api = {
       `/api/history/index-events?index_id=${encodeURIComponent(indexId)}`,
     ),
 
-  /** pm-market-sim's latest headlines, oldest first (WP-E5). */
-  news: () => getJson<NewsSnapshot>("/api/news?limit=200"),
+  /** One page of pm-market-sim's recorded headlines, newest first (WP-NR03). */
+  news: (query: NewsQuery) => {
+    const params = new URLSearchParams({ limit: String(query.limit), offset: String(query.offset) });
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    if (query.filter) params.set("filter", query.filter);
+    if (query.status) params.set("status", query.status);
+    if (query.sentiment) params.set("sentiment", query.sentiment);
+    return getJson<NewsSnapshot>(`/api/news?${params}`);
+  },
 
   /** The weekly session table and the coming year's bank holidays. */
   schedule: () => getJson<ReferenceSchedule>("/api/reference/schedule"),

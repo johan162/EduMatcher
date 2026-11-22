@@ -8,7 +8,8 @@ import logging
 import sqlite3
 import time
 from contextlib import closing
-from typing import Annotated, Any, cast
+from datetime import datetime, timezone
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
@@ -40,6 +41,7 @@ from edumatcher.api_gateway.sessions import (
 )
 from edumatcher.audit.archive import session_timezone
 from edumatcher.compdb import store as compdb
+from edumatcher.market_sim import news_history
 from edumatcher.models.generated.rest.system import Reference
 from edumatcher.stats.trading_day import timezone_name, trading_date
 from edumatcher.clearing.query import (
@@ -338,30 +340,127 @@ async def symbols(
     response_model=News,
     summary="Latest news",
     description=(
-        "Headlines from the market simulator (`pm-market-sim`), oldest first, plus "
-        "which symbols each sector holds so a headline's `targets` can be mapped to "
-        "instruments. `scope` is SYMBOL, SECTOR or MARKET; `status` RUMOUR, CONFIRMED "
-        "or RETRACTED; `sentiment` runs from -1 (bad) to +1 (good). Any key, read-only"
-        " included. Empty lists when the simulator is not running."
+        "Headlines from the market simulator (`pm-market-sim`), newest first, read "
+        "from its news history (`market_sim_news.db`, kept for `news.retention_days`"
+        ", default 90), plus which symbols each sector holds so a headline's "
+        "`targets` can be mapped to instruments. `scope` is SYMBOL, SECTOR or "
+        "MARKET; `status` RUMOUR, CONFIRMED or RETRACTED; `sentiment` runs from -1 "
+        "(bad) to +1 (good); `resolution` tells what became of a rumour. Page with "
+        "`limit` and `offset`; `total` counts every match. Any key, read-only "
+        "included. Empty when the simulator has never run."
     ),
     responses=docs.merge(
-        docs.ok(docs.NEWS_REPLY, "Recent headlines and the sector map."),
-        docs.errors(*docs.ANY_KEY, "VALIDATION"),
+        docs.ok(docs.NEWS_REPLY, "One page of headlines and the sector map."),
+        docs.errors(*docs.ANY_KEY, "NEWS_DB_UNAVAILABLE", "VALIDATION"),
     ),
 )
 async def news(
     request: Request,
     session: Annotated[Session, Depends(auth)],
     limit: Annotated[
-        int,
-        Query(ge=1, le=200, description="Most recent headlines to return (1-200)."),
+        int, Query(ge=1, le=500, description="Headlines per page (1-500).")
     ] = 50,
+    offset: Annotated[
+        int, Query(ge=0, description="Headlines to skip, newest first.")
+    ] = 0,
+    from_ts: Annotated[
+        datetime | None,
+        Query(
+            alias="from",
+            description=(
+                "Only headlines at or after this ISO-8601 time; one without a "
+                "timezone is UTC."
+            ),
+        ),
+    ] = None,
+    to_ts: Annotated[
+        datetime | None,
+        Query(
+            alias="to",
+            description=(
+                "Only headlines at or before this ISO-8601 time; one without a "
+                "timezone is UTC."
+            ),
+        ),
+    ] = None,
+    match: Annotated[
+        str | None,
+        Query(
+            alias="filter",
+            description=(
+                "A symbol or a sector (any case). A symbol also matches its "
+                "sector's headlines, a sector its symbols'; MARKET headlines "
+                "always match."
+            ),
+        ),
+    ] = None,
+    news_status: Annotated[
+        Literal["RUMOUR", "CONFIRMED", "RETRACTED"] | None,
+        Query(alias="status", description="Only headlines with this status."),
+    ] = None,
+    sentiment: Annotated[
+        Literal["positive", "negative"] | None,
+        Query(description="Only good (sentiment > 0) or bad (< 0) news."),
+    ] = None,
 ) -> dict[str, Any]:
-    """The latest headlines from pm-market-sim, oldest first, plus which
-    symbols each sector holds. Any key, read-only ones included: news is
-    public. Empty when pm-market-sim is not running."""
-    snapshot: dict[str, Any] = request.app.state.sim.news_snapshot(limit)
-    return _counted(snapshot, "news")
+    """One page of pm-market-sim's recorded headlines, newest first, plus
+    which symbols each sector holds. Read from the news history, so a
+    restarted gateway has them all. Any key, read-only ones included: news is
+    public. Empty when there is no history yet, 503 when it cannot be read."""
+    sectors: dict[str, frozenset[str]] = request.app.state.sim.sectors
+    targets: frozenset[str] | None = None
+    if match is not None and match.strip():
+        key = match.strip().upper()
+        targets = frozenset(
+            {key, *sectors.get(key, ())}
+            | {sector for sector, members in sectors.items() if key in members}
+        )
+    path = news_history.NEWS_HISTORY_DB
+
+    def _run() -> tuple[list[dict[str, Any]], int]:
+        with closing(news_history.open_news_readonly(path)) as conn:
+            return news_history.query_news(
+                conn,
+                limit=limit,
+                offset=offset,
+                from_ns=_epoch_ns(from_ts),
+                to_ns=_epoch_ns(to_ts),
+                targets=targets,
+                status=news_status,
+                sentiment=sentiment,
+            )
+
+    try:
+        rows, total = await asyncio.to_thread(_run)
+    except FileNotFoundError:
+        rows, total = [], 0
+    except sqlite3.DatabaseError as exc:
+        log.warning("news: cannot read %s: %s", path, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "NEWS_DB_UNAVAILABLE",
+                    "message": f"Cannot read the news history: {exc}",
+                }
+            },
+        ) from exc
+    return {
+        "news": rows,
+        "count": len(rows),
+        "total": total,
+        "has_more": offset + len(rows) < total,
+        "sectors": {k: sorted(v) for k, v in sorted(sectors.items())},
+    }
+
+
+def _epoch_ns(value: datetime | None) -> int | None:
+    """Epoch nanoseconds of *value*, a naive one read as UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return int(value.timestamp()) * 1_000_000_000 + value.microsecond * 1000
 
 
 @router.get(

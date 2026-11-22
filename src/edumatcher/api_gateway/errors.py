@@ -224,4 +224,10 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "The company database is missing or unreadable.",
         "Company database unavailable",
     ),
+    "NEWS_DB_UNAVAILABLE": ErrorCode(
+        503,
+        "UNKNOWN",
+        "pm-market-sim's news history cannot be read.",
+        "News history unavailable",
+    ),
 }

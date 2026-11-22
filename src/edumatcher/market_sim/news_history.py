@@ -9,6 +9,7 @@ from contextlib import closing
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from edumatcher.config import DATA_DIR
@@ -112,6 +113,15 @@ def append_news_event(path: Path, event: dict[str, Any]) -> None:
             _insert_event(conn, event)
 
 
+def prune_news_events(path: Path, before_ns: int) -> int:
+    """Delete the headlines published before ``before_ns``; how many went."""
+    with closing(_connect(path)) as conn:
+        with conn:
+            return conn.execute(
+                "DELETE FROM news_events WHERE ts_ns < ?", (before_ns,)
+            ).rowcount
+
+
 def append_value_jumps(
     path: Path, ts_ns: int, jumps: dict[str, float], values: dict[str, float]
 ) -> None:
@@ -176,3 +186,93 @@ def read_news_events(
         }
         for row in rows
     ]
+
+
+def open_news_readonly(path: Path) -> sqlite3.Connection:
+    """Open the news history read-only, for a reader in another process;
+    FileNotFoundError when pm-market-sim has never written one."""
+    if not path.exists():
+        raise FileNotFoundError(f"news history not found: {path}")
+    conn = sqlite3.connect(f"file:{quote(str(path.resolve()))}?mode=ro", uri=True)
+    conn.execute("PRAGMA busy_timeout = 5000")
+    return conn
+
+
+def query_news(
+    conn: sqlite3.Connection,
+    *,
+    limit: int,
+    offset: int = 0,
+    from_ns: int | None = None,
+    to_ns: int | None = None,
+    targets: frozenset[str] | None = None,
+    status: str | None = None,
+    sentiment: str | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """One page of headlines, newest first, and how many match in all.
+
+    ``from_ns``/``to_ns`` bound ``ts_ns`` inclusively. ``targets`` keeps the
+    MARKET headlines and those naming any of its symbols or sectors.
+    ``sentiment`` is ``positive`` (> 0) or ``negative`` (< 0). Each row's
+    ``resolution`` is what became of a rumour (CONFIRMED or RETRACTED, None
+    while open, and None for every other headline), from the whole table, so
+    a page never hides it.
+    """
+    where: list[str] = []
+    params: list[Any] = []
+    if from_ns is not None:
+        where.append("n.ts_ns >= ?")
+        params.append(from_ns)
+    if to_ns is not None:
+        where.append("n.ts_ns <= ?")
+        params.append(to_ns)
+    if targets is not None:
+        marks = ",".join("?" * len(targets))
+        where.append(
+            "(n.scope = 'MARKET' OR EXISTS (SELECT 1 FROM json_each(n.targets)"
+            f" WHERE value IN ({marks})))"
+        )
+        params.extend(sorted(targets))
+    if status is not None:
+        where.append("n.status = ?")
+        params.append(status)
+    if sentiment == "positive":
+        where.append("n.sentiment > 0")
+    elif sentiment == "negative":
+        where.append("n.sentiment < 0")
+    clause = f"WHERE {' AND '.join(where)}" if where else ""
+    (total,) = conn.execute(
+        f"SELECT COUNT(*) FROM news_events n {clause}", params
+    ).fetchone()
+    # A resolution follows its rumour in the table: event_seq, not the id
+    # alone, ties the two, as ids may repeat across a restart.
+    rows = conn.execute(
+        f"""SELECT n.id, n.ts_ns, n.scope, n.targets, n.kind, n.status,
+                   n.headline, n.sentiment, n.credibility, n.related_id,
+                   CASE WHEN n.status = 'RUMOUR' THEN (
+                       SELECT r.status FROM news_events r
+                       WHERE r.related_id = n.id AND r.status != 'RUMOUR'
+                         AND r.event_seq > n.event_seq
+                       ORDER BY r.event_seq LIMIT 1) END
+            FROM news_events n {clause}
+            ORDER BY n.ts_ns DESC, n.event_seq DESC LIMIT ? OFFSET ?""",
+        [*params, limit, offset],
+    ).fetchall()
+    events: list[dict[str, Any]] = []
+    for row in rows:
+        event: dict[str, Any] = {
+            "id": row[0],
+            "ts_ns": row[1],
+            "scope": row[2],
+            "targets": json.loads(row[3]),
+            "kind": row[4],
+            "status": row[5],
+            "headline": row[6],
+            "sentiment": row[7],
+            "related_id": row[9],
+            "resolution": row[10],
+        }
+        if row[8] is not None:  # absent on the wire, so absent here
+            event["credibility"] = row[8]
+        events.append(event)
+    return events, int(total)

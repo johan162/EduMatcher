@@ -15,6 +15,7 @@ news:                      # generated news and rumours (S8: on)
   rumour_confirm: 0.6      # chance a rumour is confirmed rather than retracted
   rumour_delay_min: 0.02   # trading days before a rumour resolves (uniform)
   rumour_delay_max: 0.15
+  retention_days: 90       # days the news history keeps a headline
 sectors:
   COMMUNICATION: {vol: 0.3, beta_market: 0.55, beta_sector: 0.35}
   CONSUMER_DISC: {vol: 0.33, beta_market: 0.55, beta_sector: 0.4}

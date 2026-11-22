@@ -207,7 +207,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "Headlines that can move prices. Green leans positive, red negative."
+          "Headlines that can move prices, newest first. Green leans positive, red negative.",
+          "Every recorded headline is kept (90 days by default), across restarts. Narrow them by symbol or sector, time window, status and sentiment; 50 show per page. On a later page the list holds still, and a chip such as \"4 new\" takes you back to the newest."
         ],
         "terms": [
           {

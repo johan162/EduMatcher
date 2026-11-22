@@ -132,6 +132,14 @@ def test_news_section(tmp_path: Path) -> None:
         )
 
 
+def test_news_retention_days(tmp_path: Path) -> None:
+    assert _load(tmp_path, "version: 1\n").news.retention_days == 90.0
+    cfg = _load(tmp_path, "version: 1\nnews: {retention_days: 30}\n")
+    assert cfg.news.retention_days == 30.0
+    with pytest.raises(SimConfigError, match="retention_days"):
+        _load(tmp_path, "version: 1\nnews: {retention_days: 0}\n")
+
+
 def test_load_sectors(tmp_path: Path) -> None:
     from edumatcher.market_sim.config import load_sectors
 

@@ -189,7 +189,14 @@ news:
   rumour_confirm: 0.6
   rumour_delay_min: 0.02   # trading days
   rumour_delay_max: 0.15
+  retention_days: 90       # days a headline stays in the news history
 ```
+
+Every published headline is also written to `market_sim_news.db`
+(`news_events`), the history that `pm-news past` lists. `pm-market-sim` drops the headlines older than
+`retention_days` (1–3650, default 90) on each session phase change,
+including the first one after it starts. The `value_jumps` table in the same
+file is not pruned.
 
 ### Publishing news yourself: `pm-news`
 

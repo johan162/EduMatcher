@@ -18,10 +18,16 @@ export interface NewsEvent {
   credibility?: number;
   /** The rumour a CONFIRMED or RETRACTED event resolves. */
   related_id: string;
+  /** What became of a rumour; null while open and for any other headline. */
+  resolution: "CONFIRMED" | "RETRACTED" | null;
 }
 
-/** Oldest first, plus each sector's symbols. */
+/** One page, newest first, plus each sector's symbols. */
 export interface NewsSnapshot {
   news: NewsEvent[];
+  count: number;
+  /** Headlines matching the query, across all pages. */
+  total: number;
+  has_more: boolean;
   sectors: Record<string, string[]>;
 }

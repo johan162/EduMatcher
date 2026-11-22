@@ -49,6 +49,17 @@
     - "Check the database's directory is writable and has space."
 
 - logger: edumatcher.market_sim.main
+  template: "could not prune the news history"
+  level: ERROR
+  explanation: >
+    On a session phase change, pm-market-sim could not delete the headlines
+    older than `news.retention_days` from its news history database. Nothing
+    is lost. The old headlines stay until a later phase change prunes them.
+  actions:
+    - "Read the traceback; a locked or damaged market_sim_news.db is typical."
+    - "Nothing else needs doing if a later phase change logs no error."
+
+- logger: edumatcher.market_sim.main
   template: "engine restarted; re-reading its session"
   level: WARNING
   explanation: >

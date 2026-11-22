@@ -262,6 +262,18 @@
     - "A locked database during heavy clearing load is usually transient; retry."
     - "If it repeats, read the traceback and check the clearing database's health."
 
+- logger: edumatcher.api_gateway.routers.reference
+  template: "news: cannot read %s: %s"
+  level: WARNING
+  explanation: >
+    A /news request could not read pm-market-sim's news history (the path and
+    the reason are in the message), so it was answered 503
+    NEWS_DB_UNAVAILABLE. Live headlines still reach the market-data
+    WebSocket.
+  actions:
+    - "A locked database clears by itself; retry the request."
+    - "Otherwise check that market_sim_news.db is readable by the user running pm-api-gwy and is not damaged (`sqlite3 market_sim_news.db 'PRAGMA integrity_check'`)."
+
 - logger: edumatcher.api_gateway.routers.clearing
   template: "clearing: cannot read %s: %s"
   level: WARNING

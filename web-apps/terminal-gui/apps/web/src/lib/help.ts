@@ -47,7 +47,7 @@ const TAPE: Record<string, string> = {
 };
 
 const NEWS: Record<string, string> = {
-  Time: "When the news item was published.",
+  Time: "When the news item was published, in the session timezone. The date shows when it is not today.",
   Status: "RUMOUR: not confirmed, with the credibility the source gives it. CONFIRMED: a later item confirmed a rumour. RETRACTED: withdrawn, shown struck through. Blank: ordinary news.",
   Scope: "MARKET: moves the whole market. Otherwise the symbols the item concerns.",
   Headline: "The text of the item. Green leans positive for prices, red negative.",
