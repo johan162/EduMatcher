@@ -18,6 +18,11 @@ files = [
   "030-formal-specification.md",
 ]
 
+[[parts]]
+title = "Part III: Codes"
+dir = "part-4-codes"
+files = ["010-reject-and-cancel-codes.md"]
+
 [backmatter]
 title = "Appendices"
 files = [

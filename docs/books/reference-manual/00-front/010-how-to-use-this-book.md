@@ -17,6 +17,7 @@ contains no tutorials; the other books explain and link here for detail.
 |---|---|
 | **I. Command line** | Every `pm-*` process and tool: what it does, its options, the environment variable that decides where data lives, and every network port |
 | **II. Configuration** | Every top-level key and field of `engine_config.yaml`, the per-process configuration blocks, and the formal specification the verifier enforces |
+| **III. Codes** | Every [reject code and cancel reason](../part-4-codes/010-reject-and-cancel-codes.md): what triggers it, and its BALF numeric value |
 | **Appendices** | The [Glossary](../90-backmatter/010-glossary.md) and the [Known Limitations](../90-backmatter/020-known-limitations.md) |
 
 ## Finding things fast

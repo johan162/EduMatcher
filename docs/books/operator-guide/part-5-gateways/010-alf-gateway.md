@@ -746,8 +746,10 @@ touched the order, or a cancel the exchange decided on.
 
 A `CANCELLED` line does not always answer a `CANCEL` you sent. The exchange
 cancels orders on its own: self-match prevention, the unfillable remainder of a
-`MARKET` or `IOC` order, a kill switch, an OCO sibling, a `DAY` order at the
-close. Two fields tell you which happened:
+`MARKET` or `IOC` order, a kill switch, an OCO sibling. (An order whose time
+in force runs out — `DAY` at the end of the day, `ATO` / `ATC` at the end of
+their auction — is not cancelled: it arrives as `EXPIRED`.) Two fields tell
+you which happened:
 
 | Field | Meaning |
 |---|---|

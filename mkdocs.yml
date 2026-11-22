@@ -192,6 +192,8 @@ nav:
     - "Part II: Configuration":
       - "Configuration Schema and Process Blocks": books/reference-manual/part-3-configuration/010-schema-and-process-blocks.md
       - "Engine Configuration Specification": books/reference-manual/part-3-configuration/030-formal-specification.md
+    - "Part III: Codes":
+      - "Reject and Cancel Codes": books/reference-manual/part-4-codes/010-reject-and-cancel-codes.md
     - "Glossary": books/reference-manual/90-backmatter/010-glossary.md
     - "Known Limitations & Bugs": books/reference-manual/90-backmatter/020-known-limitations.md
   - "Protocols and Clients":
