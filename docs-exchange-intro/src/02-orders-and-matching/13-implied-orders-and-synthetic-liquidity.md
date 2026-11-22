@@ -6,81 +6,70 @@ By the end of the chapter you should be able to write a correct first-generation
 
 One promise before we begin, which the rest of the chapter proves over and over: **implied orders do not create liquidity out of nothing.** An implied order is a different *view* of commitments that already rest in other books. It never adds a single lot to the total that can be traded; it only makes existing lots reachable from one more place. Hold on to that sentence. Every level below is, in the end, a demonstration of it.
 
-Implied orders are almost exclusively used in the derivatives markets (specifically forwards and futures), where multiple related instruments exist for the same underlying asset, such as different futures contracts for various delivery months or spreads between them. (A **forward** is the same kind of promise as a future, buy or sell at a fixed price on a later date, but usually agreed privately rather than in standardised form on an exchange.) In Swedish both futures and forward contracts are commonly called "terminskontrakt" or "terminer". Because Swedish has only one name for what in English are two distinct instruments, keep the context in mind when discussing them; in practice Swedish traders simply use the English terms when they need to avoid ambiguity.
+Here, in one paragraph, is the situation the whole chapter is about. A refinery wants to buy February crude oil. It looks at the February order book and finds it empty. Yet two other traders, one in the January book and one in a book that trades the *difference* between January and February, are between them perfectly willing to sell February. Nothing in the February book says so, and the refinery has no reason to look anywhere else. Implied orders are how an exchange tells the refinery that a seller exists, and lets it trade with a single ordinary order. To show that properly we first need some vocabulary, so the chapter starts with futures (Level 0) and the spread instrument (Level 1), and then returns to the refinery's problem with all the pieces in place.
 
-## Why Implied Orders Exist, and Where They Came From
+Implied orders are used almost exclusively in futures markets, because that is where one commodity is listed as many closely related instruments: one per delivery month, plus instruments for the differences between months. Everything in this chapter is therefore about futures.
 
-Before any arithmetic, it is worth seeing the problem that implied orders solve, because once the problem is clear the solution feels almost inevitable.
+**A map of the chapter.** Each step depends on the ones before it:
 
-### The problem: too many books, too little liquidity in each
+- **Level 0** – futures in one page: what a futures contract is, why different months have different prices, and why traders want to trade the difference between them.
+- **Level 1** – the spread instrument, its sign convention, and the four things that confuse every beginner.
+- **Why implied orders exist** – too many books, too little liquidity, and the seller who is in the wrong book.
+- **Level 2** – the developer's model: every order as a vector, and the one rule (add the vectors) from which all implied prices follow.
+- **Levels 3 and 4** – the two basic kinds of implied order, worked through trade by trade.
+- **Level 5** – the promise kept: why implied orders never create liquidity.
+- **Levels 6 to 10** – the engineering details: quantities, priority, price improvement, tick rounding and market data.
+- **Engineering deep-dive, history, real-world venues and exercises.**
 
-A futures exchange does not list one crude oil contract; it lists one per delivery month, often for years ahead. Traders also want to trade the *differences* between months (you will see why in Level 0), so the exchange lists spread instruments as well, each with its own order book. Count what that means for a modest strip of 12 monthly contracts: 12 outright books, and up to 12 × 11 / 2 = 66 calendar-spread books if every pair of months is listed. That is 78 books for what is, economically, one commodity.
-
-![Twelve delivery months, and a spread between every pair of them. Each circle is an outright book and each line is a calendar-spread book: 12 + 66 = 78 separate order books for one commodity.](assets/implied-78-books-small.png)
-
-The traders, however, do not multiply. The same population of buyers and sellers is now spread thinly across 78 queues, and each queue can only match orders that happen to arrive in *that* queue. Three symptoms follow, and each will reappear later in this chapter with numbers attached:
-
-1. **Empty or thin books.** A trader who wants to buy a far-dated month may find its book empty. Yet other participants may be perfectly willing to sell that month. They just expressed that willingness as *part* of an order in a different book, so it never shows up where the buyer is looking. The example below shows how that can happen.
-2. **Leg risk.** A trader who wants a spread, and finds the spread book empty, can build it by trading the two months separately. Between the two trades the market can move, and the trader may end up with one half of the position and not the other.
-3. **Inconsistent prices.** Because nothing connects the books, their prices can drift out of line with each other, creating risk-free gaps that only the fastest arbitrageur can collect.
-
-### An example: the seller who is in the wrong book
-
-The first symptom sounds like a contradiction: how can nobody be offering February if somebody is willing to sell it? The answer is that a willingness to sell February does not have to be a February order. Consider three order books, each a separate queue in the matching engine, and three traders:
-
-| Book | Resting order | Who | What the trader actually wants |
-|---|---|---|---|
-| January | Sell 50 lots at $75.00 | Trader A | To sell January oil. |
-| Jan/Feb spread | Buy 30 spreads, February at least $2.00 above January | Trader B | To buy January **and** sell February in one go, as long as February sells for at least $2.00 more than January costs. |
-| February | *empty* | | |
-
-A spread order is a single instruction covering two months at once (the next sections explain why traders want them and how they are priced). The point to notice here is that Trader B's order, although it sits in the spread book, *contains a sale of February*. B is a February seller with a condition attached: B will only sell February if B can buy January at the same moment, at least $2.00 cheaper.
-
-Now Trader C arrives, wanting to buy 20 lots of February. C has no interest in January or in spreads and, quite reasonably, looks only at the February book. It is empty. Without help from the exchange, C concludes that nobody will sell February today.
-
-But look at the three books together:
-
-- B is willing to sell February, *provided* B can buy January at the same time for $2.00 less.
-- A is willing to sell January at $75.00, so B's condition can be met: B buys January from A at $75.00.
-- B can then sell February at $75.00 + $2.00 = **$77.00**, and that is exactly what C wants to buy.
-
-So a February seller at $77.00 does exist. It is just split across two orders in two other books, and neither of them, on its own, looks like a February offer. C should not have to know about the January book or the spread book, and that is precisely the problem. Nothing in C's own book tells C that a seller is available, and even a C who spotted the opportunity would have to coordinate trades in other books to reach it.
-
-An exchange with implied orders does that work for C. It notices that A's January offer and B's spread order *together* amount to an offer to sell February, and it displays that offer in the February book: **sell 30 lots of February at $77.00**, the quantity limited by the smaller of the two ingredients (B's 30 spreads). When C buys 20 lots, the engine executes all three pieces at once: A sells January to B, B completes its spread, and C receives February. From C's point of view it was an ordinary February trade. B's spread order is now partly filled: 20 of its 30 spreads are done, and the other 10 simply stay in the spread book, exactly as any partly filled limit order would. So the February book keeps showing an implied offer of 10 lots at $77.00 for the next buyer. Level 3 works through this exact example in full, once we have the vocabulary to do it precisely.
-
-![The three books and the three traders. The engine shows C an implied February offer built from A's and B's orders. When C buys, the oil moves from A to B (January) and from B to C (February).](assets/implied-wrong-book-small.png)
-
-Notice who actually traded with whom. C never dealt with A. C bought February from B, and B bought January from A. A's role was indirect: B was only willing to sell February if it could buy January at the same moment, so A's January offer was what made B's February sale possible. It was a precondition for C's trade, not a part of it. And notice what did *not* happen: no new oil appeared. The February that C bought came from B, who was willing to sell it all along; the engine merely supplied the January purchase that B's order required. This idea, that implied orders connect existing liquidity rather than create new liquidity, runs through the whole chapter.
-
-On a trading floor, the connection between a spread and its legs could be made by people: a trader who heard a spread bid and an outright offer could combine them mentally and act on both. An electronic order book has no such person. Each book is an isolated queue, unless the matching engine itself connects them. **Implied orders are that connection**: the engine continuously asks "which combinations of orders resting in *other* books would amount to an order in *this* book?", displays the answer, and lets it trade. A 2001 patent filing by the New York Mercantile Exchange describes the purpose in one line: implied orders are generated "to provide order combinations which could not be directly entered into a trading system" [US Patent 7,039,610].
-
-### A short history
-
-The precise date and venue of the very first implied order is not well documented in public sources, so this section sticks to what primary documents show.
-
-- **By 2001, first-generation implication was established practice.** The background section of NYMEX's patent application *Implied market trading system* (filed 4 October 2001 by Matt N. Morano, Iain West and Kai Neumann) already treats implied orders derived from real outright and spread orders as known technology. The invention it claimed went one step further: deriving implied markets from other implied, or even non-tradeable "bridge", markets, so as to create "all implied markets that are inherent in the combination of futures, calendar spread and inter-commodity spread real orders" [US Patent 7,039,610, granted 2 May 2006]. The patent was later assigned to the International Petroleum Exchange of London, which became ICE Futures and then ICE Futures Europe. Chaining implied orders in this way is exactly the subject of the next chapter.
-- **2003–2004: implied spreads help move Eurodollars to the screen.** CME's Eurodollar futures, then the world's most actively traded short-term interest rate contract, were still traded almost entirely in the Chicago pit: electronic trading accounted for "nearly 4 percent" of total Eurodollar volume in 2003. CME had expanded Globex functionality "to improve spread trading capabilities for Eurodollar futures" in January 2003 [CME news release, 12 January 2004]. By March 2004 Globex offered implied calendar spreads for Eurodollars across "the first five years of the yield curve" [CME press release, 8 March 2004], and in October 2004 CME added implied butterfly spreads, generating both implied IN and implied OUT prices, "unlike most other futures exchanges". In the same release CME reported that Globex carried about 65 percent of Eurodollar futures volume in September 2004 [CME press release, 18 October 2004]. Many factors drove that migration, but CME's own announcements consistently presented spread and implied functionality as part of making the electronic market usable for the spread-heavy trading that dominated Eurodollars.
-- **Today: a standard feature of futures venues.** CME Globex, ICE Futures and Eurex (under the name *synthetic matching*) all offer implied functionality, each with its own rules about which combinations are implied; the *Real-World Implementations* section at the end of this chapter summarises them.
-
-The pattern behind this history is the one this chapter will make precise: once trading moves from people to an engine, the engine must take over the job of connecting related books, or liquidity fragments and spread traders stay away. With the motivation in place, we can start building the machinery.
+Readers who only want the concept can stop after Level 5. Readers who will build or test a matching engine need all of it.
 
 ## Level 0: Futures in One Page
 
-You do not need a finance background for this chapter, but you do need four facts about futures.
+You do not need a finance background for this chapter, but you do need five facts about futures and the people who trade them.
 
 **1. A futures contract is a promise, not a purchase.** A futures contract is a standardised agreement to buy or sell a fixed quantity of something (crude oil, wheat, a stock index) at a price agreed *today*, for delivery on a fixed date in the *future*. Nothing changes hands at the moment of the trade except a good-faith deposit (the *margin*, covered in the clearing chapter of Part III). If you agree to buy, you are **long**; if you agree to sell, you are **short**. If the price later rises, the long side gains and the short side loses the same amount, and vice versa. Futures are a zero-sum game between the two sides of each trade.
 
+Every contract **expires**. Each contract names a delivery month, and trading in it stops shortly before that month begins (for WTI crude, in the second half of the preceding month). Whoever is still long at that point must take delivery of 1,000 barrels per contract at the delivery point in Cushing, Oklahoma, and whoever is still short must deliver them. Most participants never want physical oil: they close their positions, or *roll* them into a later month, before expiry. Rolling turns out to be one of the main reasons spreads exist.
+
+*A note on words.* A **forward** is the same kind of promise as a future, buy or sell at a fixed price on a later date, but usually agreed privately rather than in standardised form on an exchange. In Swedish both are commonly called "terminskontrakt" or "terminer". Because Swedish has one name for what in English are two distinct instruments, keep the context in mind when discussing them; in practice Swedish traders simply use the English terms when they need to avoid ambiguity.
+
 **2. Everything in this chapter uses crude oil.** The running example is modelled on NYMEX WTI Light Sweet Crude Oil futures (symbol CL) at CME Group. One contract, also called one **lot**, covers **1,000 barrels**. Prices are quoted in **US dollars per barrel**, and the minimum price step (the **tick**, see the *Tick Sizes* chapter) is **$0.01 per barrel, worth $10 per contract** [CME Group, NYMEX Rulebook Chapter 200]. So when this chapter says "a price of $75.00", it means $75.00 per barrel, and one lot at that price represents $75,000 worth of oil.
 
-**3. Every delivery month is a separate instrument with its own order book.** January crude and February crude are *different products*: different delivery dates, different buyers and sellers, different prices. An exchange lists many months at once, and each month has its own independent order book exactly like the ones in the *Order Book* chapter. Throughout this chapter we use two of them, **January** (the *near* month, delivered sooner) and **February** (the *far* month). An ordinary order for a single delivery month is called an **outright** order, and its book an outright book, to distinguish it from the spread instruments introduced next.
+**3. Every delivery month is a separate instrument with its own order book.** January crude and February crude are *different products*: different delivery dates, different buyers and sellers, different prices. An exchange lists many months at once, and each month has its own independent order book exactly like the ones in the *Order Book* chapter. Throughout this chapter we use two of them, **January** (the *near* month, delivered sooner) and **February** (the *far* month). An ordinary order for a single delivery month is called an **outright** order, and its book an outright book, to distinguish it from the spread instruments introduced next. The whole row of listed months for one commodity (January, February, March, and so on, often for years ahead) is called the **strip**.
 
-**4. Traders often care about the *difference* between two months more than about either price.** Three common reasons:
+**4. Different months have different prices, and the difference means something.** Why should a barrel delivered in February cost anything different from a barrel delivered in January? Because between the two dates somebody has to *hold* the oil. Imagine you own an oil tank. You could buy January oil, take delivery, keep it in your tank for a month, and deliver it against a February sale. That costs money: tank rent, insurance, and the interest on the $75 you tied up in each barrel for a month. The total is called the **cost of carry**.
 
-1. **Rolling a position.** A trader who is long January and wants to stay long oil beyond January's expiry must sell January and buy February. Doing that as two separate trades exposes them to the market moving between the two fills.
-2. **Relative-value trading.** A trader may believe February is too expensive *relative to* January without having any opinion at all on where oil itself is going. The only thing they want exposure to is the difference.
-3. **Margin efficiency.** Long January plus short February is largely protected against the overall oil price moving (if oil rises, one leg gains roughly what the other loses), so clearing houses require much less margin for the pair than for two unrelated positions. CME's margin methodology grants explicit *intra-commodity spread credits* for exactly this reason.
+Suppose carrying one barrel for one month costs $2.00. (That is a generous figure, chosen to keep this chapter's numbers round. In calm markets a month of carry is often well below a dollar; when the world is awash with oil and tanks are filling up, it can be far more.) Then:
 
-The naive way to get exposure to the difference is to submit two ordinary orders and hope both fill. That carries **leg risk**: one leg fills, the other does not, and the trader is left holding an outright position they never wanted. Exchanges solved this by listing the difference itself as a tradeable instrument, with its own order book. That instrument is where our story starts.
+- If February traded much more than $2.00 above January, say January at $75.00 and February at $80.00, every tank owner would buy January, store it and sell February, locking in $5.00 − $2.00 = $3.00 per barrel without caring at all where the oil price goes next. Their buying lifts January and their selling depresses February until the gap shrinks back towards the cost of carry.
+- So when oil is plentiful today, later months usually trade *above* earlier ones, by up to about the cost of carry. A market in this state is said to be in **contango**.
+- When oil is scarce today, the opposite happens. Refiners pay a premium to get barrels *now* rather than later, and January trades *above* February. This is called **backwardation**. Storage puts no ceiling on it, because nobody can carry oil backwards in time.
+
+The difference between two months is therefore not noise. It is the market's price for *time*: for having oil in January rather than in February. That price moves for its own reasons, such as tank space running out, a refinery outage or a cold winter, often quite independently of the overall oil price. That is why people want to trade it.
+
+**5. Traders often care about the *difference* between two months more than about either price.** Four common reasons, each with a typical trader:
+
+1. **Storage (carry) trading.** The tank owner above buys the near month and sells the far month at the same time, and earns the difference minus the cost of storage. Whether oil goes to $50 or to $100 does not matter to the tank owner; only the gap between the two months does.
+2. **Rolling a position.** Most futures traders never intend to take delivery (fact 1). A fund that wants to stay long oil beyond January's expiry must sell its January contracts and buy February ones before January expires. Doing that as two separate trades exposes it to the market moving between the two fills.
+3. **Relative-value trading.** A trader may believe February is too expensive *relative to* January without having any opinion at all on where oil itself is going. The only thing they want exposure to is the difference.
+4. **Margin efficiency.** Long January plus short February is largely protected against the overall oil price moving (if oil rises, one month gains roughly what the other loses), so clearing houses require much less margin for the pair than for two unrelated positions. CME's margin methodology grants explicit *intra-commodity spread credits* for exactly this reason.
+
+The naive way to get exposure to the difference is to submit two ordinary orders and hope both fill. That carries **leg risk**: one part fills, the other does not, and the trader is left holding an outright position they never wanted. Exchanges solved this by listing the difference itself as a tradeable instrument, with its own order book. That instrument is where our story starts.
+
+### The cast
+
+The traders in this chapter's examples are not just letters. Each has a reason to be in the market, and knowing that reason makes their orders easier to follow:
+
+| Trader | Who they are | What they want |
+|---|---|---|
+| A | An oil producer | To sell January oil it will pump, at $75.00 or more. |
+| B | A tank-farm owner | To buy January and sell February at the same time, as long as February sells for at least $2.00 more than January costs: $2.00 is B's cost of carry. |
+| C | A refinery | To buy February crude for its February production runs. |
+| D | A refinery | To buy January crude, at $74.40 or less. |
+| E | A producer | To sell February output, at $76.60 or more. |
+| F | A fund | To *roll* its long position: swap 10 January contracts for 10 February contracts in one step, before January expires. |
+
+Other letters (G, H, K and so on) are bit players who appear in a single example. The exercises use their own letters.
 
 ## Level 1: The Spread Instrument and Its Sign Convention
 
@@ -91,7 +80,13 @@ spread price   S  =  Near-month price  −  Far-month price
                      (here: S = January − February)
 ```
 
-**Buying one spread** means buying one lot of the near month *and* selling one lot of the far month, simultaneously, as one instruction. **Selling one spread** is the mirror image: sell the near month, buy the far month. CME's own description of Treasury calendar spreads states this directly: "buying the calendar spread entails buying the nearby month ... and selling the deferred month" [CME Group, *Treasury Futures Calendar Spreads*, 2016].
+**Buying one spread** means buying one lot of the near month *and* selling one lot of the far month, simultaneously, as one instruction. **Selling one spread** is the mirror image: sell the near month, buy the far month. CME's own description of Treasury calendar spreads states this directly: "buying the calendar spread entails buying the nearby month ... and selling the deferred month" [CME Group, *Treasury Futures Calendar Spreads*, 2016]. Each of the two months inside a spread is called a **leg**: the January leg and the February leg.
+
+A memory hook: a spread is named with the near month first ("Jan/Feb"), and **everything follows the first-named month**. Buying the spread buys the first-named month; the spread price is the first-named month *minus* the second. In the cast from Level 0, tank-owner B *buys* the Jan/Feb spread (buy January, sell February), and fund F, rolling its long position forward, *sells* it (sell January, buy February).
+
+!!! warning "Two meanings of the word *spread*"
+
+    Earlier chapters used "spread" for the **bid-ask spread**: the gap between the best bid and the best ask in one order book. This chapter mostly uses it for a **calendar spread**: an instrument that trades the difference between two delivery months. The two are unrelated, and both appear below. A calendar spread has its own order book, and therefore its own bid-ask spread. When the meaning is not obvious from context, this chapter says "bid-ask spread" or "calendar spread" in full.
 
 ### Why this convention makes sense
 
@@ -134,13 +129,13 @@ Start each one with the position above: long January at $75.00, short February a
 | B: both rise equally | 76.00 | 78.00 | −2.00 | +$1.00 | −$1.00 | **$0** |
 | C: February outperforms | 75.50 | 78.50 | −3.00 | +$0.50 | −$1.50 | **−$1,000** |
 
-Oil rose in all three scenarios, so the overall oil price tells you nothing. Only the *relative* move of the two months decides the result. Scenario B shows why: when both legs move together, the spread position does not notice. That insensitivity to the overall price is the whole point of trading the spread, and it is why clearing houses give spread positions lower margin (Level 0, reason 3). Scenario C is the case where February rising faster helps, but it helps whoever is *short* the spread, not the buyer.
+Oil rose in all three scenarios, so the overall oil price tells you nothing. Only the *relative* move of the two months decides the result. Scenario B shows why: when both legs move together, the spread position does not notice. That insensitivity to the overall price is the whole point of trading the spread, and it is why clearing houses give spread positions lower margin (Level 0, fact 5, reason 4). Scenario C is the case where February rising faster helps, but it helps whoever is *short* the spread, not the buyer.
 
 ### The four things that confuse every beginner
 
 The convention is logical, but it produces four effects that look wrong the first time you see them. Name them now, and they will not ambush you later.
 
-**Confusion 1: spread prices are routinely negative.** When the far month is more expensive than the near month (a market in **contango**, common in oil when storage is plentiful), S is negative. When the near month is more expensive (**backwardation**), S is positive. Both are completely normal:
+**Confusion 1: spread prices are routinely negative.** When the far month is more expensive than the near month (a market in **contango**, normal when oil is plentiful and has to be stored, Level 0 fact 4), S is negative. When the near month is more expensive (**backwardation**, when oil is scarce today), S is positive. Both are completely normal. Read S = −$2.00 in plain words as "the market charges $2.00 per barrel to have the oil one month later", the cost of carry from Level 0:
 
 | Spread price | Meaning | A spread *buyer* does, for example |
 |---|---|---|
@@ -171,6 +166,52 @@ A negative price is not an error code, and your engine must not treat it as one.
 ### Leg prices
 
 When a spread trades at −$2.00, the clearing house still needs a concrete price for each leg, because positions, profit and loss, and margin are tracked per month. The exchange assigns leg prices using a documented rule. On CME, for example, one leg is anchored to a recent reference price for that month (its latest trade price, a current price indication, or its settlement price) and the other leg is derived so that the two legs differ by exactly the spread price [CME Group, *Treasury Futures Calendar Spreads*]. The spread traders' economics depend only on the difference; the leg prices exist so every system downstream can do per-instrument bookkeeping. We will return to leg prices at Level 9, where they stop being a formality.
+
+## Why Implied Orders Exist
+
+You now know what a spread is and why people trade one. Before any more arithmetic, it is worth seeing the problem that implied orders solve, because once the problem is clear the solution feels almost inevitable. This is the refinery's problem from the start of the chapter, told properly.
+
+### The problem: too many books, too little liquidity in each
+
+A futures exchange does not list one crude oil contract; it lists one per delivery month, often for years ahead. Traders also want to trade the *differences* between months (Level 0 showed why), so the exchange lists spread instruments as well, each with its own order book. Count what that means for a modest strip of 12 monthly contracts: 12 outright books, and up to 12 × 11 / 2 = 66 calendar-spread books if every pair of months is listed. That is 78 books for what is, economically, one commodity.
+
+![Twelve delivery months, and a spread between every pair of them. Each circle is an outright book and each line is a calendar-spread book: 12 + 66 = 78 separate order books for one commodity.](assets/implied-78-books-small.png)
+
+The traders, however, do not multiply. The same population of buyers and sellers is now spread thinly across 78 queues, and each queue can only match orders that happen to arrive in *that* queue. Three symptoms follow, and each will reappear later in this chapter with numbers attached:
+
+1. **Empty or thin books.** A trader who wants to buy a far-dated month may find its book empty. Yet other participants may be perfectly willing to sell that month. They just expressed that willingness as *part* of an order in a different book, so it never shows up where the buyer is looking. The example below shows how that can happen.
+2. **Leg risk.** A trader who wants a spread, and finds the spread book empty, can build it by trading the two months separately. Between the two trades the market can move, and the trader may end up with one half of the position and not the other.
+3. **Inconsistent prices.** Because nothing connects the books, their prices can drift out of line with each other, creating risk-free gaps that only the fastest arbitrageur can collect.
+
+### An example: the seller who is in the wrong book
+
+The first symptom sounds like a contradiction: how can nobody be offering February if somebody is willing to sell it? The answer is that a willingness to sell February does not have to be a February order. Consider three order books, each a separate queue in the matching engine, and three traders:
+
+| Book | Resting order | Who | What the trader actually wants |
+|---|---|---|---|
+| January | Sell 50 lots at $75.00 | Trader A, the producer | To sell January oil. |
+| Jan/Feb spread | Buy 30 spreads, February at least $2.00 above January | Trader B, the tank-farm owner | To buy January **and** sell February in one go, as long as February sells for at least $2.00 more than January costs, which covers B's cost of storing the oil for a month. |
+| February | *empty* | | |
+
+B's order is the storage business from Level 0: take January oil into the tank, deliver it in February, and keep the $2.00 difference to pay for the tank. The point to notice here is that Trader B's order, although it sits in the spread book, *contains a sale of February*. B is a February seller with a condition attached: B will only sell February if B can buy January at the same moment, at least $2.00 cheaper.
+
+Now Trader C, the refinery, arrives, wanting to buy 20 lots of February. C has no interest in January or in spreads and, quite reasonably, looks only at the February book. It is empty. Without help from the exchange, C concludes that nobody will sell February today.
+
+But look at the three books together:
+
+- B is willing to sell February, *provided* B can buy January at the same time for $2.00 less.
+- A is willing to sell January at $75.00, so B's condition can be met: B buys January from A at $75.00.
+- B can then sell February at $75.00 + $2.00 = **$77.00**, and that is exactly what C wants to buy.
+
+So a February seller at $77.00 does exist. It is just split across two orders in two other books, and neither of them, on its own, looks like a February offer. C should not have to know about the January book or the spread book, and that is precisely the problem. Nothing in C's own book tells C that a seller is available, and even a C who spotted the opportunity would have to coordinate trades in other books to reach it.
+
+An exchange with implied orders does that work for C. It notices that A's January offer and B's spread order *together* amount to an offer to sell February, and it displays that offer in the February book: **sell 30 lots of February at $77.00**, the quantity limited by the smaller of the two ingredients (B's 30 spreads). When C buys 20 lots, the engine executes all three pieces at once: A sells January to B, B completes its spread, and C receives February. From C's point of view it was an ordinary February trade. B's spread order is now partly filled: 20 of its 30 spreads are done, and the other 10 simply stay in the spread book, exactly as any partly filled limit order would. So the February book keeps showing an implied offer of 10 lots at $77.00 for the next buyer. Level 3 works through this exact example in full, once Level 2 has given us the tool to do it precisely.
+
+![The three books and the three traders. The engine shows C an implied February offer built from A's and B's orders. When C buys, the oil moves from A to B (January) and from B to C (February).](assets/implied-wrong-book-small.png)
+
+Notice who actually traded with whom. C never dealt with A. C bought February from B, and B bought January from A. A's role was indirect: B was only willing to sell February if it could buy January at the same moment, so A's January offer was what made B's February sale possible. It was a precondition for C's trade, not a part of it. And notice what did *not* happen: no new oil appeared. The February that C bought came from B, who was willing to sell it all along; the engine merely supplied the January purchase that B's order required. This idea, that implied orders connect existing liquidity rather than create new liquidity, runs through the whole chapter.
+
+On a trading floor, the connection between a spread and its legs could be made by people: a trader who heard a spread bid and an outright offer could combine them mentally and act on both. An electronic order book has no such person. Each book is an isolated queue, unless the matching engine itself connects them. **Implied orders are that connection**: the engine continuously asks "which combinations of orders resting in *other* books would amount to an order in *this* book?", displays the answer, and lets it trade. A 2001 patent filing by the New York Mercantile Exchange describes the purpose in one line: implied orders are generated "to provide order combinations which could not be directly entered into a trading system" [US Patent 7,039,610].
 
 ## Level 2: The Developer's Model, Orders as Vectors
 
@@ -206,6 +247,10 @@ An **implied order** is simply a set of resting orders whose vectors add up to s
 
 The January legs cancel. What remains sells one February lot and receives $77.00: that is precisely **an offer to sell February at $77.00**, even though nobody has placed an order in the February book. This is the complete theory of implied pricing. Everything else in this chapter (quantities, priority, rounding, market data) is engineering around this addition.
 
+**Whose side is this?** The combined vector describes what the *resting group* of orders does together: A and B, between them, sell one February lot and receive $77.00. The trader who trades against that implied quote does the exact opposite: buys one February lot and pays $77.00. Add the incoming trader's vector and cash to the group's and everything comes to zero, which is why every correct implied trade balances (Level 3 checks it line by line).
+
+**Why the words "implied" and "synthetic"?** Nobody typed a February offer. The February price is *implied by* two other prices: it follows from them logically, the way a conclusion follows from two premises. Some venues prefer "synthetic", for the same reason: the offer is built from parts rather than placed by anyone. Both words mean the same thing, and both make the same point as the chapter's promise: the quote is derived from real orders, not added to them.
+
 Two consequences follow immediately and should be memorised:
 
 1. **Implied prices come from adding cash amounts**, so they are *exact* sums and differences of real order prices, no averaging, no estimation.
@@ -213,7 +258,18 @@ Two consequences follow immediately and should be memorised:
 
 ### The six first-generation implied prices
 
-Apply the rule to every pair of orders that can cancel a leg, and exactly six implied quotes appear. This table is the reference for the whole chapter.
+Apply the rule to every pair of orders that can cancel a leg, and exactly six implied quotes appear. To turn a combined vector into a quote, use one reading rule:
+
+> **Reading rule.** Once the unwanted legs have cancelled, read the combined vector v and cash c like this:
+>
+> - +1 in one outright month: an implied **bid** in that month's book, at price c.
+> - −1 in one outright month: an implied **ask** in that month's book, at price −c.
+> - (near +1, far −1), the shape of a spread purchase: an implied spread **bid**, at price c.
+> - (near −1, far +1), the shape of a spread sale: an implied spread **ask**, at price −c.
+>
+> In words: a group of orders that *pays* is a buyer, and its price is what it pays; a group that *receives* is a seller, and its price is what it receives.
+
+The canonical case above is the second line: v = (Feb −1), c = −77.00, so an ask at −c = $77.00. The table below applies the rule to every pair, and is the reference for the whole chapter.
 
 | Implied quote | Ingredients (both must be resting) | Vector check | Formula |
 |---|---|---|---|
@@ -253,7 +309,7 @@ A spread order plus an outright order jointly produce a quote in a book that may
 | Jan/Feb spread | Bid | −$2.00 | 30 | Trader B |
 | February (outright) | – | *empty* | – | – |
 
-Trader A will sell up to 50 January lots at $75.00 or more. Trader B will buy up to 30 spreads at −$2.00 or less, meaning B will buy January and sell February whenever February can be sold for at least $2.00 more than January costs.
+Trader A, the producer, will sell up to 50 January lots at $75.00 or more. Trader B, the tank-farm owner, will buy up to 30 spreads at −$2.00 or less, meaning B will buy January and sell February whenever February can be sold for at least $2.00 more than January costs.
 
 **The operational question.** Could anyone, right now, firmly *buy* February, even though the February book is empty? Yes. Trader B is willing to sell February, *provided* B can simultaneously buy January $2.00 cheaper. Trader A is willing to sell January at $75.00. Chain the two commitments: B buys January from A at $75.00, so B can sell February at $75.00 − (−$2.00) = **$77.00**. This is row one of the table: implied Feb ask = Jan_ask − S_bid = 75.00 − (−2.00) = 77.00.
 
@@ -265,7 +321,7 @@ The engine therefore publishes in the February book:
 |---|---|---|---|---|
 | February | Ask | $77.00 | 30 | **Implied** (A's January ask + B's spread bid) |
 
-**Execution.** Trader C submits an order to buy 20 February at $77.00. Matching it against the implied quote requires three fills that happen *together or not at all*:
+**Execution.** Trader C, the refinery, submits an order to buy 20 February at $77.00. Matching it against the implied quote requires three fills that happen *together or not at all*:
 
 ```{.mermaid width=600}
 sequenceDiagram
@@ -314,8 +370,8 @@ Now the other direction: the *spread* book is empty, and the outright books are 
 
 | Book | Side | Price | Lots | Who |
 |---|---|---|---|---|
-| January (outright) | Bid | $74.40 | 25 | Trader D |
-| February (outright) | Ask | $76.60 | 40 | Trader E |
+| January (outright) | Bid | $74.40 | 25 | Trader D (refinery) |
+| February (outright) | Ask | $76.60 | 40 | Trader E (producer) |
 | Jan/Feb spread | – | *empty* | – | – |
 
 Add the vectors: D's January bid is (Jan +1) with c = +74.40; E's February ask is (Feb −1) with c = −76.60. Together: (Jan +1, Feb −1), which is the shape of a spread **buy**, paying 74.40 − 76.60 = **−$2.20**. The two outrights jointly *bid* −$2.20 for the spread.
@@ -327,11 +383,13 @@ Implied S_bid = Jan_bid − Feb_ask = 74.40 − 76.60 = −2.20
 Quantity      = min(25, 40)       = 25 lots
 ```
 
-Trader F submits an order to sell 10 spreads at −$2.20. The engine executes atomically:
+Who would want to sell the spread? Trader F, the fund from Level 0. F is long 10 January contracts, January is about to expire, and F wants to stay long oil without taking delivery in Cushing. So F must *roll*: sell its 10 January and buy 10 February. That is exactly one spread sale per lot. F is willing to pay up to $2.20 per barrel more for February than it receives for January, so it sends an order to sell 10 spreads at −$2.20. The spread book is empty, but the implied bid is there. The engine executes atomically:
 
 1. **January fill:** F sells 10 January at $74.40 to D.
 2. **February fill:** F buys 10 February at $76.60 from E.
 3. **Spread print:** F sold 10 spreads at 74.40 − 76.60 = −$2.20 ✓.
+
+Look at what F holds now. Its 10 long January contracts are gone (sold to D), and it is long 10 February (bought from E). The roll is complete, in one atomic step, with no moment in which F held neither month or both. Without implied functionality F would have had to sell January and buy February as two separate trades, and the price of the second could have moved after the first had filled: the leg risk from Level 0.
 
 D and E each received an entirely ordinary outright fill at their own limit price. Afterwards the January bid has 15 lots left, the February ask has 30, and the implied spread bid is recomputed as 15 lots (min(15, 30)) at −$2.20.
 
@@ -355,6 +413,20 @@ C's net result: long 20 February, having paid $75.00 + $2.00 = $77.00 per barrel
 **Argument 4: conservation in the arithmetic.** In Level 3, before the match, the system held 50 committed January lots and 30 committed spread lots. After C's trade, it held 30 January lots and 10 spread lots, and C held 20 February lots that each consumed *exactly one* of A's lots and *exactly one* of B's spreads. The vector sum of every trade is zero (Level 3). No lot was ever used twice, and none was conjured.
 
 > **Implied orders move liquidity between books; they never add to it.** Every implied lot is a real lot from a real order, reachable by one more route. When it trades through one route, it is gone from all the others.
+
+!!! note "Questions every first-time reader asks"
+
+    **Is the exchange a party to the trade?** No. In every implied trade, each fill is between two real participants: in Level 3, A and B trade January, and B and C trade February. The exchange never buys or sells for itself and never holds a position. It only finds the combination and executes it. (After the trade, the clearing house steps in between buyer and seller, exactly as for any other trade; see the clearing chapter in Part III.)
+
+    **Who owns an implied order, and can it be cancelled?** Nobody owns it, so nobody can cancel it directly. It disappears by itself as soon as one of its ingredients is filled, amended or cancelled (argument 3 above).
+
+    **Can I place an implied order?** No. You place ordinary orders, outright or spread, and the engine derives implied quotes from them. Your resting orders may become ingredients of implied quotes without you doing anything.
+
+    **Did A agree to trade with a spread trader?** A agreed to a price and a quantity, not to a particular counterparty. On an anonymous order book that is all any order ever promises, so A's fill is an ordinary January fill.
+
+    **Does an implied quote keep its place in the queue?** No. Implied quotes have no time priority, and at the same price real orders trade first (Level 7).
+
+    **Is implication always switched on?** No. Each venue decides, product by product, which kinds of implication run (see *Real-World Implementations*, and the next chapter for why the limits exist).
 
 ## Level 6: Quantity Rules, min(), Shared Legs, Depth, and Recomputation
 
@@ -453,16 +525,7 @@ K's bid is now used up, so the implied spread ask disappears, and B's remaining 
 
 The $0.02 that an arbitrageur would have pocketed goes instead to B, a real participant, as a better price than B asked for. (Had K's February bid been the last order to arrive instead, K would have been the incoming order: it would have bought 10 February from the implied ask at $76.95, and the same $0.02 would have gone to K. Either way, the improvement goes to whichever real order arrives last, because trades happen at the resting side's price.) This is the deeper purpose of implied functionality: it keeps the whole *family* of related books mutually consistent, so that cross-book gaps are closed by the exchange in favour of real participants rather than harvested by the fastest outsider.
 
-There is one limit to this guarantee, and it explains the rule "implied bids do not trade against implied offers". An arriving order is checked only against real quotes and first-generation implied quotes, which means against combinations of at most two other real orders. An implied bid and an implied offer in the same book together involve **four** real orders, one step beyond what a first-generation engine ever checks. Such a pair can therefore be locked or crossed without any bug. An example with a third month, March:
-
-| Real order | Price | Implies in February |
-|---|---|---|
-| January bid | 75.00 | with the spread ask below: Feb **bid** = 75.00 − (−2.00) = **77.00** |
-| Jan/Feb spread ask | −2.00 | |
-| March ask | 77.40 | with the spread ask below: Feb **ask** = 77.40 + (−0.45) = **76.95** |
-| Feb/Mar spread ask | −0.45 | |
-
-The implied February bid (77.00) sits above the implied February ask (76.95). The four real orders together could trade with $0.05 per barrel to spare: their cash amounts are +75.00 (January bid), +2.00 (Jan/Feb spread ask, c = −S), −77.40 (March ask) and +0.45 (Feb/Mar spread ask, c = −S), summing to +0.05. But no single arrival exposed the crossing: when the last of the four orders arrived, the matching combination would have needed three other orders, a second-generation construction. CME states plainly that implied bids "can exist at the same or inverted price levels with implied offers", that it calculates but does not disseminate them, and that implied bids do not trade against implied offers [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024]. The rule is therefore not a bug guard but a scope boundary: closing gaps that need more real orders than the enabled implication depth is left to participants. The next chapter shows why venues do not simply raise the depth.
+There is one limit to this guarantee, and it explains the rule "implied bids do not trade against implied offers". An arriving order is checked only against real quotes and first-generation implied quotes, which means against combinations of at most two other real orders. An implied bid and an implied offer in the same book together involve **four** real orders, one step beyond what a first-generation engine ever checks. Such a pair can therefore be locked or crossed without any bug, and CME states plainly that implied bids "can exist at the same or inverted price levels with implied offers" and do not trade against them [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024]. The rule is not a bug guard but a scope boundary: closing gaps that need more real orders than the engine checks is left to participants. The next chapter, which has the tools to look at four orders at once, works through a concrete example and shows why venues do not simply check deeper.
 
 ## Level 9: Tick Alignment and Leg Prices, Where Arithmetic Meets Reality
 
@@ -493,6 +556,23 @@ Participants need to know that implied liquidity exists, and sophisticated parti
 1. **Publish implied quotes as a separate book** next to the real book. CME's MDP 3.0 market data feed disseminates a "2-deep best bid and ask ... for each implied-eligible futures contract" as a distinct implied book [CME Group Client Systems Wiki, *MDP 3.0 – Implied Book*], and documents how a client should consolidate it with the real book.
 2. **Aggregate real and implied quantity** into one displayed number per price level.
 3. **Show only the real book**, and let implied liquidity surface only at execution.
+
+To make this concrete, here is the February book from Level 7 as the engine holds it, with a few more resting orders added on both sides: a real ask of 5 lots from Trader G at $77.00, the 30-lot implied ask built from A and B at the same price, one more real ask above it, and two real bids.
+
+| Bid lots | Price | Ask lots (real) | Ask lots (implied) |
+|---|---|---|---|
+| | $77.05 | 12 | |
+| | $77.00 | 5 | 30 |
+| 8 | $76.95 | | |
+| 15 | $76.90 | | |
+
+Under the three policies, a trader's screen shows the $77.00 level differently:
+
+1. **Separate implied book:** two numbers, "5" in the real book and "30" in the implied book. Many trading screens merge them into one ladder and mark the implied part, for example "5 + 30i".
+2. **Aggregated:** a single "35". The trader cannot tell that 30 of those lots will vanish if somebody cancels a *spread* order.
+3. **Real only:** "5". The other 30 lots are invisible, but a buyer of 35 at $77.00 would still get all 35.
+
+In every case, a trader who buys at $77.00 gets G's 5 lots first (Level 7) and then the implied 30 through the three-way atomic trade of Level 3.
 
 Even a venue that publishes an implied book may not publish everything it calculates. CME, for example, calculates but does not disseminate implied bids that are locked or crossed with implied offers (Level 8), nor implied OUT quotes from inter-commodity spreads whose leg ratio is not 1:1; that liquidity is hidden but can still be traded against [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024].
 
@@ -562,9 +642,32 @@ A fuzzer that generates random order flow across three related books and asserts
 
 > **Key idea:** Implied orders are not free liquidity. They are the engine expressing, in one book, commitments already resting in others, so that related markets stay consistent, empty months stay tradeable, and cross-book price gaps are closed by the exchange rather than harvested by the fastest participant. When an implied order matches, real orders in real books are consumed, exactly once, atomically. Everything difficult about implementing implied orders (shared-leg quantities, depth, priority, tick rounding, fan-out, double-execution races) follows from taking that atomic, exactly-once consumption seriously.
 
+## A Short History
+
+The precise date and venue of the very first implied order is not well documented in public sources, so this section sticks to what primary documents show.
+
+- **By 2001, first-generation implication was established practice.** The background section of NYMEX's patent application *Implied market trading system* (filed 4 October 2001 by Matt N. Morano, Iain West and Kai Neumann) already treats implied orders derived from real outright and spread orders as known technology. The invention it claimed went one step further: deriving implied markets from other implied, or even non-tradeable "bridge", markets (helper prices that exist only inside the engine), so as to create "all implied markets that are inherent in the combination of futures, calendar spread and inter-commodity spread real orders" [US Patent 7,039,610, granted 2 May 2006]. The patent was later assigned to the International Petroleum Exchange of London, which became ICE Futures and then ICE Futures Europe. Chaining implied orders in this way is exactly the subject of the next chapter.
+- **2003–2004: implied spreads help move Eurodollars to the screen.** CME's Eurodollar futures (contracts on short-term US dollar interest rates, listed quarterly for years ahead and therefore a long strip with many spreads), then the world's most actively traded short-term interest rate contract, were still traded almost entirely in the Chicago pit: electronic trading accounted for "nearly 4 percent" of total Eurodollar volume in 2003. CME had expanded Globex functionality "to improve spread trading capabilities for Eurodollar futures" in January 2003 [CME news release, 12 January 2004]. By March 2004 Globex offered implied calendar spreads for Eurodollars across "the first five years of the yield curve" [CME press release, 8 March 2004], and in October 2004 CME added implied butterfly spreads (three-month combinations, covered in the next chapter), generating both implied IN and implied OUT prices, "unlike most other futures exchanges". In the same release CME reported that Globex carried about 65 percent of Eurodollar futures volume in September 2004 [CME press release, 18 October 2004]. Many factors drove that migration, but CME's own announcements consistently presented spread and implied functionality as part of making the electronic market usable for the spread-heavy trading that dominated Eurodollars.
+- **Today: a standard feature of futures venues.** CME Globex, ICE Futures and Eurex (under the name *synthetic matching*) all offer implied functionality, each with its own rules about which combinations are implied; the *Real-World Implementations* section below summarises them.
+
+The pattern behind this history is the one this chapter has made precise: once trading moves from people to an engine, the engine must take over the job of connecting related books, or liquidity fragments and spread traders stay away.
+
 ## Real-World Implementations
 
 **CME Globex** is the reference implementation for futures: implied IN and implied OUT per product, implied depth disseminated on MDP 3.0, and per-product documentation of which implied types are enabled. CME has extended implied functionality steadily for two decades; in 2004, for example, it announced that its revised implied functionality would "link contract liquidity in butterfly spread trades on GLOBEX with that in underlying markets" for Eurodollar futures, then among the most actively traded futures in the world [CME press release, 8 March 2004]. **Eurex T7** offers the same idea under the name *synthetic matching*: "orders of different simple and complex instruments are executed against each other", supported for futures spreads and inter-product spreads [Eurex, *Matching principles*]. **ICE Futures** runs implied pricing across its energy futures and their spreads, including implied prices derived from other implied prices, the subject of the next chapter [ICE, *ICE Futures Implied Prices* FAQ]. The vocabulary differs from venue to venue; the three-book mechanics of this chapter are the common core.
+
+## What You Can Now Do
+
+If the chapter has done its job, you can now:
+
+- Explain why one commodity is listed as dozens of order books, and why months have different prices (cost of carry, contango, backwardation).
+- Read a spread price with its sign: say what buying or selling a spread does, who profits when S rises, and why −1.95 is a better bid than −2.00.
+- Add order vectors to find every first-generation implied quote, and recognise when two orders imply nothing.
+- Walk through an implied trade fill by fill, and check that every party traded within its limit and that positions and cash sum to zero.
+- Explain why implied orders never create liquidity, and why recomputation (not decrementing) and shared-leg quantities follow from that.
+- Apply the priority, price-improvement, tick-rounding and market-data rules, and state the invariants a test suite must check.
+
+The exercises below test each of these.
 
 ## Self-Check Exercises
 
@@ -606,7 +709,7 @@ A fuzzer that generates random order flow across three related books and asserts
 
 ### Solutions
 
-**E1.** Implied S_bid = Jan_bid − Feb_ask = 74.20 − 76.55 = **−$2.35**. Implied S_ask = Jan_ask − Feb_bid = 74.60 − 76.10 = **−$1.50**. Sanity check: the implied spread market is 0.85 wide, which is the January bid-ask width (0.40) plus the February width (0.45). Trading the spread through the outrights means paying both outright spreads at once.
+**E1.** Implied S_bid = Jan_bid − Feb_ask = 74.20 − 76.55 = **−$2.35**. Implied S_ask = Jan_ask − Feb_bid = 74.60 − 76.10 = **−$1.50**. Sanity check: the implied calendar-spread market is 0.85 wide, which is the January bid-ask spread (0.40) plus the February bid-ask spread (0.45). Trading the calendar spread through the outrights means paying both outright bid-ask spreads at once.
 
 **E2.** This is a trap, and the trap is the point: **these two orders imply nothing.** Add the vectors. The February bid is (Feb +1). The spread ask is a committed spread *seller*: (Jan −1, Feb +1). Their sum is (Jan −1, Feb +2), which cancels nothing and is not the shape of any single order. In words: the spread seller needs to *buy* February to complete its legs, and the only February order present is another *buyer*. Cross-check against the Level 2 table: Feb_bid pairs with S_**bid** (implied Jan bid), and S_ask pairs with Feb_**ask** (implied Jan ask) or Jan_**bid** (implied Feb bid); "Feb_bid + S_ask" appears in no row. If you mechanically computed 76.40 + (−1.80) = $74.60 and published it as an implied January quote, you manufactured a price with nothing executable behind it, precisely the class of bug that testing invariant 2 exists to catch.
 
@@ -618,7 +721,7 @@ A fuzzer that generates random order flow across three related books and asserts
 
 **E6.** Books: January ask $75.00 × 20 (A); spread bid −$2.00 × 20 (B), so implied February ask $77.00 × 20. Event 1: an ordinary January buyer takes 15 of A's lots. A has 5 left, so the true implied quantity is min(5, 20) = 5. The decrement-only implementation saw no fill *in the February implied book* and still advertises 20. Event 2: a February buyer sends an order to buy 12 at $77.00. The engine can construct only 5 lots: it must either reject a fill against a quote it published, fill against a phantom, or (worst of all) begin an atomic commit that cannot complete. Recomputation on every event in the group is not an optimisation opportunity; it is the correctness mechanism.
 
-**E7.** Before the February bid arrives, the engine publishes an implied February ask of 75.10 − (−2.00) = $77.10 × 10. The incoming bid of $77.05 is below $77.10, so it does **not** cross: nothing trades, and the bid rests. Now look for implied quotes involving the new order: January ask plus February bid imply a spread ask of 75.10 − 77.05 = **−$1.95**, and B's resting spread bid is −$2.00, which does not reach −1.95 either. The books are consistent and nothing trades. (Had the February bid been $77.10 or higher, it would have traded 10 lots at $77.10 through the implied construction. The price is always the *resting* side's price, and here the resting side is the implied ask.)
+**E7.** Before the February bid arrives, the engine publishes an implied February ask of 75.10 − (−2.00) = $77.10 × 10. The incoming bid of $77.05 is below $77.10, so it does **not** cross: nothing trades, and the bid rests. Now look for implied quotes involving the new order: January ask plus February bid imply a spread ask of 75.10 − 77.05 = **−$1.95**, and the resting spread bid is −$2.00, which does not reach −1.95 either. The books are consistent and nothing trades. (Had the February bid been $77.10 or higher, it would have traded 10 lots at $77.10 through the implied construction. The price is always the *resting* side's price, and here the resting side is the implied ask.)
 
 **E8.**
 

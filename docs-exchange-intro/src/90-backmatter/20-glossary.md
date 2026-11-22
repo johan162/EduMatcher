@@ -113,7 +113,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Conformance Testing:** The process by which a prospective exchange participant's trading system is verified, against a prescribed test script in a certification (UAT) environment, to correctly implement the exchange's protocol and expected behaviours before being granted production credentials.
 
-**Contango:** A futures market in which later-dated contracts are more expensive than near-dated ones (common when the cost of storing the underlying is high), so a calendar spread priced as near minus far is negative. The opposite of *backwardation*.
+**Contango:** A futures market in which later-dated contracts are more expensive than near-dated ones (normal when the underlying is plentiful and has to be stored; the gap is limited by the *cost of carry*), so a calendar spread priced as near minus far is negative. The opposite of *backwardation*.
 
 **Continued Listing Standards:** The ongoing, ordinarily automated compliance thresholds (minimum bid price, market value of public float, shareholder count) a listed company must keep satisfying after its initial listing, distinct from the one-time *Initial Listing Standards*. Breach triggers a deficiency notice and cure period before involuntary delisting.
 
@@ -138,6 +138,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 **Contract Multiplier:** For futures and options, the dollar (or other currency) value of a one-unit price move per contract. The E-mini S&P 500 has a multiplier of $50, a 1-point move in the index is worth $50 per contract. Essential reference data: a wrong multiplier affects every P&L and margin calculation.
 
 **Corporate Action:** An event affecting a company's share structure, stock splits, dividends, mergers, delistings. Requires adjustments to all open orders, positions, and reference data in exchange systems.
+
+**Cost of Carry:** The total cost of holding a physical commodity from one date to a later one: storage, insurance and the interest on the money tied up in it. In a futures market with ample supply it roughly limits how far a later delivery month can trade above an earlier one (*contango*).
 
 **Counterparty Risk:** The risk that the other party to a trade defaults before settlement is complete. Cleared via CCP novation, which replaces bilateral counterparty risk with exposure to the CCP.
 
@@ -538,6 +540,8 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Retained Earnings:** Profits kept within the business rather than distributed to shareholders. A source of self-funding for company growth.
 
+**Roll / Rolling a Position:** Closing a futures position in a contract that is about to expire and opening the same position in a later delivery month, usually in one step by trading the calendar spread between the two months.
+
 **Rolling Window (MMP):** The time period over which fills are counted for Market Maker Protection purposes. Fills older than the window are discarded from the count; only fills within the current window matter. For example, a 1-second rolling window means: "if more than N fills have arrived in any sliding 1-second period, MMP fires."
 
 **Round Lot:** The standard trading unit for an instrument (commonly 100 shares for US equities), used as the basis for distinguishing a normal order from an *Odd Lot*.
@@ -593,7 +597,7 @@ orders in thin books experience more slippage.
 
 **Spoofing:** A market manipulation practice: placing orders with no intention of trading to move prices, then cancelling before execution. Illegal under market abuse regulations.
 
-**Spread:** The difference between the best ask and the best bid. Market makers earn the spread; participants pay it as the cost of immediate trading.
+**Spread:** The difference between the best ask and the best bid. Market makers earn the spread; participants pay it as the cost of immediate trading. Also called the *bid-ask spread*. Not to be confused with a *calendar spread*, an instrument that trades the price difference between two delivery months.
 
 **State Machine:** A formal model consisting of a finite set of states and explicit rules about which transitions between states are allowed.
 
@@ -608,6 +612,8 @@ orders in thin books experience more slippage.
 **Stop-Loss:** A sell stop order used to automatically exit a losing long position if the price falls to a specified level.
 
  **Surplus:**  The absolute difference between cumulative buy and sell quantity at the equilibrium price, the quantity that cannot be matched.
+
+**Strip:** The full set of listed delivery months of one futures contract (January, February, March, and so on), and by extension the calendar spreads between them.
 
 **Sweeping:** The process of an aggressive order filling against resting orders at successive price levels.
 

@@ -27,7 +27,7 @@ ICE Futures publishes the following example of implied prices across generations
 | October | Ask | 76.83 |
 | Oct/Nov spread | Bid | −0.52 |
 
-(As in the previous chapter, spread price = near month − far month, and a spread bid buys the near month and sells the far month.)
+(As in the previous chapter, spread price = near month − far month, and a spread bid buys the near month and sells the far month. The months and prices are new, because they are ICE's rather than ours, but every rule from the previous chapter applies unchanged.)
 
 ICE derives, and we can check with the vector rule:
 
@@ -194,9 +194,25 @@ The previous chapter's "free money" example (Level 8) is exactly such a cycle. A
 
 ![The same three-order cycle with two different February bids. On the left the weights sum to −0.02: the February bid is two cents below the implied February ask, and nothing can trade. On the right they sum to +0.02: the three orders could trade with one another with two cents to spare, so the engine trades them the moment the last of them arrives.](assets/implied-crossed-cycle-small.png)
 
+### A crossed cycle a first-generation engine cannot see
+
+The previous chapter (Level 8) promised an example of why implied bids are allowed to sit above implied offers. The graph view makes it easy to see. Take four real orders across three months:
+
+| Real order | Price | Edge | Weight |
+|---|---|---|---|
+| January bid | 75.00 | Jan → $ | +75.00 |
+| Jan/Feb spread ask | −2.00 | Feb → Jan | +2.00 |
+| March ask | 77.40 | $ → Mar | −77.40 |
+| Feb/Mar spread ask | −0.45 | Mar → Feb | +0.45 |
+
+The four edges form the cycle $ → Mar → Feb → Jan → $, with weight −77.40 + 0.45 + 2.00 + 75.00 = **+0.05**. The weight is positive, so the family of books is crossed: the four orders could trade with one another with five cents per barrel to spare. In prices: the January bid and the Jan/Feb spread ask imply a February **bid** of 75.00 − (−2.00) = 77.00, while the March ask and the Feb/Mar spread ask imply a February **ask** of 77.40 + (−0.45) = 76.95. The implied February bid sits five cents above the implied February ask.
+
+Why did a first-generation engine not trade it? When the last of the four orders arrived, closing the cycle would have meant combining it with the *three* others, which is a second-generation construction. A first-generation engine only checks an arriving order against combinations of at most two other real orders, so it never saw the crossing. Nothing is broken: the cycle simply has more edges than the engine's depth covers. This is exactly the situation CME describes above, in which crossed implied quotes are calculated but not disseminated, and implied bids do not trade against implied offers. A deeper engine would close this cycle; the rest of this chapter explains what that would cost.
+
+
 ### Finding the best route, step by step
 
-How does an engine actually search? The core of Bellman–Ford is easy to run by hand, and doing so once makes "shortest path" concrete. Take a three-month strip and ask: **what is the cheapest way to buy one March lot?** That is the best (lowest) March ask, real or implied. The resting orders that can help a buyer are:
+How does an engine actually search? The core of Bellman–Ford is easy to run by hand, and doing so once makes "shortest path" concrete. Take a fresh three-month strip (new prices, chosen to keep the arithmetic easy) and ask: **what is the cheapest way to buy one March lot?** That is the best (lowest) March ask, real or implied. The resting orders that can help a buyer are:
 
 | Order | Edge | Cost to the buyer of using this edge |
 |---|---|---|
@@ -208,6 +224,16 @@ How does an engine actually search? The core of Bellman–Ford is easy to run by
 | Jan/Mar spread bid −1.10 | Jan → Mar | 1.10 |
 
 The "cost" column is simply the negated weight, which is easier to read when shopping: it is what you pay to move one step along the edge. For example, the Jan/Feb spread bidder will take January from you and give you February, provided February is priced 0.60 above January, so turning one January lot into one February lot costs 0.60.
+
+By now the same number has appeared in three forms: as a **weight** (what the order pays, used in the graph view), as a **cost** (minus the weight, used in this search) and as a **quoted price** (what traders see on screen). This table keeps them apart:
+
+| | Outright ask at 70.00 | Outright bid at 74.40 | Spread bid at −0.60 | Spread ask at −1.80 |
+|---|---|---|---|---|
+| Weight (what the order pays) | −70.00 | +74.40 | −0.60 | +1.80 |
+| Cost (= −weight) | 70.00 | −74.40 | 0.60 | −1.80 |
+| Quoted price | 70.00 | 74.40 | −0.60 | −1.80 |
+
+The rule that ties them together: for an **ask**, the quoted price equals the cost; for a **bid**, the quoted price equals the weight. That is why a search for the cheapest *ask* works with costs, and the best *bid* is a maximum-weight path.
 
 The algorithm keeps a table "cheapest known cost to get long each month" and improves it in **rounds**. In round *k* it is allowed to use at most *k* real orders, so round *k* finds the best price up to generation *k* − 1. Each round looks at every edge u → v and asks: "is (best cost of u from the previous round) + (edge cost) cheaper than what I know for v?" If yes, it records the new cost and remembers which edge produced it (so the route can be reconstructed later). This single check is called **relaxing** the edge, and it is the only operation the algorithm performs:
 
@@ -256,7 +282,15 @@ The best price is one number per book side. An exchange needs a great deal more 
 
 ### 1. The number of routes grows factorially
 
-Consider a model strip of **M = 12** consecutive monthly contracts, with every outright and every calendar spread between any two months listed: 12 outright books plus 12 × 11 / 2 = 66 spread books. (Real venues list fewer spreads, but many list a lot of them.) In the graph that is 13 nodes (12 months plus $), every pair joined by orders on both sides.
+Start small enough to count by hand. With three months (January, February, March) and every spread listed, the routes from $ to March are:
+
+- **Generation 0:** $ → Mar, the real March ask. 1 route.
+- **Generation 1:** $ → Jan → Mar and $ → Feb → Mar. 2 routes.
+- **Generation 2:** $ → Jan → Feb → Mar and $ → Feb → Jan → Mar. 2 routes.
+
+That makes five routes in all. Each route picks some of the other months and an *order* in which to visit them, and the number of such choices is what grows. (Exercise E9 asks you to repeat the count for four months.)
+
+Now scale up to a model strip of **M = 12** consecutive monthly contracts, with every outright and every calendar spread between any two months listed: 12 outright books plus 12 × 11 / 2 = 66 spread books. (Real venues list fewer spreads, but many list a lot of them.) In the graph that is 13 nodes (12 months plus $), every pair joined by orders on both sides.
 
 How many distinct *routes* (simple paths) lead from $ to, say, the December node, i.e. how many different constructions could produce an implied December ask? A route with L real orders visits L − 1 intermediate months chosen in order from the 11 others, so there are 11! / (12 − L)! routes of length L. The figure below draws the first four generations for the implied December ask. Each panel's black arrows show one example route. The orange lines show every line that at least one route of that generation uses, darker where more routes share it:
 
@@ -286,7 +320,7 @@ When several constructions offer the same implied price, the engine must decide 
 
 ### 3. Quantity and depth turn a path problem into a flow problem
 
-The previous chapter showed that quantity is a bottleneck (the smallest ingredient) and that shared orders cap the total. Across many routes that share many orders, "how much can trade at this price, and at the next price, and the next?" is a **minimum-cost flow** problem: route as many lots as possible through the graph, cheapest routes first, never exceeding any order's size. That is still polynomial in theory, but it is far heavier than one shortest-path search, and it must be redone after every event because every fill and cancel changes the capacities. The previous chapter's warning about naive depth (a fictitious $77.02 level) applies with far more force when routes can be several orders long and share orders in the middle.
+The previous chapter showed that quantity is a bottleneck (the smallest ingredient) and that shared orders cap the total. Across many routes that share many orders, "how much can trade at this price, and at the next price, and the next?" is a **minimum-cost flow** problem: route as many lots as possible through the graph, cheapest routes first, never exceeding any order's size. Picture each order as a pipe that can carry at most as many lots as the order's size, and charges a price per lot. The question is how much can flow from one end of the network to the other, and at what prices, when many routes share the same pipes. That is still polynomial in theory, but it is far heavier than one shortest-path search, and it must be redone after every event because every fill and cancel changes the capacities. The previous chapter's warning about naive depth (a fictitious $77.02 level) applies with far more force when routes can be several orders long and share orders in the middle.
 
 ### 4. Every event can change every book
 
@@ -321,11 +355,11 @@ A generation-*k* trade commits *k* + 1 real orders plus the incoming one, in *k*
 
 Everything so far assumed two-legged instruments: edges connect exactly two nodes. Real venues also list **butterflies** (buy 1 near, sell 2 middle, buy 1 far: CME launched implied IN *and* implied OUT functionality for Eurodollar butterflies in 2004, describing the new implied OUT functionality as "an industry first", and covered only the first three years of the Eurodollar curve [CME press release, 18 October 2004]), **condors**, **packs and bundles** (a strip of four or more consecutive contracts traded as one), and **ratio inter-commodity spreads** (for example, CME Treasury spreads in which legs trade in ratios such as 3:2, where implied prices can even fall on a grid finer than the direct spread's ticks [Carruthers, 2018]).
 
-A butterfly's vector has entries (+1, −2, +1). It is not an edge between two nodes; it touches three at once, with a weight of 2 in the middle. Finding a set of resting orders whose vectors, with integer multiplicities, sum exactly to a target vector is no longer a path problem. In general it is an **integer programming** problem, a class for which no efficient general algorithm is known, and whose best-known methods can take exponential time in the worst case. An exchange cannot afford "exponential in the worst case" inside a matching loop that must answer in microseconds, deterministically, after every event.
+A butterfly's vector has entries (+1, −2, +1). It is not an edge between two nodes; it touches three at once, with a weight of 2 in the middle. In graph language it is a **hyperedge**: an edge that touches three or more nodes at once. Finding a set of resting orders whose vectors, with integer multiplicities, sum exactly to a target vector is no longer a path problem. In general it is an **integer programming** problem (roughly: choose a whole number of each order so that everything adds up exactly, like paying an exact amount using coins of awkward sizes), a class for which no efficient general algorithm is known, and whose best-known methods can take exponential time in the worst case. An exchange cannot afford "exponential in the worst case" inside a matching loop that must answer in microseconds, deterministically, after every event.
 
 ### 7. The benefit shrinks while the cost explodes
 
-Remember the promise: implication creates no liquidity. Each extra generation adds only more *routes* to the same real orders. A generation-5 route is bottlenecked by the smallest of six real orders and is usually beaten on price by a shorter one, because every extra link adds another bid-ask spread to cross (the previous chapter's Exercise E1 showed a single implied spread already costs both outright spreads). The marginal value of the sixth link is small; its marginal cost, in latency, fan-out, and failure modes, is large.
+Remember the promise: implication creates no liquidity. Each extra generation adds only more *routes* to the same real orders. A generation-5 route is bottlenecked by the smallest of six real orders and is usually beaten on price by a shorter one, because every extra link adds another bid-ask spread to cross (the previous chapter's Exercise E1 showed that a single implied calendar spread already costs both outright bid-ask spreads). The marginal value of the sixth link is small; its marginal cost, in latency, fan-out, and failure modes, is large.
 
 ## How Real Venues Draw the Line
 
