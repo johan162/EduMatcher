@@ -143,15 +143,6 @@ class TestStream:
         everything = capsys.readouterr().out.splitlines()
         assert 0 < len(narrowed) < len(everything)
 
-    def test_no_index_answers_the_same_question(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        run(SIMPLE, tmp_path, "stream", "--symbol", "AAPL")
-        indexed = capsys.readouterr().out
-        run(SIMPLE, tmp_path, "stream", "--symbol", "AAPL", "--no-index")
-        streamed = capsys.readouterr().out
-        assert indexed == streamed
-
     def test_an_empty_window_says_so_rather_than_printing_nothing(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -255,13 +246,6 @@ class TestStory:
     def test_one_selector_is_required(self, tmp_path: Path) -> None:
         with pytest.raises(SystemExit):
             run(SIMPLE, tmp_path, "story")
-
-    def test_story_needs_the_index_and_says_so(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        code = run(SIMPLE, tmp_path, "story", "--order", "4f2c9a", "--no-index")
-        assert code == 2
-        assert "drop --no-index" in capsys.readouterr().err
 
     @pytest.mark.parametrize(
         "flag,value,expected",

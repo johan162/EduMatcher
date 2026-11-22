@@ -8,37 +8,41 @@ The global options are the ones design section 9.1 specifies, and they
 deliberately mirror ``pm-audit-cli``'s time-window and filter flags so muscle
 memory carries between the two tools.
 
-Two subcommands so far. ``stats`` (task AR-2.5) is the confidence distribution
-over a window; it is registered ahead of ``stream``, ``story`` and ``digest``
-because it reports on the *trail* rather than narrating it, so it is useful the
-moment pass 1 works -- and because the distribution is what says whether
-narration can be trusted at all. ``index`` (section 9.7) materialises the
-episode model into SQLite.
-
-A subcommand is optional: with none, the command validates its options and
-exits, as it did through phase 1.
+Nine subcommands, one required. The reports -- ``stream``, ``episodes``,
+``digest``, ``anomalies`` and ``stats`` -- reconstruct their window straight
+off the log (:func:`_stream_from_log`) and never touch the index; ``anomalies``,
+``episodes``, ``digest`` and ``stats`` keep one row, one finding list or one
+ranking per episode rather than the episodes themselves. ``story`` and
+``index`` read and build the episode index (section 9.7). ``rerun`` and
+``queue`` feed the whole trail of the data directory to a fresh engine.
 
 **The index policy lives in :func:`ensure_index`**, one function rather than a
-rule each renderer reimplements. ``--no-index`` opts out entirely; ``--rebuild``
-forces; otherwise the index is built when it is absent, when it was built under
-different rules, or when the logs have changed since -- and read as it stands
-when none of those hold. There is no incremental build (AR-3.4 records why), so
-"the logs have changed" means a full rebuild; at the measured build rate that
-is seconds for a session and minutes for a day.
+rule each command reimplements. ``--rebuild`` forces a build; otherwise the
+index is built when it is absent or was built under other rules, schema or
+detection settings. A trail that has only grown since is read from the index
+as it stands by ``story``, with a note naming how far it reaches, and rebuilt
+by ``index``. There is no incremental build (AR-3.4 records why): a rebuild
+reads the whole trail at about 6 000 lines a second, which is minutes for a
+session's log and over an hour for a simulation day.
 """
 
 from __future__ import annotations
 
 import argparse
+import heapq
+import json
+import math
+import shlex
 import sys
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 from edumatcher.cli_pipe import pipe_safe
 from edumatcher.audit.archive import session_timezone
 from edumatcher.audit.query import (
+    AuditEntry,
     discover_day_files,
     discover_log_files,
     is_explicit_file,
@@ -149,6 +153,28 @@ def parse_id_len(value: str) -> int | None:
     return length
 
 
+def parse_top(value: str) -> int:
+    """``digest --top``: a count of episodes, at least one."""
+    count = int(value)
+    if count < 1:
+        raise ValueError(f"--top {value!r} must be at least 1.")
+    return count
+
+
+def parse_skew(value: str) -> float:
+    """``--clock-skew-warn``: seconds, finite and not negative.
+
+    A negative tolerance reported every stamped message; ``nan`` compares
+    false with everything and so switched the check off without saying so.
+    """
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0:
+        raise ValueError(
+            f"--clock-skew-warn {value!r} must be a number of seconds >= 0."
+        )
+    return seconds
+
+
 def _timestamp(value: str) -> str:
     """Validate an ISO-8601 or ``YYYY-MM-DD`` window bound, returning it raw.
 
@@ -195,19 +221,16 @@ def _option_groups(
         "--db",
         metavar="PATH",
         default=default(str(AUDIT_REPLAY_DB_FILE)),
-        help=f"Episode index (default: {AUDIT_REPLAY_DB_FILE})",
-    )
-    source.add_argument(
-        "--no-index",
-        action="store_true",
-        default=default(False),
-        help="Stream without building or reading an index",
+        help=(
+            f"Episode index story and index use (default: {AUDIT_REPLAY_DB_FILE});\n"
+            "the reports name it in the story commands they suggest"
+        ),
     )
     source.add_argument(
         "--rebuild",
         action="store_true",
         default=default(False),
-        help="Rebuild the episode index before rendering",
+        help="story, index: rebuild the episode index first",
     )
 
     window = parser.add_argument_group("window")
@@ -368,7 +391,7 @@ def _option_groups(
     )
     detection.add_argument(
         "--clock-skew-warn",
-        type=float,
+        type=parse_skew,
         metavar="SECONDS",
         default=default(DEFAULT_CLOCK_SKEW_WARN),
         help=(
@@ -406,13 +429,8 @@ def _inherited() -> argparse.ArgumentParser:
 def _add_commands(
     parser: argparse.ArgumentParser, inherited: argparse.ArgumentParser
 ) -> None:
-    """Register the subcommands.
-
-    ``required=False`` on purpose: every option above is global, and
-    ``pm-audit-replay --help`` has to keep working as the review surface for
-    the option set while the renderers are still being built.
-    """
-    commands = parser.add_subparsers(dest="command", metavar="COMMAND")
+    """Register the subcommands; one is required (exit 2 with usage)."""
+    commands = parser.add_subparsers(dest="command", metavar="COMMAND", required=True)
     commands.add_parser(
         "stream",
         parents=[inherited],
@@ -482,7 +500,7 @@ def _add_commands(
     )
     digest.add_argument(
         "--top",
-        type=int,
+        type=parse_top,
         metavar="N",
         default=None,
         help="Show only the N most significant episodes",
@@ -605,7 +623,8 @@ def window_bounds(args: argparse.Namespace) -> tuple[datetime | None, datetime |
         now = datetime.now(timezone.utc)
         return now - timedelta(seconds=args.last), now
     from_dt = parse_ts(args.from_ts) if args.from_ts else None
-    to_dt = parse_ts(args.to_ts) if args.to_ts else None
+    # A bare date is the end of that day, as in pm-audit-cli.
+    to_dt = parse_ts(args.to_ts, end_of_day=True) if args.to_ts else None
     return from_dt, to_dt
 
 
@@ -690,9 +709,7 @@ def _detector(state: StateModel, args: argparse.Namespace) -> Detector:
     return Detector(state, strict=args.strict, clock_skew_warn=args.clock_skew_warn)
 
 
-def build_index(
-    args: argparse.Namespace, log_files: list[Path], *, rebuild: bool
-) -> int:
+def build_index(args: argparse.Namespace, log_files: list[Path]) -> int:
     """Run the whole pipeline into the index, returning the episode count.
 
     The whole log, never the query's window. The index is a cache of the
@@ -705,10 +722,8 @@ def build_index(
     to that check would instead rebuild on almost every ``--last`` call,
     since a relative window moves.
 
-    So the window is a property of the *query* only. `reader` applies it in
-    SQL, `_from_log` applies it to the read, and both narrow the same
-    complete model. `--no-index` remains the way to avoid paying for a full
-    build on a one-off log.
+    So the window is a property of the *query* only, and only ``story``
+    queries the index; the reports read their window off the log.
     """
     entries = iter_entries(log_files)
     max_facts, max_seconds = reorder_bounds(args)
@@ -729,22 +744,24 @@ def build_index(
         episodes,
         run.state,
         log_files,
-        rebuild=rebuild,
         detection=detection_key(args),
     )
 
 
 def ensure_index(
-    args: argparse.Namespace, log_files: list[Path]
-) -> sqlite3.Connection | None:
-    """A readonly connection to a current index, built first if it is not.
+    args: argparse.Namespace, log_files: list[Path], *, refresh: bool
+) -> sqlite3.Connection:
+    """A readonly connection to the index, built first when it must be.
 
-    None when ``--no-index``: the caller streams instead. Everything else is
-    one decision made in one place, so ``stream`` and ``story`` cannot come to
-    differ about when a rebuild is due.
+    Built when absent, when built under other rules, schema or detection
+    settings, and on ``--rebuild``. When only the trail has changed since,
+    *refresh* (the ``index`` command) rebuilds; otherwise (``story``) an
+    index of a trail that has only grown -- every file it read, bar the live
+    ``--log-file``, is still part of the trail -- is read as it stands, with a
+    note on stderr naming how far it reaches. A running exchange's trail grows
+    every millisecond, and a rebuild of a simulation day is over an hour and
+    tens of gigabytes; the episodes the index holds are still the trail's.
     """
-    if args.no_index:
-        return None
     db = Path(args.db)
     if not args.rebuild:
         try:
@@ -752,16 +769,39 @@ def ensure_index(
         except FileNotFoundError, episode_index.StaleIndexError:
             conn = None
         if conn is not None:
-            if episode_index.is_current(conn, log_files) and (
-                episode_index.read_meta(conn, episode_index.META_DETECTION)
-                == detection_key(args)
-            ):
-                return conn
-            # Stale content rather than stale rules: close the handle before
-            # rebuilding, or it outlives the database it was opened on.
+            if episode_index.read_meta(
+                conn, episode_index.META_DETECTION
+            ) == detection_key(args):
+                if episode_index.is_current(conn, log_files):
+                    return conn
+                if not refresh and _only_grown(conn, log_files, Path(args.log_file)):
+                    _say_how_far(conn, db)
+                    return conn
+            # Close the handle before rebuilding, or it outlives the database
+            # it was opened on.
             conn.close()
-    build_index(args, log_files, rebuild=True)
+    build_index(args, log_files)
     return episode_index.open_readonly(db)
+
+
+def _only_grown(conn: sqlite3.Connection, log_files: list[Path], live: Path) -> bool:
+    """Whether every file the index read, bar the live log, is still in the
+    trail: the trail has grown (or the live log rotated into a part), rather
+    than become another trail (another ``--date``, an archived day)."""
+    read = json.loads(
+        episode_index.read_meta(conn, episode_index.META_SOURCE_FILES) or "[]"
+    )
+    trail = {str(path) for path in log_files}
+    return all(path in trail for path in read if path != str(live))
+
+
+def _say_how_far(conn: sqlite3.Connection, db: Path) -> None:
+    covered_to = episode_index.read_meta(conn, episode_index.META_COVERED_TO)
+    print(
+        f"pm-audit-replay: the index ({db}) covers the trail to {covered_to}; "
+        "the trail has grown since. Add --rebuild to include the rest.",
+        file=sys.stderr,
+    )
 
 
 def _run_index(args: argparse.Namespace) -> int:
@@ -769,11 +809,7 @@ def _run_index(args: argparse.Namespace) -> int:
     if not log_files:
         print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
         return 1
-    if args.no_index:
-        print("pm-audit-replay: --no-index leaves nothing for index to do")
-        return 2
-    conn = ensure_index(args, log_files)
-    assert conn is not None  # --no-index is refused above
+    conn = ensure_index(args, log_files, refresh=True)
     try:
         if args.index_stats:
             print(render_index_stats(conn), end="")
@@ -896,31 +932,109 @@ def _print(lines: Sequence[str]) -> int:
     return 0
 
 
-def _from_log(
+def _stream_from_log(
     args: argparse.Namespace, log_files: list[Path]
-) -> tuple[list[Episode], StateModel]:
-    """Reconstruct without the index -- what ``--no-index`` asks for."""
+) -> tuple[Iterator[Episode], StateModel]:
+    """The window's episodes as they retire, filtered, straight off the log.
+
+    An iterator: a caller that needs one episode at a time holds one.
+    """
     from_dt, to_dt = window_bounds(args)
     max_facts, max_seconds = reorder_bounds(args)
     run, steps = reconstruct(
-        iter_entries(log_files, from_dt=from_dt, to_dt=to_dt),
+        _window(log_files, from_dt, to_dt, max_seconds),
         max_facts=max_facts,
         max_seconds=max_seconds,
     )
     detector = _detector(run.state, args)
-    episodes = list(
-        detected(
-            assemble(
-                observed(steps, detector),
-                run.state,
-                run.links,
-                max_facts=max_facts,
-                max_seconds=max_seconds,
-            ),
-            detector,
-        )
+    episodes = detected(
+        assemble(
+            observed(steps, detector),
+            run.state,
+            run.links,
+            max_facts=max_facts,
+            max_seconds=max_seconds,
+        ),
+        detector,
     )
-    return episodes, run.state
+    return (episode for episode in episodes if _wanted(episode, args)), run.state
+
+
+def _window(
+    log_files: list[Path],
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+    slack: float,
+) -> Iterator[AuditEntry]:
+    """The lines of the window, and no read outside it.
+
+    A closed part that ends before ``from_dt`` is not opened
+    (:func:`_ends_before`). ``iter_entries`` skips the lines before
+    ``from_dt`` unparsed, but with a ``to_dt`` it still parses every later
+    line to the end of the trail only to drop it -- about 5 s per 256 MB
+    part. Lines are in receipt order, so once one is stamped more than
+    *slack* (the reorder window) past ``to_dt``, nothing later belongs to the
+    window and the read stops.
+    """
+    if from_dt is not None:
+        # The last file is the live log, still being written.
+        log_files = [
+            path for path in log_files[:-1] if not _ends_before(path, from_dt)
+        ] + log_files[-1:]
+    if to_dt is None:
+        yield from iter_entries(log_files, from_dt=from_dt)
+        return
+    stop = to_dt + timedelta(seconds=slack)
+    for entry in iter_entries(log_files, from_dt=from_dt):
+        try:
+            when = parse_ts(entry.timestamp)
+        except ValueError:
+            continue
+        if when <= to_dt:
+            yield entry
+        elif when > stop:
+            return
+
+
+#: How far back from a plain part's end :func:`_ends_before` looks for its last
+#: line: far more than any one audit line.
+_TAIL_BYTES = 1 << 20
+
+
+def _ends_before(path: Path, when: datetime) -> bool:
+    """Whether a closed plain-text part's last line is stamped before *when*.
+
+    Read from the end of the file, so deciding costs one seek rather than
+    the 0.2 s of skipping a 256 MB part line by line. False whenever it
+    cannot tell (a compressed archive, no stamped line in the tail), which
+    is the safe direction: the part is then read.
+    """
+    if path.suffix != ".log":
+        return False
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            handle.seek(max(0, size - _TAIL_BYTES))
+            tail = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return False
+    for raw in reversed(tail.splitlines()):
+        if raw.startswith("[") and "]" in raw:
+            try:
+                return parse_ts(raw[1 : raw.index("]")]) < when
+            except ValueError:
+                return False
+    return False
+
+
+def _from_log(
+    args: argparse.Namespace, log_files: list[Path]
+) -> tuple[list[Episode], StateModel]:
+    """The window's episodes, filtered, held in memory (``stream`` needs all of
+    them at once: a sentence names the counterparty's order)."""
+    episodes, state = _stream_from_log(args, log_files)
+    return list(episodes), state
 
 
 def _run_stream(args: argparse.Namespace) -> int:
@@ -928,94 +1042,80 @@ def _run_stream(args: argparse.Namespace) -> int:
     if not log_files:
         print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
         return 1
-    conn = ensure_index(args, log_files)
-    if conn is None:
-        episodes, state = _from_log(args, log_files)
-        return _narrate(_filtered(episodes, args), state, args)
-    try:
-        from_dt, to_dt = window_bounds(args)
-        episodes = reader.episodes_in_window(
-            conn,
-            from_ts=from_dt.isoformat() if from_dt else None,
-            to_ts=to_dt.isoformat() if to_dt else None,
-            symbols=args.symbol,
-            gateways=args.gateway,
-            kinds=args.kind,
-        )
-        return _narrate(episodes, reader.actors(conn), args)
-    finally:
-        conn.close()
+    episodes, state = _from_log(args, log_files)
+    return _narrate(episodes, state, args)
 
 
-def _filtered(episodes: Sequence[Episode], args: argparse.Namespace) -> list[Episode]:
-    """The ``--symbol``/``--gateway``/``--kind`` filters, off the index.
+def _wanted(episode: Episode, args: argparse.Namespace) -> bool:
+    """The ``--symbol``/``--gateway``/``--kind`` filters on one episode.
 
-    The same predicates the index applies in SQL, so ``--no-index`` answers
-    the same question rather than a broader one.
+    The same predicates ``reader.episodes_in_window`` applies in SQL.
     """
-    return [
-        episode
-        for episode in episodes
-        if (not args.symbol or episode.symbol in args.symbol)
+    return (
+        (not args.symbol or episode.symbol in args.symbol)
         and (not args.gateway or episode.actor in args.gateway)
         and (not args.kind or episode.kind in args.kind)
-    ]
-
-
-def _selected(
-    args: argparse.Namespace,
-    conn: sqlite3.Connection | None,
-    log_files: list[Path],
-) -> list[Episode]:
-    """The window's episodes, however the caller is allowed to get them.
-
-    The index applies the filters in SQL and the log path applies the same
-    predicates in Python, so ``--no-index`` answers the same question rather
-    than a broader one.
-    """
-    if conn is None:
-        episodes, _state = _from_log(args, log_files)
-        return _filtered(episodes, args)
-    from_dt, to_dt = window_bounds(args)
-    return reader.episodes_in_window(
-        conn,
-        from_ts=from_dt.isoformat() if from_dt else None,
-        to_ts=to_dt.isoformat() if to_dt else None,
-        symbols=args.symbol,
-        gateways=args.gateway,
-        kinds=args.kind,
     )
 
 
-def _run_view(
-    args: argparse.Namespace, render: Callable[[Sequence[Episode]], str]
-) -> int:
-    """Load the window and print one of section 9.4-9.6's reports."""
+class _Counted:
+    """The window's episodes, counted as a report consumes them.
+
+    The reports below keep a row, a finding list or a ranking rather than
+    the episodes, so the count of what the window held -- for "nothing to
+    narrate" and for the tallies -- is taken on the way through.
+    """
+
+    def __init__(self, episodes: Iterator[Episode]) -> None:
+        self._episodes = episodes
+        self.count = 0
+
+    def __iter__(self) -> Iterator[Episode]:
+        for episode in self._episodes:
+            self.count += 1
+            yield episode
+
+
+def _run_view(args: argparse.Namespace, render: Callable[[_Counted], str]) -> int:
+    """Stream the window through one of section 9.4-9.6's reports."""
     log_files = _log_files(args)
     if not log_files:
         print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
         return 1
-    conn = ensure_index(args, log_files)
-    try:
-        print(render(_selected(args, conn, log_files)), end="")
-        return 0
-    finally:
-        if conn is not None:
-            conn.close()
+    stream, _state = _stream_from_log(args, log_files)
+    episodes = _Counted(stream)
+    text = render(episodes)
+    if not episodes.count:
+        print("pm-audit-replay: nothing to narrate in this window", file=sys.stderr)
+        return 1
+    print(text, end="")
+    return 0
 
 
 def _run_digest(args: argparse.Namespace) -> int:
-    return _run_view(
-        args,
-        lambda episodes: views.render_digest(
-            episodes,
+    """One row per episode, or with ``--top N`` only the N most significant
+    (``heapq.nsmallest`` keeps N rows, not the window)."""
+
+    def render(episodes: _Counted) -> str:
+        rows = (views.row(episode) for episode in episodes)
+        kept = (
+            list(rows)
+            if args.top is None
+            else heapq.nsmallest(
+                args.top, rows, key=views.digest_key(args.significance)
+            )
+        )
+        return views.render_digest(
+            kept,
             significance=args.significance,
             top=args.top,
+            total=episodes.count,
             id_len=args.id_len,
             tz=args.tz,
             palette=_palette(args),
-        ),
-    )
+        )
+
+    return _run_view(args, render)
 
 
 def _run_episodes(args: argparse.Namespace) -> int:
@@ -1023,7 +1123,7 @@ def _run_episodes(args: argparse.Namespace) -> int:
         args,
         lambda episodes: views.render_episodes(
             [
-                episode
+                views.row(episode, derived=False)
                 for episode in episodes
                 if not args.outcome or episode.outcome in args.outcome
             ],
@@ -1036,15 +1136,26 @@ def _run_episodes(args: argparse.Namespace) -> int:
 
 
 def _run_anomalies(args: argparse.Namespace) -> int:
-    def render(episodes: Sequence[Episode]) -> str:
-        found = render_json.anomalies(episodes, severity=args.severity)
-        if args.format == "ndjson":
-            return "".join(f"{render_json.dumps(obj)}\n" for obj in found)
-        if args.format == "json":
-            return render_json.dumps(list(found)) + "\n"
+    """Only the episodes with a finding at ``--severity`` or worse are kept."""
+
+    def render(episodes: _Counted) -> str:
+        found = [
+            views.row(episode, derived=False)
+            for episode in episodes
+            if views.has_finding(episode, args.severity)
+        ]
+        if args.format in ("ndjson", "json"):
+            objects = render_json.anomalies(
+                found, severity=args.severity, story_source=story_source(args)
+            )
+            if args.format == "json":
+                return render_json.dumps(list(objects)) + "\n"
+            return "".join(f"{render_json.dumps(obj)}\n" for obj in objects)
         return views.render_anomalies(
-            episodes,
+            found,
             severity=args.severity,
+            story_source=story_source(args),
+            total=episodes.count,
             id_len=args.id_len,
             tz=args.tz,
             palette=_palette(args),
@@ -1053,50 +1164,55 @@ def _run_anomalies(args: argparse.Namespace) -> int:
     return _run_view(args, render)
 
 
+def story_source(args: argparse.Namespace) -> str:
+    """The source options a suggested ``story`` command needs to read the
+    same trail and index this run read: ``--log-file`` and ``--db`` when not
+    the defaults, and ``--date``. Shell-quoted, ready to paste."""
+    parts: list[str] = []
+    if args.log_file != str(AUDIT_LOG_FILE):
+        parts += ["--log-file", shlex.quote(args.log_file)]
+    if args.db != str(AUDIT_REPLAY_DB_FILE):
+        parts += ["--db", shlex.quote(args.db)]
+    if args.date:
+        parts += ["--date", args.date]
+    return " ".join(parts)
+
+
 def _run_story(args: argparse.Namespace) -> int:
     log_files = _log_files(args)
     if not log_files:
         print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
         return 1
-    if args.no_index:
-        print(
-            "pm-audit-replay: story needs the index; drop --no-index",
-            file=sys.stderr,
-        )
-        return 2
-    conn = ensure_index(args, log_files)
-    assert conn is not None  # --no-index is refused above
+    conn = ensure_index(args, log_files, refresh=False)
     try:
         if args.chain:
             episodes = reader.episodes_in_chain(conn, args.chain)
             if not episodes:
                 return _not_found(args, "chain", args.chain)
             return _narrate(episodes, reader.actors(conn), args)
-        seed, label, value = _seed(conn, args)
-        if seed is None:
+        seeds, label, value = _seeds(conn, args)
+        if not seeds:
             return _not_found(args, label, value)
         episodes = reader.walk(
-            conn, seed, depth=args.depth, recorded_only=args.strict_causality
+            conn, seeds, depth=args.depth, recorded_only=args.strict_causality
         )
         return _narrate(episodes, reader.actors(conn), args)
     finally:
         conn.close()
 
 
-def _seed(
+def _seeds(
     conn: sqlite3.Connection, args: argparse.Namespace
-) -> tuple[Episode | None, str, str]:
+) -> tuple[list[Episode], str, str]:
     for dest, kind in _SELECTOR_KINDS.items():
         value = getattr(args, dest, None)
         if value:
-            return reader.episode_by_anchor(conn, kind, value), kind, value
+            return reader.episodes_by_anchor(conn, kind, value), kind, value
     if args.client_tag:
-        return (
-            reader.episode_by_client_tag(conn, args.client_tag),
-            "tag",
-            args.client_tag,
-        )
-    return reader.episode_containing(conn, args.msg), "msg", args.msg
+        tagged = reader.episode_by_client_tag(conn, args.client_tag)
+        return [tagged] if tagged else [], "tag", args.client_tag
+    found = reader.episode_containing(conn, args.msg)
+    return [found] if found else [], "msg", args.msg
 
 
 def _not_found(args: argparse.Namespace, label: str, value: str) -> int:
@@ -1123,12 +1239,10 @@ def _run_stats(args: argparse.Namespace) -> int:
     if not log_files:
         print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
         return 1
-    from_dt, to_dt = window_bounds(args)
-    entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
-    max_facts, max_seconds = reorder_bounds(args)
-    _run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
-    print(stats_report.render(stats_report.collect(steps), _palette(args)), end="")
-    return 0
+    episodes, _state = _stream_from_log(args, log_files)
+    stats = stats_report.collect_episodes(episodes)
+    print(stats_report.render(stats, _palette(args)), end="")
+    return 0 if stats.facts else 1
 
 
 def detail_level(args: argparse.Namespace) -> int:
@@ -1146,23 +1260,80 @@ def validate_args(args: argparse.Namespace) -> str | None:
         return "--date cannot be combined with --from/--to"
     if args.last is not None and (args.from_ts or args.to_ts or args.date):
         return "--last cannot be combined with --from/--to/--date"
-    if args.from_ts and args.to_ts and parse_ts(args.from_ts) > parse_ts(args.to_ts):
+    if (
+        args.from_ts
+        and args.to_ts
+        and parse_ts(args.from_ts) > parse_ts(args.to_ts, end_of_day=True)
+    ):
         return "--from must not be later than --to"
     if args.quiet and args.verbose:
         return "-q cannot be combined with -v"
     if args.no_color and args.force_color:
         return "--no-color cannot be combined with --force-color"
+    # --date is not a window but the day's files, which story reads too.
     if args.command == "index" and (
-        args.from_ts or args.to_ts or args.date or args.last is not None
+        args.from_ts or args.to_ts or args.last is not None
     ):
         return (
             "the index always covers the whole log, so it takes no window; "
             "narrow the query instead"
         )
+    if args.command in _RERUN_COMMANDS:
+        error = _rerun_error(args)
+        if error:
+            return error
+    if args.rebuild and args.command not in _INDEX_COMMANDS:
+        return (
+            f"{args.command} reads the log and never the index, so it takes "
+            "no --rebuild (story and index do)"
+        )
     allowed = _FORMAT_COMMANDS.get(args.format)
     if allowed is not None and args.command not in allowed:
         return f"--format {args.format} is only available for " + ", ".join(
             f"`{name}`" for name in allowed
+        )
+    return None
+
+
+#: The commands that build and read the episode index; the reports read
+#: their window off the log (``_stream_from_log``).
+_INDEX_COMMANDS = ("story", "index")
+
+#: The commands that re-run the whole trail of the ``--log-file``'s directory.
+_RERUN_COMMANDS = ("rerun", "queue")
+
+
+def _rerun_error(args: argparse.Namespace) -> str | None:
+    """What ``rerun`` and ``queue`` would silently ignore, refused.
+
+    Both feed the whole trail of the data directory to a fresh engine: there
+    is no window to narrow and no index to read, so a ``--date 1999-01-01``
+    that re-ran today's trail at exit 0 told the caller something untrue.
+    ``queue`` takes ``--symbol`` (the level view); its times are UTC.
+    """
+    if is_explicit_file(Path(args.log_file)):
+        return (
+            f"{args.command} re-runs the whole trail of a data directory; "
+            "--log-file must name its audit.log, not an archive or a day part"
+        )
+    given = {
+        "--date": args.date,
+        "--from": args.from_ts,
+        "--to": args.to_ts,
+        "--last": args.last is not None,
+        "--gateway": args.gateway,
+        "--kind": args.kind,
+        "--db": args.db != str(AUDIT_REPLAY_DB_FILE),
+        "--strict": args.strict,
+        "--clock-skew-warn": args.clock_skew_warn != DEFAULT_CLOCK_SKEW_WARN,
+        "--reorder-window": args.reorder_window is not None,
+        "--symbol": args.symbol and args.command == "rerun",
+        "--tz": str(args.tz) != "UTC" and args.command == "queue",
+    }
+    ignored = [flag for flag, value in given.items() if value]
+    if ignored:
+        return f"{args.command} re-runs the whole trail and takes no " + ", ".join(
+            ignored
         )
     return None
 
@@ -1184,7 +1355,7 @@ def _run_rerun(args: argparse.Namespace) -> int:
     if result.book_checked:
         print(f"final book: {result.counts['E4']} differences")
     else:
-        print("final book: not checked (no gtc_orders.json beside the trail)")
+        print(f"final book: not checked ({result.book_unchecked})")
     for label, key in (
         ("hidden input", "E1"),
         ("difference", "E2"),
@@ -1197,7 +1368,7 @@ def _run_rerun(args: argparse.Namespace) -> int:
 
 def _run_queue(args: argparse.Namespace) -> int:
     from edumatcher.audit.rawlines import Unavailable
-    from edumatcher.audit.replay.queue import LevelQueue, OrderQueue
+    from edumatcher.audit.replay.queue import LevelQueue, OrderQueue, order_ids
     from edumatcher.audit.replay.rerun import Rerun
 
     symbols = args.symbol or []
@@ -1210,8 +1381,25 @@ def _run_queue(args: argparse.Namespace) -> int:
         )
         return 2
     view: OrderQueue | LevelQueue
+    data_dir = Path(args.log_file).expanduser().parent
     if args.order is not None:
-        view = OrderQueue(args.order, anonymise=args.anonymise)
+        try:
+            matches = order_ids(data_dir, args.order)
+        except Unavailable as exc:
+            print(f"pm-audit-replay: cannot re-run: {exc}", file=sys.stderr)
+            return 3
+        if not matches:
+            print(f"order {args.order} is not in the trail")
+            return 1
+        if len(matches) > 1:
+            shown = ", ".join(matches[:5]) + (", ..." if len(matches) > 5 else "")
+            print(
+                f"pm-audit-replay: --order {args.order!r} matches "
+                f"{len(matches)} orders ({shown}); give more of the id",
+                file=sys.stderr,
+            )
+            return 2
+        view = OrderQueue(matches[0], anonymise=args.anonymise)
     elif args.price is None or len(symbols) != 1:
         print(
             "pm-audit-replay: a level view needs one --symbol and a --price",
@@ -1222,7 +1410,7 @@ def _run_queue(args: argparse.Namespace) -> int:
         view = LevelQueue(
             symbols[0], args.price, side=args.side, anonymise=args.anonymise
         )
-    run = Rerun(Path(args.log_file).expanduser().parent)
+    run = Rerun(data_dir)
     run.observers.append(view)
     try:
         run.run()
@@ -1244,6 +1432,14 @@ def main(argv: list[str] | None = None) -> int:
     if error:
         print(f"pm-audit-replay: {error}", file=sys.stderr)
         return 2
+    try:
+        return _dispatch(args)
+    except episode_index.NotAnIndexError as exc:
+        print(f"pm-audit-replay: {exc}", file=sys.stderr)
+        return 2
+
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "stream":
         return _run_stream(args)
     if args.command == "story":

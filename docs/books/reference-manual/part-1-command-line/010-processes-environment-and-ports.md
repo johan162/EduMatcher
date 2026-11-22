@@ -1028,8 +1028,9 @@ then poll for new ones every `--interval` seconds (default `1.0`).
 Reconstructs the causal structure of the audit trail and narrates it: which
 order caused which trade, which kill switch cancelled what, where the log
 disagrees with itself. It reads the same JSONL files as `pm-audit-cli`,
-read-only, and keeps a derived *episode index* in its own SQLite file. It joins
-no ZeroMQ socket.
+read-only. The reports read their window straight off the log; `story` reads a
+derived *episode index* in its own SQLite file, which it builds when it has
+none. It joins no ZeroMQ socket.
 
 ```bash
 pm-audit-replay [global options] COMMAND [command options]
@@ -1042,25 +1043,29 @@ pm-audit-replay anomalies --severity warn
 
 | Command | Purpose | Command options |
 |---|---|---|
-| `stream` | Narrate a window chronologically (the default view) | — |
+| `stream` | Narrate a window chronologically | — |
 | `story` | One entity and everything causally connected to it (needs the index) | exactly one selector: `--order`, `--trade`, `--quote`, `--oco`, `--combo`, `--command`, `--client-tag`, `--chain ULID`, `--msg ULID`; `--depth N` (default 2; not with `--chain`), `--strict-causality` |
-| `digest` | One paragraph per episode, most significant first | `--top N`, `--significance {anomalies,notional,qty,duration}` |
-| `episodes` | The index as a table, one row per episode | `--outcome OUTCOME` (repeatable) |
+| `digest` | One paragraph per episode, most significant first | `--top N` (N ≥ 1), `--significance {anomalies,notional,qty,duration}` |
+| `episodes` | One row per episode | `--outcome OUTCOME` (repeatable) |
 | `anomalies` | Every finding, worst first, with the `story` command to run next | `--severity {error,warn,info}` (a floor; default `info`) |
 | `stats` | Link confidence and envelope coverage over the window | — |
-| `index` | Build or refresh the episode index | `--stats` |
-| `rerun` | Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did | — |
-| `queue` | Follow one resting order, or one price level, through the queue (observes the re-run) | `--order ID` (order view), or `--price P` with the global `--symbol` and optional `--side {BUY,SELL}` (level view); `--anonymise` names other gateways A, B, C and hides iceberg reserve |
+| `index` | Build or refresh the episode index `story` reads (takes `--date`, not `--from`/`--to`/`--last`) | `--stats` |
+| `rerun` | Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did; the final book only when the trail ends with the engine's shutdown | — |
+| `queue` | Follow one resting order, or one price level, through the queue (observes the re-run) | `--order ID` (order view; a prefix two orders share is refused), or `--price P` with the global `--symbol` and optional `--side {BUY,SELL}` (level view); `--anonymise` names other gateways A, B, C and hides iceberg reserve |
+
+A subcommand is required. `rerun` and `queue` read the whole trail of the
+data directory whose `audit.log` `--log-file` names, and refuse the options
+they would ignore (a window, `--gateway`, `--kind`, the index and detection
+options; `--symbol` for `rerun`, `--tz` for `queue`).
 
 **Global options** (accepted before or after the command):
 
 | Flag | Default | Description |
 |---|---|---|
 | `--log-file PATH` | `<DATA_DIR>/audit.log` | Audit log to read: the live trail (unarchived day parts, then this file). An archive or day part named here is read alone |
-| `--db PATH` | `<DATA_DIR>/audit_replay.db` | Episode index |
-| `--no-index` | off | Stream without building or reading an index |
-| `--rebuild` | off | Rebuild the index before rendering. There is no incremental mode; the index rebuilds itself whenever the reconstruction rules, the detection settings or the source logs change |
-| `--from ISO_TS`, `--to ISO_TS` | — | Window bounds (ISO-8601 or `YYYY-MM-DD`) |
+| `--db PATH` | `<DATA_DIR>/audit_replay.db` | Episode index `story` and `index` use; a file that is not one is refused (exit `2`) and left untouched. The reports carry it into the `story` commands they suggest |
+| `--rebuild` | off | `story`, `index` only: rebuild the index first. There is no incremental mode; `story` builds when the index is absent or was built under other rules or detection settings, and reads one whose trail has since grown as it stands, saying so on stderr; `index` also rebuilds a grown trail |
+| `--from ISO_TS`, `--to ISO_TS` | — | Window bounds (ISO-8601 or `YYYY-MM-DD`; a bare date in `--to` is the end of that day) |
 | `--date YYYY-MM-DD` | — | One trading day, in the session timezone. Cannot be combined with `--from`/`--to` or with an archive named by `--log-file` |
 | `--last DURATION` | — | Relative window, e.g. `15m`, `2h`, `1d`. Cannot be combined with `--from`, `--to` or `--date` |
 | `--symbol`, `--gateway`, `--kind` | — | Restrict to symbols, gateways or episode kinds; each repeatable |
@@ -1075,13 +1080,17 @@ pm-audit-replay anomalies --severity warn
 | `--reorder-window SPEC` | `2000`/`5s` | Reorder buffer, a message count or a duration |
 | `--no-color` / `--force-color` | auto | Never / always emit ANSI colour (`--force-color` for `... \| less -R`) |
 | `--strict` | off | Also report findings that are expected at a window edge (`ARRIVAL_SEQ_GAP`) |
-| `--clock-skew-warn SECONDS` | `0.1` | Engine-versus-receipt clock difference worth reporting |
+| `--clock-skew-warn SECONDS` | `0.1` | Engine-versus-receipt clock difference worth reporting (a finite number ≥ 0) |
 | `--version` | — | Print version and exit |
 
-**Exit codes:** `0` success; `1` nothing to narrate, or no audit log at the
-given path (`rerun`: a difference; `queue`: order not in the trail); `2`
-argument error; `3` `rerun`/`queue`: the trail cannot be re-run (it does not
-begin at an engine start with an empty book, or has a proven hole).
+**Exit codes:** `0` success (a report with no findings included); `1` nothing
+to narrate (the window holds no episode; `stats`: no fact; `story`: nothing
+matching), or no audit log at the given path (`rerun`: a difference; `queue`:
+order not in the trail); `2` argument error (no subcommand, a value out of
+range, an option the subcommand does not take, an ambiguous `queue --order`, a
+`--db` that is not an episode index); `3` `rerun`/`queue`: the trail cannot be
+re-run (it does not begin at an engine start with an empty book, has a proven
+hole, or holds a line that does not parse).
 
 See [Audit Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md) for how causality is
 recovered, what each anomaly means and worked examples.

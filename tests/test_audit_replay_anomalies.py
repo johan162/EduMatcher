@@ -35,6 +35,7 @@ from edumatcher.audit.replay.anomalies import (
     DROP_COPY_DISAGREE,
     DROP_COPY_MISSING,
     DROP_COPY_SEQ_GAP,
+    FILL_AFTER_TERMINAL,
     FILL_BEFORE_ACK,
     FILL_STATUS_DISAGREE,
     FILL_WITHOUT_TRADE,
@@ -336,7 +337,7 @@ class TestConservation:
         log.line("order.fill." + GATEWAY, _fill(fill_price=76.0))
 
         assert PRICE_THROUGH_LIMIT in log.codes()
-        assert "through its 75 limit" in log.detail(PRICE_THROUGH_LIMIT)
+        assert "through its 75.00 limit" in log.detail(PRICE_THROUGH_LIMIT)
 
     def test_a_buy_filled_at_its_limit_is_not(self) -> None:
         """Price improvement and an exact fill are both normal; only the
@@ -368,7 +369,7 @@ class TestConservation:
         log.line("trade.executed", _trade(price=85.0))
 
         assert PRICE_OUTSIDE_CORRIDOR in log.codes()
-        assert "70-80 corridor" in log.detail(PRICE_OUTSIDE_CORRIDOR)
+        assert "70.00-80.00 corridor" in log.detail(PRICE_OUTSIDE_CORRIDOR)
 
     def test_a_print_inside_it_is_not(self) -> None:
         log = Log().line(
@@ -1261,3 +1262,108 @@ def test_every_anomaly_code_is_exercised_by_a_test() -> None:
     corpus = tests + own
     untested = [c for c in codes if not re.search(rf"\b{c}\b", corpus)]
     assert untested == []
+
+
+class TestEveryPriceIsPrintedExactly:
+    """WP-RPL07 (C9): ``:g`` rounds to six significant digits, so a buy limit
+    of 10 000.00 filled at 10 000.04 read "filled at 10000, through its 10000
+    limit" -- an error finding that contradicted itself."""
+
+    def test_a_limit_breach_names_both_prices_exactly(self) -> None:
+        log = Log().line("order.new", _submitted(price_ticks=1_000_000))
+        log.line("order.ack." + GATEWAY, _ack()).line(
+            "trade.executed", _trade(price=10000.04)
+        )
+        log.line("order.fill." + GATEWAY, _fill(fill_price=10000.04))
+
+        assert log.detail(PRICE_THROUGH_LIMIT) == (
+            f"BUY order {ORDER} filled at 10000.04, through its 10000.00 limit"
+        )
+
+    def test_a_corridor_prints_exactly_in_the_finding(self) -> None:
+        log = Log().line(
+            "circuit_breaker.halt.AAPL",
+            {
+                "symbol": "AAPL",
+                "corridor_low": 12345.6,
+                "corridor_high": 12999.99,
+                "halt_source": "BREAKER",
+            },
+        )
+        log.line("trade.executed", _trade(price=13000.01))
+
+        assert "printed 13000.01, outside the 12345.60-12999.99 corridor" in (
+            log.detail(PRICE_OUTSIDE_CORRIDOR)
+        )
+
+    def test_a_corridor_prints_exactly_in_a_halt_clause(self) -> None:
+        from edumatcher.audit.replay.state import SymbolState
+
+        state = SymbolState(
+            symbol="AAPL", halted=True, corridor_low=12345.6, corridor_high=12999.99
+        )
+        assert "corridor 12345.6-12999.99" in state.describe_halt()
+        state.tick_decimals = 2
+        assert "corridor 12345.60-12999.99" in state.describe_halt()
+
+    def test_a_vwap_is_not_rounded_in_the_digest(self) -> None:
+        from edumatcher.audit.replay import views
+        from edumatcher.audit.replay.derived import Derived
+
+        derived = Derived(vwap=12345.678)
+        episode = views.Row(1, "order", "X", "FILLED", BASE, (0, 0, 0, BASE, 0), 0.0, None, None, (), derived)  # fmt: skip
+        line = views._numbers(derived, episode)
+        assert "vwap 12345.678" in line
+
+    def test_a_price_with_a_scale_keeps_its_decimals(self) -> None:
+        from edumatcher.audit.replay.facts import Price
+
+        assert Price("p", 74.8, 74.8, 2, "x").render() == "74.80"
+        assert Price("p", 1234.567, 1234.567, None, "x").render() == "1234.567"
+        assert Price("p", 1234567.0, None, None, "x").render() == "1234567 ticks"
+
+
+class TestALateFillIsSeenWithinTheReorderWindow:
+    """WP-RPL10 under Q3 (b), as the guide documents it: once an order's
+    episode has retired (the reorder window past its end), the model has
+    forgotten it, and a later fill is narrated but not judged."""
+
+    def _findings(self, max_facts: int) -> list[str]:
+        log = Log().line("order.new", _submitted(quantity=10, remaining_qty=10))
+        log.line("order.ack." + GATEWAY, _ack(qty=10)).line(
+            "trade.executed", _trade(quantity=10)
+        )
+        log.line(
+            "order.fill." + GATEWAY,
+            _fill(fill_qty=10, remaining_qty=0, status="FILLED"),
+        )
+        for n in range(2001):
+            log.line("book.MSFT", {"symbol": "MSFT", "seq": n})
+        log.line(
+            "order.fill." + GATEWAY,
+            _fill(fill_qty=5, remaining_qty=0, status="FILLED", trade_ids=[]),
+        )
+        run, steps = reconstruct(log._entries, max_facts=max_facts)
+        detector = Detector(run.state)
+        episodes = detected(
+            assemble(
+                observed(steps, detector), run.state, run.links, max_facts=max_facts
+            ),
+            detector,
+        )
+        return [
+            anomaly.code
+            for episode in episodes
+            for anomaly in [a for e in episode.events for a in e.step.anomalies]
+            + list(episode.anomalies)
+        ]
+
+    def test_beyond_the_window_the_late_fill_is_not_judged(self) -> None:
+        codes = self._findings(2000)
+        assert FILL_AFTER_TERMINAL not in codes
+        assert QTY_MISMATCH not in codes
+
+    def test_a_wider_window_reaches_it(self) -> None:
+        codes = self._findings(5000)
+        assert FILL_AFTER_TERMINAL in codes
+        assert QTY_MISMATCH in codes

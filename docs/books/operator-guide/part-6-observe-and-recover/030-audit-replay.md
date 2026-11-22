@@ -133,23 +133,31 @@ and tagged `LATE_ARRIVAL` rather than silently misplaced.
 
 ### The episode index
 
-Reconstruction is a single streaming pass with bounded memory, so
-`--no-index` works on any log. The optional SQLite index at
-`data/audit_replay.db` materialises the episode model so that `story` can
-find one order without re-reading the log.
+The reports — `stream`, `episodes`, `digest`, `anomalies` and `stats` —
+reconstruct their window straight off the log and never build or read an
+index. Only `story` needs random access to the trail: the SQLite index at
+`data/audit_replay.db` materialises the episode model so that `story` can find
+one order without re-reading the log. `index` builds it ahead of time.
 
 | Property | Behaviour |
 |---|---|
-| Built | Automatically, when a command needs it and it is absent or stale |
+| Used by | `story` and `index` only |
+| Built | When `story` or `index` finds it absent, or built under other reconstruction rules, another schema or other detection settings; and on `--rebuild` |
+| Trail grown since | `story` answers from the index as it stands and says on stderr how far it reaches (`covered_to`) and that `--rebuild` includes the rest; `index` rebuilds. A trail that is not the one indexed — another `--date`, a day archived since — is rebuilt |
 | Covers | The whole log, always — never the window of the query that built it |
-| Stale when | The source logs changed, the reconstruction rules changed, or the detection settings changed |
-| Incremental | **No.** A rebuild is the whole story — see AR-3.4 in the design |
-| Size | Roughly 4.4× the log (it keeps every payload, which is what makes it a complete substitute) |
-| Build rate | ~5 500 events/s; 87 s for a 205 MiB log on the dev VM |
+| Incremental | **No.** A rebuild reads the whole trail — see AR-3.4 in the design |
+| Size | About 2.8× the log (it keeps every payload, which is what makes it a complete substitute): 708 MB for one 256 MB simulation part |
+| Build rate | About 6 000–7 000 lines/s: 54 s for one simulation part (375 000 lines) |
+| Written | To a scratch file beside it, moved into place when complete: a reader sees the old index or the new one, and an interrupted build leaves the old one |
 | Discarded | When its schema version is not current — no migration, by design |
+| Refused | A `--db` that names a file which is not an episode index (another tool's database, a text file) is refused with exit 2 and left untouched |
 
-`story` requires the index. Everything else works with or without it, and is
-required to produce identical output either way.
+!!! warning "A simulation day is large"
+    A simulation day is about 27 million lines in seventy-odd 256 MB parts.
+    Building its index takes over an hour and some 50 GB of disk, so build it
+    once, with `index`, and let `story` read it as the day grows. The reports
+    read only their window: a `--from`/`--to` or `--last` that covers an hour
+    reads an hour. Closed parts that end before `--from` are not opened at all.
 
 !!! tip "Why the index ignores the window"
     A cache may not depend on the question that populated it. Narrowing the
@@ -159,9 +167,15 @@ required to produce identical output either way.
     about it. Putting the window into that check would be worse: `--last` is
     relative, so it moves, and almost every call would rebuild.
 
-    The cost is that a narrow question against a large log pays for a full
-    build once. `--no-index` is the way to avoid paying it at all on a one-off
-    trail.
+### Memory
+
+`anomalies`, `digest --top N` and `stats` keep the findings, the N most
+significant episodes or a set of counters, so their memory does not grow with
+the window. `episodes`, and `digest` without `--top`, keep one row per episode
+— its columns, findings and figures, never its facts. `stream` and `story`
+narrate across episodes (a sentence names the counterparty's order) and hold
+their whole window: about 6.5 KB a line, so 2.5 GB for one simulation part.
+Narrow a `stream` to the minutes, symbols or gateways you need.
 
 
 
@@ -221,9 +235,8 @@ Every option below is accepted by every subcommand, as are `-h`/`--help`.
 | Option | Default | Meaning |
 |---|---|---|
 | `--log-file PATH` | `<DATA_DIR>/audit.log` | The trail to read: the live trail — every not-yet-archived day part, then this file. An archive or day part named here is read alone |
-| `--db PATH` | `<DATA_DIR>/audit_replay.db` | The episode index |
-| `--no-index` | off | Stream without building or reading an index |
-| `--rebuild` | off | Rebuild the index before rendering |
+| `--db PATH` | `<DATA_DIR>/audit_replay.db` | The episode index `story` and `index` use. The reports never open it; they name it in the `story` commands they suggest |
+| `--rebuild` | off | `story`, `index`: rebuild the index first. Refused by every other subcommand |
 
 !!! warning "Day parts are part of the trail"
     `--log-file audit.log` reads the unarchived day parts in `audit/` beside
@@ -238,7 +251,7 @@ Every option below is accepted by every subcommand, as are `-h`/`--help`.
 | Option | Meaning |
 |---|---|
 | `--from ISO_TS` | Start of window (ISO-8601, or `YYYY-MM-DD`) |
-| `--to ISO_TS` | End of window |
+| `--to ISO_TS` | End of window. A bare `YYYY-MM-DD` is the end of that day, as in `pm-audit-cli` |
 | `--date YYYY-MM-DD` | Replay this trading day (session timezone) from its archive, or from its parts before it is archived. Not a time window: the day is its files |
 | `--last DURATION` | Relative window: `15m`, `2h`, `1d` |
 
@@ -248,11 +261,17 @@ archive given as `--log-file`; `--last` cannot be combined with `--from`/`--to`.
 `--tz` changes what is displayed, never what is selected. Yesterday replays
 from its archive with `--date`; today replays by default, across the midnight
 close, with no event repeated or missing. The episode index follows the file
-set, so it rebuilds by itself once a day has been archived.
+set, so `story` rebuilds it once a day has been archived.
 
 The window narrows the **query**, never the index: an index always covers the
-whole log, so the same one answers a wide question and a narrow one. Passing a
-window to the `index` subcommand is refused rather than ignored.
+whole log, so the same one answers a wide question and a narrow one. Passing
+`--from`, `--to` or `--last` to the `index` subcommand is refused rather than
+ignored; `--date` is accepted, because a day is its files.
+
+A report reads the lines of its window: an order submitted before `--from`
+whose fill is inside it appears by its tail, with the fill, and an order whose
+submission is inside the window but whose fill is after `--to` appears without
+it. Widen the window when an episode looks cut.
 
 ### Filters
 
@@ -352,19 +371,19 @@ They are formats something else reads.
 | Option | Default | Meaning |
 |---|---|---|
 | `--strict` | off | Also report findings that are expected at a window edge (`ARRIVAL_SEQ_GAP`) |
-| `--clock-skew-warn SECONDS` | `0.1` | Engine/receipt clock difference worth reporting |
+| `--clock-skew-warn SECONDS` | `0.1` | Engine/receipt clock difference worth reporting; a finite number ≥ 0 |
 
 Detection settings are part of what makes an index stale: changing them
-forces a rebuild, so a stored index can never disagree with the flags that
-produced it.
+forces `story` to rebuild it, so a stored index can never disagree with the
+flags that produced it.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| `0` | Success |
-| `1` | Nothing to narrate, or no audit log at the given path |
-| `2` | Argument error, including a format a subcommand cannot produce |
+| `0` | Success, including a report with no findings |
+| `1` | Nothing to narrate: the window holds no episode (`stats`: no fact), `story` finds nothing matching, or there is no audit log at the given path. `rerun`: a difference. `queue`: the order is not in the trail |
+| `2` | Argument error: no subcommand, a format a subcommand cannot produce, a value out of range (`--top 0`, a negative `--clock-skew-warn`), `--rebuild` on a report, an option `rerun`/`queue` would ignore, an ambiguous `queue --order` prefix, or a `--db` that is not an episode index |
 | `3` | `rerun` or `queue`: the trail cannot be re-run (see [Re-executing the trail](#re-executing-the-trail)) |
 
 
@@ -389,18 +408,18 @@ reader should look at, **info** is something expected at a window edge.
 | `ACK_MISSING` | warn | An `order.new` with no `order.ack` inside the window |
 | `ACK_DUPLICATE` | error | One order accepted twice |
 | `FILL_BEFORE_ACK` | warn | A fill whose canonical key precedes its ack — a genuine inversion, not a reorder artefact |
-| `FILL_AFTER_TERMINAL` | error | A fill for an order the trail has already ended |
-| `ILLEGAL_STATUS_TRANSITION` | error | A status change outside `NEW → PARTIAL → FILLED \| CANCELLED \| REJECTED \| EXPIRED` |
+| `FILL_AFTER_TERMINAL` | error | A fill for an order the trail has already ended, within the reorder window of its end (see below) |
+| `ILLEGAL_STATUS_TRANSITION` | error | A status change outside `NEW → PARTIAL → FILLED \| CANCELLED \| REJECTED \| EXPIRED`, within the reorder window of the order's end |
 | `TERMINAL_MISSING` | info | An order still open when the window ends |
-| `CANCEL_UNSOLICITED` | warn | `order.cancelled` with neither a request in its episode nor a `cancel_reason` naming a cause |
-| `CANCEL_UNMATCHED` | warn | `order.cancel` with nothing coming back |
+| `CANCEL_UNSOLICITED` | warn | `order.cancelled` with no recorded cause (`causation_id`), no request in its episode and no `cancel_reason`. An OCO's or a quote's legs cancelled by an `order.oco_cancel` or `quote.cancel` name that request as their cause |
+| `CANCEL_UNMATCHED` | warn | `order.cancel` with nothing coming back. A cancel that lost the race to a fill, and its `ORDER_NOT_FOUND` refusal, join the order's episode and are not reported |
 | `FILL_STATUS_DISAGREE` | error | An `order.fill` whose `status` and `remaining_qty` contradict each other — `FILLED` with quantity left, or `PARTIAL` with none |
 
 ### Quantity and price conservation
 
 | Code | Severity | Condition |
 |---|---|---|
-| `QTY_MISMATCH` | error | `Σ fill_qty ≠ quantity − remaining_qty` — the tool's own tally against the engine's |
+| `QTY_MISMATCH` | error | `Σ fill_qty ≠ quantity − remaining_qty` — the tool's own tally against the engine's; a late fill counts only within the reorder window of the order's end |
 | `REMAINING_NOT_MONOTONIC` | error | `remaining_qty` rose across fills of one order |
 | `TRADE_LEG_MISSING` | error | A `trade.executed` with fewer than two `order.fill` legs naming it |
 | `FILL_WITHOUT_TRADE` | error | An `order.fill` whose `trade_ids` name no `trade.executed` in the window |
@@ -414,6 +433,17 @@ reader should look at, **info** is something expected at a window edge.
 | `DROP_COPY_MISSING` | warn | A trade that did not produce two drop copies, one per counterparty. Silent when the window holds no drop-copy feed at all |
 | `PRICE_THROUGH_LIMIT` | error | A fill outside its order's limit — a buy above it or a sell below it |
 | `PRICE_OUTSIDE_CORRIDOR` | warn | A print outside the circuit-breaker corridor in force for its symbol |
+
+!!! note "How far after an order's end a late fill is seen"
+    Once an order's episode has ended and the reorder window has passed it
+    (2 000 facts or 5 seconds; at simulation rate 2 000 facts is about 0.2 s),
+    the tool forgets the order, which is what keeps memory flat over a day. A
+    fill or status change that arrives later is still narrated, in an episode
+    of its own, but `FILL_AFTER_TERMINAL`, `ILLEGAL_STATUS_TRANSITION` and the
+    late fill's share of `QTY_MISMATCH` are not reported for it. A late fill
+    from an engine defect normally follows within milliseconds; to look further,
+    widen the window with `--reorder-window 200000` (a fact count) or
+    `--reorder-window 60s`.
 
 !!! tip "Why both tallies are kept"
     `QTY_MISMATCH` compares what the fills add up to against what the engine
@@ -486,6 +516,17 @@ rather than deferred.
     end-to-end check that the engine's published account of itself is
     internally consistent, and it is expected to come out green.
 
+    A simulation trail is checked the same way, with two kinds of finding to
+    expect rather than explain away: `CLOCK_SKEW` when the host is loaded and
+    the engine's and the recorder's clocks drift apart by more than
+    `--clock-skew-warn`, and findings at a window edge: `RESUME_WITHOUT_HALT`
+    for a halt that began before `--from` (or in an earlier part read alone),
+    and — the one at error — `TRADE_LEG_MISSING` with 0 legs for a trade at
+    the very start of the window, because the engine publishes a match's
+    fills just *before* its trade and they fell outside. On one 21-minute part of a simulation day
+    (375 000 lines) those were the only findings at warn: 135 `CLOCK_SKEW`
+    and 18 `RESUME_WITHOUT_HALT`.
+
 
 
 ## Examples
@@ -549,6 +590,11 @@ WARN   09:44:10.019  EFFECT_COUNT_MISMATCH  command 8812
 
 1 finding(s) (1 warn) across 7 episode(s).
 ```
+
+The suggested command carries the `--log-file`, `--db` and `--date` the report
+was run with, so pasting it reads the same trail: after
+`pm-audit-replay --log-file /tmp/run/audit.log anomalies` the suggestion is
+`pm-audit-replay --log-file /tmp/run/audit.log story --command 8812 -v --explain`.
 
 ### Did a kill switch do what it said?
 
@@ -630,10 +676,15 @@ final book: 0 differences
 |---|---|
 | `hidden inputs` | State changes the live engine published with no command or named timer behind them. The trail does not hold what caused them, so the re-run cannot reproduce them |
 | `outputs` | Commands after which the fresh engine published something different. A difference is non-determinism, a hidden input, or a change in the engine since the run, so re-run with the engine version the run used; the line names both versions |
-| `final book` | The re-run's resting book against `gtc_orders.json` beside the trail. Said plainly when the file is not there |
+| `final book` | The re-run's resting `GTC` and `DAY` orders (the ones the engine persists) against `gtc_orders.json` beside the trail. Compared only when the trail's last run ends with the engine's shutdown (its `EOD` book checkpoints); while the engine runs, the file is a periodic checkpoint up to seconds older than the trail. Otherwise the line says why it was not checked |
 
 `rerun` reads every file in the data directory, archived days included, from the
-first line on. An engine restart in the trail is re-run as a restart: the fresh
+first line on. `--log-file` names the data directory's `audit.log`; an archive
+or a day part is refused, and so is every option `rerun` would ignore (a
+window, `--gateway`, `--kind`, `--symbol`, the detection options), with exit 2.
+On a running exchange the last line may be half written: it is not read. A
+line inside the trail whose sequence or payload does not parse ends the re-run
+with exit 3, naming its time and topic. An engine restart in the trail is re-run as a restart: the fresh
 engine persists its book as the live one did on its way down, and the next run's
 engine starts from those files, on that run's own configuration and run
 sequence. Each start's book is compared with the live engine's `STARTUP`
@@ -703,10 +754,11 @@ Two warnings can appear in the timeline. One says the re-run and the live engine
 differ on the symbol from that point, so the positions after it are the re-run's.
 The other says the live engine's own `engine.trace` queued the order at a
 different priority than the re-run did; a clean trail never shows either. Like
-`rerun`, `queue` needs a trail it can re-run (see above), and reads the whole
-trail per query. Exit codes: `0`
-answered, `1` the order is not in the trail, `2` bad arguments, `3` the trail
-cannot be re-run.
+`rerun`, `queue` needs a trail it can re-run (see above), reads the whole
+trail per query and refuses the options it would ignore (`--tz` among them:
+its times are UTC). An `--order` prefix that two orders share is refused with
+exit 2, naming them. Exit codes: `0` answered, `1` the order is not in the
+trail, `2` bad arguments, `3` the trail cannot be re-run.
 
 ### Feed it to something else
 
@@ -716,14 +768,16 @@ pm-audit-replay anomalies --severity error --format json > findings.json
 pm-audit-replay story --order 4f2c9a --format markdown >> incident.md
 ```
 
-### Read a log with no index at all
+### Read a one-off trail
 
 ```bash
-pm-audit-replay stream --no-index --log-file /tmp/captured.log
+pm-audit-replay --log-file /tmp/captured.log anomalies --severity warn
+pm-audit-replay --log-file /tmp/captured.log --db /tmp/captured.db story --order 4f2c9a
 ```
 
-Useful for a one-off trail that would only leave a database behind. `story`
-is the one subcommand this cannot serve.
+The reports leave nothing behind. `story` builds an index at `--db`; give a
+one-off trail its own, so the default index keeps describing the default
+trail.
 
 
 

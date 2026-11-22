@@ -1484,32 +1484,86 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         synopsis=(
             "pm-audit-replay [--log-file data/audit.log] [--db data/audit_replay.db]",
-            "                [--from ISO_TS] [--to ISO_TS] [-q|-v|-vv] COMMAND",
+            "                [--from ISO_TS] [--to ISO_TS | --date D | --last DUR]",
+            "                [-q|-v|-vv|-vvv] COMMAND [command options]",
         ),
         description=(
             "pm-audit-cli answers 'which events match this filter?'. This "
             "answers 'what happened, in order, and why?' -- it reads causality "
             "from each message's envelope, groups events into episodes, and "
             "renders them.",
-            "Read-only with respect to the audit trail, and a separate index "
-            "(data/audit_replay.db) from pm-audit-cli's event index.",
-            "Under construction: the global options below are settled, but no "
-            "subcommand is registered yet.",
+            "Read-only with respect to the audit trail. The reports read their "
+            "window straight off the log; story reads a separate episode index "
+            "(data/audit_replay.db), which it builds when it has none and index "
+            "builds ahead of time.",
+            "Exit codes: 0 success; 1 nothing in the window, nothing matching, or "
+            "no audit log (rerun: a difference; queue: order not in the trail); "
+            "2 argument error; 3 rerun/queue: the trail cannot be re-run.",
+        ),
+        subcommands=(
+            Subcommand("stream", purpose="Narrate a window chronologically"),
+            Subcommand(
+                "story",
+                args="(--order ID | --trade ID | --quote ID | --oco ID | --combo ID "
+                "| --command ID | --client-tag TAG | --chain ULID | --msg ULID) "
+                "[--depth N] [--strict-causality]",
+                purpose="One entity and everything causally connected to it",
+            ),
+            Subcommand(
+                "digest",
+                args="[--top N] [--significance RULE]",
+                purpose="One paragraph per episode, most significant first",
+            ),
+            Subcommand(
+                "episodes",
+                args="[--outcome OUTCOME]",
+                purpose="One row per episode; --format csv for export",
+            ),
+            Subcommand(
+                "anomalies",
+                args="[--severity error|warn|info]",
+                purpose="Every finding, worst first, with the story command to run",
+            ),
+            Subcommand(
+                "stats", purpose="Link confidence, envelope coverage, finding counts"
+            ),
+            Subcommand(
+                "index",
+                args="[--stats]",
+                purpose="Build or refresh the episode index story reads",
+            ),
+            Subcommand(
+                "rerun",
+                purpose="Feed the trail's commands to a fresh engine and compare",
+            ),
+            Subcommand(
+                "queue",
+                args="(--order ID | --symbol S --price P [--side SIDE]) [--anonymise]",
+                purpose="Where an order stood in its level, or what a level did",
+            ),
         ),
         options=(
             Option("--log-file PATH", "data/audit.log", "Audit log to read"),
-            Option("--db PATH", "data/audit_replay.db", "Episode index"),
-            Option("--no-index", "off", "Stream without building or reading an index"),
-            Option("--rebuild", "off", "Rebuild the episode index before rendering"),
+            Option(
+                "--db PATH",
+                "data/audit_replay.db",
+                "Episode index story and index use",
+            ),
+            Option("--rebuild", "off", "story, index: rebuild the index first"),
             Option("--from ISO_TS", "-", "Start of window"),
-            Option("--to ISO_TS", "-", "End of window"),
-            Option("--date YYYY-MM-DD", "-", "Shorthand for a whole UTC day"),
+            Option("--to ISO_TS", "-", "End of window (a bare date: its end)"),
+            Option(
+                "--date YYYY-MM-DD",
+                "-",
+                "One trading day (session timezone): its archive or parts",
+            ),
             Option("--last DURATION", "-", "Relative window, e.g. 15m, 2h, 1d"),
             Option("--symbol SYMBOL", "all", "Restrict to symbols (repeatable)"),
             Option("--gateway GW_ID", "all", "Restrict to gateways (repeatable)"),
             Option("--kind KIND", "all", "Restrict to episode kinds (repeatable)"),
-            Option("-q, -v, -vv, -vvv", "-v", "Detail level"),
-            Option("--format FORMAT", "text", "text, ndjson, json or markdown"),
+            Option("-q", "-", "Detail level 0: episode outcomes only"),
+            Option("-v", "level 1", "Raise the detail level; -vv, -vvv for more"),
+            Option("--format FORMAT", "text", "text, ndjson, json, markdown or csv"),
             Option("--show-source", "off", "Append audit.log:LINE to every line"),
             Option("--show-units", "off", "Append unit provenance to every price"),
             Option("--explain", "off", "Show link evidence and confidence inline"),
@@ -1517,10 +1571,25 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
             Option("--actor-style STYLE", "id", "Actor naming: id or descriptive"),
             Option("--tz TZ", "UTC", "Render timestamps in this zone"),
             Option("--reorder-window SPEC", "2000/5s", "Reorder buffer size"),
-            Option("--no-color", "off", "Disable ANSI colour"),
+            Option("--no-color", "off", "Never emit ANSI colour"),
+            Option("--force-color", "off", "Emit ANSI colour even into a pipe"),
+            Option(
+                "--strict",
+                "off",
+                "Also report findings expected at a window edge",
+            ),
+            Option(
+                "--clock-skew-warn SECONDS",
+                "0.1",
+                "Engine/receipt clock difference worth reporting",
+            ),
         ),
         related=("pm-audit-cli", "pm-audit", "pm-stats-cli"),
-        examples=("pm-audit-replay --date 2026-09-08 --symbol AAPL -v",),
+        examples=(
+            "pm-audit-replay --date 2026-09-08 --symbol AAPL -v stream",
+            "pm-audit-replay anomalies --severity warn",
+            "pm-audit-replay story --order 4f2c9a -v --explain",
+        ),
         notes=("Design: docs-design/EduMatcher-Audit-Replay.md",),
     ),
     CommandInfo(

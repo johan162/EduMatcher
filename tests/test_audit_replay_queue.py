@@ -390,3 +390,43 @@ class TestCli:
         code, _, err = self.run(scenario, "--order", scenario.ids["C"], capsys=capsys)
         assert code == 3
         assert "cannot re-run" in err
+
+
+class TestAnAmbiguousOrder:
+    """C10: an empty or shared prefix answered for the first order that
+    matched, exit 0."""
+
+    def _orders(self, scenario: Scenario) -> list[str]:
+        log = (scenario.data / "audit.log").read_text().splitlines()
+        return [
+            ln.split("] ", 3)[3].split('"id": "', 1)[1][:32]
+            for ln in log
+            if "[order.new]" in ln
+        ]
+
+    def test_an_empty_order_is_ambiguous(
+        self, scenario: Scenario, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = main(
+            ["--log-file", str(scenario.data / "audit.log"), "queue", "--order", ""]
+        )
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "matches" in err
+        assert self._orders(scenario)[0] in err
+
+    def test_a_shared_prefix_names_the_candidates(
+        self, scenario: Scenario, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        first, second = self._orders(scenario)[:2]
+        common = ""
+        for a, b in zip(first, second):
+            if a != b:
+                break
+            common += a
+        code = main(
+            ["--log-file", str(scenario.data / "audit.log"), "queue", "--order", common]
+        )
+        assert code == 2
+        err = capsys.readouterr().err
+        assert first in err and second in err

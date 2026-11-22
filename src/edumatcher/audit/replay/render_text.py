@@ -50,7 +50,7 @@ from edumatcher.audit.replay.episodes import (
     Episode,
     EpisodeEvent,
 )
-from edumatcher.audit.replay.facts import Fact
+from edumatcher.audit.replay.facts import Fact, price_text
 from edumatcher.audit.replay.links import REJECTED_BECAUSE, Confidence, Link
 from edumatcher.audit.replay.ordering import sort_key
 from edumatcher.audit.replay.state import StateModel
@@ -539,10 +539,10 @@ class Renderer:
         return f" — legs {' and '.join(legs)}" if legs else ""
 
     def _corridor(self, fact: Fact) -> str:
-        low, high = _price(fact, "corridor_low"), _price(fact, "corridor_high")
-        if low is None or high is None:
+        low, high = fact.prices.get("corridor_low"), fact.prices.get("corridor_high")
+        if low is None or high is None or not (low.resolved and high.resolved):
             return ""
-        return f", corridor {low:g}-{high:g}"
+        return f", corridor {low.render()}-{high.render()}"
 
     def _trigger(self, fact: Fact) -> str:
         trigger, reference = _price(fact, "trigger_price"), _price(
@@ -551,7 +551,10 @@ class Renderer:
         if trigger is None or reference is None or not reference:
             return ""
         move = (trigger - reference) / reference * 100
-        return f", triggered at {trigger:g} against {reference:g} ({move:+.1f}%)"
+        return (
+            f", triggered at {fact.prices['trigger_price'].render()} against "
+            f"{fact.prices['reference_price'].render()} ({move:+.1f}%)"
+        )
 
     def _imbalance(self, fact: Fact, word: Any) -> str:
         qty = _int(fact.payload, "imbalance_qty")
@@ -815,7 +818,7 @@ def _level(payload: Mapping[str, Any], side: str, scale: int | None) -> str:
     # so it never passes through Price -- but it is the same instrument, and
     # printing 74.8 beside a 74.80 elsewhere in the same line reads as two
     # different prices.
-    shown = f"{price:.{scale}f}" if scale is not None else f"{price:g}"
+    shown = price_text(price, scale)
     return f"{shown} x {_number(qty) or qty}"
 
 

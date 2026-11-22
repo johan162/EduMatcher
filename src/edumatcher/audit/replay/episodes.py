@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from collections import deque
 from typing import Iterable, Iterator, Mapping, TypeVar
 
 from edumatcher.audit.replay import kinds
@@ -402,7 +403,16 @@ class EpisodeAssembler:
         #: than reviving the first.
         self._open: dict[tuple[str, str], Episode] = {}
         #: Closed but still reachable, oldest first: ``(facts_seen, ts, ep)``.
-        self._closing: list[tuple[int, datetime, Episode]] = []
+        #: A deque: retirement pops the oldest of up to a window's episodes on
+        #: almost every fact.
+        self._closing: deque[tuple[int, datetime, Episode]] = deque()
+        #: The order episodes in ``_closing``, by order id. A request or ack
+        #: about an order that arrives after its end -- a cancel that lost
+        #: the race to the fill, and its ``ORDER_NOT_FOUND`` refusal -- joins
+        #: the order's episode rather than opening new ones. Orders only: an
+        #: order id names one order for good, where a second halt on a symbol
+        #: is a second episode.
+        self._closing_orders: dict[str, Episode] = {}
 
     # -- feeding ------------------------------------------------------------
 
@@ -429,6 +439,16 @@ class EpisodeAssembler:
             self._close_oco_sibling(fact)
 
         episode = self._open.get((kind, anchor))
+        if episode is None and kind == KIND_ORDER:
+            late = self._closing_orders.get(anchor)
+            if late is not None:
+                late.events.append(
+                    EpisodeEvent(
+                        step=step, seq_in_ep=len(late.events), role=ROLE_PROGRESS
+                    )
+                )
+                yield from self._retire(fact.receipt_ts)
+                return
         if episode is None:
             episode = Episode(episode_id=self._take_id(), kind=kind, anchor_key=anchor)
             self._open[(kind, anchor)] = episode
@@ -456,6 +476,7 @@ class EpisodeAssembler:
         for _seen, _ts, episode in self._closing:
             yield episode
         self._closing.clear()
+        self._closing_orders.clear()
         for episode in self._open.values():
             episode.outcome = self._open_outcome(episode)
             yield episode
@@ -563,6 +584,8 @@ class EpisodeAssembler:
         episode.closed_sort_key = key
         self._open.pop((episode.kind, episode.anchor_key), None)
         self._closing.append((self._facts_seen, when, episode))
+        if episode.kind == KIND_ORDER:
+            self._closing_orders[episode.anchor_key] = episode
 
     def _open_outcome(self, episode: Episode) -> str:
         """What to call an episode the window ended on top of.
@@ -583,9 +606,10 @@ class EpisodeAssembler:
         """Release every closed episode the reorder window has moved past.
 
         Retiring the episode retires everything held on its behalf -- the order
-        state, and the resolver's index of its messages. That is the half of
-        section 7.1 phase 2 deferred, and it is what makes the memory flat on
-        a log of any length.
+        state, its requests, and the resolver's index of its messages. That is
+        the half of section 7.1 phase 2 deferred, and it is what keeps pass 1's
+        memory flat on a log of any length. (What a *report* keeps of the
+        episodes it is handed is the report's business: see ``views.Row``.)
         """
         while self._closing:
             seen, closed_ts, episode = self._closing[0]
@@ -593,11 +617,13 @@ class EpisodeAssembler:
             elapsed = (now - closed_ts).total_seconds()
             if behind <= self.max_facts and elapsed <= self.max_seconds:
                 return
-            self._closing.pop(0)
+            self._closing.popleft()
             if episode.kind == KIND_ORDER:
+                self._closing_orders.pop(episode.anchor_key, None)
                 self.state.retire_order(episode.anchor_key)
-            if self.links is not None:
-                for event in episode.events:
+            for event in episode.events:
+                self.state.forget_request(event.fact)
+                if self.links is not None:
                     self.links.forget(event.fact)
             yield episode
 

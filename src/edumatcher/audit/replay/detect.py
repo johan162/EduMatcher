@@ -73,7 +73,7 @@ from edumatcher.audit.replay.episodes import (
     OUTCOME_OPEN,
     Episode,
 )
-from edumatcher.audit.replay.facts import CLOCK_CLIENT, CLOCK_ENGINE, Fact
+from edumatcher.audit.replay.facts import CLOCK_CLIENT, CLOCK_ENGINE, Fact, price_text
 from edumatcher.audit.replay.pipeline import Step
 from edumatcher.audit.replay.state import STATUS_FILLED, StateModel
 
@@ -195,9 +195,9 @@ class Detector:
         self._limits: dict[str, tuple[str, float]] = {}
         #: trade_id -> its legs, as the fills naming it are read.
         self._legs: dict[str, list[_Leg]] = {}
-        #: Trade ids read so far, so a fill naming one that is not here is a
-        #: fill whose trade is missing rather than merely not read yet -- the
-        #: engine publishes the trade before either fill.
+        #: Trade ids read so far. The engine publishes a match's fills before
+        #: its trade, so a fill naming one that is not here has usually not
+        #: been read yet; ``_awaiting`` holds it until the trade is.
         self._trades: set[str] = set()
         #: Trade ids some fill has named and no ``trade.executed`` has yet
         #: accounted for. Emptied as each trade is read, so on a healthy log
@@ -218,12 +218,21 @@ class Detector:
         self._last_trade_seq: dict[int, int] = {}
         self._last_arrival: int | None = None
         self._arrival_run: int | None = None
+        #: symbol -> its tick decimals, from the first message that declares
+        #: them, so a finding prints its prices at the instrument's precision
+        #: (``10000.00``) even when the price it quotes is display money from
+        #: a message that declares none. Bounded by the number of symbols.
+        self._scales: dict[str, int] = {}
 
     # -- pass one: one fact at a time ---------------------------------------
 
     def observe(self, fact: Fact) -> tuple[Anomaly, ...]:
         """Findings this fact raises against everything read before it."""
         found: list[Anomaly] = []
+        if fact.symbol and fact.symbol not in self._scales:
+            decimals = _int(fact.payload, "tick_decimals")
+            if decimals is not None:
+                self._scales[fact.symbol] = decimals
         self._clocks(fact, found)
         if fact.kind == kinds.ORDER_NEW:
             self._on_order_new(fact, found)
@@ -425,8 +434,9 @@ class Detector:
                 _anomaly(
                     PRICE_THROUGH_LIMIT,
                     SEVERITY_ERROR,
-                    f"{side} order {order_id} filled at {price:g}, "
-                    f"through its {bound:g} limit",
+                    f"{side} order {order_id} filled at "
+                    f"{self._money(price, fact.symbol)}, through its "
+                    f"{self._money(bound, fact.symbol)} limit",
                     fact,
                 )
             )
@@ -532,8 +542,9 @@ class Detector:
             _anomaly(
                 PRICE_OUTSIDE_CORRIDOR,
                 SEVERITY_WARN,
-                f"{fact.symbol} printed {price:g}, outside the "
-                f"{low:g}-{high:g} corridor in force",
+                f"{fact.symbol} printed {self._money(price, fact.symbol)}, "
+                f"outside the {self._money(low, fact.symbol)}-"
+                f"{self._money(high, fact.symbol)} corridor in force",
                 fact,
             )
         )
@@ -624,7 +635,10 @@ class Detector:
             and leg.price is not None
             and abs(price - leg.price) > _PRICE_EPSILON
         ):
-            differs.append(f"fill_price {price:g} against {leg.price:g}")
+            differs.append(
+                f"fill_price {self._money(price, symbol)} against "
+                f"{self._money(leg.price, symbol)}"
+            )
         if symbol is not None and leg.symbol is not None and symbol != leg.symbol:
             differs.append(f"symbol {symbol} against {leg.symbol}")
         if differs:
@@ -657,6 +671,12 @@ class Detector:
             return self._close_phase(episode)
         return ()
 
+    def _money(self, value: float | None, symbol: str | None) -> str:
+        """A price in a finding, exactly, at the symbol's precision if known."""
+        if value is None:
+            return "-"
+        return price_text(value, self._scales.get(symbol or ""))
+
     def _close_order(self, episode: Episode) -> tuple[Anomaly, ...]:
         found: list[Anomaly] = []
         present = {event.fact.kind for event in episode.events}
@@ -687,13 +707,22 @@ class Detector:
                 for event in episode.events
                 if event.fact.kind == kinds.ORDER_CANCELLED
             )
-            if _str(cancelled.payload, "cancel_reason") is None:
+            # Solicited when the trail records what caused it. The engine
+            # cancels an OCO's or a quote's legs for an `order.oco_cancel` or
+            # a `quote.cancel` that belongs to the OCO or quote episode, with
+            # no cancel_reason; the legs' cancels name that request as their
+            # `causation_id`, in or out of the window.
+            if (
+                _str(cancelled.payload, "cancel_reason") is None
+                and cancelled.causation_id is None
+            ):
                 found.append(
                     _anomaly(
                         CANCEL_UNSOLICITED,
                         SEVERITY_WARN,
                         f"order {episode.anchor_key} was cancelled with no "
-                        "request in this window and no cancel_reason",
+                        "request in this window, no recorded cause and no "
+                        "cancel_reason",
                         cancelled,
                     )
                 )
@@ -856,8 +885,10 @@ class Detector:
                         _anomaly(
                             PRINT_PRICE_DISAGREE,
                             SEVERITY_ERROR,
-                            f"trade {trade_id} printed {printed_price:g} but "
-                            f"{leg.order_id}'s fill reports {leg.price:g}",
+                            f"trade {trade_id} printed "
+                            f"{self._money(printed_price, trade.symbol)} but "
+                            f"{leg.order_id}'s fill reports "
+                            f"{self._money(leg.price, trade.symbol)}",
                             trade,
                         )
                     )
@@ -936,7 +967,10 @@ class Detector:
                     LEG_PRICE_DISAGREE,
                     SEVERITY_ERROR,
                     f"trade {trade_id} legs report "
-                    + ", ".join(f"{leg.order_id}={leg.price:g}" for leg in comparable),
+                    + ", ".join(
+                        f"{leg.order_id}={self._money(leg.price, trade.symbol)}"
+                        for leg in comparable
+                    ),
                     trade,
                 )
             )

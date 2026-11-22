@@ -116,10 +116,8 @@ class Price:
         the one thing section 5.3.1 exists to stop.
         """
         if self.display is None:
-            return f"{self.raw:g} ticks"
-        if self.tick_decimals is None:
-            return f"{self.display:g}"
-        return f"{self.display:.{self.tick_decimals}f}"
+            return f"{price_text(self.raw)} ticks"
+        return price_text(self.display, self.tick_decimals)
 
     def provenance(self) -> str:
         """The ``--show-units`` annotation: how this number came to be."""
@@ -128,6 +126,21 @@ class Price:
         if self.source == _ALREADY_DISPLAY:
             return _ALREADY_DISPLAY
         return f"ticks->display, tick_decimals={self.tick_decimals}"
+
+
+def price_text(value: float, scale: int | None = None) -> str:
+    """*value* as it may be printed: never rounded.
+
+    With the instrument's tick scale, that many decimals (``74.80``).
+    Without one, the float's shortest exact form (``10000.04``, ``1234.567``),
+    and no ``.0`` on a whole number. ``:g`` is what this replaces: it keeps
+    six significant digits, so a fill at 10 000.04 through a 10 000.00
+    limit printed as "filled at 10000, through its 10000 limit".
+    """
+    if scale is not None:
+        return f"{value:.{scale}f}"
+    text = repr(float(value))
+    return text[:-2] if text.endswith(".0") else text
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,7 +437,9 @@ def normalise(entries: Iterable[AuditEntry]) -> Iterator[Fact]:
         if seen_fact and entry.topic == TOPIC_STARTUP and entry.seq == 1:
             publisher_run += 1
         fact = to_fact(entry, ordinal)
-        fact = replace(fact, publisher_run=publisher_run)
+        if publisher_run:
+            # A copy per fact otherwise: the first run is the default 0.
+            fact = replace(fact, publisher_run=publisher_run)
         seen_fact = True
         if previous is not None and previous[0] == entry.file:
             # Comment lines (the header, a recorder-start marker) are not lost

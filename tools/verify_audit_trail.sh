@@ -189,9 +189,8 @@ if [[ "$LINES" -eq 0 ]]; then
 fi
 
 header "STEP D — Reconstruct the trail and look for anomalies"
-# --no-index: this trail is written once and read once, so building an index
-# for it would only leave a database behind.
-REPORT="$(poetry run pm-audit-replay --log-file "$AUDIT_LOG" --no-index \
+# The reports read the log and leave no index behind.
+REPORT="$(poetry run pm-audit-replay --log-file "$AUDIT_LOG" \
             anomalies --severity warn)"
 echo "$REPORT"
 

@@ -55,11 +55,20 @@ class Recorder:
         self.n = 0
         self.chain: str | None = None
         self.unit_chain: str | None = None
+        #: The command being handled. With :attr:`causes` on, the engine's
+        #: output names it as its ``cause=``, as the real CausalPublisher's
+        #: envelope does; off by default so the E checks' recordings, and the
+        #: recorders deriving from this one, keep their shape.
+        self.cause: str | None = None
+        self.causes = False
 
-    def _line(self, topic: str, msg: str, chain: str, payload: Any) -> None:
+    def _line(
+        self, topic: str, msg: str, chain: str, payload: Any, cause: str | None = None
+    ) -> None:
+        caused = f" cause={cause}" if cause else ""
         self.lines.append(
             f"[2026-10-24T07:00:00.000+00:00] [{topic}] "
-            f"[seq={self.n} msg={msg} chain={chain}] {json.dumps(payload)}\n"
+            f"[seq={self.n} msg={msg}{caused} chain={chain}] {json.dumps(payload)}\n"
         )
 
     def _msg(self) -> str:
@@ -71,7 +80,11 @@ class Recorder:
         msg = self._msg()
         if self.unit_chain == "":
             self.unit_chain = msg
-        self._line(topic, msg, self.chain or self.unit_chain or msg, payload)
+        chain = self.chain or self.unit_chain or msg
+        if self.causes:
+            self._line(topic, msg, chain, payload, self.cause)
+        else:
+            self._line(topic, msg, chain, payload)
 
     def send_with_envelope(self, frames: list[bytes], envelope: bytes) -> None:
         pass
@@ -97,15 +110,31 @@ class Recorder:
         msg = self._msg()
         self._line(topic, msg, msg, payload)
         self.chain = msg
+        self.cause = msg
         engine._dispatch_pull_message(topic, payload)
         self.chain = None
+        self.cause = None
 
 
 def record(
-    data: Path, silent: str | None = None, run_seq: int = 1, restart: bool = False
+    data: Path,
+    silent: str | None = None,
+    run_seq: int = 1,
+    restart: bool = False,
+    cancels: bool = False,
+    shutdown: bool = True,
 ) -> Path:
     """A short run on the s1-basic example: seeds, connects, a crossing buy
     against the seed ask, a resting sell, a cancel, an MM quote, an OCO.
+
+    With *cancels*, the engine's output carries ``cause=`` and the run goes
+    on to cancel the OCO (``order.oco_cancel``) and the quote
+    (``quote.cancel``) by request, then asks to cancel the buy it has already
+    filled, which the engine refuses with ``ORDER_NOT_FOUND``.
+
+    The run ends with the engine's shutdown, which persists the book and
+    publishes the ``EOD`` checkpoints; with *shutdown* off it is still running
+    when the trail ends, and ``gtc_orders.json`` holds its resting book.
 
     With *restart*, the engine then shuts down (persisting its book), a new
     one starts from those files as the next run, the gateways reconnect and
@@ -119,6 +148,7 @@ def record(
     seed = compiled.engine.symbols["AAPL"].market_maker_quotes[0]
     ask = seed.ask_price_ticks / 100
     rec = Recorder()
+    rec.causes = cancels
 
     def files() -> Any:
         return mock.patch.multiple(
@@ -192,6 +222,14 @@ def record(
             },
         },
     )
+    if cancels:
+        rec.command(
+            engine, "order.oco_cancel", {"oco_id": "K1", "gateway_id": "TRADER01"}
+        )
+        rec.command(engine, "quote.cancel", {"gateway_id": "MM01", "symbol": "AAPL"})
+        rec.command(
+            engine, "order.cancel", {"order_id": buy["id"], "gateway_id": "TRADER01"}
+        )
     if silent is not None:
         # The gateway stopped sending heartbeats: the engine disconnects it by
         # its own timer, with no command behind it.
@@ -207,9 +245,15 @@ def record(
         engine = start(run_seq + 1)
         buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)
         rec.command(engine, "order.new", buy)
+    if shutdown:
+        with files():
+            engine._shutdown()
+    else:
+        resting = [
+            o.to_dict() for b in engine.books.values() for o in b.resting_orders()
+        ]
+        (data / "gtc_orders.json").write_text(json.dumps(resting))
     (data / "audit.log").write_text("".join(rec.lines))
-    resting = [o.to_dict() for b in engine.books.values() for o in b.resting_orders()]
-    (data / "gtc_orders.json").write_text(json.dumps(resting))
     return data
 
 

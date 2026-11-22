@@ -193,7 +193,6 @@ def test_a_day_closes_at_midnight_is_archived_and_replays_from_the_archive(
             [
                 "--log-file",
                 str(tmp_path / "audit.log"),
-                "--no-index",
                 "--date",
                 day,
                 "episodes",

@@ -44,8 +44,10 @@ about 375 000 lines and 21 minutes of trading. Findings marked *(real
 trail)* were found in that trail. The other findings are by inspection, with
 line numbers given.
 
-Status: **Open.** Decisions Q1–Q4 are needed before WP-RPL03, WP-RPL04,
-WP-RPL08 and WP-RPL10. WP-RPL01, 02, 05, 06, 07 and 09 can start now.
+Status: **Done, uncommitted** (2026-11-22). All ten WPs implemented in one
+go, in the suggested order, followed by a holistic review (§10). Decisions
+Q1–Q4 were not answered before implementation; each was implemented as its
+recommendation (Q1 a, Q2 a, Q3 b, Q4 a) and is to be confirmed.
 
 ---
 
@@ -85,16 +87,16 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-RPL01 | `--db` never destroys a file that is not an index, and a build never leaves a half index behind | H1, C7 | — | 1 d | ☐ | |
-| 2 | WP-RPL02 | A healthy simulation trail reads clean: one episode per order, no unsolicited or unmatched cancels that were asked for | H2, C1 | — | 1.5 d | ☐ | |
-| 3 | WP-RPL03 | A live, day-sized trail is answered without rebuilding the index on every call | H3 (index), C4 | Q1 | 2 d | ☐ | |
-| 4 | WP-RPL04 | The reports hold one episode at a time, and pass 1 forgets what has been answered | H3 (memory), P1 | Q2 | 2 d | ☐ | |
-| 5 | WP-RPL05 | `story` reads only the links of the episodes it shows | P2 | — | 0.5 d | ☐ | |
-| 6 | WP-RPL06 | `stats` counts the same findings as `anomalies` | C3 | — | 0.5 d | ☐ | |
-| 7 | WP-RPL07 | Every price in a finding or a sentence is printed exactly | C9 | — | 0.5 d | ☐ | |
-| 8 | WP-RPL08 | `rerun` and `queue` answer a live trail honestly and refuse what they ignore | C6, C8, C10, C11 | Q4 | 1.5 d | ☐ | |
-| 9 | WP-RPL09 | CLI edges: `--to` a date, exit codes, a subcommand required, values validated, suggestions that run | C5, C12, C13, P3 | — | 1 d | ☐ | |
-| 10 | WP-RPL10 | Comments, docstrings, `pm-help`, guide and reference manual say what the code does | C2, D1–D11 | Q3, all | 1 d | ☐ | |
+| 1 | WP-RPL01 | `--db` never destroys a file that is not an index, and a build never leaves a half index behind | H1, C7 | — | 1 d | ☑ | 2026-11-22 |
+| 2 | WP-RPL02 | A healthy simulation trail reads clean: one episode per order, no unsolicited or unmatched cancels that were asked for | H2, C1 | — | 1.5 d | ☑ | 2026-11-22 |
+| 3 | WP-RPL03 | A live, day-sized trail is answered without rebuilding the index on every call | H3 (index), C4 | Q1 | 2 d | ☑ | 2026-11-22 |
+| 4 | WP-RPL04 | The reports hold one episode at a time, and pass 1 forgets what has been answered | H3 (memory), P1 | Q2 | 2 d | ☑ | 2026-11-22 |
+| 5 | WP-RPL05 | `story` reads only the links of the episodes it shows | P2 | — | 0.5 d | ☑ | 2026-11-22 |
+| 6 | WP-RPL06 | `stats` counts the same findings as `anomalies` | C3 | — | 0.5 d | ☑ | 2026-11-22 |
+| 7 | WP-RPL07 | Every price in a finding or a sentence is printed exactly | C9 | — | 0.5 d | ☑ | 2026-11-22 |
+| 8 | WP-RPL08 | `rerun` and `queue` answer a live trail honestly and refuse what they ignore | C6, C8, C10, C11 | Q4 | 1.5 d | ☑ | 2026-11-22 |
+| 9 | WP-RPL09 | CLI edges: `--to` a date, exit codes, a subcommand required, values validated, suggestions that run | C5, C12, C13, P3 | — | 1 d | ☑ | 2026-11-22 |
+| 10 | WP-RPL10 | Comments, docstrings, `pm-help`, guide and reference manual say what the code does | C2, D1–D11 | Q3, all | 1 d | ☑ | 2026-11-22 |
 
 Suggested order: **WP-RPL01 → 02 → 07 → 06 → 05 → 09 → 08 → 03 → 04 → 10**.
 WP-RPL01 first because it deletes files. WP-RPL02 next because it is what
@@ -725,6 +727,24 @@ open read-only.
 
 **Exit criteria.** Tests 1–6 pass; `tests/test_audit_replay_*.py` green.
 
+**Outcome (2026-11-22).** `index._require_index` asks the file's schema for a
+`replay_meta` table (any version); a file without one, or one that is not a
+database, raises the new `NotAnIndexError`, which `main` turns into exit 2
+naming the file, on the read path (`open_readonly`) and the build path alike.
+`build` refuses before reading the log, writes `<db>.building-<pid>` with
+`journal_mode=OFF`/`synchronous=OFF` (the scratch file is nobody's until it is
+moved), and `os.replace`s it into place; any exception, Ctrl-C included,
+removes the scratch file and leaves the old index. `clear`, the `rebuild=`
+upsert mode and the unused `writing()` went. The finished index is in
+rollback-journal mode, no longer WAL: a `-wal`/`-shm` pair belongs to the file
+*name* and would outlive the replace (stale siblings of an older WAL index are
+removed before it). Read-only URIs are now percent-encoded
+(`_readonly_uri`). Tests: `TestOnlyAnIndexIsEverReplaced`,
+`TestABuildIsAtomic` (index) and `TestDbNamesOnlyAnIndex` (CLI) — all 8 failed
+first (`DID NOT RAISE`, `OperationalError: no such table`, exit 0, `8 == 7`
+episodes after the failed build); `test_the_index_is_in_wal_mode` became
+`test_the_finished_index_is_one_file`. Full suite: 15 263 passed, 1 skipped.
+
 ### WP-RPL02 — A healthy simulation trail reads clean (H2, C1)
 
 **Tests first** (`tests/test_audit_replay_episodes.py`,
@@ -755,6 +775,31 @@ anchor.
 **Exit criteria.** Tests 1–6 pass; check 7 recorded; goldens updated only
 where an episode was previously split (each diff explained in the outcome).
 
+**Outcome (2026-11-22).** `detect._close_order`: a cancellation is solicited
+when it carries a `causation_id`, a `cancel_reason`, or has a request in its
+episode. `EpisodeAssembler` keeps the order episodes waiting in `_closing` by
+order id (`_closing_orders`, dropped at retirement and at `drain`); a later
+fact for that order joins the episode as a `progress` event instead of opening
+a new one. Orders only: a second halt on a symbol is still a second episode.
+`reader.episode_by_anchor` became `episodes_by_anchor`: every episode of the
+anchor, ambiguity judged between `DISTINCT anchor_key`s, and the prefix looked
+up as a range on `idx_ep_kind_key` (`LIKE` could not use the index and read `_`
+as a wildcard); `walk` takes several seeds and `_run_story` seeds from all of
+them. `record()` in `tests/test_sim_forensics_rerun.py` gained `cancels=True`:
+the recorder then writes `cause=` on the engine's output, and the run cancels
+the OCO (`order.oco_cancel`) and the quote (`quote.cancel`) and asks to cancel
+the buy it has already filled (refused `ORDER_NOT_FOUND`). The new
+`tests/test_audit_replay_recorded.py` covers tests 1–6; 1, 2, 4 and 5 (both the
+full id and a prefix) failed first as described, 3 failed because the other
+legs fired too (3 findings, not 1), 6 passed. Goldens: no diff (none of the
+fixtures has a late fact). Check 7 on part 70 of the live sim trail (374 707
+lines), `anomalies --severity warn --no-index`: 135 `CLOCK_SKEW` and 18
+`RESUME_WITHOUT_HALT` (window edge), nothing else (before: 2 560
+`CANCEL_UNSOLICITED`, 25 `CANCEL_UNMATCHED`); 41.6 s, 1.62 GB peak RSS.
+`StampedRecorder._line` (`test_sim_forensics_breakers.py`) takes the new
+`cause` parameter. The full suite ran once for WP-RPL02 and WP-RPL07 together
+(started RPL07 while the part-scale check ran): 15 275 passed, 1 skipped.
+
 ### WP-RPL03 — A live, day-sized trail is answered without rebuilding on every call (H3 index part, C4; after Q1)
 
 Written for Q1 (a).
@@ -782,6 +827,44 @@ reports.
 trail without an index finishes in under 5 s (a guess, from 0.2 s per
 skipped part plus 15 minutes of lines at ~10 000 lines/s; to be measured).
 
+**Outcome (2026-11-22).** Written for Q1 (a), the recommendation (taken
+without an explicit answer; see the hand-over). The reports (`stream`,
+`episodes`, `digest`, `anomalies`, `stats`) always reconstruct their window
+off the log and never open or build the index. `--no-index` is **removed**:
+under (a) it has no remaining use (the reports never use the index, `story`
+and `index` need it), and a flag that changes nothing is the kind of option
+C11 refuses. `--rebuild` is refused (exit 2) outside `story` and `index`;
+`--db` is still accepted by the reports, because it is carried into the
+`story` commands they suggest. `ensure_index(args, files, refresh=...)`
+builds when the index is absent, of another schema or rules (as before), of
+other detection settings, or on `--rebuild`; when only the trail changed,
+`index` (`refresh=True`) rebuilds, and `story` reads the index as it stands
+provided the trail has only grown (`_only_grown`: every file the index read,
+bar the live `--log-file`, is still in the trail; another `--date` or an
+archived day rebuilds), printing on stderr "the index (…) covers the trail to
+<covered_to>; the trail has grown since. Add --rebuild to include the rest."
+`index --date D` is now accepted (a day is its files, which `story --date D`
+indexes too); `--from`/`--to`/`--last` are still refused. Follow-up found
+while measuring the exit criterion: `--last 15m` on the live trail took
+17.9 s, 14 s of it skipping 72 closed parts line by line before the window;
+`_window` now leaves out a closed plain part whose last line (read from the
+file's end, `_ends_before`) is stamped before `--from`. Tests
+(`TestOnlyStoryUsesTheIndex`, `test_a_part_that_ends_before_the_window_is_not_read`):
+all failed first except the three "unchanged" ones (story builds when absent,
+for other detection settings, on `--rebuild`); the C4 test first passed for
+the wrong reason (its window cut no order) and was moved between order
+4f2c9a's acceptance and its fill. Tests that compared an indexed report with
+the log path now compare the log path with episodes read back through
+`reader` (what `story` narrates); three tests of `--no-index` itself were
+removed; `test_audit_day_scope` builds its day index with `index --date`;
+`tools/verify_audit_trail.sh` drops `--no-index`. Measured on the live sim
+trail (72 parts + `audit.log`, the sim's market closed at the time so the
+window held 27 331 book-snapshot episodes rather than trading):
+`--last 15m stream` 3.8 s and 250 MB, `episodes` 4.0 s, no index file
+written. A trading 15 minutes is about 270 000 lines, so expect about 45 s at
+pass 1's ~6 000 lines/s; the 5 s guess holds only for a quiet window.
+`make completion` regenerated. Full suite: 15 328 passed, 1 skipped.
+
 ### WP-RPL04 — The reports hold one episode at a time, and pass 1 forgets what has been answered (H3 memory part, P1; after Q2)
 
 Written for Q2 (a).
@@ -808,6 +891,41 @@ id with them.
 part measured below 400 MB peak RSS (today 1.62 GB; the bound is a guess from
 pass 1's 337 MB).
 
+**Outcome (2026-11-22).** Written for Q2 (a), the recommendation (taken
+without an explicit answer; see the hand-over). `views.Row` is what the
+tabular views read of an episode without its facts (id, kind, anchor,
+outcome, opening time and key, span, actor, symbol, findings, and the derived
+figures when asked for); `views.row()` takes one as the episode retires, and
+every view accepts episodes or rows. The CLI streams the window
+(`_stream_from_log` through `_Counted`, which counts what passed for the
+tallies and "nothing to narrate"): `anomalies` keeps only the rows with a
+finding at `--severity` or worse, `digest --top N` keeps `heapq.nsmallest(N)`
+rows by the new `views.digest_key`, `episodes` and `digest` without `--top`
+keep one row per episode (no derived figures for `episodes`), and `stats`
+already counted on the way (WP-RPL06). `stream` and `story` still hold their
+window (Q2 a). Ids are abbreviated among the episodes *printed* (`anomalies`,
+`digest`), which is what the abbreviation exists for. `LinkResolver.forget`
+now removes the request a retiring `order.cancel`, `order.amend` or structure
+cancel registered (`_unregister`, which also drops an emptied key), and the
+assembler calls the new `StateModel.forget_request` for every retiring fact.
+Tests (`tests/test_audit_replay_memory.py`): the flat-memory tests for
+`anomalies` and `digest --top 5` and the per-row bound for `episodes` failed
+first (traced peak 14.3 → 27.8 MB and 25.0 → 49.3 MB for 1 500 → 3 000
+orders; 9.5 KB per episode), the request test held 2 500 entries; `stats`
+passed before and after. The first version of the generated trail was itself
+wrong (one global `seq=` and every line its own `chain=`, so `SEQ_GAP` and
+`CHAIN_BROKEN` errors on every line) and was corrected to a trail that reads
+"No findings"; the 31 tests that compare each bounded report with the views
+fed the whole window pass before and after. The per-row bound is 3 000 bytes:
+measured about 2.4 KB per `episodes` row on the generated trail (row, cells
+and table text), against my guess of 1.5 KB. Measured on part 70 (374 707
+lines), niced and pinned beside the running sim: `anomalies --severity warn`
+33.0 s and 323 MB peak RSS (before: 41.2 s, 1.62 GB), `digest --top 5` 35.7 s
+and 323 MB, `stats` 32.9 s and 323 MB, `episodes` 37.9 s and 491 MB for
+199 206 rows. Full suite: 15 363 passed, 1 skipped (10 warnings, all one
+`SyntaxWarning` from an escape in the new `views` docstring, fixed after the
+run; flake8 W605 caught it too).
+
 ### WP-RPL05 — `story` reads only the links of the episodes it shows (P2)
 
 **Tests first** (`tests/test_audit_replay_index.py`):
@@ -824,6 +942,21 @@ batches; index `idx_sl_to ON stated_links(to_ref)`; `SCHEMA_VERSION = 5`.
 **Exit criteria.** Tests 1–3 pass; `story` on the one-part index under 1 s
 end to end (today 2.50 s; the CLI's own start is 0.73 s).
 
+**Outcome (2026-11-22).** `reader._stated_links(conn, refs)` reads only the
+links pointing at the refs of the episodes being hydrated, in batches of
+`IN (...)` over the new `idx_sl_to ON stated_links(to_ref)`; `_batches` is
+generic over the id type. `SCHEMA_VERSION = 5`, so an older index is refused
+and rebuilt by the existing rule (test 3 is the existing
+`test_a_stale_schema_version_forces_a_rebuild`). Test 1
+(`TestStoryReadsOnlyItsOwnLinks`, captured with `set_trace_callback` and
+`EXPLAIN QUERY PLAN`) failed first on `SELECT * FROM stated_links` → `SCAN
+stated_links`; the story goldens (test 2) are unchanged. Measured on part 70
+of the live sim trail (374 707 lines): `story --order b929a796` 0.80 s and
+72 MB RSS end to end (before: 2.50 s, 121 MB), a miss 0.83 s, so the cost is
+now the CLI's start. The same index built in 54.2 s at 337 MB peak RSS into
+one 708 MB file (before WP-RPL01: 61.0 s, WAL). `make dbdocs` regenerated.
+Full suite: 15 283 passed, 1 skipped.
+
 ### WP-RPL06 — `stats` counts the same findings as `anomalies` (C3)
 
 **Tests first** (`tests/test_audit_replay_stats.py`):
@@ -838,6 +971,18 @@ end to end (today 2.50 s; the CLI's own start is 0.73 s).
 assembler) and counts facts, links and findings from the filtered episodes.
 
 **Exit criteria.** Tests 1–3 pass.
+
+**Outcome (2026-11-22).** `stats.collect_episodes` counts every fact of every
+episode and the findings of its facts and of the episode itself, consuming an
+iterator. The CLI's `--no-index` pipeline became `_stream_from_log` (an
+iterator of filtered episodes; `_from_log` lists it) with the filters as one
+predicate, `_wanted`, so `stats` reads exactly what `anomalies --no-index`
+reads, one episode at a time. `collect(steps)` stays as the step-level
+primitive the unit tests use. Tests: `TestStatsCountsWhatAnomaliesReports`
+(fixtures 03 and 04 failed first, e.g. stats lacked `CLOCK_SKEW`,
+`TRADE_LEG_MISSING`, `ACK_MISSING`, `FILL_BEFORE_ACK`; `--symbol NOPE` printed
+the whole window's 10 facts; the fact-count part of test 3 passed before and
+after). Full suite: 15 282 passed, 1 skipped.
 
 ### WP-RPL07 — Every price in a finding or a sentence is printed exactly (C9)
 
@@ -857,6 +1002,23 @@ assembler) and counts facts, links and findings from the filtered episodes.
 
 **Exit criteria.** Tests 1–4 pass; no `:g` left on a price in `replay/`
 (grep).
+
+**Outcome (2026-11-22).** `facts.price_text(value, scale)`: the scale's
+decimals when known, otherwise the float's shortest exact form with no `.0`
+on a whole number. `Price.render` uses it (also for an unresolved price in
+ticks). The detector learns each symbol's `tick_decimals` from the first
+message that declares them (`Detector._scales`, bounded by symbols) and
+prints every price in `PRICE_THROUGH_LIMIT`, `PRICE_OUTSIDE_CORRIDOR`,
+`DROP_COPY_DISAGREE`, `PRINT_PRICE_DISAGREE` and `LEG_PRICE_DISAGREE` through
+`Detector._money`. `SymbolState` keeps the corridor's `tick_decimals` for
+`describe_halt`; the narrator's corridor and trigger clauses use each
+`Price`'s own `render()`; the digest's VWAP and the book-level fallback use
+`price_text`. Tests: `TestEveryPriceIsPrintedExactly` (5, all failed first:
+"filled at 10000, through its 10000 limit", "12345.6-13000", "1234.57"; the
+VWAP test first failed on its own fixture and was fixed before the code). Two
+existing assertions encoded the rounded text ("through its 75 limit", "70-80
+corridor") and now read "75.00" and "70.00-80.00". `grep ':g}'` in `replay/`
+leaves only seconds and the depth-imbalance ratio. Full suite: see WP-RPL02.
 
 ### WP-RPL08 — `rerun` and `queue` answer a live trail honestly and refuse what they ignore (C6, C8, C10, C11; after Q4)
 
@@ -886,6 +1048,39 @@ refuses the options per command.
 **Exit criteria.** Tests 1–6 pass; `tests/test_sim_forensics_*.py` green
 (shared `rawlines`).
 
+**Outcome (2026-11-22).** Written for Q4 (a), the recommendation (taken without
+an explicit answer; see the hand-over). `rawlines.lines` stops before the last
+line of the last file when it has no newline yet, and raises `Unavailable`
+naming the line's time and topic when its `seq`/`eseq` does not parse; the
+new `rawlines.body(ln)` does the same for a payload, and replaces every
+`json.loads(ln.body)` in `rerun.inputs` (and `startup_message`). `inputs`
+takes an `eod` callback, called for each book checkpoint with reason `EOD`
+(`Engine._shutdown` publishes them after persisting `gtc_orders.json`); such a
+checkpoint is no longer stored as a start's `told` checkpoint. `Rerun` sets
+`shut_down` on it and clears it at each restart, and `final_book` compares
+only when the last run shut down, and only `GTC`/`DAY` orders
+(`_PERSISTED_TIFS`, as `Engine._resting_gtc_orders`); otherwise
+`book_unchecked` says why, which `rerun` prints ("final book: not checked
+(the engine had not shut down when the trail ends)") and the sim-forensics E4
+check carries as its note. `queue --order` first collects the matching
+`order.new` ids (`queue.order_ids`, parsing only lines that contain the
+prefix): none is exit 1 as before, two or more exit 2 naming up to five. For
+`rerun` and `queue`, `validate_args` refuses a `--log-file` naming an archive
+or day part and every option they ignore (`--date`, `--from`, `--to`,
+`--last`, `--gateway`, `--kind`, `--no-index`, `--rebuild`, `--strict`,
+`--clock-skew-warn`, `--reorder-window`; `--symbol` for `rerun`, `--tz` for
+`queue`), exit 2. `record()` in `tests/test_sim_forensics_rerun.py` now ends
+with the engine's own `_shutdown()` (which writes `gtc_orders.json`), with
+`shutdown=False` for a trail whose engine is still running. Tests (in
+`test_audit_replay_rerun_cli.py` and `test_audit_replay_queue.py`): all
+failed first except "a trail that ends with the shutdown compares the book"
+(unchanged behaviour) — `JSONDecodeError`/`ValueError: invalid literal ...
+'abc24'` tracebacks, "final book: 3 differences" against a stale file, the
+ATO/ATC stub counted 2, `--order ""` answered exit 0, every ignored option
+exit 3 or 0. The half-line test first passed for the wrong reason (it cut a
+`system.*` line the re-run skips unparsed) and was changed to cut an
+`order.ack` line before the fix. Full suite: 15 314 passed, 1 skipped.
+
 ### WP-RPL09 — CLI edges (C5, C12, C13, P3)
 
 **Tests first** (`tests/test_audit_replay_cli.py`):
@@ -910,6 +1105,27 @@ by the reorder seconds.
 
 **Exit criteria.** Tests 1–6 pass; `make completion` regenerated.
 
+**Outcome (2026-11-22).** `--to` with a bare date is the end of that day
+(`window_bounds` and the `--from`/`--to` order check both use
+`parse_ts(..., end_of_day=True)`). The reports exit 1 with "nothing to narrate
+in this window" when the window holds no episode, and `stats` exits 1 on "No
+facts in window."; an empty *finding list* over a non-empty window stays exit
+0. A subcommand is required (`required=True`: usage and exit 2). `digest --top`
+takes `parse_top` (≥ 1) and `--clock-skew-warn` `parse_skew` (finite, ≥ 0).
+`story_source(args)` carries `--log-file` and `--db` (when not the defaults,
+shell-quoted) and `--date` into every suggested `story` command, in the text
+and the NDJSON `story` field. `_window` reads the `--no-index` window and stops
+at the first line stamped more than the reorder window's seconds past `--to`.
+Tests: `TestCliEdges` and `test_a_subcommand_is_required` (14, all failed
+first: an empty table at exit 0, `DID NOT RAISE SystemExit`, the bare `story
+--command 8812` suggestion, 30 `parse_line` calls against at most 11).
+Existing tests that parsed options with no subcommand now name one; two
+equality tests between an indexed and a `--no-index` run now give both the
+same `--db` (the suggestion names it); `test_audit_day_scope`'s empty live
+trail now expects exit 1. `make completion`: no change (the help texts did not
+change). Full suite: 15 295 passed, 1 failed (that `test_audit_day_scope`
+test, updated and rerun green), 1 skipped.
+
 ### WP-RPL10 — Comments, docstrings, `pm-help`, guide and reference manual say what the code does (C2, D1–D11; after Q3 and all other WPs)
 
 **Tests first** (`tests/test_pm_help*.py`, `tests/test_audit_replay_cli.py`):
@@ -929,6 +1145,39 @@ WP-RPL01–09; the reference manual's exit codes; `make completion`;
 **Exit criteria.** Tests 1–2 pass; every passage in §5 re-read against the
 final code (lessons-learned B1).
 
+**Outcome (2026-11-22).** Written for Q3 (b), the recommendation (taken
+without an explicit answer; see the hand-over). Test 1
+(`test_the_pm_audit_replay_entry_matches_its_parser`) compares the `pm-help`
+entry's options and subcommands with `build_parser()` both ways; it failed
+first (`--no-index`, `-vv`, `-vvv` listed; `--clock-skew-warn`, `--strict`,
+`--force-color` missing; no subcommands). Test 2
+(`TestALateFillIsSeenWithinTheReorderWindow`) asserts the documented reach:
+no `FILL_AFTER_TERMINAL`/`QTY_MISMATCH` for a late fill 2 001 facts on at the
+default window, both with a 5 000-fact window; it passes on the code as it
+stands, as a test of documented behaviour should. Texts: D1 the `pm-help`
+entry rewritten (nine subcommands with their arguments, every option, the
+day-file `--date`, level 1 as default, `csv`, exit codes); D2 the CLI module
+docstring and `_add_commands` (done with WP-RPL03/09); D3 `FILL_WITHOUT_TRADE`
+and the detector's `_trades` comment say the engine publishes fills first;
+D4 `LinkResolver._structural` says the trade states the trade/order join on a
+current trail and the fill-to-trade rule serves trails where the trade came
+first; D5 `state.py` and `retire_order` state the reorder-window reach; D6
+`EpisodeAssembler._retire` and `index.py` (with WP-RPL01) stop promising flat
+memory for the reports; the `stated_links` schema comment no longer mentions
+an incremental build. D7–D9 and D11: the guide's index section (who uses it,
+the grown-trail note, 2.8× size, measured build rate, atomic build, refused
+`--db`, a warning on a simulation day's size), a new "Memory" section, the
+window and `--to` rules, the exit-code table, the `CANCEL_UNSOLICITED`/
+`CANCEL_UNMATCHED` rows, a note on the late-fill reach, the clean-run tip
+(what a simulation trail still shows, with part 70's counts), the suggested
+command's source options, `rerun`'s final book and refusals, `queue`'s
+ambiguity, and "Read a one-off trail" in place of `--no-index`. D10 and D11:
+the dispute chapter's steps 2, 3 and 5 (what to expect on a busy day and the
+measured cost, the final book during the day, and that only `queue` has
+`--anonymise`). The reference manual's section matches. Three docstrings
+that used `--no-index` as shorthand were reworded. `make completion`,
+`make dbdocs`, `mkdocs build` clean. Full suite: 15 366 passed, 1 skipped.
+
 ---
 
 ## 9. Out of scope, noted
@@ -946,3 +1195,62 @@ final code (lessons-learned B1).
 - **The engine's leg cancels carry no `cancel_reason`** for OCO and quote
   cancels. H2 is fixed on the replay side, which is enough; a reason on those
   cancels would also help participants' own logs. Not a defect.
+
+---
+
+## 10. Holistic review after the WPs (2026-11-22)
+
+Done after WP-RPL10, over the whole component and the flows the guide
+describes, with the simulation stopped (its trail then ends at the engine's
+shutdown).
+
+**Validated at real scale.**
+
+| Check | Result |
+|---|---|
+| `rerun` over the whole simulation day (72 parts, 27 054 652 messages) | 4 637 697 commands re-ran; 0 hidden inputs; 0 differing episodes; final book compared (the trail ends with the `EOD` checkpoints) with 0 differences; exit 0; 962 s, 624 MB peak RSS |
+| `anomalies --severity warn` over 4 consecutive parts (974 605 episodes) | 143.8 s at 186 MB peak RSS — flat across parts (one part alone peaked at 1.62 GB before WP-RPL04) |
+| `--last 15m stream` over the live 72-part trail | 3.8 s with no index written (WP-RPL03) |
+| `story` on a one-part index | 0.80 s (WP-RPL05) |
+
+**Found and fixed (performance, behaviour unchanged).** A profile of
+`anomalies` on 60 000 real lines showed four avoidable costs, now removed:
+`audit.query.parse_ts` tried `strptime("%Y-%m-%d")` first and raised a
+`ValueError` on every full timestamp (it now skips that for a value with a
+`T`); `audit.query._match_topic` scanned every wildcard prefix twice per line
+(now `lru_cache`d, bounded at 65 536 topics); `facts.normalise` copied every
+fact with `dataclasses.replace` to set `publisher_run = 0` (now only for runs
+after the first); `EpisodeAssembler._closing` was a list popped from the front
+(now a `deque`). 5.81 s → 4.58 s on the excerpt (−21 %), with the NDJSON
+findings and the `-vv` narration byte-identical before and after. The two
+shared functions in `audit/query.py` keep their behaviour for pm-audit-cli.
+What remains in the profile is spread over price and time resolution and JSON
+decoding.
+
+**Found and documented, not changed.**
+
+- **`TRADE_LEG_MISSING` at a window's start.** On the 4-part run the one
+  error was `trade 000001-000333542 has 0 fill leg(s)`: the trade is line 2
+  of part 10, its two fills the last lines of part 9 (the engine publishes a
+  match's fills before its trade). It is a window-edge finding at *error*
+  severity, which the dispute chapter's "no finding at error" would misread;
+  both guide chapters now name it. Demoting it (as `ARRIVAL_SEQ_GAP` is
+  behind `--strict`) would need the detector to know the window started
+  within a reorder window of the trade, and would hide a genuinely lost pair
+  of fills at a day's start; left as is, documented.
+- **Building a day's index is still over an hour.** By decision Q1 (a) only
+  `story` pays it, once, and then reads the grown trail with a note.
+- **`stream` and `story` hold their window** (Q2 a), now stated in the guide
+  with the per-line cost.
+
+**Re-walked flows (lessons-learned B1).** `tools/verify_audit_trail.sh`
+(drops `--no-index`; its empty-trail guard runs before the report, so the new
+exit 1 on an empty window cannot end it early); the dispute procedure's five
+steps against the new exit codes and `rerun`'s final-book rule; the guide's
+cookbook commands (every one still parses: `stream --date … --symbol …`,
+`anomalies --severity error --date …`, `digest --top 20`, `episodes
+--outcome REJECTED --format csv`, `stats --date …`, `queue --order …`).
+
+**Full suite after the review:** 15 366 passed, 1 skipped; black, flake8,
+mypy, pyright, msgen, dbdocs, openapi and `mkdocs build` clean.
+

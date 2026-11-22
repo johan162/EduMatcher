@@ -109,41 +109,47 @@ class TestDetailLevel:
     )
     def test_the_one_axis_of_section_8_1(self, argv: list[str], level: int) -> None:
         """-q is 0, the default is 1, and -vvv is the top; more does not go higher."""
-        assert detail_level(build_parser().parse_args(argv)) == level
+        assert detail_level(build_parser().parse_args([*argv, "stream"])) == level
 
 
 class TestValidateArgs:
     def test_a_plain_invocation_is_valid(self) -> None:
-        assert validate_args(build_parser().parse_args([])) is None
+        assert validate_args(build_parser().parse_args(["stream"])) is None
 
     def test_date_and_from_are_two_ways_to_say_the_same_thing(self) -> None:
         args = build_parser().parse_args(
-            ["--date", "2026-09-08", "--from", "2026-09-08"]
+            ["--date", "2026-09-08", "--from", "2026-09-08", "stream"]
         )
         assert validate_args(args) is not None
 
     def test_last_excludes_the_absolute_window(self) -> None:
-        args = build_parser().parse_args(["--last", "2h", "--date", "2026-09-08"])
+        args = build_parser().parse_args(
+            ["--last", "2h", "--date", "2026-09-08", "stream"]
+        )
         assert validate_args(args) is not None
 
     def test_a_backwards_window_is_rejected(self) -> None:
         args = build_parser().parse_args(
-            ["--from", "2026-09-08T10:00:00", "--to", "2026-09-08T09:00:00"]
+            ["--from", "2026-09-08T10:00:00", "--to", "2026-09-08T09:00:00", "stream"]
         )
         assert validate_args(args) is not None
 
     def test_quiet_and_verbose_contradict(self) -> None:
-        args = build_parser().parse_args(["-q", "-v"])
+        args = build_parser().parse_args(["-q", "-v", "stream"])
         assert validate_args(args) is not None
 
 
 class TestMain:
-    def test_exits_zero(self) -> None:
-        assert main([]) == 0
+    def test_a_subcommand_is_required(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """WP-RPL09 (C12): no subcommand printed nothing and exited 0."""
+        with pytest.raises(SystemExit) as exc:
+            main([])
+        assert exc.value.code == 2
+        assert "usage:" in capsys.readouterr().err
 
     def test_repeatable_filters_accumulate(self) -> None:
         args = build_parser().parse_args(
-            ["--symbol", "AAPL", "--symbol", "MSFT", "--gateway", "TRADER01"]
+            ["--symbol", "AAPL", "--symbol", "MSFT", "--gateway", "TRADER01", "stream"]
         )
         assert args.symbol == ["AAPL", "MSFT"]
         assert args.gateway == ["TRADER01"]
@@ -151,7 +157,7 @@ class TestMain:
     def test_a_bad_combination_exits_two(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        assert main(["-q", "-v"]) == 2
+        assert main(["-q", "-v", "stream"]) == 2
         assert "-q cannot be combined" in capsys.readouterr().err
 
     def test_a_bad_duration_is_an_argparse_error(self) -> None:
@@ -168,7 +174,6 @@ class TestMain:
         for flag in (
             "--log-file",
             "--db",
-            "--no-index",
             "--rebuild",
             "--from",
             "--to",
@@ -295,13 +300,6 @@ class TestTheIndexPolicy:
         main(self._args(tmp_path, "--rebuild"))
         assert self._built_at(tmp_path) != _MARK
 
-    def test_no_index_leaves_index_nothing_to_do(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        assert main(self._args(tmp_path, "--no-index")) == 2
-        assert "nothing for index to do" in capsys.readouterr().out
-        assert not (tmp_path / "replay.db").exists()
-
     def test_stats_reports_what_the_index_holds(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -361,7 +359,6 @@ class TestTheFormatSwitch:
         return [
             "--log-file",
             str(SIMPLE),
-            "--no-index",
             "stream",
             *extra,
         ]
@@ -388,12 +385,7 @@ class TestTheFormatSwitch:
     def test_a_format_a_command_cannot_produce_is_refused(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        assert (
-            main(
-                ["--log-file", str(SIMPLE), "--no-index", "digest", "--format", "json"]
-            )
-            == 2
-        )
+        assert main(["--log-file", str(SIMPLE), "digest", "--format", "json"]) == 2
         assert "only available for" in capsys.readouterr().err
 
     def test_markdown_is_refused_where_there_is_no_narrative(
@@ -404,7 +396,6 @@ class TestTheFormatSwitch:
                 [
                     "--log-file",
                     str(SIMPLE),
-                    "--no-index",
                     "anomalies",
                     "--format",
                     "markdown",
@@ -448,12 +439,23 @@ class TestAFindingKeepsItsSourceLine:
             "--format",
             "ndjson",
         ]
-        direct = self._anomalies(["--no-index", *args])
-        indexed = self._anomalies(
-            ["--db", str(tmp_path / "replay.db"), "--rebuild", *args]
-        )
+        from edumatcher.audit.replay import render_json
+        from edumatcher.audit.replay.reader import episodes_in_window
 
-        assert direct and direct == indexed
+        db = tmp_path / "replay.db"
+        direct = self._anomalies(args)
+        assert main(["--log-file", str(HALTED), "--db", str(db), "index"]) == 0
+        self._capsys.readouterr()
+        with reading(db) as conn:
+            indexed = [
+                json.loads(render_json.dumps(obj))
+                for obj in render_json.anomalies(episodes_in_window(conn))
+            ]
+
+        def located(found: list[dict[str, object]]) -> list[str]:
+            return sorted(repr((f["code"], f["source"])) for f in found)
+
+        assert direct and located(direct) == located(indexed)
         for finding in indexed:
             source = finding["source"]
             assert isinstance(source, dict)
@@ -481,10 +483,21 @@ class TestTheIndexChangesNothingButSpeed:
         log: Path,
         fmt: str,
     ) -> None:
+        """Read back through ``reader`` -- what ``story`` narrates -- and
+        rendered by the same choke point ``stream`` uses."""
+        from edumatcher.audit.replay import cli, reader
+
+        db = tmp_path / "replay.db"
         args = ["--log-file", str(log), "stream", "-vv", "--format", fmt]
-        assert main(["--no-index", *args]) == 0
+        assert main(args) == 0
         without = capsys.readouterr().out
-        assert main(["--db", str(tmp_path / "replay.db"), "--rebuild", *args]) == 0
+        assert main(["--log-file", str(log), "--db", str(db), "index"]) == 0
+        capsys.readouterr()
+        with reading(db) as conn:
+            namespace = build_parser().parse_args(args)
+            cli._narrate(
+                reader.episodes_in_window(conn), reader.actors(conn), namespace
+            )
         withindex = capsys.readouterr().out
 
         assert withindex == without
@@ -512,7 +525,7 @@ class TestTheIndexCoversTheWholeLog:
                     str(COMBO),
                     "--db",
                     "/tmp/unused.db",
-                    "--date",
+                    "--from",
                     "2026-09-08",
                     "index",
                 ]
@@ -544,7 +557,7 @@ class TestTheIndexCoversTheWholeLog:
         # ...then ask a wider one of the same index.
         assert main(["--log-file", str(COMBO), "--db", db, "episodes"]) == 0
         indexed = capsys.readouterr().out
-        assert main(["--log-file", str(COMBO), "--no-index", "episodes"]) == 0
+        assert main(["--log-file", str(COMBO), "episodes"]) == 0
         direct = capsys.readouterr().out
 
         assert indexed == direct
@@ -562,10 +575,10 @@ class TestTheDisplaySwitchesReachTheCli:
     def test_tz_moves_the_clock_in_the_narration(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        args = ["--log-file", str(SIMPLE), "--no-index", "stream"]
+        args = ["--log-file", str(SIMPLE), "stream"]
         assert main(args) == 0
         utc = capsys.readouterr().out
-        assert main([*args[:3], "--tz", "Europe/Stockholm", "stream"]) == 0
+        assert main([*args[:2], "--tz", "Europe/Stockholm", "stream"]) == 0
         local = capsys.readouterr().out
 
         assert utc.splitlines()[0].startswith("09:31:02.110")
@@ -577,7 +590,6 @@ class TestTheDisplaySwitchesReachTheCli:
                 [
                     "--log-file",
                     str(SIMPLE),
-                    "--no-index",
                     "--tz",
                     "Europe/Stockholm",
                     "episodes",
@@ -593,7 +605,6 @@ class TestTheDisplaySwitchesReachTheCli:
                 [
                     "--log-file",
                     str(SIMPLE),
-                    "--no-index",
                     "--tz",
                     "Mars/Olympus",
                     "stream",
@@ -606,10 +617,7 @@ class TestTheDisplaySwitchesReachTheCli:
     ) -> None:
         """pytest's capture is not a terminal, which is exactly the situation
         `... | less -R` is in."""
-        assert (
-            main(["--log-file", str(SIMPLE), "--no-index", "--force-color", "episodes"])
-            == 0
-        )
+        assert main(["--log-file", str(SIMPLE), "--force-color", "episodes"]) == 0
 
         assert "\033[" in capsys.readouterr().out
 
@@ -625,7 +633,6 @@ class TestTheDisplaySwitchesReachTheCli:
                 [
                     "--log-file",
                     str(SIMPLE),
-                    "--no-index",
                     "--no-color",
                     "episodes",
                     "--force-color",
@@ -641,7 +648,7 @@ class TestTheDisplaySwitchesReachTheCli:
         """pytest's capture is not a terminal, which is the same answer a
         pipe and a redirect give — and the reason every other test in the
         suite kept passing when colour landed."""
-        assert main(["--log-file", str(SIMPLE), "--no-index", "episodes"]) == 0
+        assert main(["--log-file", str(SIMPLE), "episodes"]) == 0
 
         assert "\033[" not in capsys.readouterr().out
 
@@ -651,3 +658,300 @@ class TestRegisteredInPmHelp:
         from edumatcher.pm_help.registry import ALL_COMMANDS
 
         assert any(c.name == "pm-audit-replay" for c in ALL_COMMANDS)
+
+
+class TestDbNamesOnlyAnIndex:
+    """WP-RPL01 (H1): `--db` naming another file is exit 2, and the file is
+    left exactly as it was -- not deleted and replaced by an index."""
+
+    @staticmethod
+    def _ledger(path: Path) -> None:
+        import sqlite3
+
+        conn = sqlite3.connect(path)
+        conn.execute("CREATE TABLE money (amount INTEGER)")
+        conn.execute("INSERT INTO money VALUES (100)")
+        conn.commit()
+        conn.close()
+
+    @pytest.mark.parametrize(
+        "command",
+        (
+            ["--rebuild", "story", "--order", "4f2c9a"],
+            ["story", "--order", "4f2c9a"],
+            ["index", "--rebuild"],
+        ),
+    )
+    def test_a_foreign_database_is_refused(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], command: list[str]
+    ) -> None:
+        import sqlite3
+
+        other = tmp_path / "clearing.db"
+        self._ledger(other)
+        argv = ["--log-file", str(SIMPLE), "--db", str(other), *command]
+        assert main(argv) == 2
+        assert str(other) in capsys.readouterr().err
+        conn = sqlite3.connect(other)
+        assert conn.execute("SELECT amount FROM money").fetchall() == [(100,)]
+        conn.close()
+
+    def test_a_text_file_is_refused_unchanged(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        notes = tmp_path / "notes.txt"
+        notes.write_bytes(b"hello index\n")
+        argv = ["--log-file", str(SIMPLE), "--db", str(notes), "index", "--rebuild"]
+        assert main(argv) == 2
+        assert "not an episode index" in capsys.readouterr().err
+        assert notes.read_bytes() == b"hello index\n"
+
+
+class TestCliEdges:
+    """WP-RPL09: C5, C12, C13 and P3."""
+
+    def _run(
+        self, capsys: pytest.CaptureFixture[str], *argv: str
+    ) -> tuple[int, str, str]:
+        code = main(["--log-file", str(SIMPLE), *argv])
+        out = capsys.readouterr()
+        return code, out.out, out.err
+
+    def test_to_a_date_includes_that_day(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code, out, _err = self._run(capsys, "--to", "2026-09-08", "episodes")
+        assert code == 0
+        assert "order" in out
+        code, out, _err = self._run(
+            capsys, "--from", "2026-09-08", "--to", "2026-09-08", "stream"
+        )
+        assert code == 0 and out
+
+    @pytest.mark.parametrize("command", ("episodes", "digest", "anomalies"))
+    def test_an_empty_window_exits_one(
+        self, capsys: pytest.CaptureFixture[str], command: str
+    ) -> None:
+        code, _out, err = self._run(capsys, "--to", "2026-09-07", command)
+        assert code == 1
+        assert "nothing to narrate in this window" in err
+
+    def test_stats_with_no_facts_exits_one(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code, out, _err = self._run(capsys, "--to", "2026-09-07", "stats")
+        assert code == 1
+        assert "No facts in window." in out
+
+    @pytest.mark.parametrize(
+        "argv",
+        (
+            ["digest", "--top", "0"],
+            ["digest", "--top", "-1"],
+            ["--clock-skew-warn", "-1", "anomalies"],
+            ["--clock-skew-warn", "nan", "anomalies"],
+            ["--clock-skew-warn", "inf", "anomalies"],
+        ),
+    )
+    def test_out_of_range_values_are_refused(self, argv: list[str]) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main(["--log-file", str(SIMPLE), *argv])
+        assert exc.value.code == 2
+
+    def test_the_suggested_story_reads_the_same_trail(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        db = tmp_path / "my index.db"
+        argv = ["--log-file", str(HALTED), "--db", str(db)]
+        assert main([*argv, "anomalies"]) == 0
+        text = capsys.readouterr().out
+        suggestions = [ln for ln in text.splitlines() if "-> pm-audit-replay" in ln]
+        assert suggestions
+        for line in suggestions:
+            assert f"--log-file {HALTED}" in line
+            assert f"--db '{db}'" in line
+        assert main([*argv, "anomalies", "--format", "ndjson"]) == 0
+        found = [json.loads(ln) for ln in capsys.readouterr().out.splitlines()]
+        assert all(f"--db '{db}'" in str(f["story"]) for f in found if f["story"])
+
+    def test_the_suggestion_keeps_a_date(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        (data / "audit").mkdir(parents=True)
+        (data / "audit" / "audit-2026-09-08.1.log").write_bytes(HALTED.read_bytes())
+        argv = ["--log-file", str(data / "audit.log"), "--date", "2026-09-08"]
+        assert main([*argv, "anomalies"]) == 0
+        lines = [ln for ln in capsys.readouterr().out.splitlines() if "->" in ln]
+        assert lines and all("--date 2026-09-08" in ln for ln in lines)
+
+    def test_a_to_bound_stops_the_read(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from edumatcher.audit import query
+
+        data = tmp_path / "data"
+        (data / "audit").mkdir(parents=True)
+        first = SIMPLE.read_text(encoding="utf-8")
+        later = first.replace("2026-09-08T", "2026-09-09T")
+        (data / "audit" / "audit-2026-09-08.1.log").write_text(first)
+        (data / "audit" / "audit-2026-09-08.2.log").write_text(later + later)
+        (data / "audit.log").write_text("")
+
+        calls = {"n": 0}
+        real = query.parse_line
+
+        def counted(raw: str) -> object:
+            calls["n"] += 1
+            return real(raw)
+
+        monkeypatch.setattr(query, "parse_line", counted)
+        argv = ["--log-file", str(data / "audit.log")]
+        assert main([*argv, "--to", "2026-09-08", "episodes"]) == 0
+        first_lines = len([ln for ln in first.splitlines() if ln.strip()])
+        # The first line of the later part shows the read is past the bound.
+        assert calls["n"] <= first_lines + 1
+
+
+class TestOnlyStoryUsesTheIndex:
+    """WP-RPL03 (Q1 a): the reports read their window straight off the log
+    and never build an index; ``story`` builds one when it has none (or rules
+    or detection changed, or on ``--rebuild``) and answers a trail that has
+    grown since from the index as it stands, saying how far it reaches. A
+    rebuild per call cost 73 minutes and 50 GB on a live simulation day."""
+
+    def _log(self, tmp_path: Path) -> Path:
+        log = tmp_path / "audit.log"
+        log.write_bytes(SIMPLE.read_bytes())
+        return log
+
+    @pytest.mark.parametrize(
+        "command", ("stream", "episodes", "digest", "anomalies", "stats")
+    )
+    def test_a_report_creates_no_index(self, tmp_path: Path, command: str) -> None:
+        log = self._log(tmp_path)
+        db = tmp_path / "replay.db"
+        argv = ["--log-file", str(log), "--db", str(db), "--from", "2026-09-08"]
+        assert main([*argv, command]) == 0
+        assert not db.exists()
+
+    def test_story_answers_a_grown_trail_from_its_index(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        log = self._log(tmp_path)
+        db = tmp_path / "replay.db"
+        argv = ["--log-file", str(log), "--db", str(db)]
+        assert main([*argv, "index"]) == 0
+        _mark(db)
+        with reading(db) as conn:
+            covered_to = describe(conn)["covered_to"]
+        with log.open("ab") as handle:
+            handle.write(SIMPLE.read_bytes().splitlines(keepends=True)[-1])
+        capsys.readouterr()
+
+        assert main([*argv, "story", "--order", "4f2c9a"]) == 0
+        out = capsys.readouterr()
+        assert out.out
+        assert covered_to in out.err and "--rebuild" in out.err
+        with reading(db) as conn:
+            assert describe(conn)["built_at"] == _MARK
+
+    def test_story_builds_an_index_it_does_not_have(self, tmp_path: Path) -> None:
+        log = self._log(tmp_path)
+        db = tmp_path / "replay.db"
+        assert (
+            main(
+                ["--log-file", str(log), "--db", str(db), "story", "--order", "4f2c9a"]
+            )
+            == 0
+        )
+        assert db.exists()
+
+    def test_story_rebuilds_for_other_detection_settings(self, tmp_path: Path) -> None:
+        log = self._log(tmp_path)
+        db = tmp_path / "replay.db"
+        argv = ["--log-file", str(log), "--db", str(db)]
+        assert main([*argv, "index"]) == 0
+        _mark(db)
+        assert main([*argv, "--strict", "story", "--order", "4f2c9a"]) == 0
+        with reading(db) as conn:
+            assert describe(conn)["built_at"] != _MARK
+
+    def test_rebuild_forces_story_to_rebuild(self, tmp_path: Path) -> None:
+        log = self._log(tmp_path)
+        db = tmp_path / "replay.db"
+        argv = ["--log-file", str(log), "--db", str(db)]
+        assert main([*argv, "index"]) == 0
+        _mark(db)
+        assert main([*argv, "--rebuild", "story", "--order", "4f2c9a"]) == 0
+        with reading(db) as conn:
+            assert describe(conn)["built_at"] != _MARK
+
+    def test_index_refreshes_a_grown_trail(self, tmp_path: Path) -> None:
+        log = self._log(tmp_path)
+        db = tmp_path / "replay.db"
+        argv = ["--log-file", str(log), "--db", str(db), "index"]
+        assert main(argv) == 0
+        _mark(db)
+        with log.open("ab") as handle:
+            handle.write(ARCHIVED.read_bytes())
+        assert main(argv) == 0
+        with reading(db) as conn:
+            assert describe(conn)["built_at"] != _MARK
+
+    def test_a_window_is_the_lines_of_the_window(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """C4: from the index a window was the episodes that *opened* in it,
+        reconstructed from the whole trail; off the log it was the window's
+        lines. One path now: the lines, so an order whose submission is
+        before ``--from`` is there by its tail, with or without an index."""
+        db = tmp_path / "replay.db"
+        assert main(["--log-file", str(SIMPLE), "--db", str(db), "index"]) == 0
+        capsys.readouterr()
+        # Between order 4f2c9a's acceptance (.121) and its fill (.122).
+        argv = ["--log-file", str(SIMPLE), "--db", str(db)]
+        assert main([*argv, "--from", "2026-09-08T09:31:02.121", "episodes"]) == 0
+        assert "4f2c9a" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("command", ("stream", "episodes", "anomalies", "stats"))
+    def test_rebuild_is_refused_where_there_is_no_index(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], command: str
+    ) -> None:
+        argv = ["--log-file", str(SIMPLE), "--db", str(tmp_path / "r.db")]
+        assert main([*argv, "--rebuild", command]) == 2
+        assert "--rebuild" in capsys.readouterr().err
+
+    def test_no_index_is_gone(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main(["--log-file", str(SIMPLE), "--no-index", "stream"])
+        assert exc.value.code == 2
+
+
+def test_a_part_that_ends_before_the_window_is_not_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WP-RPL03 follow-up: skipping a closed part line by line cost 0.2 s per
+    256 MB part, 14 s of a live day's ``--last 15m``. A closed part whose last
+    line is before ``--from`` is not opened at all."""
+    from edumatcher.audit import query
+
+    data = tmp_path / "data"
+    (data / "audit").mkdir(parents=True)
+    early = SIMPLE.read_text(encoding="utf-8")
+    later = early.replace("2026-09-08T", "2026-09-09T")
+    (data / "audit" / "audit-2026-09-08.1.log").write_text(early)
+    (data / "audit" / "audit-2026-09-08.2.log").write_text(later)
+    (data / "audit.log").write_text(later)
+
+    opened: list[str] = []
+    real = query.open_log_file
+
+    def recorded(path: Path) -> object:
+        opened.append(path.name)
+        return real(path)
+
+    monkeypatch.setattr(query, "open_log_file", recorded)
+    argv = ["--log-file", str(data / "audit.log"), "--from", "2026-09-09"]
+    assert main([*argv, "episodes"]) == 0
+    assert opened == ["audit-2026-09-08.2.log", "audit.log"]

@@ -1816,3 +1816,9 @@ CREATE INDEX idx_ep_symbol_ts  ON episodes(symbol, opened_ts)
 ```sql
 CREATE INDEX idx_links_to      ON links(to_episode)
 ```
+
+#### `index idx_sl_to`
+
+```sql
+CREATE INDEX idx_sl_to         ON stated_links(to_ref)
+```

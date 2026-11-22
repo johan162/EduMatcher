@@ -201,7 +201,6 @@ def test_a_healthy_trail_replays_with_no_finding_at_warn(
         [
             "--log-file",
             str(trail / "audit.log"),
-            "--no-index",
             "anomalies",
             "--severity",
             "warn",

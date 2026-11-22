@@ -18,6 +18,7 @@ import json
 import re
 from compression import zstd
 from datetime import datetime, timezone, tzinfo
+from functools import lru_cache
 from pathlib import Path
 from collections import deque
 from itertools import islice
@@ -101,8 +102,14 @@ _WILDCARD_PREFIXES: tuple[tuple[str, str], ...] = tuple(
 )
 
 
+@lru_cache(maxsize=1 << 16)
 def _match_topic(topic: str) -> tuple[str, str | None] | None:
-    """Return ``(template, actor)`` for a wire topic, or None if unknown."""
+    """Return ``(template, actor)`` for a wire topic, or None if unknown.
+
+    Cached: a trail holds a few thousand distinct topics (families times
+    gateways or symbols) over millions of lines, and the wildcard prefixes
+    are scanned in turn.
+    """
     if topic in _EXACT_TOPICS:
         return topic, None
     for prefix, template in _WILDCARD_PREFIXES:
@@ -159,13 +166,16 @@ def parse_ts(value: str, *, end_of_day: bool = False) -> datetime:
     without an offset is UTC.
     """
     value = value.strip()
-    try:
-        dt = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        if end_of_day:
-            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-        return dt
-    except ValueError:
-        pass
+    # A value with a time part is never a bare date: skip the strptime, which
+    # costs a raised ValueError per audit line on the replay's hot path.
+    if "T" not in value:
+        try:
+            dt = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            if end_of_day:
+                dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+            return dt
+        except ValueError:
+            pass
     try:
         dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if dt.tzinfo is None:

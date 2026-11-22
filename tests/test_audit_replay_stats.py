@@ -16,6 +16,7 @@ import pytest
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay import stats as stats_report
 from edumatcher.audit.replay.cli import main, reorder_bounds, window_bounds
+from edumatcher.audit.replay.episodes import Episode
 from edumatcher.audit.replay.links import Confidence
 from edumatcher.audit.replay.pipeline import reconstruct
 from tests.replay_goldens import fixture_log
@@ -106,10 +107,10 @@ class TestTheSubcommand:
         assert main(["--log-file", str(tmp_path / "nope.log"), "stats"]) == 1
         assert "no audit log" in capsys.readouterr().err
 
-    def test_no_subcommand_still_validates_and_exits(self) -> None:
-        """--help remains the review surface for the option set while the
-        renderers are still being built."""
-        assert main([]) == 0
+    def test_no_subcommand_is_a_usage_error(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main([])
+        assert exc.value.code == 2
 
     def test_a_rejected_option_combination_still_exits_two(
         self, capsys: pytest.CaptureFixture[str]
@@ -156,3 +157,83 @@ def _parsed(argv: list[str]):
     from edumatcher.audit.replay.cli import build_parser
 
     return build_parser().parse_args(argv)
+
+
+def _stats_findings(text: str) -> dict[str, int]:
+    """The "Anomalies" section of a ``stats`` report, as code -> count."""
+    section = text.split("Anomalies\n", 1)[1]
+    found: dict[str, int] = {}
+    for line in section.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            found[parts[0]] = int(parts[1])
+    return found
+
+
+def _anomaly_findings(
+    argv: list[str], capsys: pytest.CaptureFixture[str]
+) -> dict[str, int]:
+    import json
+    from collections import Counter
+
+    assert main([*argv, "anomalies", "--format", "ndjson"]) in (0, 1)
+    out = capsys.readouterr().out
+    return dict(Counter(json.loads(line)["code"] for line in out.splitlines()))
+
+
+class TestStatsCountsWhatAnomaliesReports:
+    """WP-RPL06 (C3): ``stats`` ran no detector and retired nothing, so its
+    "Anomalies" section listed different findings from ``anomalies`` on the
+    same window, and it ignored ``--symbol``/``--gateway``/``--kind``."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [path.stem for path in sorted(fixture_log(HEALTHY).parent.glob("*.log"))],
+    )
+    def test_the_findings_are_the_ones_anomalies_lists(
+        self, name: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        argv = ["--log-file", str(fixture_log(name))]
+        expected = _anomaly_findings(argv, capsys)
+        assert main([*argv, "stats"]) == 0
+        assert _stats_findings(capsys.readouterr().out) == expected
+
+    def test_a_symbol_filter_narrows_the_counts(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        log = str(fixture_log(HALTED))
+        assert main(["--log-file", log, "stats"]) == 0
+        whole = capsys.readouterr().out.splitlines()[0]
+        assert main(["--log-file", log, "--symbol", "NOPE", "stats"]) in (0, 1)
+        assert "No facts in window." in capsys.readouterr().out
+        argv = ["--log-file", log, "--kind", "command"]
+        expected = _anomaly_findings(argv, capsys)
+        assert main([*argv, "stats"]) == 0
+        narrowed = capsys.readouterr().out
+        assert narrowed.splitlines()[0] != whole
+        assert _stats_findings(narrowed) == expected
+
+    def test_every_fact_is_still_counted_once(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        for name in (HEALTHY, HALTED, ARCHIVE):
+            log = fixture_log(name)
+            lines = [ln for ln in log.read_text().splitlines() if ln.strip()]
+            assert main(["--log-file", str(log), "stats"]) == 0
+            first = capsys.readouterr().out.splitlines()[0]
+            assert first == f"{len(lines)} fact(s) reconstructed."
+            assert (
+                collect(name).links
+                == stats_report.collect_episodes(_episodes(log)).links
+            )
+
+
+def _episodes(log: Path) -> list[Episode]:
+    from edumatcher.audit.replay.detect import Detector, detected, observed
+    from edumatcher.audit.replay.episodes import assemble
+
+    run, steps = reconstruct(iter_entries([log]))
+    detector = Detector(run.state)
+    return list(
+        detected(assemble(observed(steps, detector), run.state, run.links), detector)
+    )

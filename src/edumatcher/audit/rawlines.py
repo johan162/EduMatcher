@@ -18,7 +18,7 @@ import json
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from edumatcher.audit.query import discover_log_files, open_log_file
 from edumatcher.audit.writer import RECORDER_START_PREFIX
@@ -71,9 +71,17 @@ def lines(
     one of them (skipped lines are not split further). Not for a reader that
     tells where a message chain ends by the next line, whatever its topic.
     With *marks*, a recorder-start marker comes as a line whose topic is
-    ``RECORDER_START`` and whose body is the marker."""
-    for path in files:
+    ``RECORDER_START`` and whose body is the marker.
+
+    The last line of the last file is not read when it has no newline yet:
+    pm-audit is still writing it, and half a line is not a message. A meta
+    section whose sequence does not parse raises :class:`Unavailable` naming
+    the line, as :func:`body` does for a payload."""
+    last = len(files) - 1
+    for index, path in enumerate(files):
         for raw in open_log_file(path):
+            if index == last and not raw.endswith("\n"):
+                return
             if not raw.startswith("["):
                 if marks and raw.startswith(RECORDER_START_PREFIX):
                     yield Line(RECORDER_START, "", raw.rstrip("\n"), "")
@@ -91,11 +99,29 @@ def lines(
             seq = eseq = None
             if meta.startswith("seq="):
                 end = meta.find(" ")
-                seq = int(meta[4 : end if end > 0 else None])
-                if meta.startswith("eseq=", end + 1):
-                    stop = meta.find(" ", end + 1)
-                    eseq = int(meta[end + 6 : stop if stop > 0 else None])
+                try:
+                    seq = int(meta[4 : end if end > 0 else None])
+                    if meta.startswith("eseq=", end + 1):
+                        stop = meta.find(" ", end + 1)
+                        eseq = int(meta[end + 6 : stop if stop > 0 else None])
+                except ValueError:
+                    raise Unavailable(
+                        f"the line at {raw[1:a]} ({raw[a + 3 : b]}) has a "
+                        f"sequence that does not parse: [{meta}]"
+                    ) from None
             yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq, eseq)
+
+
+def body(ln: Line) -> dict[str, Any]:
+    """*ln*'s JSON payload; :class:`Unavailable`, naming the line, when it
+    does not parse (a truncated or corrupted line inside the trail)."""
+    try:
+        payload: dict[str, Any] = json.loads(ln.body)
+    except json.JSONDecodeError as exc:
+        raise Unavailable(
+            f"the line at {ln.ts} ({ln.topic}) does not parse: {exc}"
+        ) from None
+    return payload
 
 
 def startup_message(files: list[Path]) -> dict[str, object]:
@@ -107,8 +133,7 @@ def startup_message(files: list[Path]) -> dict[str, object]:
                 f"the audit does not begin with the engine's start ({STARTUP}); "
                 f"first line: {ln.topic}"
             )
-        payload: dict[str, object] = json.loads(ln.body)
-        return payload
+        return body(ln)
     raise Unavailable("the audit is empty")
 
 

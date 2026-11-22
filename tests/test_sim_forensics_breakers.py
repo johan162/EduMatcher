@@ -52,9 +52,12 @@ class StampedRecorder(Recorder):
 
     clock = Clock()
 
-    def _line(self, topic: str, msg: str, chain: str, payload: Any) -> None:
+    def _line(
+        self, topic: str, msg: str, chain: str, payload: Any, cause: str | None = None
+    ) -> None:
         stamp = datetime.fromtimestamp(self.clock.ns / 1e9, timezone.utc).isoformat(timespec="milliseconds")  # fmt: skip
-        self.lines.append(f"[{stamp}] [{topic}] [seq={self.n} msg={msg} chain={chain}] {json.dumps(payload)}\n")  # fmt: skip
+        caused = f" cause={cause}" if cause else ""
+        self.lines.append(f"[{stamp}] [{topic}] [seq={self.n} msg={msg}{caused} chain={chain}] {json.dumps(payload)}\n")  # fmt: skip
 
 
 def halted_and_reopened(data: Path) -> Path:

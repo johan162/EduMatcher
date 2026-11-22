@@ -24,7 +24,7 @@ import json
 import sqlite3
 from dataclasses import replace
 from datetime import datetime
-from typing import Any, Iterable, Iterator, Mapping, Sequence
+from typing import Any, Iterable, Iterator, Mapping, Sequence, TypeVar
 
 from edumatcher.audit.query import AuditEntry
 from edumatcher.audit.replay.anomalies import Anomaly
@@ -38,6 +38,8 @@ from edumatcher.audit.replay.state import StateModel
 #: The separator :func:`~edumatcher.audit.replay.ordering.pack_sort_key` joins
 #: the key's five fields with.
 _PACK_SEP = "\x1f"
+
+_T = TypeVar("_T")
 
 
 def episodes_in_window(
@@ -75,26 +77,43 @@ def episodes_in_window(
     return _hydrate(conn, conn.execute(sql, params).fetchall())
 
 
-def episode_by_anchor(
+def episodes_by_anchor(
     conn: sqlite3.Connection, kind: str, anchor: str
-) -> Episode | None:
-    """One episode by ``(kind, anchor)``, accepting an unambiguous prefix.
+) -> list[Episode]:
+    """Every episode of ``(kind, anchor)``, accepting an unambiguous prefix.
 
-    An exact match is tried first, because a full id that happens to prefix a
-    longer one must resolve to itself rather than to an ambiguity error.
+    Every one, not the first: an anchor can have more than one episode (a
+    late fact beyond the reorder window opens another), and a story of the
+    first alone tells part of it. A prefix is ambiguous only between two
+    *anchors*, never between two episodes of one. An exact match is tried
+    first, because a full id that happens to prefix a longer one must resolve
+    to itself rather than to an ambiguity error. Empty when nothing matches
+    or the prefix is ambiguous.
+
+    The prefix is a range on ``idx_ep_kind_key`` rather than a ``LIKE``,
+    which SQLite cannot serve from that index (it is case-insensitive) and
+    which would read ``_`` and ``%`` in the prefix as wildcards.
     """
-    exact = conn.execute(
-        "SELECT * FROM episodes WHERE kind = ? AND anchor_key = ?", (kind, anchor)
+    found = conn.execute(
+        "SELECT anchor_key FROM episodes WHERE kind = ? AND anchor_key = ? LIMIT 1",
+        (kind, anchor),
     ).fetchall()
-    if exact:
-        return _hydrate(conn, exact)[0]
-    rows = conn.execute(
-        "SELECT * FROM episodes WHERE kind = ? AND anchor_key LIKE ? LIMIT 2",
-        (kind, f"{anchor}%"),
-    ).fetchall()
-    if len(rows) != 1:
-        return None
-    return _hydrate(conn, rows)[0]
+    if not found:
+        found = conn.execute(
+            "SELECT DISTINCT anchor_key FROM episodes "
+            "WHERE kind = ? AND anchor_key >= ? AND anchor_key < ? LIMIT 2",
+            (kind, anchor, anchor + "\U0010ffff"),
+        ).fetchall()
+    if len(found) != 1:
+        return []
+    return _hydrate(
+        conn,
+        conn.execute(
+            "SELECT * FROM episodes WHERE kind = ? AND anchor_key = ? "
+            "ORDER BY opened_sort_key",
+            (kind, str(found[0]["anchor_key"])),
+        ).fetchall(),
+    )
 
 
 def episodes_in_chain(conn: sqlite3.Connection, chain: str) -> list[Episode]:
@@ -180,19 +199,19 @@ def neighbours(
 
 def walk(
     conn: sqlite3.Connection,
-    seed: Episode,
+    seeds: Sequence[Episode],
     *,
     depth: int,
     recorded_only: bool = False,
 ) -> list[Episode]:
-    """*seed* and everything within *depth* links of it, in canonical order.
+    """*seeds* and everything within *depth* links of them, in canonical order.
 
     Breadth-first, so a depth of 2 means two hops and not two episodes. The
-    seed is always included even at depth 0, because "show me this order" is
-    a question that has an answer without following anything.
+    seeds are always included even at depth 0, because "show me this order"
+    is a question that has an answer without following anything.
     """
-    seen = {seed.episode_id: seed}
-    frontier = [seed.episode_id]
+    seen = {seed.episode_id: seed for seed in seeds}
+    frontier = list(seen)
     for _hop in range(max(depth, 0)):
         edges = neighbours(conn, frontier, recorded_only=recorded_only)
         frontier = [
@@ -219,7 +238,9 @@ def _hydrate(conn: sqlite3.Connection, rows: Sequence[sqlite3.Row]) -> list[Epis
     ids = [int(row["episode_id"]) for row in rows]
     events = _events_for(conn, ids)
     anomalies = _anomalies_for(conn, ids)
-    links = _stated_links(conn)
+    links = _stated_links(
+        conn, [str(event["ref"]) for found in events.values() for event in found]
+    )
     return [_episode(row, events, anomalies, links) for row in rows]
 
 
@@ -251,8 +272,8 @@ def _ts(value: Any) -> datetime | None:
 
     Dropping it left an episode read from the index looking as if it had never
     ended, which the section 11 object reports as ``"closed": null`` and
-    ``derive`` reports by omitting ``time_to_completion`` -- so ``--no-index``
-    and an indexed run said different things about the same episode.
+    ``derive`` reports by omitting ``time_to_completion`` -- so the log and
+    the index said different things about the same episode.
     """
     return datetime.fromisoformat(str(value)) if value else None
 
@@ -355,23 +376,30 @@ def _anomalies_for(
     return found
 
 
-def _stated_links(conn: sqlite3.Connection) -> dict[str, list[Link]]:
-    """Links by the ref they point *at*, which is what ``--explain`` shows.
+def _stated_links(
+    conn: sqlite3.Connection, refs: Sequence[str]
+) -> dict[str, list[Link]]:
+    """The links pointing *at* *refs*, by ref, which is what ``--explain`` shows.
 
-    Read whole rather than per episode: a story is a handful of episodes and
-    a window is bounded, so one scan beats a query per line.
+    Keyed reads over ``idx_sl_to``, in batches. Reading the whole table was
+    one scan per hop -- 1.6 s and 72 MB for a single part's index, and a
+    day's index is seventy times that -- to show a handful of episodes.
     """
     found: dict[str, list[Link]] = {}
-    for row in conn.execute("SELECT * FROM stated_links"):
-        found.setdefault(str(row["to_ref"]), []).append(
-            Link(
-                source=str(row["from_ref"]),
-                target=str(row["to_ref"]),
-                relation=str(row["relation"]),
-                confidence=Confidence(str(row["confidence"])),
-                evidence=str(row["evidence"]),
+    for batch in _batches(conn, refs):
+        marks = ",".join("?" * len(batch))
+        for row in conn.execute(
+            f"SELECT * FROM stated_links WHERE to_ref IN ({marks})", batch
+        ):
+            found.setdefault(str(row["to_ref"]), []).append(
+                Link(
+                    source=str(row["from_ref"]),
+                    target=str(row["to_ref"]),
+                    relation=str(row["relation"]),
+                    confidence=Confidence(str(row["confidence"])),
+                    evidence=str(row["evidence"]),
+                )
             )
-        )
     return found
 
 
@@ -395,8 +423,8 @@ def _by_ids(conn: sqlite3.Connection, ids: Sequence[int]) -> list[Episode]:
 
 
 def _batches(
-    conn: sqlite3.Connection, ids: Sequence[int], *, per_id: int = 1
-) -> Iterator[list[int]]:
+    conn: sqlite3.Connection, ids: Sequence[_T], *, per_id: int = 1
+) -> Iterator[list[_T]]:
     """*ids* in slices small enough to bind, *per_id* times each, into one
     statement. A sim run's audit file holds ~390 k episodes, far beyond
     SQLite's variable limit (32 766 by default), which one ``IN (...)`` of

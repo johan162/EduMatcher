@@ -110,12 +110,7 @@ class TestExplicitFile:
             cli_main()
         assert exc.value.code == 2
         assert "archive --log-file" in capsys.readouterr().err
-        assert (
-            replay_main(
-                ["--log-file", str(archive), "--date", DAY, "--no-index", "stats"]
-            )
-            == 2
-        )
+        assert replay_main(["--log-file", str(archive), "--date", DAY, "stats"]) == 2
 
 
 class TestAuditCliScope:
@@ -273,15 +268,23 @@ class TestReplayScope:
         assert replay_main(argv) == 0
         return capsys.readouterr().out
 
+    def _index(self, log: Path, db: Path, capsys: pytest.CaptureFixture[str]) -> str:
+        """The episode count ``index`` reports for the day (the index is
+        what ``story`` reads; the reports read the log)."""
+        capsys.readouterr()
+        argv = ["--log-file", str(log), "--db", str(db), "--date", DAY, "index"]
+        assert replay_main(argv) == 0
+        return capsys.readouterr().out.split(": ", 1)[1]
+
     def test_the_default_reads_the_live_trail_not_an_archive(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         log = _split_fixture(tmp_path)
         archive_day(tmp_path / "audit", DAY, today=NEXT)
         capsys.readouterr()
-        assert replay_main(["--log-file", str(log), "--no-index", "episodes"]) == 0
-        # Only the header and its rule: the archived day is not in the live trail.
-        assert len(capsys.readouterr().out.strip().splitlines()) == 2
+        assert replay_main(["--log-file", str(log), "episodes"]) == 1
+        # Nothing: the archived day is not in the live trail.
+        assert "nothing to narrate" in capsys.readouterr().err
 
     def test_date_replays_an_archive_like_the_plain_fixture(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -300,13 +303,13 @@ class TestReplayScope:
     ) -> None:
         log = _split_fixture(tmp_path)
         db = tmp_path / "replay.db"
-        before = self._run(log, db, "--date", DAY, capsys=capsys)
+        before = self._index(log, db, capsys=capsys)
         parts = discover_day_files(log, DAY, timezone.utc)
         with episode_index.reading(db) as conn:
             assert episode_index.is_current(conn, parts)
 
         archive_day(tmp_path / "audit", DAY, today=NEXT)
-        after = self._run(log, db, "--date", DAY, capsys=capsys)
+        after = self._index(log, db, capsys=capsys)
 
         archive = discover_day_files(log, DAY, timezone.utc)
         assert archive != parts

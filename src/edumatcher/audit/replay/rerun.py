@@ -26,7 +26,11 @@ with what the live engine published for that command (its ``chain``):
   change in the engine since the run (the result names both versions):
   re-run with the run's engine version for a determinism verdict.
 - Final book: the re-run's resting book at the end is the live engine's
-  persisted book (``gtc_orders.json``), when that file is there.
+  persisted book (``gtc_orders.json``) -- compared only when the trail's last
+  run ends with the engine's shutdown (its ``EOD`` book checkpoints), and only
+  for the orders the engine persists (``GTC`` and ``DAY``). While the engine
+  runs, that file is its last periodic checkpoint, up to seconds older than
+  the trail, and every order in between would be a false difference.
 
 After a first difference a symbol's two books differ, and every later
 command on it may differ too. Differences are counted per *episode*, which
@@ -71,6 +75,7 @@ from unittest import mock
 
 from edumatcher.audit.rawlines import (
     RECORDER_START,
+    body,
     STARTUP,
     Unavailable,
     audit_files,
@@ -112,6 +117,7 @@ from edumatcher.models.generated.system import (
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import decode
+from edumatcher.models.order import TIF
 from edumatcher.models.trade import (
     current_run_seq,
     reset_trade_ids_for_tests,
@@ -158,6 +164,11 @@ _HEARTBEAT_REASON = "heartbeat_timeout"
 #: The input for an engine start after the first: its payload is that
 #: start's ``system.startup``.
 RESTART = "engine.restart"
+#: The book checkpoint reason of the engine's shutdown (``Engine._shutdown``
+#: publishes them after persisting ``gtc_orders.json``).
+_SHUTDOWN_CHECKPOINT = "EOD"
+#: The orders ``Engine._resting_gtc_orders`` persists.
+_PERSISTED_TIFS = (TIF.GTC, TIF.DAY)
 #: A checkpoint's order lists, and what of each order a restart must keep
 #: (not ``priority_seq``: a restored book numbers its queue afresh).
 _BOOK_LISTS = ("bids", "asks", "buy_stops", "sell_stops", "trailing_stops")
@@ -458,8 +469,11 @@ class Rerun:
         self.observers: list[Callable[[Step], None]] = []
         #: The audit time of the input being handled.
         self.ts = ""
-        #: Whether the persisted book was there to compare with.
+        #: Whether the persisted book was compared, and if not, why not.
         self.book_checked = False
+        self.book_unchecked = ""
+        #: Whether the trail's last run ends with the engine's shutdown.
+        self.shut_down = False
         #: Engine starts after the first, re-run as restarts.
         self.restarts = 0
 
@@ -504,9 +518,10 @@ class Rerun:
             empty = self._state / "empty"
             empty.mkdir()
             self.engine = fresh_engine(compiled.engine, sink, empty)
-            for topic, chain, payload, live, ts in inputs(files):
+            for topic, chain, payload, live, ts in inputs(files, eod=self._shut_down):
                 self.ts = ts
                 if topic == RESTART:
+                    self.shut_down = False
                     self.restart(payload, ts, clock, sink)
                     continue
                 if topic == "startup":
@@ -516,9 +531,9 @@ class Rerun:
                     self.restored(payload["checkpoints"])
                     continue
                 if topic is None:
-                    for t, body in live:
+                    for t, published in live:
                         if t.startswith(_STATE):
-                            self.flag("E1", topic=t, chain=chain, body=json.dumps(body)[:200])  # fmt: skip
+                            self.flag("E1", topic=t, chain=chain, body=json.dumps(published)[:200])  # fmt: skip
                     continue
                 if topic.startswith(PREFIX_BOOK_SNAPSHOT):
                     self.snapshot(payload)
@@ -647,11 +662,19 @@ class Rerun:
         if all(mine[k] == p.get(k) for k in ("bids", "asks", "last_price")):
             del self.diverged[sym]
 
+    def _shut_down(self) -> None:
+        self.shut_down = True
+
     def final_book(self) -> None:
+        """The re-run's resting book against ``gtc_orders.json`` (E4)."""
         path = self.data_dir / "gtc_orders.json"
-        self.book_checked = path.is_file()
-        if not self.book_checked:
+        if not self.shut_down:
+            self.book_unchecked = "the engine had not shut down when the trail ends"
             return
+        if not path.is_file():
+            self.book_unchecked = "no gtc_orders.json beside the trail"
+            return
+        self.book_checked = True
         persisted = {
             str(o["id"]): int(o.get("remaining_qty", 0))
             for o in json.loads(path.read_text())
@@ -660,6 +683,7 @@ class Rerun:
             self.ids.to_live.get(o.id, o.id): o.remaining_qty
             for book in self.engine.books.values()
             for o in book.resting_orders()
+            if o.tif in _PERSISTED_TIFS
         }
         for oid in sorted(persisted.keys() | resting.keys()):
             if persisted.get(oid) != resting.get(oid):
@@ -677,7 +701,9 @@ Live = list[tuple[str, dict[str, Any]]]
 Input = tuple[str | None, str, dict[str, Any], Live, str]
 
 
-def inputs(files: list[Path]) -> Iterator[Input]:
+def inputs(
+    files: list[Path], *, eod: Callable[[], None] | None = None
+) -> Iterator[Input]:
     """The engine's inputs in the audit, in order, each with what the live
     engine published for it: (topic, chain, payload, outputs, audit time) per echoed
     command or breaker timer (BREAKER_TIMER, payload {"symbol"}); first
@@ -696,7 +722,12 @@ def inputs(files: list[Path]) -> Iterator[Input]:
     recorder-start marker anywhere but before the first line, before an
     engine start (the recorder was up before the new engine's first line,
     whatever ended the old one), or before a line whose ``eseq`` continues
-    the one before (nothing was published meanwhile)."""
+    the one before (nothing was published meanwhile).
+
+    *eod* is called for each book checkpoint of the engine's shutdown
+    (reason ``EOD``), so a caller can tell whether the trail's last run
+    ended with one; a line whose payload does not parse is
+    :class:`Unavailable`, naming it (``rawlines.body``)."""
     commands = _command_topics()
     first = True
     startup: Live | None = []
@@ -762,7 +793,7 @@ def inputs(files: list[Path]) -> Iterator[Input]:
             if unit is not None:
                 yield unit_input(unit)
                 unit = None
-            yield RESTART, "", json.loads(ln.body), [], ln.ts
+            yield RESTART, "", body(ln), [], ln.ts
             startup, told = [], {"checkpoints": {}, "recovery": None}
             continue
         if ln.topic in commands and startup is not None:
@@ -776,17 +807,17 @@ def inputs(files: list[Path]) -> Iterator[Input]:
                 yield unit_input(unit)
                 unit = None
             if ln.topic in commands:
-                command, live = (ln.topic, ln.chain, json.loads(ln.body), ln.ts), []
+                command, live = (ln.topic, ln.chain, body(ln), ln.ts), []
             else:
-                yield ln.topic, "", json.loads(ln.body), [], ln.ts
+                yield ln.topic, "", body(ln), [], ln.ts
             continue
         if (
             ln.topic.startswith(PREFIX_GATEWAY_BYE)
             and startup is None
             and (command is None or ln.chain != command[1])
         ):
-            body = json.loads(ln.body)
-            if body.get("reason") == _HEARTBEAT_REASON:
+            bye = body(ln)
+            if bye.get("reason") == _HEARTBEAT_REASON:
                 # The engine disconnecting a silent gateway: its bye and the
                 # cancels that follow are one unit, with no command behind it.
                 if command is not None:
@@ -798,23 +829,27 @@ def inputs(files: list[Path]) -> Iterator[Input]:
                     ln.chain,
                     [],
                     ln.ts,
-                    {"gateway_id": body["gateway_id"], "reason": _HEARTBEAT_REASON},
+                    {"gateway_id": bye["gateway_id"], "reason": _HEARTBEAT_REASON},
                 )
                 continue
-        if startup is not None and ln.topic.startswith(PREFIX_BOOK_CHECKPOINT):
-            body = json.loads(ln.body)
-            told["checkpoints"][body["symbol"]] = body
+        if ln.topic.startswith(PREFIX_BOOK_CHECKPOINT):
+            checkpoint = body(ln)
+            if checkpoint.get("reason") == _SHUTDOWN_CHECKPOINT:
+                if eod is not None:
+                    eod()
+            elif startup is not None:
+                told["checkpoints"][checkpoint["symbol"]] = checkpoint
             continue
         if startup is not None and ln.topic == TOPIC_STARTUP_RECOVERY:
-            told["recovery"] = json.loads(ln.body)
+            told["recovery"] = body(ln)
             continue
         if ln.topic.startswith(_SKIP):
             continue
         if startup is not None:
-            startup.append((ln.topic, json.loads(ln.body)))
+            startup.append((ln.topic, body(ln)))
             continue
         if command is not None and ln.chain == command[1]:
-            live.append((ln.topic, json.loads(ln.body)))
+            live.append((ln.topic, body(ln)))
             continue
         # Outside the current command: what it published is complete (the
         # engine finishes one input before the next), and a new unit begins.
@@ -826,7 +861,7 @@ def inputs(files: list[Path]) -> Iterator[Input]:
             unit = None
         if unit is None:
             unit = (ln.chain, [], ln.ts, None)
-        unit[1].append((ln.topic, json.loads(ln.body)))
+        unit[1].append((ln.topic, body(ln)))
     if startup is not None:
         yield "startup", "", told, startup, ""
     if command is not None:

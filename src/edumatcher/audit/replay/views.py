@@ -8,16 +8,20 @@ column moving.
 
 Every function here takes episodes and returns text, so each is testable
 without argparse and none of them knows whether the episodes came from the
-index or straight off the log. That is what makes ``--no-index`` answer the
-same question rather than a similar one.
+index or straight off the log. Each also takes rows (:class:`Row`), what
+it reads of an episode without the episode's facts: the CLI keeps a row per
+episode (``episodes``), only the rows with findings (``anomalies``) or a
+top-N heap of them (``digest --top``), so a day's report does not hold a
+day's payloads -- about 6.5 KB a line, 2.46 GB per simulation part.
 """
 
 from __future__ import annotations
 
 import csv
 import io
+from dataclasses import dataclass
 from datetime import datetime, tzinfo
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 from edumatcher.audit.replay.anomalies import (
     SEVERITY_ERROR,
@@ -26,6 +30,7 @@ from edumatcher.audit.replay.anomalies import (
     Anomaly,
 )
 from edumatcher.audit.replay.derived import Derived, derive
+from edumatcher.audit.replay.facts import price_text
 from edumatcher.audit.replay.episodes import (
     KIND_COMBO,
     KIND_COMMAND,
@@ -43,6 +48,7 @@ from edumatcher.audit.replay.episodes import (
     Episode,
 )
 from edumatcher.audit.replay import terminal
+from edumatcher.audit.replay.ordering import SortKey
 from edumatcher.audit.replay.render_text import Abbreviator
 from edumatcher.audit.replay.terminal import Palette
 
@@ -89,7 +95,48 @@ EPISODE_COLUMNS = (
 )
 
 
-def findings(episode: Episode) -> list[Anomaly]:
+@dataclass(frozen=True, slots=True)
+class Row:
+    """What the tabular views read of one episode, without its facts.
+
+    Taken by :func:`row` as the episode retires; the attributes the views and
+    :func:`story_command` share with :class:`Episode` have its names.
+    ``derived`` is None when the caller did not need it (``episodes``).
+    """
+
+    episode_id: int
+    kind: str
+    anchor_key: str
+    outcome: str
+    opened_ts: datetime
+    opened_sort_key: SortKey
+    span: float
+    actor: str | None
+    symbol: str | None
+    findings: tuple[Anomaly, ...]
+    derived: Derived | None
+
+
+def row(episode: Episode | Row, *, derived: bool = True) -> Row:
+    """*episode*'s row; a row is returned as it is."""
+    if isinstance(episode, Row):
+        return episode
+    return Row(
+        episode_id=episode.episode_id,
+        kind=episode.kind,
+        anchor_key=episode.anchor_key,
+        outcome=episode.outcome,
+        opened_ts=episode.opened_ts,
+        opened_sort_key=episode.opened_sort_key,
+        span=_span(episode),
+        actor=episode.actor,
+        symbol=episode.symbol,
+        findings=tuple(findings(episode)),
+        derived=derive(episode) if derived else None,
+    )
+
+
+def findings(episode: Episode | Row) -> list[Anomaly]:
     """Every finding on an episode, per-fact and episode-level alike.
 
     The two live in different places -- a fact's are on its Step, an
@@ -98,9 +145,17 @@ def findings(episode: Episode) -> list[Anomaly]:
     the first event), which is exactly why no view may reach for either place
     itself.
     """
+    if isinstance(episode, Row):
+        return list(episode.findings)
     return [
         anomaly for event in episode.events for anomaly in event.step.anomalies
     ] + list(episode.anomalies)
+
+
+def has_finding(episode: Episode | Row, severity: str) -> bool:
+    """Whether *episode* has a finding at *severity* or worse."""
+    floor = at_least(severity)
+    return any(at_least(anomaly.severity) <= floor for anomaly in findings(episode))
 
 
 def at_least(severity: str) -> int:
@@ -124,9 +179,7 @@ def _span(episode: Episode) -> float:
     return (episode.events[-1].fact.receipt_ts - episode.opened_ts).total_seconds()
 
 
-def _anchors(
-    episodes: Sequence[Episode], id_len: int | None
-) -> Callable[[Episode], str]:
+def _anchors(episodes: Sequence[Row], id_len: int | None) -> Callable[[Row], str]:
     """An abbreviator per episode kind, rather than one over all of them.
 
     :class:`Abbreviator` raises the length until no two ids in its pool share
@@ -141,7 +194,7 @@ def _anchors(
         for kind in {episode.kind for episode in episodes}
     }
 
-    def short(episode: Episode) -> str:
+    def short(episode: Row) -> str:
         return by_kind[episode.kind](episode.anchor_key)
 
     return short
@@ -153,23 +206,33 @@ def _anchors(
 
 
 def render_anomalies(
-    episodes: Sequence[Episode],
+    episodes: Iterable[Episode | Row],
     *,
     severity: str = SEVERITY_INFO,
+    story_source: str = "",
+    total: int | None = None,
     id_len: int | None = 6,
     tz: tzinfo | None = None,
     palette: Palette = terminal.PLAIN,
 ) -> str:
-    """Every finding at or above *severity*, worst first, then by time."""
-    short = _anchors(episodes, id_len)
+    """Every finding at or above *severity*, worst first, then by time.
+
+    *story_source* is the source options the run was given, carried into
+    each suggested ``story`` command (:func:`story_command`). *total* is the
+    number of episodes in the window, for the tally, when *episodes* holds
+    only the ones with findings. Ids are abbreviated among the episodes
+    listed.
+    """
     floor = at_least(severity)
+    listed = [row(episode, derived=False) for episode in episodes]
     rows = [
         (episode, anomaly)
-        for episode in episodes
-        for anomaly in findings(episode)
+        for episode in listed
+        for anomaly in episode.findings
         if at_least(anomaly.severity) <= floor
     ]
-    rows.sort(key=lambda row: (at_least(row[1].severity), row[1].receipt_ts))
+    rows.sort(key=lambda found: (at_least(found[1].severity), found[1].receipt_ts))
+    short = _anchors([episode for episode, _ in rows], id_len)
 
     lines: list[str] = []
     for episode, anomaly in rows:
@@ -179,11 +242,11 @@ def render_anomalies(
             f"{palette.bold(f'{anomaly.code:<22}')} {episode.kind} {short(episode)}"
         )
         lines.append(f"       {anomaly.detail}")
-        suggestion = story_command(episode)
+        suggestion = story_command(episode, story_source)
         if suggestion:
             lines.append(palette.dim(f"       -> {suggestion}"))
         lines.append("")
-    lines.append(palette.bold(_tally(rows, len(episodes))))
+    lines.append(palette.bold(_tally(rows, len(listed) if total is None else total)))
     return "\n".join(lines) + "\n"
 
 
@@ -215,20 +278,23 @@ def _time(anomaly: Anomaly, tz: tzinfo | None = None) -> str:
     return "-" * 12
 
 
-def story_command(episode: Episode) -> str | None:
+def story_command(episode: Episode | Row, source: str = "") -> str | None:
     """The ``story`` invocation that shows this episode, or None.
 
     Section 12.6 prints one under every finding, because the next thing a
     reader does with a finding is go and look at it, and having to work out
-    the command first is the friction that stops them.
+    the command first is the friction that stops them. *source* is the
+    ``--log-file``/``--db``/``--date`` the finding was read with: without
+    them the pasted command reads the default trail, or today's.
     """
     flag = STORY_FLAG.get(episode.kind)
     if flag is None:
         return None
-    return f"pm-audit-replay story {flag} {episode.anchor_key} -v --explain"
+    prefix = f"pm-audit-replay {source} " if source else "pm-audit-replay "
+    return f"{prefix}story {flag} {episode.anchor_key} -v --explain"
 
 
-def _tally(rows: Sequence[tuple[Episode, Anomaly]], episodes: int) -> str:
+def _tally(rows: Sequence[tuple[Row, Anomaly]], episodes: int) -> str:
     if not rows:
         return f"No findings across {episodes} episode(s)."
     counts = {
@@ -247,7 +313,7 @@ def _tally(rows: Sequence[tuple[Episode, Anomaly]], episodes: int) -> str:
 
 
 def render_episodes(
-    episodes: Sequence[Episode],
+    episodes: Iterable[Episode | Row],
     *,
     as_csv: bool = False,
     id_len: int | None = 6,
@@ -260,20 +326,23 @@ def render_episodes(
     scanning for "the one at 09:31" expects. ``anomalies`` is a count; the
     findings themselves are what the ``anomalies`` view is for.
     """
-    short = _anchors(episodes, id_len)
-    ordered = sorted(episodes, key=lambda e: e.opened_sort_key)
+    listed = sorted(
+        (row(episode, derived=False) for episode in episodes),
+        key=lambda e: e.opened_sort_key,
+    )
+    short = _anchors(listed, id_len)
     rows = [
         (
             _clock(episode.opened_ts, tz),
-            f"{_span(episode):.3f}s",
+            f"{episode.span:.3f}s",
             episode.kind,
             short(episode) if not as_csv else episode.anchor_key,
             episode.actor or "-",
             episode.symbol or "-",
             episode.outcome,
-            str(len(findings(episode))),
+            str(len(episode.findings)),
         )
-        for episode in ordered
+        for episode in listed
     ]
     # CSV is data and never painted; the table is painted cell by cell, after
     # the widths are settled.
@@ -335,10 +404,11 @@ def _table(rows: Sequence[Sequence[str]], palette: Palette = terminal.PLAIN) -> 
 
 
 def render_digest(
-    episodes: Sequence[Episode],
+    episodes: Iterable[Episode | Row],
     *,
     significance: str = SIGNIFICANCE_ANOMALIES,
     top: int | None = None,
+    total: int | None = None,
     id_len: int | None = 6,
     tz: tzinfo | None = None,
     palette: Palette = terminal.PLAIN,
@@ -349,16 +419,18 @@ def render_digest(
     default ranking that only takes effect when ``--top`` is given would mean
     the same command printed the same episodes in two different orders
     depending on a flag that is about how *many* to print.
+
+    *total* is the number of episodes in the window when *episodes* holds
+    only the most significant ones (``heapq.nsmallest`` over
+    :func:`digest_key`, as the CLI keeps them). Ids are abbreviated among the
+    episodes shown.
     """
-    short = _anchors(episodes, id_len)
-    ranked = sorted(
-        episodes,
-        key=lambda e: (-_weight(e, significance), e.opened_sort_key),
-    )
+    ranked = sorted(map(row, episodes), key=digest_key(significance))
     shown = ranked if top is None else ranked[:top]
+    short = _anchors(shown, id_len)
 
     blocks = [_paragraph(episode, short, tz, palette) for episode in shown]
-    omitted = len(ranked) - len(shown)
+    omitted = (len(ranked) if total is None else total) - len(shown)
     if omitted:
         blocks.append(
             f"... {omitted} more episode(s), less significant by {significance}."
@@ -366,7 +438,12 @@ def render_digest(
     return "\n\n".join(blocks) + "\n"
 
 
-def _weight(episode: Episode, rule: str) -> float:
+def digest_key(significance: str) -> Callable[[Row], tuple[float, SortKey]]:
+    """The digest's ranking: most significant first, then by opening."""
+    return lambda episode: (-_weight(episode, significance), episode.opened_sort_key)
+
+
+def _weight(episode: Row, rule: str) -> float:
     """How significant this episode is under *rule*.
 
     ``anomalies`` falls back to notional, as section 9.4 says: without it
@@ -378,23 +455,27 @@ def _weight(episode: Episode, rule: str) -> float:
     if rule == SIGNIFICANCE_NOTIONAL:
         return _notional(episode)
     if rule == SIGNIFICANCE_QTY:
-        return float(derive(episode).filled_qty or 0)
-    return _span(episode)
+        return float(_derived(episode).filled_qty or 0)
+    return episode.span
 
 
-def _severity_weight(episode: Episode) -> float:
+def _severity_weight(episode: Row) -> float:
     """An error outranks any number of warnings, and so on down."""
     weights = {SEVERITY_ERROR: 1_000_000.0, SEVERITY_WARN: 1_000.0, SEVERITY_INFO: 1.0}
-    return sum(weights.get(a.severity, 0.0) for a in findings(episode))
+    return sum(weights.get(a.severity, 0.0) for a in episode.findings)
 
 
-def _notional(episode: Episode) -> float:
-    return derive(episode).notional or 0.0
+def _notional(episode: Row) -> float:
+    return _derived(episode).notional or 0.0
+
+
+def _derived(episode: Row) -> Derived:
+    return episode.derived if episode.derived is not None else Derived()
 
 
 def _paragraph(
-    episode: Episode,
-    short: Callable[[Episode], str],
+    episode: Row,
+    short: Callable[[Row], str],
     tz: tzinfo | None = None,
     palette: Palette = terminal.PLAIN,
 ) -> str:
@@ -404,10 +485,10 @@ def _paragraph(
         f"{palette.bold(short(episode))}  {episode.actor or '-'}  "
         f"{episode.symbol or '-'}  {episode.outcome}"
     ]
-    numbers = _numbers(derive(episode), episode)
+    numbers = _numbers(_derived(episode), episode)
     if numbers:
         lines.append(palette.dim(f"       {numbers}"))
-    found = findings(episode)
+    found = episode.findings
     if found:
         codes = ", ".join(sorted({anomaly.code for anomaly in found}))
         worst = min(at_least(anomaly.severity) for anomaly in found)
@@ -416,7 +497,7 @@ def _paragraph(
     return "\n".join(lines)
 
 
-def _numbers(derived: Derived, episode: Episode) -> str:
+def _numbers(derived: Derived, episode: Row) -> str:
     """The derived facts worth a line, and only the ones that exist.
 
     Section 8.3's no-invention rule applied to a summary: a field that is
@@ -427,10 +508,10 @@ def _numbers(derived: Derived, episode: Episode) -> str:
     if derived.filled_qty is not None:
         parts.append(f"{derived.filled_qty} filled")
     if derived.vwap is not None:
-        parts.append(f"vwap {derived.vwap:g}")
+        parts.append(f"vwap {price_text(derived.vwap)}")
     if derived.notional is not None:
         parts.append(f"{derived.notional:,.2f} notional")
     if derived.time_to_ack is not None:
         parts.append(f"acked in {derived.time_to_ack * 1000:.0f}ms")
-    parts.append(f"{_span(episode):.3f}s")
+    parts.append(f"{episode.span:.3f}s")
     return " - ".join(parts)
