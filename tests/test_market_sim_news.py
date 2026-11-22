@@ -14,7 +14,11 @@ from edumatcher.market_sim.main import MarketSim, load_state, save_state
 from edumatcher.market_sim.model import SymbolParams
 from edumatcher.market_sim.news import KINDS, STORIES, NewsConfig, NewsDesk
 from edumatcher.market_sim.sectors import industry_of
-from edumatcher.market_sim.news_history import read_news_events
+from edumatcher.market_sim.news_history import (
+    append_news_event,
+    prune_news_events,
+    read_news_events,
+)
 from edumatcher.models.generated import news as N
 from edumatcher.models.generated import sim as S
 from edumatcher.models.message import decode
@@ -321,3 +325,41 @@ def test_open_rumours_survive_a_restart(tmp_path: Path) -> None:
     ]
     assert confirmed["id"] == "N2"  # numbering continues
     assert again.model.value("XOM") == pytest.approx(before * math.exp(0.2))
+
+
+def _headline(news_id: str, ts_ns: int) -> dict[str, object]:
+    return {
+        "id": news_id,
+        "ts_ns": ts_ns,
+        "scope": "MARKET",
+        "targets": [],
+        "kind": "MACRO",
+        "status": "CONFIRMED",
+        "headline": news_id,
+        "sentiment": 0.1,
+    }
+
+
+def test_prune_news_events_drops_only_older_rows(tmp_path: Path) -> None:
+    path = tmp_path / "market_sim_news.db"
+    for news_id, ts in (("OLD", 99), ("EDGE", 100), ("NEW", 101)):
+        append_news_event(path, _headline(news_id, ts))
+    assert prune_news_events(path, 100) == 1
+    assert [e["id"] for e in read_news_events(path, limit=10)] == ["NEW", "EDGE"]
+    assert prune_news_events(path, 100) == 0
+
+
+def test_phase_change_prunes_news_past_retention(tmp_path: Path) -> None:
+    path = tmp_path / "market_sim_news.db"
+    day_ns = 86_400 * 10**9
+    now = 100 * 86_400.0
+    append_news_event(path, _headline("STALE", int(now * 1e9) - 91 * day_ns))
+    append_news_event(path, _headline("KEPT", int(now * 1e9) - 89 * day_ns))
+    sim = _sim(path)
+    sim.on_session("CONTINUOUS", None, now)  # first phase seen, at startup
+    assert [e["id"] for e in read_news_events(path, limit=10)] == ["KEPT"]
+    append_news_event(path, _headline("AGED", int(now * 1e9) - 89 * day_ns))
+    sim.on_session("CONTINUOUS", None, now + 2 * 86_400)  # same phase: no prune
+    assert len(read_news_events(path, limit=10)) == 2
+    sim.on_session("CLOSING_AUCTION", None, now + 2 * 86_400)
+    assert read_news_events(path, limit=10) == []

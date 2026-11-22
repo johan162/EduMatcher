@@ -434,6 +434,8 @@ class NewsConfig:
     #: Trading time (days) before a generated rumour resolves: uniform range.
     rumour_delay_min: float = 0.02
     rumour_delay_max: float = 0.15
+    #: Days the published headlines stay in the news history.
+    retention_days: float = 90.0
 
 
 @dataclass

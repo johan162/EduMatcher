@@ -112,6 +112,15 @@ def append_news_event(path: Path, event: dict[str, Any]) -> None:
             _insert_event(conn, event)
 
 
+def prune_news_events(path: Path, before_ns: int) -> int:
+    """Delete the headlines published before ``before_ns``; how many went."""
+    with closing(_connect(path)) as conn:
+        with conn:
+            return conn.execute(
+                "DELETE FROM news_events WHERE ts_ns < ?", (before_ns,)
+            ).rowcount
+
+
 def append_value_jumps(
     path: Path, ts_ns: int, jumps: dict[str, float], values: dict[str, float]
 ) -> None:

@@ -28,6 +28,7 @@ engine configuration itself is untouched::
       rumour_confirm: 0.6      # chance a rumour is confirmed rather than retracted
       rumour_delay_min: 0.02   # trading days before a rumour resolves (uniform)
       rumour_delay_max: 0.15
+      retention_days: 90       # days the news history keeps a headline
 
 A symbol of the engine configuration missing here gets the defaults (sector
 ``OTHER``); a symbol here that the engine does not list is an error. With no
@@ -80,6 +81,7 @@ _NEWS_RANGES: dict[str, tuple[float, float]] = {
     "rumour_confirm": (0.0, 1.0),
     "rumour_delay_min": (0.0, 10.0),
     "rumour_delay_max": (0.0, 10.0),
+    "retention_days": (1.0, 3650.0),
 }
 
 

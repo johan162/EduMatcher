@@ -73,6 +73,7 @@ from edumatcher.market_sim.news import NewsDesk, Rumour
 from edumatcher.market_sim.news_history import (
     NEWS_HISTORY_DB,
     append_news_event,
+    prune_news_events,
     append_value_jumps,
 )
 from edumatcher.models.generated import news as N
@@ -218,6 +219,7 @@ class MarketSim:
             log.info("overnight move applied")
         if state == "CONTINUOUS":
             self._last_step = now
+        self._prune_news(now)
         return True
 
     @property
@@ -277,6 +279,20 @@ class MarketSim:
                 math.expm1(jump) * 100,
                 values[sym],
             )
+
+    def _prune_news(self, now: float) -> None:
+        """Drop the headlines older than the retention window, a few times a
+        day: on every phase change, the first one at startup included."""
+        if self.news_history_path is None:
+            return
+        cutoff = now - self.cfg.news.retention_days * 86_400
+        try:
+            dropped = prune_news_events(self.news_history_path, int(cutoff * 1e9))
+        except OSError, sqlite3.Error:
+            log.exception("could not prune the news history")
+            return
+        if dropped:
+            log.info("news history: %d headline(s) past retention dropped", dropped)
 
     def _news_out(self, event: dict[str, Any], moves: dict[str, float]) -> list[bytes]:
         self.model.shock(moves)
