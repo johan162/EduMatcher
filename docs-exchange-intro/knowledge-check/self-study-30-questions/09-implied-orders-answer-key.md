@@ -243,7 +243,7 @@ Each implied February lot costs (January ask) − (spread bid). Walk both ladder
 - **A — true.** A resting spread order behaves like any resting limit order: the unfilled remainder stays at the same price with its priority intact.
 - **B — false.** Every leg price must be on its instrument's tick grid, consistent with every order, and inside price limits, or clearing systems reject the trades.
 - **C — true.** The two February legs trade between the two spread bidders, and no order states a February price; the engine anchors one month to a reference price by a documented, deterministic rule.
-- **D — true.** FOK and IOC orders execute on arrival or are cancelled, so they never rest and never become ingredients.
+- **D — true.** FOK and IOC orders execute on arrival or end at once (an IOC remainder is cancelled, an unfillable FOK rejected), so they never rest and never become ingredients.
 - **E — false.** Each spread lot fills as a complete pair (one January bought, one February sold) in the same atomic event; a partial fill gives *fewer* spreads, never a lone leg.
 
 ### 27. Generations, numerically — B, C, D

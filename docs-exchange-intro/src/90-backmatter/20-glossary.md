@@ -226,7 +226,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Fill:** An execution, a match between a buy and sell order resulting in a trade. Partial fills consume part of an order; a complete fill consumes all of it.
 
-**FOK (Fill-Or-Kill):** An order that must be completely filled immediately or cancelled entirely.
+**FOK (Fill-Or-Kill):** An order that must be completely filled immediately or is rejected entirely; it never rests and never partially fills.
 
 **FIX (Financial Information eXchange):** The industry-standard protocol for electronic order submission, used by most exchanges and brokers globally.
 

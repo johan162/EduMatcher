@@ -53,11 +53,11 @@ An order passes through a defined set of statuses during its lifetime. Understan
 | **NEW** | The order has been accepted and acknowledged by the exchange. It is live, either resting in the book (if a limit order) or being matched (if aggressive). |
 | **PARTIAL** | At least one fill has occurred but the order quantity is not yet fully satisfied. The remaining quantity continues to rest or be eligible for matching. |
 | **FILLED** | The entire order quantity has been executed. The order is complete and leaves the book. |
-| **CANCELLED** | The order was withdrawn before it was fully filled, either by the participant, by the exchange (e.g., kill switch), or by a system rule (e.g., end-of-day cancellation of DAY orders). |
+| **CANCELLED** | The order was withdrawn before it was fully filled, either by the participant or by the exchange (e.g., a kill switch, or self-match prevention). |
 | **REJECTED** | The order was refused by the gateway or the engine before entering the book, for example, failing a pre-trade risk check, containing an invalid price, or submitted during a halt. A rejected order never entered the book. |
-| **EXPIRED** | The order's time-in-force condition was not met. GTD orders that reach their expiry date without filling receive this status. ATO orders unfilled after the opening auction expire automatically. |
+| **EXPIRED** | The order's time in force ran out before it was fully filled: a DAY order still resting at the end of the trading day, an ATO or ATC order unfilled when its auction ends, or a GTD order that reaches its expiry date. No one asked for it to be withdrawn; its validity simply ended. |
 
-The key transitions: an order starts as NEW. A partial fill moves it to PARTIAL. A final fill completes the transition to FILLED. A cancel message (from the participant) or a kill switch (from the exchange) moves a NEW or PARTIAL order to CANCELLED. A pre-trade rejection produces REJECTED without the order ever becoming NEW. An elapsed GTD date produces EXPIRED.
+The key transitions: an order starts as NEW. A partial fill moves it to PARTIAL. A final fill completes the transition to FILLED. A cancel message (from the participant) or a kill switch (from the exchange) moves a NEW or PARTIAL order to CANCELLED. A pre-trade rejection produces REJECTED without the order ever becoming NEW. The end of the order's time in force (the close for a DAY order, the end of the auction for ATO and ATC, an elapsed GTD date) produces EXPIRED.
 
 ```mermaid
 stateDiagram-v2
@@ -66,10 +66,10 @@ stateDiagram-v2
     NEW --> PARTIAL : First partial fill
     NEW --> FILLED : Complete fill in one event
     NEW --> CANCELLED : Cancel request or kill switch
-    NEW --> EXPIRED : GTD date elapsed / ATO after auction
+    NEW --> EXPIRED : Time in force ended (DAY at close, ATO/ATC after auction, GTD date)
     PARTIAL --> FILLED : Final partial fill completes order
     PARTIAL --> CANCELLED : Cancel request or kill switch
-    PARTIAL --> EXPIRED : GTD date elapsed while resting
+    PARTIAL --> EXPIRED : Time in force ended while resting
     FILLED --> [*]
     CANCELLED --> [*]
     EXPIRED --> [*]

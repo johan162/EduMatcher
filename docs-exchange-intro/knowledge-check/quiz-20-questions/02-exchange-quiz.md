@@ -54,7 +54,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. FOK orders can rest in the book if the full quantity isn't available
 - [ ] B. If the full quantity cannot be filled, a FOK order leaves the book exactly as it was
 - [ ] C. FOK orders require the matching engine to perform a hypothetical "dry-run" check before committing any fills
-- [ ] D. FOK orders always fill at least partially before being cancelled
+- [ ] D. FOK orders always fill at least partially before they end
 - [ ] E. FOK and ATC are functionally identical
 
 ### 5. Reading the order book
@@ -108,7 +108,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 12. ATO, ATC, and GTD nuances
 - [ ] A. ATC orders cannot be used to build a position gradually throughout the continuous session the way a DAY order can
-- [ ] B. A GTD order still resting when its expiry date/time arrives is cancelled by the exchange, even if no other event touches the order
+- [ ] B. A GTD order still resting when its expiry date/time arrives is expired by the exchange, even if no other event touches the order
 - [ ] C. An ATO order that isn't filled during the opening auction automatically converts into a DAY order for the rest of the session
 - [ ] D. ATO and ATC orders can be freely submitted at any point during continuous trading
 - [ ] E. GTC orders are discarded at the end of each session and must be resubmitted the next day

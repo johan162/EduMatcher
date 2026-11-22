@@ -81,7 +81,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. NASDAQ's Global Select, Global Market, and Capital Market tiers differ in stringency
 
 ### 8. Order types recap with a twist
-- [ ] A. GTD orders require no automatic cancellation task from the exchange's scheduler
+- [ ] A. GTD orders require no automatic expiry task from the exchange's scheduler
 - [ ] B. An iceberg order's visible peak is replenished from a hidden reserve after being consumed
 - [ ] C. A midpoint peg order is recalculated dynamically as (best_bid + best_ask) / 2 at match time
 - [ ] D. A buy stop-limit order converts to a limit order once triggered
