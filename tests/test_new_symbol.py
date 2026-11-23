@@ -38,6 +38,8 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(guards, "GTC_ORDERS_FILE", data / "gtc_orders.json")
     monkeypatch.setattr(guards, "GTC_COMBOS_FILE", data / "gtc_combos.json")
     monkeypatch.setattr(install, "engine_running", lambda: None)
+    # The host's real process table is no business of these tests.
+    monkeypatch.setattr(install, "other_processes", lambda: [])
     return data
 
 
@@ -380,3 +382,305 @@ def test_bad_listing_into_an_include_changes_nothing(
     assert (included.read_bytes(), split_source.read_bytes()) == before
     assert (data_dir / "ref_data" / "engine_config.json").read_bytes() == artifact
     assert not [p for p in split_source.parent.iterdir() if p.name.startswith(".new")]
+
+
+# -- WP-NSY01: a name with saved state can be listed again ---------------------
+
+
+def _saved_state(data_dir: Path) -> dict[str, str]:
+    """Saved state for IPO1 and AAPL, written by the engine's own writers:
+    book stats for both, a resting IPO1 order, an AAPL order, and a combo
+    with one IPO1 leg and one AAPL leg (its legs persist as orders)."""
+    from edumatcher.engine.order_book import OrderBook
+    from edumatcher.engine.persistence import (
+        save_book_stats,
+        save_gtc_combos,
+        save_gtc_orders,
+    )
+    from edumatcher.models.combo import ComboLeg, ComboOrder, ComboStatus, ComboType
+    from edumatcher.models.order import TIF, Order, OrderType, Side
+
+    def order(symbol: str, **extra: object) -> Order:
+        o = Order.create(
+            symbol=symbol,
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            gateway_id="TRADER01",
+            tif=TIF.GTC,
+            price_ticks=1000,
+        )
+        for key, value in extra.items():
+            setattr(o, key, value)
+        return o
+
+    combo = ComboOrder.create(
+        combo_id="CMB1",
+        gateway_id="TRADER01",
+        combo_type=ComboType.AON,
+        tif=TIF.GTC,
+        legs=[
+            ComboLeg(
+                symbol="IPO1", side=Side.BUY, order_type=OrderType.LIMIT,
+                quantity=10, tick_decimals=2, price_ticks=1000,
+            ),
+            ComboLeg(
+                symbol="AAPL", side=Side.SELL, order_type=OrderType.LIMIT,
+                quantity=10, tick_decimals=2, price_ticks=15000,
+            ),
+        ],
+    )  # fmt: skip
+    combo.status = ComboStatus.PENDING
+    ipo_leg = order("IPO1", combo_parent_id="CMB1")
+    aapl_leg = order("AAPL", combo_parent_id="CMB1")
+    combo.child_order_ids = [ipo_leg.id, aapl_leg.id]
+    lone_ipo, lone_aapl = order("IPO1"), order("AAPL")
+    save_book_stats(
+        {"IPO1": OrderBook("IPO1"), "AAPL": OrderBook("AAPL")},
+        {},
+        data_dir / "book_stats.json",
+    )
+    save_gtc_orders(
+        [lone_ipo, lone_aapl, ipo_leg, aapl_leg], data_dir / "gtc_orders.json"
+    )
+    save_gtc_combos([combo], data_dir / "gtc_combos.json")
+    return {"lone_aapl": lone_aapl.id, "aapl_leg": aapl_leg.id}
+
+
+def _json(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_saved_state_refusal_names_the_option_not_a_bare_clear(
+    source: Path, data_dir: Path
+) -> None:
+    _saved_state(data_dir)
+    with pytest.raises(ValueError) as exc:
+        add_symbol(_args())
+    message = str(exc.value)
+    assert "--discard-saved-state" in message
+    assert "'pm-opctl-cli clear'" not in message
+    assert "clear --state" in message and "clearing.db" in message
+
+
+def test_discard_saved_state_removes_only_the_symbols_state(
+    source: Path, data_dir: Path
+) -> None:
+    ids = _saved_state(data_dir)
+    result = add_symbol(_args("--discard-saved-state"))
+
+    assert result.deployed and "IPO1" in _deployed(data_dir).engine.symbols
+    stats = _json(data_dir / "book_stats.json")
+    assert isinstance(stats, dict) and set(stats) == {"AAPL"}
+    orders = _json(data_dir / "gtc_orders.json")
+    assert isinstance(orders, list)
+    # The lone AAPL order stays; the combo's AAPL leg goes with its combo.
+    assert [o["id"] for o in orders] == [ids["lone_aapl"]]
+    assert _json(data_dir / "gtc_combos.json") == []
+    assert result.discarded and any("combo" in line for line in result.discarded)
+
+
+def test_discard_saved_state_removes_nothing_when_the_listing_is_invalid(
+    source: Path, data_dir: Path
+) -> None:
+    _saved_state(data_dir)
+    before = {
+        name: (data_dir / name).read_bytes()
+        for name in ("book_stats.json", "gtc_orders.json", "gtc_combos.json")
+    }
+    with pytest.raises(CompileError):
+        add_symbol(_args("--discard-saved-state", "--field", "level=NO_SUCH_LEVEL"))
+    for name, content in before.items():
+        assert (data_dir / name).read_bytes() == content
+
+
+def test_discard_saved_state_is_refused_while_the_engine_runs(
+    tmp_path: Path, source: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Also for a file that is only edited: the engine would rewrite the very
+    files the option edits at its next checkpoint."""
+    _saved_state(data_dir)
+    before = (data_dir / "gtc_orders.json").read_bytes()
+    other = tmp_path / "draft.yaml"
+    other.write_text(source.read_text("utf-8"), encoding="utf-8")
+    monkeypatch.setattr(install, "engine_running", lambda: "pm-engine is running")
+    with pytest.raises(ValueError, match="pm-engine is running"):
+        add_symbol(_args("--discard-saved-state", config=other))
+    assert (data_dir / "gtc_orders.json").read_bytes() == before
+
+
+def test_discard_without_saved_state_changes_nothing_else(
+    source: Path, data_dir: Path
+) -> None:
+    result = add_symbol(_args("--discard-saved-state"))
+    assert result.discarded == []
+    assert not (data_dir / "gtc_orders.json").exists()
+
+
+def test_main_reports_what_was_discarded(
+    source: Path, data_dir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _saved_state(data_dir)
+    main(
+        [
+            "--symbol", "IPO1", "--ipo-price", "20.00",
+            "--outstanding-shares", "1000000", "--discard-saved-state",
+        ]
+    )  # fmt: skip
+    out = capsys.readouterr().out
+    assert "Removed saved state for IPO1" in out and "gtc_orders.json" in out
+
+
+# -- WP-NSY02: every price is refused or listed exactly ------------------------
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--ipo-price", "1e30"),
+        ("--ipo-price", "123456789012345678901234567890"),
+        ("--ipo-price", "1e20"),
+        ("--mm-bid-price", "1e40", "--mm-ask-price", "2e40"),
+    ],
+)
+def test_an_unrepresentable_price_is_refused_without_a_traceback(
+    source: Path, data_dir: Path, extra: tuple[str, ...]
+) -> None:
+    original = source.read_bytes()
+    with pytest.raises(ValueError, match="cannot be represented exactly"):
+        add_symbol(_args(*extra))
+    assert source.read_bytes() == original
+
+
+def test_main_reports_an_unrepresentable_price_as_a_refusal(
+    source: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--symbol", "IPO1", "--ipo-price", "1e30", "--outstanding-shares", "10"])
+    assert exc.value.code == 1
+    assert "cannot be represented exactly" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--ipo-price", "20.00"),
+        ("--tick-decimals", "8", "--ipo-price", "0.00000001",
+         "--mm-bid-price", "0.00000001", "--mm-ask-price", "0.00000002"),
+    ],
+)  # fmt: skip
+def test_ordinary_prices_are_still_listed(source: Path, extra: tuple[str, ...]) -> None:
+    assert add_symbol(_args(*extra)).symbol == "IPO1"
+
+
+# -- WP-NSY03: other processes still on the old configuration ------------------
+
+
+def test_a_listing_names_the_processes_still_running_on_the_old_config(
+    source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        install, "other_processes", lambda: ["pm-md-gwy (pid 41)", "pm-stats (pid 42)"]
+    )
+    main(["--symbol", "IPO1", "--ipo-price", "20.00", "--outstanding-shares", "10"])
+    captured = capsys.readouterr()
+    assert "pm-md-gwy (pid 41), pm-stats (pid 42)" in captured.err
+    assert "restart" in captured.err
+
+
+def test_a_quiet_exchange_gets_no_warning_and_a_clear_start_line(
+    source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(install, "other_processes", lambda: [])
+    main(["--symbol", "IPO1", "--ipo-price", "20.00", "--outstanding-shares", "10"])
+    captured = capsys.readouterr()
+    assert "[WARN]" not in captured.err
+    assert "Start every process of the exchange" in captured.out
+
+
+def test_other_processes_leave_out_the_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The engine is refused outright when deploying; the warning is for the
+    rest."""
+    from types import SimpleNamespace
+
+    fake = [
+        (SimpleNamespace(pid=7), "pm-engine"),
+        (SimpleNamespace(pid=8), "pm-md-gwy"),
+    ]
+    monkeypatch.setattr(guards, "pm_processes", lambda: fake)
+    assert guards.other_processes() == ["pm-md-gwy (pid 8)"]
+
+
+def test_a_failed_deploy_after_a_discard_says_the_state_is_gone(
+    source: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Holistic review HR1: the saved state is removed before the file is
+    replaced and deployed; an error after that must not hide it."""
+    _saved_state(data_dir)
+
+    def fail(*_a: object, **_k: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(install, "deploy", fail)
+    with pytest.raises(ValueError) as exc:
+        add_symbol(_args("--discard-saved-state"))
+    message = str(exc.value)
+    assert "not deployed" in message
+    assert "saved state was already removed" in message
+    assert "gtc_orders.json" in message
+
+
+def _free_tcp_addr() -> str:
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return f"tcp://127.0.0.1:{s.getsockname()[1]}"
+
+
+def test_a_command_that_only_mentions_pm_engine_is_not_an_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Holistic review HR2: the pgrep pattern matched any command line with
+    ``…/pm-engine `` in it (a wrapper shell, a tmux or watch command)."""
+    import subprocess
+
+    monkeypatch.setattr(guards, "ENGINE_PUB_ADDR", _free_tcp_addr())
+    shell = subprocess.Popen(
+        ["bash", "-c", "sleep 30; echo /venv/bin/pm-engine --verbose"]
+    )
+    try:
+        assert guards.engine_running() is None
+    finally:
+        shell.kill()
+        shell.wait(5)
+
+
+def test_a_running_pm_engine_program_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+    import sys
+    import time
+
+    monkeypatch.setattr(guards, "ENGINE_PUB_ADDR", _free_tcp_addr())
+    script = tmp_path / "pm-engine"
+    script.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
+    script.chmod(0o755)
+    engine = subprocess.Popen([str(script), "--verbose"])
+    try:
+        deadline = time.monotonic() + 5
+        found = guards.engine_running()
+        while found is None and time.monotonic() < deadline:
+            time.sleep(0.1)  # until the interpreter has exec'd the script
+            found = guards.engine_running()
+        assert found is not None and str(engine.pid) in found
+    finally:
+        engine.kill()
+        engine.wait(5)

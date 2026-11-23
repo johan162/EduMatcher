@@ -91,6 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="With --list: the engine YAML pm-new-symbol edits",
     )
+    parser.add_argument(
+        "--discard-saved-state",
+        action="store_true",
+        help=(
+            "With --list: let pm-new-symbol remove the ticker's saved engine "
+            "state from an earlier run instead of refusing"
+        ),
+    )
     return parser
 
 
@@ -159,6 +167,8 @@ def main(argv: list[str] | None = None) -> None:
         argv = listing_args(result.resolved["company.ticker"], listing)
         if args.config is not None:
             argv += ["--config", str(args.config)]
+        if args.discard_saved_state:
+            argv.append("--discard-saved-state")
         new_symbol(argv)
 
 

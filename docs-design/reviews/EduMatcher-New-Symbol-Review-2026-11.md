@@ -38,7 +38,11 @@ directory and queried with `pm-admin-cli`, then the guide's correction flow.
 (5 810 lines, 300 symbols). The other findings are by inspection, with line
 numbers given.
 
-Status: **Open.** Decisions Q1–Q2 are needed before WP-NSY01 and WP-NSY03.
+Status: **Done, uncommitted (2026-11-23).** All four WPs and a holistic
+review done in one go; last full suite 15 541 passed, 1 skipped. Q1 and Q2
+taken as recommended without an explicit answer (to confirm). Beyond the
+plan: `pm-valuation --discard-saved-state` (WP-NSY01) and the holistic
+review's HR1–HR2, including a program-based running-engine check.
 
 ---
 
@@ -74,10 +78,10 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-NSY01 | A symbol name with saved state can be listed again, and the refusal says how | C1, D1, D3 | Q1 | 0.5 d | ☐ | |
-| 2 | WP-NSY02 | Every price is refused or listed exactly; no traceback | C2 | — | 0.25 d | ☐ | |
-| 3 | WP-NSY03 | The listing says which other processes still run on the old configuration | C3 | Q2 | 0.25 d | ☐ | |
-| 4 | WP-NSY04 | Help texts, exit codes and guides say what the code does | D2, D4–D6 | WP-NSY01–03 | 0.25 d | ☐ | |
+| 1 | WP-NSY01 | A symbol name with saved state can be listed again, and the refusal says how | C1, D1, D3 | Q1 | 0.5 d | ☑ | 2026-11-23 |
+| 2 | WP-NSY02 | Every price is refused or listed exactly; no traceback | C2 | — | 0.25 d | ☑ | 2026-11-23 |
+| 3 | WP-NSY03 | The listing says which other processes still run on the old configuration | C3 | Q2 | 0.25 d | ☑ | 2026-11-23 |
+| 4 | WP-NSY04 | Help texts, exit codes and guides say what the code does | D2, D4–D6 | WP-NSY01–03 | 0.25 d | ☑ | 2026-11-23 |
 
 Suggested order: **WP-NSY01 → WP-NSY02 → WP-NSY03 → WP-NSY04**. WP-NSY01
 unblocks training chapter 28's Exercise 8 and the guide's own correction
@@ -273,6 +277,9 @@ see §9.
 
 ## 7. Decisions
 
+Answers (2026-11-23, user asked for all WPs in one go): Q1 and Q2 taken as
+recommended, to confirm.
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | How can a name with saved state be listed (C1)? (a) a new `--discard-saved-state` that, with the engine stopped, removes only that symbol's entries from `book_stats.json`, `gtc_orders.json` and `gtc_combos.json` (with the engine's own loaders and atomic writers) after the staged validation passes, and says what it removed; the refusal names the option; (b) keep refusing, fix the advice to `pm-opctl-cli stop` + `pm-opctl-cli clear --state --yes` and spell out everything it deletes; training Exercise 8 gets that step | **(a)**: it removes exactly what the refusal found and nothing else; (b) works but costs every position and statistic in the data directory to correct one listing, which is the opposite of what a classroom wants between Exercises 7 and 8. The texts still mention `clear --state` as the clean-slate alternative, with its real scope. |
@@ -312,6 +319,36 @@ warning and Training 28 Exercise 8 use the option.
 `tests/test_valuation*.py` green; the scratch correction flow lists `NEWCO`
 at 21.00 and the engine then opens it at 21.00.
 
+**Outcome (2026-11-23).** Q1 taken as recommended. `--discard-saved-state`
+on `pm-new-symbol`/`pm-ipo`: `guards.discard_saved_state(symbol)` removes the
+symbol's `book_stats.json` entry, its resting orders, and every resting combo
+with a leg in it together with that combo's leg orders in other symbols (a
+combo is one order; its other legs would otherwise come back pointing at a
+combo that is gone). It edits the JSON as read and writes it back with the
+engine's `atomic_write_text`, so every other entry stays byte-for-byte what
+the engine wrote (re-serialising through the engine's loaders could have
+normalised other orders). It runs in `add_symbol` after the staged
+verification and the second engine check, before the source is replaced, and
+the engine check now also runs for a file that is only edited when the option
+is given. The refusal names the option and gives `pm-opctl-cli clear
+--state` with what it really deletes. `main` prints what was removed.
+
+Beyond the plan: `pm-valuation --list` builds `pm-new-symbol`'s argv itself,
+so the advice was unusable on training chapter 28's path; `pm-valuation` got
+a `--discard-saved-state` that it passes on (test in
+`tests/test_valuation_report.py`). D1, D3: the refusal text, the guide's
+warning box, refusal row and options table, training Exercise 8 (now with the
+option and its output, the order count marked as variable) and the
+"If `--list` refuses" note. `make completion` regenerated.
+
+Failed first: the refusal-text test (old advice), the five option tests
+(`SystemExit: 2`, unknown option), the valuation pass-through (same); the
+existing saved-state refusal tests passed before and after. Exit criterion:
+the scratch correction flow listed `NEWCO` at 21.00 with the option
+("Removed saved state for NEWCO" with the book stats and 2 resting orders),
+and a real engine then opened `NEWCO` with last prices 21.00 and only the new
+seed (20.90 / 21.10). Full suite: 15 528 passed, 1 skipped.
+
 ### WP-NSY02 — Every price is refused or listed exactly; no traceback (C2)
 
 **Tests first** (`tests/test_new_symbol.py`):
@@ -329,6 +366,23 @@ prices; `decimal.InvalidOperation` turned into the same `ValueError`.
 
 **Exit criteria.** Tests 1–3 pass; `tests/test_new_symbol.py` green.
 
+**Outcome (2026-11-23).** `listing._check_price(label, value, tick)` is
+used for the IPO price and both seed prices, computed or given: a
+`decimal.InvalidOperation` (or `OverflowError`) from the modulo, or a value
+whose float form is not the same number, is refused with "… cannot be
+represented exactly; use a smaller price or fewer decimals"; the grid
+message is unchanged. `1e30` itself floats exactly, so the modulo is what
+fails; for `1e20` the IPO price is exact and the default seed bid
+(`1e20 - 0.10`) is what the check catches, which is why the seed prices go
+through it too. Pyright flagged a possibly unbound name on the error path in
+the first version.
+
+Failed first: the four unrepresentable-price cases (three
+`decimal.InvalidOperation` tracebacks and one `CompileError` with S015) and
+the `main` exit-code case; the two ordinary-price cases (including 8 decimals
+at `0.00000001`) passed before and after. Full suite: 15 535 passed,
+1 skipped.
+
 ### WP-NSY03 — The listing says which other processes still run on the old configuration (C3; after Q2)
 
 **Tests first** (`tests/test_new_symbol.py`):
@@ -344,6 +398,21 @@ already refuses) for the warning; reword the success line.
 
 **Exit criteria.** Tests 1–2 pass; suites green.
 
+**Outcome (2026-11-23).** Q2 taken as recommended. `guards.other_processes()`
+lists this user's running pm-* programs other than `pm-engine` (which a
+deploying listing refuses outright), through `emo.cli.pm_processes` — the
+selection `pm-opctl-cli kill` and `clear` use, so it never names `npm`, an
+editor or the calling shell, and never `pm-new-symbol`/`pm-valuation` itself
+(this process and its ancestors are excluded). A deployed listing prints
+`[WARN] still running on the configuration without X, restart them: …` on
+stderr; an edit-only listing does not, since nothing was deployed. The success
+line now reads "Start every process of the exchange to open trading." The
+shared `data_dir` test fixture stubs `other_processes`, so no test looks at
+the host's real process table.
+
+Failed first: all three tests (no `other_processes`, no
+`guards.pm_processes`). Full suite: 15 538 passed, 1 skipped.
+
 ### WP-NSY04 — Help texts, exit codes and guides say what the code does (D2, D4–D6)
 
 **Tests first.** None for texts; `tests/test_shell_completion.py` and the
@@ -357,6 +426,69 @@ training chapter 28 Exercises 7–8 against the final code (lessons B1).
 
 **Exit criteria.** Every D item resolved; `make _check` green; `mkdocs build`
 without new warnings.
+
+**Outcome (2026-11-23).** D2: every option has help text, and the epilog
+gives the exit codes (0 listed, 1 refused with nothing changed, 2 usage). D4:
+the guide's "Why it refused" table has the unrepresentable-price row and says
+every refusal exits 1 and leaves the saved state alone too. D5: registry and
+reference manual list `--discard-saved-state`, the exit codes and the
+still-running warning; `pm-valuation`'s registry entry, guide chapter
+(`020-valuation.md`) and reference manual table list its pass-through option.
+D6: the quick-start output and both training-chapter outputs show the new
+success line, and the guide explains the `[WARN]` line. `make completion`
+regenerated.
+
+Re-walk (lessons B1): the guide's quick start (`pm-opctl-cli stop`, list,
+`pm-opctl-cli start`), its correction flow (now `--discard-saved-state`) and
+training chapter 28 Exercises 7–8 (Exercise 8 with the option) against the
+final code; the outputs shown are the code's own lines, the order count in
+Exercise 8 marked as variable. Full suite: 15 538 passed, 1 skipped;
+`mkdocs build`: the one pre-existing warning.
+
+### Holistic review (2026-11-23)
+
+All changes re-read as one diff (`new_symbol/`, `valuation/main.py`, the
+texts), looking for interference between the WPs, and training chapter 28's
+Exercises 7 and 8 walked end to end on a fresh scratch data directory with a
+real `pm-engine` and a stand-in `pm-zzstray` program left running: Exercise 7
+listed `TORN` through `pm-valuation --list` and the engine checkpointed it;
+Exercise 8 without the option was refused with the new advice, and with
+`--discard-saved-state` removed `TORN`'s book stats and its 2 resting orders,
+listed it with no seed quote, deployed, and warned about `pm-zzstray`.
+
+- **HR1 (fixed; WP-NSY01).** The saved state is removed after the staged
+  verification but before the file is replaced and deployed (the safe
+  order: a failed removal leaves everything untouched, and a later failure
+  only loses state that the listing was going to discard anyway). An error
+  after the removal did not say it had happened: a failed deploy printed only
+  "written but not deployed". Errors from the replacement and the deploy now
+  end with "X's saved state was already removed: …". Test: a deploy that
+  raises `OSError` after a discard (failed first: the message lacked it).
+- **HR2 (fixed; the existing guard, found while walking WP-NSY03's flow).**
+  `engine_running` matched `(^|/)pm-engine( |$)` anywhere on any command line
+  with `pgrep -f`, so a shell, `tmux` or `watch` command that merely names
+  `…/bin/pm-engine` blocked every listing with "pm-engine is running": the
+  walk's own wrapper shell did. The process part now uses the program-based
+  `emo.cli.pm_processes` (the same selection as WP-NSY03's warning and
+  `pm-opctl-cli kill`); another user's engine is still caught by the port
+  probe. Tests: a real `bash -c "… /venv/bin/pm-engine …"` child is not an
+  engine (failed first: three PIDs reported); a real script named
+  `pm-engine` is (passed before and after). The guide's "pgrep is
+  unavailable" refusal row, a message the guard can no longer produce, was
+  removed.
+- **Checked, no change.** WP-NSY02's price checks run in `build_listing`,
+  before the saved-state check, so a bad price never discards anything. The
+  engine check guards a discard even for an edit-only listing (WP-NSY01),
+  while the still-running warning (WP-NSY03) is printed only for a deployed
+  listing, since nothing else changed for the running processes otherwise.
+  `pm_processes` excludes this process and its ancestors, so neither
+  `pm-new-symbol` nor `pm-valuation --list` (which calls it in-process) names
+  itself. The discarded `TORN` orders in the walk were MM01's seed legs from
+  Exercise 7; under the classroom configuration (no seed for TORN) the engine
+  would also have dropped them as unconfigured seeds, so removing them changes
+  nothing a user relies on.
+
+Full suite after the review: 15 541 passed, 1 skipped.
 
 ---
 

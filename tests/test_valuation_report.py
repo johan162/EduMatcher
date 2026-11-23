@@ -409,6 +409,18 @@ def test_list_hands_the_listing_to_pm_new_symbol(
     ]  # fmt: skip
 
 
+def test_list_passes_discard_saved_state_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Relisting a name the engine already ran with (training chapter 28,
+    Exercise 8) needs pm-new-symbol's --discard-saved-state."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr("edumatcher.new_symbol.main.main", calls.append)
+    main(["--case", "tornfalk", "--no-tui", "--mode", "deterministic",
+          "--list", "--discard-saved-state"])  # fmt: skip
+    assert calls and calls[0][-1] == "--discard-saved-state"
+
+
 def test_list_refuses_a_postponed_ipo(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

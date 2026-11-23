@@ -2597,6 +2597,17 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 "none",
                 "level, collar, order_limits or circuit_breaker; repeatable",
             ),
+            Option(
+                "--discard-saved-state",
+                "off",
+                "Remove the symbol's saved engine state instead of refusing "
+                "(engine stopped)",
+            ),
+        ),
+        notes=(
+            "Exit codes: 0 listed; 1 refused, with nothing changed; 2 usage error.",
+            "Warns, naming them, about pm-* processes still running on the old "
+            "configuration; restart every process of the exchange after a listing.",
         ),
         related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli", "pm-valuation"),
         doc_page="../../../docs/books/operator-guide/part-4-run-a-market/010-new-symbols.md",
@@ -2655,6 +2666,12 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 "--config PATH",
                 "deployed source",
                 "With --list: the engine YAML pm-new-symbol edits",
+            ),
+            Option(
+                "--discard-saved-state",
+                "off",
+                "With --list: passed on to pm-new-symbol (relist a ticker the "
+                "engine already ran with)",
             ),
         ),
         related=("pm-new-symbol", "pm-index-admin-cli", "pm-opctl-cli"),

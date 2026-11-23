@@ -2625,14 +2625,19 @@ pm-new-symbol --config my_config.yaml --symbol NEWCO --ipo-price 25.00 --outstan
 | `--mm-tif {DAY,GTC}` | `DAY` | Time-in-force of the seed quote |
 | `--mm-seed-once` / `--no-mm-seed-once` | on | Skip the seed when a restored quote already exists |
 | `--field KEY=YAML_VALUE` | none | Optional symbol section: `level`, `collar`, `order_limits` or `circuit_breaker`; repeatable, e.g. `--field 'collar={static_band_pct: 0.2}'` |
+| `--discard-saved-state` | off | Remove this symbol's saved engine state (its last prices, resting orders, and resting combos with a leg in it, with their legs) instead of refusing; needs the engine stopped |
 | `--version` | — | Print version and exit |
 
 Nothing is written until the edited file passes the same four verification
 layers as `pm-config-deploy`; a refusal leaves both the YAML and the deployed
 artifact untouched. It refuses while `pm-engine` runs (when editing the
 deployed source), when the deployed source has undeployed edits, when saved
-engine state already exists for the symbol, and when the file is only a copy
-or a bundled example.
+engine state already exists for the symbol (unless `--discard-saved-state`),
+and when the file is only a copy or a bundled example. A deployed listing
+names any other `pm-*` process still running on the old configuration
+(`[WARN]`); restart every process of the exchange afterwards.
+
+**Exit codes:** `0` listed; `1` refused, nothing changed; `2` usage error.
 
 See [Listing a New Symbol](../../operator-guide/part-4-run-a-market/010-new-symbols.md) for the full
 list of refusals, how the seed quote is priced and the IPO-day checklist.
@@ -2852,6 +2857,7 @@ pm-valuation --load my_scenario.yaml --no-tui --export report.md
 | `--presets FILE` | bundled | Alternative presets file |
 | `--list` | off | With `--no-tui`: list the priced IPO with `pm-new-symbol` |
 | `--config FILE` | deployed source | With `--list`: the engine YAML that `pm-new-symbol` edits |
+| `--discard-saved-state` | off | With `--list`: passed on to `pm-new-symbol`, which removes the ticker's saved engine state instead of refusing |
 | `--version` | — | Print version and exit |
 
 See [IPO Valuation](../../operator-guide/part-4-run-a-market/020-valuation.md) for the finance behind

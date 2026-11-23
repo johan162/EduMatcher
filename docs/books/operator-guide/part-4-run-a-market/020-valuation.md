@@ -1430,7 +1430,9 @@ pm-opctl-cli start
   redeployed.
 - Every `pm-new-symbol` guard applies: the exchange must be stopped, and no
   saved state may exist for the symbol (see
-  [Why it refused](010-new-symbols.md#why-it-refused)).
+  [Why it refused](010-new-symbols.md#why-it-refused)). To list a ticker the
+  engine already ran with (a second classroom run), add
+  `--discard-saved-state`, which is passed on to `pm-new-symbol`.
 - A postponed IPO has nothing to list: the report is printed, and the command
   exits with status 1.
 - The seed quote, collar and other listing options are `pm-new-symbol`'s
@@ -1469,6 +1471,7 @@ join the index. That is a later step, not part of listing.
 | `--presets FILE` | bundled | Alternative sector presets |
 | `--list` | off | With `--no-tui`: list the priced IPO with `pm-new-symbol` |
 | `--config PATH` | the deployed source | With `--list`: the engine YAML to edit |
+| `--discard-saved-state` | off | With `--list`: passed on to `pm-new-symbol`, which removes the ticker's saved engine state instead of refusing |
 
 !!! tip "Terminal width"
     The interview is laid out for a terminal at least 120 columns wide; in a

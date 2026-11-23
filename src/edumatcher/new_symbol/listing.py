@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import yaml
@@ -22,6 +22,25 @@ _SYMBOL = re.compile(r"[A-Z0-9._]{1,8}")
 # its own option, and the loader ignores unknown keys, so a misspelt key would
 # otherwise be dropped without a word.
 FIELDS = ("level", "collar", "order_limits", "circuit_breaker")
+
+
+def _check_price(label: str, value: Decimal, tick: Decimal) -> None:
+    """*value* must be a whole number of ticks and survive the float the YAML
+    stores: ``1e20 - 0.10`` floats to ``1e20``, and ``1e30 % tick`` is beyond
+    the decimal context, so such prices are refused here instead of ending in
+    a traceback or in a verifier finding about numbers nobody typed."""
+    try:
+        off_grid = bool(value % tick)
+        exact = Decimal(repr(float(value))) == value
+    except InvalidOperation, OverflowError:
+        off_grid, exact = False, False
+    if not exact:
+        raise ValueError(
+            f"{label} {value} cannot be represented exactly; use a smaller "
+            "price or fewer decimals"
+        )
+    if off_grid:
+        raise ValueError(f"{label} {value} is not on the {tick} tick grid")
 
 
 def _seed_quote(
@@ -79,8 +98,7 @@ def _seed_quote(
     else:
         bid, ask = args.mm_bid_price, args.mm_ask_price
     for label, value in (("bid", bid), ("ask", ask)):
-        if value % tick:
-            raise ValueError(f"seed {label} {value} is not on the {tick} tick grid")
+        _check_price(f"seed {label}", value, tick)
     if not bid < ask or not bid <= price <= ask:
         raise ValueError(
             f"seed quote {bid} / {ask} must be ordered and straddle the IPO "
@@ -126,8 +144,7 @@ def build_listing(
         raise ValueError("--tick-decimals must be in 0..8")
     tick = Decimal(1).scaleb(-args.tick_decimals)
     price: Decimal = args.ipo_price
-    if price % tick:
-        raise ValueError(f"IPO price {price} is not on the {tick} tick grid")
+    _check_price("IPO price", price, tick)
 
     # No trade has happened yet, so both last prices are the offer price:
     # it is what the collar and the circuit breaker take as their reference.

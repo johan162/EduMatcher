@@ -39,6 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
             "List a new symbol (an IPO) in an engine configuration and, when "
             "that file is the deployed one, redeploy it."
         ),
+        epilog=(
+            "Exit codes: 0 listed; 1 refused (nothing was changed); 2 usage "
+            "error. See the operator guide, 'Listing a New Symbol'."
+        ),
     )
     from edumatcher.cli_version import add_version_argument
 
@@ -57,20 +61,58 @@ def build_parser() -> argparse.ArgumentParser:
         type=_price,
         help="Offer price: the book's reference price for collars and breakers",
     )
-    parser.add_argument("--outstanding-shares", required=True, type=int)
-    parser.add_argument("--tick-decimals", type=int, default=2)
+    parser.add_argument(
+        "--outstanding-shares",
+        required=True,
+        type=int,
+        help="Shares outstanding, positive (for index market caps)",
+    )
+    parser.add_argument(
+        "--tick-decimals",
+        type=int,
+        default=2,
+        help="Price grid: decimals of one tick, 0..8 (default: 2)",
+    )
     parser.add_argument(
         "--mm-gateway-id", help="MARKET_MAKER gateway that posts the seed quote"
     )
-    parser.add_argument("--mm-bid-price", type=_price)
-    parser.add_argument("--mm-ask-price", type=_price)
-    parser.add_argument("--mm-bid-qty", type=int, default=1000)
-    parser.add_argument("--mm-ask-qty", type=int, default=1000)
     parser.add_argument(
-        "--mm-tif", type=str.upper, choices=("DAY", "GTC"), default="DAY"
+        "--mm-bid-price",
+        type=_price,
+        help="Seed quote bid; with --mm-ask-price (default: the widest spread "
+        "the market maker may quote, around the IPO price)",
     )
     parser.add_argument(
-        "--mm-seed-once", action=argparse.BooleanOptionalAction, default=True
+        "--mm-ask-price", type=_price, help="Seed quote ask; with --mm-bid-price"
+    )
+    parser.add_argument(
+        "--mm-bid-qty", type=int, default=1000, help="Seed bid size (default: 1000)"
+    )
+    parser.add_argument(
+        "--mm-ask-qty", type=int, default=1000, help="Seed ask size (default: 1000)"
+    )
+    parser.add_argument(
+        "--mm-tif",
+        type=str.upper,
+        choices=("DAY", "GTC"),
+        default="DAY",
+        help="Seed quote time in force (default: DAY)",
+    )
+    parser.add_argument(
+        "--mm-seed-once",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Skip the seed when the market maker's quote was restored at "
+        "start (default: on)",
+    )
+    parser.add_argument(
+        "--discard-saved-state",
+        action="store_true",
+        help=(
+            "Remove this symbol's saved engine state (last prices, resting "
+            "orders, combos with a leg in it) before listing, instead of "
+            "refusing; needs the engine stopped"
+        ),
     )
     parser.add_argument(
         "--field",
@@ -107,6 +149,10 @@ def main(argv: list[str] | None = None) -> None:
     if result.warnings:
         print("[WARN] the verifier has advice about the new symbol:", file=sys.stderr)
         _report(result.warnings)
+    if result.discarded:
+        print(f"Removed saved state for {result.symbol}:")
+        for line in result.discarded:
+            print(f"  {line}")
     payload = result.payload
     decimals = payload["tick_decimals"]
     print(
@@ -123,7 +169,16 @@ def main(argv: list[str] | None = None) -> None:
     if "market_maker_quotes" not in payload:
         print("  no seed quote: the book opens empty")
     if result.deployed:
-        print(f"Deployed to {result.artifact}. Start the exchange to open trading.")
+        print(
+            f"Deployed to {result.artifact}. Start every process of the "
+            "exchange to open trading."
+        )
+        if result.still_running:
+            print(
+                "[WARN] still running on the configuration without "
+                f"{result.symbol}, restart them: {', '.join(result.still_running)}",
+                file=sys.stderr,
+            )
     else:
         print(
             f"Not deployed: {result.source} is not the deployed configuration's "

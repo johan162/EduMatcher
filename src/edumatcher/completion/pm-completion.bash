@@ -5343,7 +5343,7 @@ complete -o bashdefault -F _shtab_pm_index_cli pm-index-cli
 
 
 
-_shtab_pm_ipo_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --field)
+_shtab_pm_ipo_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --discard-saved-state --field)
 
 
 
@@ -5354,6 +5354,7 @@ _shtab_pm_ipo___help_nargs=0
 _shtab_pm_ipo___version_nargs=0
 _shtab_pm_ipo___mm_seed_once_nargs=0
 _shtab_pm_ipo___no_mm_seed_once_nargs=0
+_shtab_pm_ipo___discard_saved_state_nargs=0
 
 
 # $1=COMP_WORDS[1]
@@ -7156,7 +7157,7 @@ complete -o bashdefault -F _shtab_pm_msgen pm-msgen
 
 
 
-_shtab_pm_new_symbol_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --field)
+_shtab_pm_new_symbol_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --discard-saved-state --field)
 
 
 
@@ -7167,6 +7168,7 @@ _shtab_pm_new_symbol___help_nargs=0
 _shtab_pm_new_symbol___version_nargs=0
 _shtab_pm_new_symbol___mm_seed_once_nargs=0
 _shtab_pm_new_symbol___no_mm_seed_once_nargs=0
+_shtab_pm_new_symbol___discard_saved_state_nargs=0
 
 
 # $1=COMP_WORDS[1]
@@ -9365,7 +9367,7 @@ complete -o bashdefault -F _shtab_pm_ticker pm-ticker
 
 
 
-_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --level --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config)
+_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --level --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config --discard-saved-state)
 
 
 
@@ -9381,6 +9383,7 @@ _shtab_pm_valuation___version_nargs=0
 _shtab_pm_valuation___no_tui_nargs=0
 _shtab_pm_valuation___with_defaults_nargs=0
 _shtab_pm_valuation___list_nargs=0
+_shtab_pm_valuation___discard_saved_state_nargs=0
 
 
 # $1=COMP_WORDS[1]

@@ -16,7 +16,12 @@ from edumatcher.cverifier.cli import run as run_verifier
 from edumatcher.cverifier.models import CheckResult, Severity
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.new_symbol.config import resolve_target
-from edumatcher.new_symbol.guards import engine_running, saved_state
+from edumatcher.new_symbol.guards import (
+    discard_saved_state,
+    engine_running,
+    other_processes,
+    saved_state,
+)
 from edumatcher.new_symbol.listing import build_listing
 from edumatcher.new_symbol.yaml_edit import insert_symbol
 from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME
@@ -32,6 +37,10 @@ class Result:
     artifact: Path
     payload: dict[str, Any]
     warnings: list[CheckResult]
+    #: The saved state --discard-saved-state removed, one line per file.
+    discarded: list[str]
+    #: pm-* programs still running on the configuration as it was.
+    still_running: list[str]
 
 
 def _symbols_file(loaded: LoadedConfig) -> Path:
@@ -47,7 +56,10 @@ def _symbols_file(loaded: LoadedConfig) -> Path:
 def add_symbol(args: argparse.Namespace) -> Result:
     target = resolve_target(args.config)
     source = target.source
-    if target.deploys:
+    # The engine rewrites the saved-state files at its next checkpoint, so
+    # discarding them needs it stopped even when nothing is deployed.
+    guard_engine = target.deploys or args.discard_saved_state
+    if guard_engine:
         running = engine_running()
         if running:
             raise ValueError(f"{running}; stop the exchange before listing a symbol")
@@ -57,13 +69,16 @@ def add_symbol(args: argparse.Namespace) -> Result:
     text = edited.read_text(encoding="utf-8")
     symbol, payload = build_listing(args, load_engine_config(source))
     state = saved_state(symbol)
-    if state:
+    if state and not args.discard_saved_state:
         raise ValueError(
             f"the data directory holds saved state for {symbol}, which the "
             "engine would restore instead of the IPO listing:\n  "
             + "\n  ".join(state)
-            + "\nRemove it from those files, or clear all engine state with "
-            "'pm-opctl-cli clear', before listing."
+            + f"\nList again with --discard-saved-state to remove {symbol}'s "
+            "saved state (and nothing else). 'pm-opctl-cli clear --state' "
+            "would also remove it, with every other symbol's resting orders "
+            "and last prices, clearing.db (positions and P&L), stats.db, "
+            "the index state and the market model's values."
         )
     updated = insert_symbol(text, symbol, payload)
 
@@ -94,11 +109,25 @@ def add_symbol(args: argparse.Namespace) -> Result:
                 f"{symbol} would make {edited} invalid: {exc}", exc.findings
             ) from exc
 
-        if target.deploys:
+        if guard_engine:
             running = engine_running()
             if running:
                 raise ValueError(f"{running}; nothing was changed")
-        os.replace(candidate, edited)
+        # The listing is known to be good: only now remove the saved state
+        # that would override it.
+        discarded = discard_saved_state(symbol) if state else []
+        # An error from here on must not hide that the state is gone.
+        removed_note = (
+            f" {symbol}'s saved state was already removed: {'; '.join(discarded)}."
+            if discarded
+            else ""
+        )
+        try:
+            os.replace(candidate, edited)
+        except OSError as exc:
+            raise ValueError(
+                f"{symbol} could not be written to {edited} ({exc}).{removed_note}"
+            ) from exc
     finally:
         shutil.rmtree(staging, ignore_errors=True)
 
@@ -108,7 +137,7 @@ def add_symbol(args: argparse.Namespace) -> Result:
         except (OSError, CompileError) as exc:
             raise ValueError(
                 f"{symbol} was written to {source} but not deployed ({exc}); "
-                f"run pm-config-deploy {source}"
+                f"run pm-config-deploy {source}.{removed_note}"
             ) from exc
 
     warnings = [
@@ -118,5 +147,13 @@ def add_symbol(args: argparse.Namespace) -> Result:
         and (r.path or "").startswith(f"symbols.{symbol}")
     ]
     return Result(
-        symbol, source, edited, target.deploys, target.artifact, payload, warnings
+        symbol,
+        source,
+        edited,
+        target.deploys,
+        target.artifact,
+        payload,
+        warnings,
+        discarded,
+        other_processes() if target.deploys else [],
     )
