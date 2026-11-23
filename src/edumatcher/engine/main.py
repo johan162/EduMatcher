@@ -4990,6 +4990,15 @@ class Engine:
             _reject("target_gateway_id required")
             return
 
+        # An unknown id would be acknowledged with zero cancels, and a typo'd
+        # kill switch would look like it worked (Admin commands review C2).
+        if (
+            self._allowed_participants is not None
+            and target_gateway_id.upper() not in self._allowed_participants
+        ):
+            _reject(f"Gateway not configured: {target_gateway_id}")
+            return
+
         cancelled_order_ids: list[str] = []
         cancelled_quote_order_ids: list[str] = []
 

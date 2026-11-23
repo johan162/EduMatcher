@@ -3249,8 +3249,11 @@ See [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-
 
 ## pm-admin — Interactive Admin Console
 
-An interactive REPL for sending operational commands to a running engine without
-needing a full gateway session.
+An interactive REPL for sending operational commands to a running engine. It
+logs on as the participant named by `--id` (a `system.gateway_connect`, like
+any gateway) but carries no orders of its own. Exit code `0` after `EXIT`,
+EOF or Ctrl-C; `1` when the connect timed out or was refused, or the engine
+connection was lost.
 
 ```bash
 pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
@@ -3297,9 +3300,11 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.symbol_resume`                | `RESUME_SYM` — resume one symbol                              |
 | `risk.cancel_symbol`                | `CANCEL_SYM` — cancel all resting orders on one symbol        |
 | `risk.force_uncross`                | `REOPEN` — force a symbol to uncross now and clear any halt   |
-| `risk.kill_switch`                  | `KILL` — cancel all (or symbol-scoped) orders/quotes for a gateway |
+| `risk.kill_switch_gateway`          | `KILL` / `QCANCEL` on another gateway — the ADMIN kill switch (all, symbol-scoped, or quotes only) |
+| `risk.kill_switch`                  | `KILL` on the console's own gateway                           |
+| `quote.cancel`                      | `QCANCEL` on the console's own gateway                        |
+| `system.gateways_request`           | `KICK` — checks first that the target is configured and connected |
 | `system.gateway_disconnect`         | `KICK` — forcefully disconnect a gateway (no ack published)   |
-| `quote.cancel`                      | `QCANCEL` — cancel a gateway's active two-sided quote         |
 | `book.snapshot_request`             | `BOOK` — request a book snapshot                              |
 | `order.orders_request`              | `ORDERS` — request a gateway's resting orders                 |
 | `order.price_level_orders_request`  | `LEVEL` — request every resting order at a symbol (optionally one price level) |
@@ -3310,6 +3315,8 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `system.gateways_request`           | `GATEWAYS` — request gateway connection states                |
 | `system.volume_request`             | `VOLUME` — request the daily volume summary                   |
 | `system.position_request`           | `POSITION` — request a gateway's net position snapshot         |
+| `system.quote_bootstrap_request`    | `POSITION` — request the gateway's live quotes                 |
+| `system.session_state_request`      | Also sent before the connect, until its reply arrives, to make sure replies can reach the console |
 
 **Messages subscribed** (SUB from :5556):
 
@@ -3322,18 +3329,25 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.symbol_resume_ack.{GW_ID}`       | `RESUME_SYM` acknowledgement                               |
 | `risk.cancel_symbol_ack.{GW_ID}`       | `CANCEL_SYM` acknowledgement                               |
 | `risk.force_uncross_ack.{GW_ID}`       | `REOPEN` acknowledgement, with indicative/printed price    |
-| `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement                                     |
-| `quote.ack.{GW_ID}`                    | `QCANCEL` acknowledgement                                  |
-| `book.{SYMBOL}`                        | `BOOK` reply — book snapshot                               |
-| `order.orders.{GW_ID}`                 | `ORDERS` reply — resting order list                        |
+| `risk.kill_switch_gateway_ack.{GW_ID}` | `KILL` / `QCANCEL` acknowledgement for another gateway     |
+| `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement for the console's own gateway       |
+| `quote.cancel_ack.{GW_ID}`             | `QCANCEL` acknowledgement for the console's own gateway    |
+| `book.{SYMBOL}`                        | `BOOK` reply — book snapshot (subscribed only while `BOOK` waits) |
+| `order.orders.{TARGET}`                | `ORDERS` reply — resting order list (subscribed only while `ORDERS` waits) |
 | `order.price_level_orders.{GW_ID}`     | `LEVEL` reply — per-order book composition                 |
 | `system.symbols.{GW_ID}`               | `SYMBOLS` reply                                            |
 | `system.session_status.{GW_ID}`        | `SESSION_STATUS` reply                                     |
 | `system.session_schedule.{GW_ID}`      | `SCHEDULE` reply                                           |
 | `system.gateways.{GW_ID}`              | `GATEWAYS` reply                                           |
 | `system.volume.{GW_ID}`                | `VOLUME` reply                                             |
-| `system.position_snapshot.{GW_ID}`     | `POSITION` reply                                           |
-| `session.state`                        | Session phase changes (broadcast; also the `SESSION` reply) |
+| `system.position_snapshot.{TARGET}`    | `POSITION` reply (subscribed only while `POSITION` waits)  |
+| `system.quote_bootstrap.{TARGET}`      | `POSITION` live quotes (subscribed only while `POSITION` waits) |
+| `session.transition_ack.{GW_ID}`       | `SESSION` reply                                            |
+
+Only the replies addressed to the console's own id are subscribed all the
+time; a reply keyed by a symbol or another gateway is subscribed for the one
+request. An idle console therefore never queues market data, which would
+make ZeroMQ drop the next reply once the queue is full.
 
 
 
@@ -3356,7 +3370,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.
 | `--id <GW_ID>`   | Yes      | ADMIN gateway ID                              |
 | `--push <ADDR>`  | No       | Engine PULL address (default from config)     |
 | `--sub <ADDR>`   | No       | Engine PUB address (default from config)      |
-| `--timeout <MS>` | No       | Ack timeout in milliseconds (default: `3000`) |
+| `--timeout <MS>` | No       | Ack timeout in milliseconds, at least 1 (default: `3000`) |
 | `--format {text,json}` | No | `text` (default) prints a human-readable result; `json` prints it machine-readable to stdout, for scripts |
 | `--version`      | No       | Print version and exit                        |
 
@@ -3384,7 +3398,16 @@ Subcommands and required arguments:
 | `schedule`       | none                          | none               | Read configured schedule                                |
 | `gateways`       | none                          | none               | List gateway states                                     |
 | `volume`         | none                          | none               | Show daily volume summary                               |
-| `position`       | `--gw <GW_ID>`                | none               | Show net position, avg cost, and live bid/ask/spread/mid per symbol for gateway |
+| `position`       | `--gw <GW_ID>`                | `--sym <SYMBOL>[,<SYMBOL>...]` | Show net position, avg cost, and live bid/ask/spread/mid per symbol for gateway |
+
+**Exit codes:**
+
+- `0` — the command was accepted or answered
+- `1` — auth refused, command rejected (an unknown gateway included; for `kick` also a disconnected one), timeout, or engine connection lost
+- `2` — usage error
+
+Use an ADMIN `--id` that no running `pm-admin` console holds: the engine
+refuses a second connection under the same id.
 
 
 

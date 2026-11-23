@@ -2916,7 +2916,10 @@ disconnecting it.
 | `symbol` | `Symbol` | no | Query: only this instrument; omit for all |
 | `reason` | `Str` | no | Body, optional: note for the audit log |
 
-The target need not be connected, and the audit trail names the ADMIN.
+The target need not be connected, and the audit trail names the ADMIN. It
+must be a configured participant: an unknown id is refused with `409`
+`KILL_SWITCH_REJECTED` (`Gateway not configured: X`), not acknowledged with
+nothing cancelled.
 
 **Reply**
 
@@ -2940,7 +2943,8 @@ The target need not be connected, and the audit trail names the ADMIN.
 
 Purpose: withdraw one participant's two-sided quote on one symbol, leaving its
 other orders. Runs through the ADMIN kill switch (`quotes_only`), so it works
-whether or not that gateway is connected and the audit trail names the ADMIN.
+whether or not that gateway is connected and the audit trail names the ADMIN;
+an id that is not a configured participant is refused (`409`).
 
 **Arguments**
 

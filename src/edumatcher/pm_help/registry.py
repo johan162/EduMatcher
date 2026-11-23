@@ -2094,6 +2094,8 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             "The prompt is coloured red to distinguish it from pm-alf-console. Tab "
             "completion and arrow-key history work the same way. The --id must be "
             "an entry in engine_config.yaml with role: ADMIN.",
+            "Exit code 0 after EXIT, EOF or Ctrl-C; 1 when the connect timed out or "
+            "was refused, or the engine connection was lost.",
         ),
         options=(
             Option(
@@ -2118,6 +2120,11 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
                 purpose="Cancel all resting orders for a symbol",
             ),
             Subcommand(
+                "REOPEN",
+                args="SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]",
+                purpose="Force a symbol to uncross now and clear any halt",
+            ),
+            Subcommand(
                 "KILL",
                 args="GW=<gw>[|SYM=<sym>]",
                 purpose="Cancel all (or symbol-scoped) orders/quotes for a gateway",
@@ -2125,7 +2132,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand(
                 "KICK",
                 args="GW=<gw>[|REASON=<text>]",
-                purpose="Forcefully disconnect a gateway",
+                purpose="Forcefully disconnect a connected gateway",
             ),
             Subcommand(
                 "QCANCEL",
@@ -2146,6 +2153,11 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand(
                 "SYMBOLS / GATEWAYS / VOLUME",
                 purpose="List instruments / gateways / daily traded volume",
+            ),
+            Subcommand(
+                "POSITION",
+                args="GW=<gw>[|SYM=<sym>,..]",
+                purpose="Net position, avg cost and live quote for a gateway",
             ),
             Subcommand(
                 "SESSION", args="STATE=<phase>", purpose="Advance session phase"
@@ -2175,12 +2187,19 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         synopsis=("pm-admin-cli --id <GW_ID> <command> [options]",),
         description=(
             "Sends one command to the engine, waits for an acknowledgement, prints the result, and exits.",
+            "Exit code 0 on success; 1 on an auth refusal, a rejected command (an unknown "
+            "gateway included), a timeout or a lost engine connection; 2 on a usage error.",
+            "Use an ADMIN id that no running pm-admin console holds: the engine refuses a "
+            "second connection under the same id.",
         ),
         options=(
             Option("--id GW_ID", "required", "ADMIN gateway ID"),
             Option("--push ADDR", "from config", "Engine PULL address"),
             Option("--sub ADDR", "from config", "Engine PUB address"),
-            Option("--timeout MS", "3000", "Ack timeout in milliseconds"),
+            Option("--timeout MS", "3000", "Ack timeout in milliseconds (at least 1)"),
+            Option(
+                "--format {text,json}", "text", "Result as text or as JSON on stdout"
+            ),
         ),
         subcommands=(
             Subcommand("halt / resume", purpose="Exchange-wide halt / resume"),
@@ -2195,6 +2214,11 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
                 purpose="Cancel all resting orders on one symbol",
             ),
             Subcommand(
+                "reopen",
+                args="--sym SYMBOL [--price PX] [--dry-run] [--note TEXT]",
+                purpose="Force a symbol to uncross now and clear any halt",
+            ),
+            Subcommand(
                 "kill",
                 args="--gw GW_ID [--sym SYMBOL]",
                 purpose="Cancel all (or symbol-scoped) orders/quotes for gateway",
@@ -2202,7 +2226,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand(
                 "kick",
                 args="--gw GW_ID [--reason TEXT]",
-                purpose="Disconnect a gateway",
+                purpose="Disconnect a connected gateway",
             ),
             Subcommand(
                 "qcancel",
@@ -2212,6 +2236,16 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand("book", args="--sym SYMBOL", purpose="Fetch book snapshot"),
             Subcommand(
                 "orders", args="--gw GW_ID", purpose="List resting orders for gateway"
+            ),
+            Subcommand(
+                "level",
+                args="--sym SYMBOL [--price PX]",
+                purpose="Every resting order of a symbol or one price level",
+            ),
+            Subcommand(
+                "position",
+                args="--gw GW_ID [--sym SYMBOL,...]",
+                purpose="Net position, avg cost and live quote for a gateway",
             ),
             Subcommand(
                 "symbols / gateways / volume",
@@ -2228,7 +2262,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         related=("pm-admin", "pm-opctl-cli"),
         doc_anchor="pm-admin-cli-cli-admin-commands",
         doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
-        examples=("pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL",),
+        examples=("pm-admin-cli --id ADMIN_CLI halt-sym --sym AAPL",),
     ),
     CommandInfo(
         name="pm-opctl-cli",

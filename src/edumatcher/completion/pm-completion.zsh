@@ -86,12 +86,12 @@ _shtab_pm_admin_cli_commands() {
     gateways:'List all configured gateways and their connection status'
     halt:'Exchange-wide circuit-breaker halt (ADMIN role required)'
     halt-sym:'Halt trading on a single symbol (ADMIN role required)'
-    kick:'Forcefully disconnect a gateway'
-    kill:'Cancel all resting orders and quotes for a gateway'
+    kick:'Forcefully disconnect a connected gateway (no ack; refused for an unknown or disconnected one)'
+    kill:'Cancel all resting orders and quotes for a gateway, connected or not (another gateway: ADMIN role required)'
     level:'Show every resting order making up a symbol (or one price level), across all gateways (ADMIN role required)'
-    orders:'List all resting orders for a gateway'
+    orders:'List all resting orders for a gateway, connected or not'
     position:'Show net position, avg cost, and live bid/ask/spread/mid per symbol for a gateway (any gateway, not just a market maker)'
-    qcancel:'Cancel the active two-sided quote for a gateway on one symbol'
+    qcancel:'Cancel the active two-sided quote for a gateway on one symbol (another gateway: ADMIN role required)'
     reopen:'Force one symbol to uncross now and clear any halt in one step (ADMIN role required)'
     resume:'Resume all symbols halted by '"'"'halt'"'"' (ADMIN role required)'
     resume-sym:'Resume a single symbol halted by '"'"'halt-sym'"'"' or a circuit breaker (ADMIN role required)'
@@ -107,7 +107,7 @@ _shtab_pm_admin_cli_commands() {
 _shtab_pm_admin_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--id[ADMIN gateway ID configured in engine_config.yaml (e.g. GW_ADMIN)]:GW_ID:"
+  "--id[ADMIN gateway ID configured in engine_config.yaml (e.g. ADMIN_CLI)\; not one a running pm-admin console holds]:GW_ID:"
   "--push[Engine PULL socket address (default\: tcp\:\/\/127.0.0.1\:5555)]:ADDR:"
   "--sub[Engine PUB socket address (default\: tcp\:\/\/127.0.0.1\:5556)]:ADDR:"
   "--timeout[Ack timeout in milliseconds (default\: 3000)]:MS:"

@@ -53,8 +53,12 @@ the real `ExchangeCommandClient`, `AdminConsole._dispatch` and the installed
 `pm-admin`/`pm-admin-cli` entry points. *(measured)* means timed on this host.
 The other findings are by inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q3 are needed before WP-ADM01, WP-ADM02 and
-WP-ADM03.
+Status: **Done, uncommitted (2026-11-23).** All six WPs and a holistic review
+done in one go; last full suite 15 479 passed, 1 skipped. Q2 and Q3 taken as
+recommended without an explicit answer (to confirm); Q1 implemented as option
+(b), not the recommended (a), because (a) did not fix H1 (WP-ADM01 outcome).
+Beyond the plan: the holistic review's HR1 fix, the REST and index-guide
+texts, and training chapter 21 Exercise 3.
 
 ---
 
@@ -94,12 +98,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-ADM01 | A reply is never lost to the market-data backlog of an idle console | H1 | Q1 | 0.5 d | ☐ | |
-| 2 | WP-ADM02 | A connect never misses its own auth reply and locks the ID | C1 | Q2 | 0.5 d | ☐ | |
-| 3 | WP-ADM03 | A mistyped gateway id fails every targeted command | C2, D7 | Q3 | 0.75 d | ☐ | |
-| 4 | WP-ADM04 | No typed line or lost engine ends with a traceback, and both tools exit non-zero on failure | C3, C4, C5 | — | 0.5 d | ☐ | |
-| 5 | WP-ADM05 | Script output is plain text, prices and ids are shown as they are, and bad numbers are refused locally | C6, C7, C8 | — | 0.5 d | ☐ | |
-| 6 | WP-ADM06 | Comments, help texts and guides say what the code does | D1–D6, D8–D11 | WP-ADM01–05 | 0.5 d | ☐ | |
+| 1 | WP-ADM01 | A reply is never lost to the market-data backlog of an idle console | H1 | Q1 | 0.5 d | ☑ | 2026-11-23 |
+| 2 | WP-ADM02 | A connect never misses its own auth reply and locks the ID | C1 | Q2 | 0.5 d | ☑ | 2026-11-23 |
+| 3 | WP-ADM03 | A mistyped gateway id fails every targeted command | C2, D7 | Q3 | 0.75 d | ☑ | 2026-11-23 |
+| 4 | WP-ADM04 | No typed line or lost engine ends with a traceback, and both tools exit non-zero on failure | C3, C4, C5 | — | 0.5 d | ☑ | 2026-11-23 |
+| 5 | WP-ADM05 | Script output is plain text, prices and ids are shown as they are, and bad numbers are refused locally | C6, C7, C8 | — | 0.5 d | ☑ | 2026-11-23 |
+| 6 | WP-ADM06 | Comments, help texts and guides say what the code does | D1–D6, D8–D11 | WP-ADM01–05 | 0.5 d | ☑ | 2026-11-23 |
 
 Suggested order: **WP-ADM01 → WP-ADM02 → WP-ADM03 → WP-ADM04 → WP-ADM05 →
 WP-ADM06**. WP-ADM01 makes the console usable on a busy market at all, and
@@ -489,6 +493,12 @@ msg/s row of H1) and nothing when the queue is empty.
 
 ## 7. Decisions
 
+Answers (2026-11-23, user asked for all WPs in one go): Q2 and Q3 taken as
+recommended, to confirm. Q1: **(b)** after (a) was built and measured
+insufficient (draining the SUB pipe leaves the backlog in the TCP buffers and
+the publisher's pipe); (b)'s subscription race is covered by re-sending
+idempotent queries after 200 ms of silence.
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | How does a request get its reply past the market-data backlog (H1)? (a) drain both SUB sockets before every request (move `_discard_pending` into the send path), and drop the never-awaited `quote.ack.` subscription; (b) subscribe to the exact reply topic per request and unsubscribe after; (c) raise RCVHWM | **(a)**: one place, works for every command, also removes stale late replies. (b) adds a subscription race to every command (the C1 mechanism). (c) only moves the threshold: a console idle for an hour overflows any bound, and a deeper queue means more stale data to wade through. |
@@ -524,6 +534,46 @@ command" steps in the module docstring.
 **Exit criteria.** Tests 1–5 pass; `tests/test_commands*.py` green; the H1
 table's 500 msg/s / 10 s row gives three OKs.
 
+**Outcome (2026-11-23).** Q1 was implemented as option **(b)**, not the
+recommended (a), and the review's §7 is corrected accordingly: draining
+before every request (a) was built first and tested, and the scratch H1
+repro still lost the first reply after 10 s idle at 500 msg/s. Draining
+empties only the SUB-side pipe; the backlog held in the kernel TCP buffers
+and the publisher's own pipe keeps the path full while the reply is
+published. The client now subscribes for its whole life only to the exact
+topics of replies addressed to its own id (`_OWN_ENGINE_TOPICS`,
+`_OWN_INDEX_TOPICS`); a reply keyed by a symbol or a target gateway
+(`book.<SYM>`, `order.orders.<GW>`, `system.position_snapshot.<GW>`,
+`system.quote_bootstrap.<GW>`, `risk.kill_switch_ack.<GW>`,
+`quote.cancel_ack.<GW>` for another gateway) is subscribed by the new
+`_ask` for that one request and unsubscribed after. The subscription race
+this opens is covered by re-sending an idempotent query after 200 ms of
+silence (`_RESEND_AFTER_SEC`); the two non-idempotent self-service cancels
+naming another gateway (reachable only through the Python API, the console
+uses the ADMIN kill switch for others) wait 50 ms after subscribing. Every
+command method now goes through `_ask`; `_recv` matches topics exactly
+(a subscription is a byte prefix: `system.volume.GW_ADMIN` also delivered
+`…GW_ADMIN2`). The drain before every request stays, for late replies of
+timed-out commands. `quote.ack.` (never awaited) is no longer subscribed.
+
+Tests: `tests/test_commands_delivery.py` (new; a stand-in engine thread and,
+for the load case, a stand-in engine *process*
+`tests/commands_standin_engine.py` streaming 3 000 snapshots/s, because
+in-process the GIL let the client's drain win and the flood test passed for
+the wrong reason). Failed first: the busy-market test (`CommandTimeoutError`
+on `system.volume.GW_ADMIN`) and the stale-reply test (`111 == 222`).
+`tests/test_commands_ack_subscriptions.py` rewritten for the new contract
+(replies are awaited only through `_ask`/`connect`; every own topic is
+awaited; a target-keyed reply is subscribed exactly around its request; an
+own reply needs no temporary subscription); its new "no unawaited prefix"
+test failed first on `quote.ack.`. Two existing tests adjusted: the
+`__new__`-built client in the index-send test needs `_recv_queue`, and the
+monitor test's `MagicMock` SUB socket (always "readable") became `None`.
+`TestBookDepthIgnoresStaleSnapshots` keeps its purpose; its engine thread now
+answers every request, since `BOOK` may be re-sent. Scratch H1 repro after
+the change: 3 × OK in 1 ms (was TIMEOUT). Full suite: 15 436 passed,
+1 skipped.
+
 ### WP-ADM02 — A connect never misses its own auth reply and locks the ID (C1; after Q2)
 
 **Tests first** (`tests/test_commands_delivery.py`):
@@ -544,6 +594,28 @@ then sends the connect as today.
 
 **Exit criteria.** Tests 1–4 pass; the scratch `real_race.py` loop against a
 real engine: 300 × accepted.
+
+**Outcome (2026-11-23).** Q2 taken as recommended. `connect()` first calls
+the new `_await_reply_path`, which sends `system.session_state_request`
+every 100 ms until the reply arrives on the client's own
+`system.session_status.<id>` topic, then sends the connect as before (the
+injected-queue test mode skips the probe). A probe that cannot reach the
+engine ends in the same "Engine not reachable" `CommandTimeoutError`.
+
+Test 1 changed from the plan: after WP-ADM01 the 300-connect loop no longer
+failed against the stand-in (0/300; WP-ADM01's drain calls `poll()` on the
+SUB socket before the connect, which lets ZeroMQ attach the pipe and send
+the subscriptions when the TCP handshake is already done), while the real
+engine still lost the reply (12 accepted, then 1 timeout and 987 "already
+connected" refusals). A loop that passes before the fix proves nothing, so
+it was replaced by a deterministic test: a stand-in engine that binds its PUB
+socket 300 ms after its PULL socket, so the connect is answered before any
+subscriber can be connected. It failed first with `CommandTimeoutError` on
+`system.gateway_auth.GW_ADMIN` (3 of 3 runs), and the order test with no
+`session_state_request` before the connect; the refusal test (no
+disconnect sent) passed before and after. Exit criterion: the scratch loop
+against a real `pm-engine`, 1 000 fresh connects, 1 000 accepted, 0
+timeouts. Full suite: 15 439 passed, 1 skipped.
 
 ### WP-ADM03 — A mistyped gateway id fails every targeted command (C2, D7; after Q3)
 
@@ -582,6 +654,37 @@ print and return per Q3;
 **Exit criteria.** Tests 1–8 pass; engine admin, commands and API admin suites
 green; the C2 repro gives exit 1 for all five lines.
 
+**Outcome (2026-11-23).** Q3 taken as recommended.
+`Engine._handle_kill_switch_gateway` refuses a target that is not a
+configured participant (`Gateway not configured: X`, with an
+`admin.action` `accepted: false`), so `KILL`/`QCANCEL` on a typo fail, and
+the REST kill switch answers 409 `KILL_SWITCH_REJECTED` instead of 200. The
+client gained `orders_reply`/`positions_reply`, which return the engine's
+whole reply plus the `gateway_id` asked about (the reply body names it only
+in its topic); `order_list`/`position_snapshot` keep their list shape for
+the documented Python API and raise `CommandError` for `UNKNOWN_GATEWAY`.
+`ORDERS` and `POSITION` fail on `UNKNOWN_GATEWAY` with `REJECTED  Gateway not
+configured: X` and print `X is not connected (stored state shown)` for
+`NOT_CONNECTED`; their `--format json` output is now
+`{gateway_id, status, orders}` / `{gateway_id, status, positions}`
+(previously a bare list; documented in WP-ADM06). `KICK` asks `gateway_list()`
+first and refuses an unknown or a not-connected id without sending anything.
+D7: the `gateway_kick` docstring and the guide's `kick`, `orders`,
+`gateway_kick` and `order_list` passages now say to check `GATEWAYS`.
+
+Failed first: the engine test (`accepted` was `True`), five console tests
+(ORDERS/POSITION unknown and not-connected, KICK unknown and disconnected),
+the CLI exit-code test (the console still called `order_list`), and the
+client tests (`CommandError` not raised). Plan test 8 (REST) was not added:
+the API passes the engine's verdict through `_require_accepted`, which
+`tests/test_api_gateway_admin.py:278` already covers with a refusing fake
+engine; the new behaviour is the engine's and is tested there. Five existing
+POSITION tests were updated for the new result shape. Real engine: the five
+C2 commands with `NOSUCH01` now all exit 1 with `Gateway not configured`;
+`orders --gw TRADER01` (logged off) prints the not-connected line and exits
+0; `kick --gw TRADER01` exits 1 (`Gateway not connected`). Full suite:
+15 452 passed, 1 skipped.
+
 ### WP-ADM04 — No typed line or lost engine ends with a traceback, and both tools exit non-zero on failure (C3, C4, C5)
 
 **Tests first**:
@@ -605,6 +708,33 @@ values and engine reasons go through `rich.markup.escape`; `run()` guards
 `zmq.Again` and wraps the final disconnect.
 
 **Exit criteria.** Tests 1–4 pass; commands suites green.
+
+**Outcome (2026-11-23).** `AdminConsole.run()` returns 1 after a connect
+timeout, an auth refusal or a lost engine and 0 after `EXIT`/EOF/Ctrl-C or a
+hangup; `main()` exits with it. `run()` guards `_dispatch` with
+`except Exception`, logs it (`log.exception`, new ledger entry
+`log_ledger/entries/admin_console.yaml`, required by
+`test_every_call_site_has_an_entry`, which failed the first full run) and
+prints `Command failed: …`. Every string from the operator or the engine that
+reaches rich markup goes through `rich.markup.escape`, including table titles
+and cells (rich parses those too): ids, symbols, gateways, descriptions,
+reasons, typed prices and the unknown-command line. `pm-admin-cli` catches
+`zmq.Again` from the command (`Engine connection lost (<addr>).` on stderr,
+or `{"error": "engine_unreachable"}`) and ignores it from the final
+disconnect.
+
+Failed first: the exit-code tests (`None == 1`, `DID NOT RAISE SystemExit`),
+four markup cases with `MarkupError` and the engine-reason case, the
+catch-all test (`RuntimeError` escaped), both CLI cases (`zmq.Again`). One
+planned case was wrong: `POSITION|GW=[/x]` prints no gateway at all, so it
+was replaced by `KILL|GW=[/x]`. The markup tests render through a real rich
+`Console` on a `StringIO`; the existing print-capturing fake would never
+parse markup. `test_main_parses_id_and_runs` now expects `SystemExit(0)`.
+Real processes: `pm-admin` with no engine exits 1 (was 0); `pm-admin-cli
+halt` against a stand-in that exits after the auth: timeout line and exit 1,
+no traceback (the send itself was still delivered, so the command path's
+`zmq.Again` is covered by the unit test only). Full suite: 15 464 passed,
+1 skipped.
 
 ### WP-ADM05 — Script output is plain text, prices and ids are shown as they are, and bad numbers are refused locally (C6, C7, C8)
 
@@ -632,6 +762,33 @@ spread/mid rounded.
 **Exit criteria.** Tests 1–6 pass; commands suites and
 `tests/test_shell_completion.py` green (`make completion` if help changes).
 
+**Outcome (2026-11-23).** C6: the shared console keeps `force_terminal=True`
+for the REPL (rich fixes its colour system when the console is created, and
+`patch_stdout` hides the terminal), and `pm-admin-cli` swaps in a plain
+`Console()` before running its command, so a pipe or a file gets plain text
+and `NO_COLOR` is honoured. C7: a new `_parse_price` refuses a non-finite or
+non-positive `PRICE` locally ("Invalid PRICE: 'nan' is not a positive
+number", nothing sent) for `REOPEN` and `LEVEL`; `--timeout` must be ≥ 1
+(argparse error, exit 2). C8: `ORDERS`/`LEVEL` print the full order id (the
+ID column no longer wraps) and prices at the order's `tick_decimals` through
+a shared `_px` (also used by `BOOK`), with `stop <px>` for stop orders; the
+client caches each symbol's `tick_decimals` from the symbols reply
+(`tick_decimals()`, filled by `symbol_list()` or on first use: one extra round
+trip for a one-shot `reopen`/`position`), which `REOPEN` and `POSITION` use;
+`POSITION` rounds spread to the symbol's decimals and mid one place finer in
+the data and prints bid/ask/spread/mid at that scale (avg cost stays at four
+decimals: it is a VWAP, not on the grid).
+
+Failed first: five price-refusal cases (`True is False`), both table cases
+(14-character id), the reopen text (`100.0 x 50`), the spread
+(`0.20000000000001705`), the timeout, the ANSI and the CLI `nan` tests; the
+REPL-still-forced test passed before and after. The CLI tests got an autouse
+fixture restoring the shared console, since `main()` now replaces it and a
+later REPL test on the same xdist worker would see the swapped one. Real
+engine: `session-status | od -c` has no escapes; `reopen --price nan`
+exit 1 with nothing sent; `--timeout 0` exit 2. Full suite: 15 477 passed,
+1 skipped.
+
 ### WP-ADM06 — Comments, help texts and guides say what the code does (D1–D6, D8–D11)
 
 **Tests first.** None for texts; the `pm-help` registry consistency tests and
@@ -646,6 +803,74 @@ scripts and training chapter 19 against the final behaviour (lessons B1).
 
 **Exit criteria.** Every D item resolved; `make _check` green; `mkdocs build`
 without new warnings.
+
+**Outcome (2026-11-23).** D1–D6 in the code: the console module docstring
+and `HELP` list every command (`HALT_SYM` … `VOLUME`); the timeout hint names
+`ENGINE_PULL_ADDR`; the "(check role: ADMIN …)" hint is gone from both tools
+(the refusal reason says what is wrong, and the role is checked per command);
+`cli.py`'s help says which per-gateway commands need ADMIN for another
+gateway, that `kick` refuses an unknown or disconnected gateway, and that
+`--id` must not be one a running console holds; its docstring lists exit
+codes 0/1/2; the client docstring lists all its methods, marks the
+self-service messages (L044), and step 6 names the operator guide;
+`volume()`'s docstring says list. `make completion` regenerated
+`pm-completion.zsh`. D8: registry entries for `REOPEN`, `POSITION`, `reopen`,
+`level`, `position`, `--format`, both tools' exit codes and the one-id note.
+D9: reference manual tables (messages per command, own vs per-request
+subscriptions, `session.transition_ack`, `position --sym`, CLI exit codes).
+D10/D11: the operator guide's CLI examples use `ADMIN_CLI` with a note on
+one id per running client; exit codes; the JSON shapes of `orders` and
+`position`; the `position` text and JSON examples; the `LEVEL` tables
+regenerated from the real printer; the Python API table (self-service
+messages are not checked, `orders_reply`/`positions_reply`/`tick_decimals`,
+`session_advance`'s ack is `session.transition_ack.{GW}`, not
+`session.state`).
+
+Re-walk (lessons B1), beyond the plan: the guide's Python incident example
+used the self-service `kill_switch("TRADER01")` from the ADMIN client; it now
+uses `kill_switch_gateway` and checks `accepted`. Training chapter 21
+Exercise 3 the same. The guide's `set -e` incident script: after WP-ADM03
+`kick` exits 1 for a participant that already logged off, which would stop
+the script with the market halted; the line now ends in `|| true` with a
+comment (a typo still stops the script at `kill`, which refuses unknown ids).
+Training chapter 19 needs no change (its `KICK` targets a connected
+`TRADER02`). `mkdocs build`: one warning before and after (not in these
+pages). Full suite: 15 477 passed, 1 skipped.
+
+### Holistic review (2026-11-23)
+
+All changes re-read as one diff (`commands/client.py`, `console.py`,
+`cli.py`, `engine/main.py` `_handle_kill_switch_gateway`, registry, the
+books), looking for interference between the WPs, and every flow re-run
+against a real `pm-engine` (`s1-basic-setup`, ADMIN `OPS01`): all 19
+`pm-admin-cli` subcommands, `--format json orders`, and the interactive
+`pm-admin` in a pty (a `[/x]` line, a typo'd `KICK`, `VOLUME`, `EXIT`: the
+markup printed literally, the `KICK` refused, the session kept, exit 0).
+
+- **HR1 (fixed, WP-ADM05 × the H1 lesson).** `REOPEN` looked up the symbol's
+  decimals *after* sending the uncross. In `pm-admin-cli` that lookup is a
+  fresh round trip, and a timeout there would have reported an executed
+  reopen as TIMEOUT with exit 1, exactly the H1 consequence. The lookup now
+  runs before the command (text output only; JSON needs none), so a timeout
+  means nothing was sent. Tests: the lookup comes first and a timeout in it
+  sends nothing (failed first: `force_uncross` was called), JSON mode does
+  no lookup. `POSITION`'s lookup is read-only and stays after its queries.
+- **Checked, no change.** WP-ADM01's drain in `_send` runs before WP-ADM02's
+  probes and before the `KICK` pre-check, never between a request and its
+  reply. Re-sends (WP-ADM01) only apply to `BOOK`, `ORDERS`, `POSITION` and
+  quote bootstrap, all read-only. `orders_reply`/`positions_reply`
+  (WP-ADM03) go through the temporary subscriptions of WP-ADM01. The escaped
+  strings (WP-ADM04) include everything WP-ADM03 and WP-ADM05 added to the
+  output. `pm-admin-cli` swaps the shared console (WP-ADM05) after connect,
+  so the auth and timeout lines are unaffected; the CLI tests restore it.
+  `pm-index-admin-cli` uses the same client; its `index_*` replies are own
+  topics on the index SUB socket, and its timeout text changed with
+  `_recv` ("No ack on …"), now also in the index-administration guide.
+- **Texts added in the review:** the guide's `kill`/`qcancel` sections and
+  the REST chapter's kill-switch endpoints say that an id that is not
+  configured is refused (the REST answer for it is now 409, not 200).
+
+Full suite after the review: 15 479 passed, 1 skipped.
 
 ---
 
@@ -672,3 +897,13 @@ without new warnings.
   it does not use.
 - **`emo/` (`pm-opctl-cli`)** is the other half of CR03 in the
   remaining-reviews workplan and is not covered here.
+- **Re-sent queries reach other subscribers too.** An idempotent query
+  re-sent after 200 ms of silence (WP-ADM01) makes the engine publish a
+  second reply on a topic keyed by the target (`system.position_snapshot.X`,
+  `book.X`), which the target's own clients also receive. The content is the
+  same snapshot, and a slow engine is the only trigger.
+- **pm-index-admin-cli has the C1 race on its own path.** `pm-index` has no
+  connect handshake, so a first request can still be answered before the
+  index SUB subscription arrives (unchanged by this review; the drain's
+  `poll()` makes it rarer). A probe like WP-ADM02's needs a request
+  `pm-index` answers to anyone.

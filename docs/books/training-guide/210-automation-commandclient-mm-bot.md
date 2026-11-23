@@ -121,15 +121,21 @@ target = "TRADER02"
 
 with ExchangeCommandClient("GW_ADMIN") as c:
     c.connect()
-    c.kill_switch(target)
+    result = c.kill_switch_gateway(target, note="exposure cleanup")
+    assert result["accepted"], result["reason"]
     orders = c.order_list(target)
     print("remaining orders for", target, ":", len(orders))
 PY
 ```
 
+`kill_switch_gateway` is the ADMIN kill switch: the audit trail names
+`GW_ADMIN`, the target need not be connected, and an id that is not
+configured is refused (`Gateway not configured: …`) instead of acknowledged
+with nothing cancelled. `order_list` raises `CommandError` for such an id.
+
 Optional extension:
 
-- Add `gateway_kick(target, reason=...)` after `kill_switch` when operational
+- Add `gateway_kick(target, reason=...)` after `kill_switch_gateway` when operational
   policy requires immediate disconnect.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain when to use kill-switch only vs. kill-switch + kick.

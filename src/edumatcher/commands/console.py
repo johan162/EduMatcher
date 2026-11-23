@@ -5,16 +5,21 @@ Usage
 -----
   poetry run pm-admin --id GW_ADMIN
 
-The gateway ID must match an entry in ``engine_config.yaml`` that has
-``role: ADMIN``.  All commands are sent over the same ZeroMQ PUSH/SUB
-transport used by ``ExchangeCommandClient``.
+The gateway ID must match an entry in ``engine_config.yaml``; the commands
+that change the market need ``role: ADMIN`` (the engine checks the role per
+command, not at connect). All commands are sent over the same ZeroMQ
+PUSH/SUB transport used by ``ExchangeCommandClient``. Exit code 0 after
+EXIT/EOF/Ctrl-C, 1 when no session was had or the engine was lost.
 
 Commands
 --------
   HALT                          — halt all symbols (manual circuit breaker)
   RESUME                        — resume all symbols halted by HALT
+  HALT_SYM|SYM=<sym>            — halt one symbol
+  RESUME_SYM|SYM=<sym>          — resume one symbol
+  CANCEL_SYM|SYM=<sym>          — cancel every resting order on one symbol
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all orders/quotes for a gateway
-  KICK|GW=<gw>[|REASON=<text>] — forcefully disconnect a gateway
+  KICK|GW=<gw>[|REASON=<text>] — forcefully disconnect a connected gateway
   QCANCEL|GW=<gw>|SYM=<sym>    — cancel the active quote for a gateway on one symbol
   REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]
                                 — force one symbol to uncross now, clearing any halt
@@ -25,6 +30,10 @@ Commands
   SYMBOLS                       — list all instruments configured in the engine
   POSITION|GW=<gw>[|SYM=<sym>,..] — net position, avg cost, live bid/ask/spread/mid
   SESSION|STATE=<state>         — advance session phase
+  SESSION_STATUS                — show the current session state
+  SCHEDULE                      — show the session-transition schedule
+  GATEWAYS                      — list gateways and their connection status
+  VOLUME                        — show today's traded volume
   HELP                          — show this reference
   EXIT / QUIT                   — disconnect
 """
@@ -35,6 +44,7 @@ import argparse
 import asyncio
 import json
 import logging
+import math
 import sys
 import threading
 from typing import Any, Callable
@@ -48,6 +58,7 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 from prompt_toolkit.styles import Style
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from zmq.utils.monitor import recv_monitor_message
 
@@ -184,12 +195,14 @@ _HELP_TEXT = """
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all resting orders and the active quote for <gw>
                                    (add SYM= to scope to a single instrument)
   KICK|GW=<gw>[|REASON=<text>] — forcefully disconnect gateway <gw>
-                                   (applies configured disconnect_behaviour)
+                                   (applies its disconnect_behaviour; refused
+                                   for an unknown or disconnected gateway)
   QCANCEL|GW=<gw>|SYM=<sym>    — cancel the active two-sided quote for <gw> on <sym>
                                    without touching resting limit orders
 
   BOOK|SYM=<sym>                — print the current L1/L2 order-book snapshot for <sym>
-  ORDERS|GW=<gw>                — list all resting orders for gateway <gw>
+  ORDERS|GW=<gw>                — list all resting orders for gateway <gw>,
+                                   connected or not
   LEVEL|SYM=<sym>[|PRICE=<px>]  — show every resting order making up <sym>, across
                                    every gateway (add PRICE= to narrow to one level).
                                    Unlike BOOK, which only aggregates to {price, qty,
@@ -209,6 +222,11 @@ _HELP_TEXT = """
 
   SESSION|STATE=<state>         — request a session-phase transition
     Valid states: PRE_OPEN  OPENING_AUCTION  CONTINUOUS  CLOSING_AUCTION  CLOSED
+  SESSION_STATUS                — show the current session state (read-only)
+  SCHEDULE                      — show the automatic session-transition schedule
+  GATEWAYS                      — list every configured gateway and whether it
+                                   is connected
+  VOLUME                        — show today's traded volume per symbol and in total
 
   HELP                          — this message
   EXIT / QUIT                   — disconnect and exit
@@ -286,20 +304,58 @@ def _parse(line: str) -> tuple[str, dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 
+def _px(price: float, decimals: int | None) -> str:
+    """*price* at its symbol's scale (L006): 149.8 is 149.80, a 3-decimal
+    12.5 is 12.500. ``None`` decimals (an unlisted symbol) prints it as is."""
+    return str(price) if decimals is None else f"{price:.{decimals}f}"
+
+
+def _order_price_cell(o: dict[str, Any]) -> str:
+    """The limit price at the order's scale, plus its stop price if any."""
+    decimals = o.get("tick_decimals")
+    price, stop = o.get("price"), o.get("stop_price")
+    cell = "—" if price is None else _px(price, decimals)
+    if stop is not None:
+        cell = (
+            f"stop {_px(stop, decimals)}"
+            if price is None
+            else f"{cell} stop {_px(stop, decimals)}"
+        )
+    return cell
+
+
+def _parse_price(price_str: str) -> tuple[bool, float | None]:
+    """``(ok, price)`` for a typed ``PRICE=``: empty is ``(True, None)``. A
+    price must be a finite positive number: the wire encodes ``nan``/``inf``
+    as no price at all, so ``REOPEN|PRICE=nan`` opened at the equilibrium."""
+    if not price_str:
+        return True, None
+    try:
+        price = float(price_str)
+    except ValueError:
+        price = math.nan
+    if not math.isfinite(price) or price <= 0:
+        console.print(
+            f"[red]Invalid PRICE:[/red] {escape(repr(price_str))} "
+            "is not a positive number"
+        )
+        return False, None
+    return True, price
+
+
 def _print_book(book: dict[str, Any]) -> None:
     sym = book.get("symbol", "?")
     bids = book.get("bids", [])
     asks = book.get("asks", [])
     last_price = book.get("last_price")
     last_qty = book.get("last_qty")
-    # At the symbol's scale (L006): 149.8 is 149.80, a 3-decimal 12.5 is 12.500.
     decimals = int(book.get("tick_decimals", 2))
 
     def px(price: float) -> str:
-        return f"{price:.{decimals}f}"
+        return _px(price, decimals)
 
     t = Table(
-        title=f"Order Book — {sym}",
+        title=f"Order Book — {escape(str(sym))}",
         show_header=True,
         header_style="bold magenta",
     )
@@ -330,15 +386,15 @@ def _print_book(book: dict[str, Any]) -> None:
 
 def _print_orders(orders: list[dict[str, Any]], gw: str) -> None:
     if not orders:
-        console.print(f"[dim]No resting orders for {gw}[/dim]")
+        console.print(f"[dim]No resting orders for {escape(gw)}[/dim]")
         return
 
     t = Table(
-        title=f"Resting orders — {gw}",
+        title=f"Resting orders — {escape(gw)}",
         show_header=True,
         header_style="bold magenta",
     )
-    t.add_column("ID", style="dim", min_width=12)
+    t.add_column("ID", style="dim", no_wrap=True)
     t.add_column("Symbol", min_width=8)
     t.add_column("Side", min_width=6)
     t.add_column("Type", min_width=12)
@@ -348,14 +404,13 @@ def _print_orders(orders: list[dict[str, Any]], gw: str) -> None:
     for o in orders:
         side = o.get("side", "")
         side_col = "green" if side == "BUY" else "red"
-        price_str = str(o.get("price", "")) if o.get("price") else "—"
         t.add_row(
-            o.get("id", "")[:14],
-            o.get("symbol", ""),
-            f"[{side_col}]{side}[/{side_col}]",
-            o.get("order_type", ""),
+            escape(o.get("id", "")),
+            escape(o.get("symbol", "")),
+            f"[{side_col}]{escape(side)}[/{side_col}]",
+            escape(o.get("order_type", "")),
             str(o.get("remaining_qty", "")),
-            price_str,
+            _order_price_cell(o),
         )
     console.print(t)
 
@@ -370,11 +425,11 @@ def _print_level(result: dict[str, Any], sym: str, price: str) -> None:
     reading top-to-bottom shows price/time priority directly.
     """
     if result.get("rejected"):
-        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        console.print(f"[red]REJECTED[/red]  {escape(str(result.get('reason', '')))}")
         return
 
     orders = result.get("orders", [])
-    label = f"{sym}" + (f" @ {price}" if price else "")
+    label = escape(sym + (f" @ {price}" if price else ""))
     if not orders:
         console.print(f"[dim]No resting orders for {label}[/dim]")
         return
@@ -384,7 +439,7 @@ def _print_level(result: dict[str, Any], sym: str, price: str) -> None:
         show_header=True,
         header_style="bold magenta",
     )
-    t.add_column("ID", style="dim", min_width=12)
+    t.add_column("ID", style="dim", no_wrap=True)
     t.add_column("Gateway", min_width=10)
     t.add_column("Side", min_width=6)
     t.add_column("Type", min_width=12)
@@ -394,14 +449,13 @@ def _print_level(result: dict[str, Any], sym: str, price: str) -> None:
     for o in orders:
         side = o.get("side", "")
         side_col = "green" if side == "BUY" else "red"
-        price_str = str(o.get("price", "")) if o.get("price") else "—"
         t.add_row(
-            o.get("id", "")[:14],
-            o.get("gateway_id", ""),
-            f"[{side_col}]{side}[/{side_col}]",
-            o.get("order_type", ""),
+            escape(o.get("id", "")),
+            escape(o.get("gateway_id", "")),
+            f"[{side_col}]{escape(side)}[/{side_col}]",
+            escape(o.get("order_type", "")),
             str(o.get("remaining_qty", "")),
-            price_str,
+            _order_price_cell(o),
         )
     console.print(t)
 
@@ -422,17 +476,20 @@ def _print_symbols(symbols: list[str]) -> None:
     console.print(t)
 
 
-def _print_position(gw: str, rows: list[dict[str, Any]]) -> None:
+def _print_position(
+    gw: str, rows: list[dict[str, Any]], decimals: dict[str, int | None]
+) -> None:
     """Render combined position + live-quote data for one gateway.
 
     Each *rows* entry has ``symbol``, ``net_qty``, ``avg_cost`` (from
     ``position_snapshot``) merged with ``bid_price``/``ask_price`` (from
     ``quote_bootstrap``, when the gateway has an active quote on that
-    symbol) plus derived ``spread``/``mid``. A plain text layout is used
-    here rather than a rich table -- table formatting is deferred.
+    symbol) plus derived ``spread``/``mid``. Quote prices are printed at
+    the symbol's *decimals* (mid one place finer). A plain text layout is
+    used here rather than a rich table -- table formatting is deferred.
     """
     if not rows:
-        console.print(f"[dim]No position or active quotes for {gw}[/dim]")
+        console.print(f"[dim]No position or active quotes for {escape(gw)}[/dim]")
         return
 
     for row in rows:
@@ -442,17 +499,19 @@ def _print_position(gw: str, rows: list[dict[str, Any]]) -> None:
         bid = row.get("bid_price")
         ask = row.get("ask_price")
         qty_col = "green" if net_qty > 0 else ("red" if net_qty < 0 else "dim")
-        console.print(f"[bold]{sym}[/bold]")
+        console.print(f"[bold]{escape(str(sym))}[/bold]")
         console.print(
             f"  Position : [{qty_col}]{net_qty:+,}[/{qty_col}]"
             f"   Avg cost: {avg_cost:.4f}"
         )
         if bid is not None and ask is not None:
-            spread = row.get("spread")
-            mid = row.get("mid")
+            d = decimals.get(sym)
+            spread = row.get("spread", ask - bid)
+            mid = row.get("mid", (bid + ask) / 2)
             console.print(
-                f"  Quote    : bid {bid:.4f}  ask {ask:.4f}"
-                f"   spread {spread:.4f}   mid {mid:.4f}"
+                f"  Quote    : bid {_px(bid, d)}  ask {_px(ask, d)}"
+                f"   spread {_px(spread, d)}"
+                f"   mid {_px(mid, None if d is None else d + 1)}"
             )
         else:
             console.print("  Quote    : [dim](no active quote)[/dim]")
@@ -462,7 +521,9 @@ def _print_session_status(result: dict[str, Any]) -> None:
     state = result.get("state", "?")
     enabled = result.get("sessions_enabled", False)
     state_col = "bold green" if state not in ("CLOSED", "PRE_OPEN") else "bold yellow"
-    console.print(f"  Session state     : [{state_col}]{state}[/{state_col}]")
+    console.print(
+        f"  Session state     : [{state_col}]{escape(str(state))}[/{state_col}]"
+    )
     console.print(
         f"  Auto-scheduling   : {'[green]ON[/green]' if enabled else '[dim]off[/dim]'}"
     )
@@ -540,9 +601,9 @@ def _print_gateways(gateways: list[dict[str, Any]]) -> None:
         connected = gw.get("connected", False)
         status_str = "[green]YES[/green]" if connected else "[dim]no[/dim]"
         t.add_row(
-            gw.get("id", ""),
-            gw.get("role", ""),
-            gw.get("description", ""),
+            escape(gw.get("id", "")),
+            escape(gw.get("role", "")),
+            escape(gw.get("description", "")),
             status_str,
         )
     console.print(t)
@@ -570,7 +631,7 @@ def _print_volume(result: dict[str, Any]) -> None:
 
     for v in symbols:
         t.add_row(
-            str(v.get("symbol", "")),
+            escape(str(v.get("symbol", ""))),
             f"{v.get('qty', 0):,}",
             f"{v.get('value', 0.0):,.2f}",
             str(v.get("trades", 0)),
@@ -604,7 +665,7 @@ def _report(
     elif accepted:
         console.print(accepted_message)
     else:
-        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        console.print(f"[red]REJECTED[/red]  {escape(str(result.get('reason', '')))}")
     return accepted, result
 
 
@@ -659,7 +720,7 @@ def _cmd_halt_sym(
     result = client.symbol_halt(sym)
     return _report(
         result,
-        f"[bold red]HALTED[/bold red]  {result.get('symbol', sym)}  "
+        f"[bold red]HALTED[/bold red]  {escape(str(result.get('symbol', sym)))}  "
         f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled",
         json_output=json_output,
     )
@@ -678,7 +739,7 @@ def _cmd_resume_sym(
     result = client.symbol_resume(sym)
     return _report(
         result,
-        f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}",
+        f"[bold green]RESUMED[/bold green]  {escape(str(result.get('symbol', sym)))}",
         json_output=json_output,
     )
 
@@ -696,7 +757,7 @@ def _cmd_cancel_sym(
     result = client.cancel_symbol(sym)
     return _report(
         result,
-        f"[yellow]CANCEL_SYM OK[/yellow]  {result.get('symbol', sym)}  "
+        f"[yellow]CANCEL_SYM OK[/yellow]  {escape(str(result.get('symbol', sym)))}  "
         f"orders={result.get('cancelled_orders', 0)}  "
         f"quotes={result.get('cancelled_quotes', 0)}",
         json_output=json_output,
@@ -716,16 +777,14 @@ def _cmd_reopen(
             "REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]"
         )
         return False, {}
-    price_str = fields.get("PRICE", "")
-    price: float | None = None
-    if price_str:
-        try:
-            price = float(price_str)
-        except ValueError:
-            console.print(f"[red]Invalid PRICE:[/red] {price_str!r} is not a number")
-            return False, {}
+    price_ok, price = _parse_price(fields.get("PRICE", ""))
+    if not price_ok:
+        return False, {}
     dry_run = fields.get("DRY_RUN", "").lower() in ("1", "true", "yes")
     note = fields.get("NOTE", "")
+    # The scale for the printed prices, fetched before the uncross: a lookup
+    # timing out afterwards would report an executed REOPEN as a TIMEOUT.
+    decimals = None if json_output else client.tick_decimals(sym)
 
     result = client.force_uncross(sym, price, dry_run=dry_run, note=note)
 
@@ -735,15 +794,15 @@ def _cmd_reopen(
 
     accepted = bool(result.get("accepted"))
     if not accepted:
-        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        console.print(f"[red]REJECTED[/red]  {escape(str(result.get('reason', '')))}")
         return False, result
 
-    symbol = result.get("symbol", sym)
+    symbol = escape(str(result.get("symbol", sym)))
     ind_px = result.get("indicative_price")
     ind_qty = result.get("indicative_qty", 0)
     side = result.get("imbalance_side") or "balanced"
     surplus = result.get("surplus", 0)
-    ind_txt = "no cross" if ind_px is None else f"{ind_px} x {ind_qty}"
+    ind_txt = "no cross" if ind_px is None else f"{_px(ind_px, decimals)} x {ind_qty}"
     if result.get("dry_run"):
         console.print(
             f"[cyan]REOPEN DRY-RUN[/cyan]  {symbol}  "
@@ -752,7 +811,11 @@ def _cmd_reopen(
     else:
         printed = result.get("printed_price")
         traded = result.get("traded_qty", 0)
-        printed_txt = "nothing printed" if printed is None else f"{printed} x {traded}"
+        printed_txt = (
+            "nothing printed"
+            if printed is None
+            else f"{_px(printed, decimals)} x {traded}"
+        )
         console.print(
             f"[bold green]REOPEN OK[/bold green]  {symbol}  "
             f"printed={printed_txt}  (indicative was {ind_txt})"
@@ -779,7 +842,7 @@ def _cmd_kill(
         result = client.kill_switch_gateway(gw, symbol=sym)
     return _report(
         result,
-        f"[yellow]KILL OK[/yellow]  {gw.upper()}  "
+        f"[yellow]KILL OK[/yellow]  {escape(gw.upper())}  "
         f"orders={result.get('cancelled_orders', 0)}  "
         f"quotes={result.get('cancelled_quotes', 0)}",
         json_output=json_output,
@@ -796,12 +859,26 @@ def _cmd_kick(
     if not gw:
         console.print("[yellow]Usage:[/yellow]  KICK|GW=<gw>[|REASON=<text>]")
         return False, {}
+    # The disconnect has no ack, and the engine ignores an unknown id
+    # silently: check the target first, so a typo fails instead of "sent".
+    target = gw.upper()
+    entry = next((g for g in client.gateway_list() if g.get("id") == target), None)
+    if entry is None or not entry.get("connected"):
+        reason = (
+            f"Gateway not configured: {target}"
+            if entry is None
+            else f"Gateway not connected: {target}"
+        )
+        refused = {"gateway_id": target, "accepted": False, "reason": reason}
+        return _report(refused, "", json_output=json_output)
     client.gateway_kick(gw, reason=fields.get("REASON", ""))
-    result = {"gateway_id": gw.upper()}
+    result = {"gateway_id": target}
     if json_output:
         _print_json(result)
     else:
-        console.print(f"[yellow]KICK[/yellow]  sent disconnect for {gw.upper()}")
+        console.print(
+            f"[yellow]KICK[/yellow]  sent disconnect for {escape(gw.upper())}"
+        )
     return True, result
 
 
@@ -822,7 +899,7 @@ def _cmd_qcancel(
         result = client.kill_switch_gateway(gw, symbol=sym, quotes_only=True)
     return _report(
         result,
-        f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}",
+        f"[yellow]QCANCEL OK[/yellow]  {escape(gw.upper())}  {escape(sym.upper())}",
         json_output=json_output,
     )
 
@@ -845,22 +922,39 @@ def _cmd_book(
     return True, result
 
 
+def _query_status_line(reply: dict[str, Any], json_output: bool) -> bool:
+    """Say what an orders/position ``status`` means; ``False`` for an
+    unknown gateway, whose empty answer must not read as "nothing"."""
+    status = reply.get("status", "OK")
+    gw = reply.get("gateway_id", "")
+    if status == "UNKNOWN_GATEWAY":
+        if not json_output:
+            console.print(f"[red]REJECTED[/red]  Gateway not configured: {escape(gw)}")
+        return False
+    if status == "NOT_CONNECTED" and not json_output:
+        console.print(
+            f"[yellow]{escape(gw)} is not connected[/yellow] (stored state shown)"
+        )
+    return True
+
+
 def _cmd_orders(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
     json_output: bool,
-) -> tuple[bool, list[dict[str, Any]]]:
+) -> tuple[bool, dict[str, Any]]:
     gw = fields.get("GW", "")
     if not gw:
         console.print("[yellow]Usage:[/yellow]  ORDERS|GW=<gw>")
-        return False, []
-    orders = client.order_list(gw)
+        return False, {}
+    reply = client.orders_reply(gw)
+    known = _query_status_line(reply, json_output)
     if json_output:
-        _print_json(orders)
-    else:
-        _print_orders(orders, gw.upper())
-    return True, orders
+        _print_json(reply)
+    elif known:
+        _print_orders(list(reply.get("orders", [])), gw.upper())
+    return known, reply
 
 
 def _cmd_level(
@@ -874,13 +968,9 @@ def _cmd_level(
         console.print("[yellow]Usage:[/yellow]  LEVEL|SYM=<sym>[|PRICE=<px>]")
         return False, {}
     price_str = fields.get("PRICE", "")
-    price: float | None = None
-    if price_str:
-        try:
-            price = float(price_str)
-        except ValueError:
-            console.print(f"[red]Invalid PRICE:[/red] {price_str!r} is not a number")
-            return False, {}
+    price_ok, price = _parse_price(price_str)
+    if not price_ok:
+        return False, {}
     result = client.price_level_orders(sym, price)
     if json_output:
         _print_json(result)
@@ -921,10 +1011,13 @@ def _cmd_session(
     if json_output:
         _print_json(result)
     elif accepted:
-        console.print(f"[bold]SESSION[/bold]  now {result.get('to_state', state)}")
+        console.print(
+            f"[bold]SESSION[/bold]  now {escape(str(result.get('to_state', state)))}"
+        )
     else:
         console.print(
-            f"[bold]SESSION[/bold]  [red]REJECTED[/red]  {result.get('reason', '')}"
+            f"[bold]SESSION[/bold]  [red]REJECTED[/red]  "
+            f"{escape(str(result.get('reason', '')))}"
         )
     return accepted, result
 
@@ -990,7 +1083,7 @@ def _cmd_position(
     fields: dict[str, str],
     symbols_cache: list[str] | None,
     json_output: bool,
-) -> tuple[bool, list[dict[str, Any]]]:
+) -> tuple[bool, dict[str, Any]]:
     """Query a gateway's per-symbol net position plus its live quote.
 
     Combines two independent engine round-trips -- ``position_snapshot``
@@ -1004,18 +1097,30 @@ def _cmd_position(
     addition here is specific to this command.
 
     Optional ``SYM=`` narrows to one or more comma-separated symbols; a
-    symbol with neither a position nor an active quote is omitted.
+    symbol with neither a position nor an active quote is omitted. The
+    result is ``{gateway_id, status, positions}`` with the engine's
+    ``status``; an unknown gateway fails instead of looking flat.
     """
     gw = fields.get("GW", "")
     if not gw:
         console.print(
             "[yellow]Usage:[/yellow]  POSITION|GW=<gw>[|SYM=<sym>[,<sym>...]]"
         )
-        return False, []
+        return False, {}
 
     wanted = {s.strip().upper() for s in fields.get("SYM", "").split(",") if s.strip()}
 
-    positions = client.position_snapshot(gw)
+    reply = client.positions_reply(gw)
+    result: dict[str, Any] = {
+        "gateway_id": gw.upper(),
+        "status": reply.get("status", "OK"),
+        "positions": [],
+    }
+    if not _query_status_line(result, json_output):
+        if json_output:
+            _print_json(result)
+        return False, result
+    positions = list(reply.get("positions", []))
     quotes = client.quote_bootstrap(gw)
 
     by_symbol: dict[str, dict[str, Any]] = {}
@@ -1029,6 +1134,7 @@ def _cmd_position(
             "avg_cost": pos.get("avg_cost", 0.0),
         }
 
+    scale: dict[str, int | None] = {}
     for q in quotes:
         sym = str(q.get("symbol", "")).upper()
         if not sym:
@@ -1039,19 +1145,23 @@ def _cmd_position(
         row["bid_price"] = bid
         row["ask_price"] = ask
         if bid is not None and ask is not None:
-            row["spread"] = ask - bid
-            row["mid"] = (bid + ask) / 2
+            # Rounded to the symbol's scale (mid one place finer): the float
+            # difference of 149.90 and 149.70 is 0.20000000000000284.
+            d = scale.setdefault(sym, client.tick_decimals(sym))
+            row["spread"] = ask - bid if d is None else round(ask - bid, d)
+            row["mid"] = (bid + ask) / 2 if d is None else round((bid + ask) / 2, d + 1)
 
     if wanted:
         by_symbol = {sym: row for sym, row in by_symbol.items() if sym in wanted}
 
     rows = [by_symbol[sym] for sym in sorted(by_symbol)]
+    result["positions"] = rows
 
     if json_output:
-        _print_json(rows)
+        _print_json(result)
     else:
-        _print_position(gw.upper(), rows)
-    return True, rows
+        _print_position(gw.upper(), rows, scale)
+    return True, result
 
 
 # Maps each upper-cased command name to its handler.  Adding a new command
@@ -1143,7 +1253,9 @@ def execute_command(
         if json_output:
             _print_json({"error": message})
         else:
-            console.print(f"[dim]{message}  Type HELP for the command reference.[/dim]")
+            console.print(
+                f"[dim]{escape(message)}  Type HELP for the command reference.[/dim]"
+            )
         return False, {"error": message}
     return handler(client, fields, symbols_cache, json_output)
 
@@ -1224,7 +1336,7 @@ class AdminConsole:
             self._connection_lost = True
             console.print("[red]Engine connection was lost; logging out.[/red]")
         except CommandTimeoutError as exc:
-            console.print(f"[red]TIMEOUT[/red]  {exc}")
+            console.print(f"[red]TIMEOUT[/red]  {escape(str(exc))}")
 
     async def _watch_engine_disconnect(
         self, app: Any, monitor: zmq.Socket[bytes]
@@ -1243,25 +1355,26 @@ class AdminConsole:
     # REPL entry point
     # ------------------------------------------------------------------
 
-    def run(self) -> None:
+    def run(self) -> int:
+        """Run the REPL; return 0 after EXIT/EOF/Ctrl-C or a hangup, 1 when
+        no session was had (timeout, refusal) or the engine was lost."""
         # Authenticate
         try:
             result = self._client.connect()
         except CommandTimeoutError:
             console.print(
                 "[red]Connection timed out.[/red]  "
-                "Is the engine running?  (default: tcp://127.0.0.1:5555)"
+                f"Is the engine running at {escape(ENGINE_PULL_ADDR)}?"
             )
             self._client.close()
-            return
+            return 1
 
         if not result.get("accepted"):
             console.print(
-                f"[red]Auth refused:[/red] {result.get('reason', '')}  "
-                "(check role: ADMIN in engine_config.yaml)"
+                f"[red]Auth refused:[/red] {escape(str(result.get('reason', '')))}"
             )
             self._client.close()
-            return
+            return 1
 
         monitor = self._client.engine_disconnect_monitor()
         heartbeat = threading.Thread(
@@ -1271,8 +1384,9 @@ class AdminConsole:
         try:
             desc = result.get("description", "")
             console.print(
-                f"\n[bold green]ADMIN console — {self._gw_id} connected[/bold green]"
-                + (f"  {desc}" if desc else "")
+                f"\n[bold green]ADMIN console — {escape(self._gw_id)} connected"
+                "[/bold green]"
+                + (f"  {escape(str(desc))}" if desc else "")
                 + "\nType [bold]HELP[/bold] for commands.  "
                 "[dim]Tab=complete  ↑↓=history  Ctrl-C=exit[/dim]\n"
             )
@@ -1311,7 +1425,15 @@ class AdminConsole:
                     cmd, fields = _parse(line)
                     if cmd in ("EXIT", "QUIT"):
                         break
-                    self._dispatch(cmd, fields)
+                    try:
+                        self._dispatch(cmd, fields)
+                    except Exception as exc:
+                        # Leaving the loop would log the operator out in the
+                        # middle of whatever they were doing.
+                        log.exception(
+                            "command failed gateway_id=%s line=%r", self._gw_id, line
+                        )
+                        console.print(f"[red]Command failed:[/red] {escape(str(exc))}")
         finally:
             self._heartbeat_stop.set()
             heartbeat.join()
@@ -1327,8 +1449,9 @@ class AdminConsole:
                 finally:
                     self._client.close()
                     console.print(
-                        f"\n[bold]ADMIN console {self._gw_id} disconnected.[/bold]"
+                        f"\n[bold]ADMIN console {escape(self._gw_id)} disconnected.[/bold]"
                     )
+        return 1 if self._connection_lost else 0
 
 
 # ---------------------------------------------------------------------------
@@ -1447,7 +1570,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-admin with log level %s", logging.getLevelName(log_level))
-    AdminConsole(args.id).run()
+    sys.exit(AdminConsole(args.id).run())
 
 
 if __name__ == "__main__":

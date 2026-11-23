@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import sys
 from typing import Any
 
@@ -8,7 +9,14 @@ import pytest
 
 from edumatcher.commands import CommandTimeoutError
 from edumatcher.commands import cli as cli_mod
+from edumatcher.commands import console as console_mod
 from edumatcher.commands.console import _COMMAND_HANDLERS
+
+
+@pytest.fixture(autouse=True)
+def _restore_shared_console(monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() swaps the console the REPL shares for a detecting one."""
+    monkeypatch.setattr(console_mod, "console", console_mod.console)
 
 
 @dataclass
@@ -493,3 +501,134 @@ def test_main_execute_rejected_exits_one(monkeypatch: pytest.MonkeyPatch) -> Non
         cli_mod.main()
 
     assert exc.value.code == 1
+
+
+def test_main_unknown_gateway_exits_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real executor with an engine answering UNKNOWN_GATEWAY: the
+    `orders --gw TYPO` step of a runbook must fail the script."""
+
+    class _UnknownGatewayClient(_FakeClient):
+        def orders_reply(self, gw: str) -> dict[str, Any]:
+            return {"gateway_id": gw.upper(), "orders": [], "status": "UNKNOWN_GATEWAY"}
+
+    monkeypatch.setattr(
+        cli_mod,
+        "ExchangeCommandClient",
+        lambda gw, push_addr, pub_addr, timeout_ms: _UnknownGatewayClient(
+            gw, push_addr, pub_addr, timeout_ms
+        ),
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["pm-admin-cli", "--id", "GW_ADMIN", "orders", "--gw", "NOSUCH01"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        cli_mod.main()
+    assert exc.value.code == 1
+
+
+@pytest.mark.parametrize("fmt", ["text", "json"])
+def test_main_engine_lost_exits_one_without_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fmt: str
+) -> None:
+    """The engine went away between connect and command: the send raises
+    zmq.Again, and so does the final disconnect."""
+    import zmq
+
+    class _GoneClient(_FakeClient):
+        def disconnect(self) -> None:
+            raise zmq.Again()
+
+    def _lost(*_a: Any, **_k: Any) -> Any:
+        raise zmq.Again()
+
+    monkeypatch.setattr(
+        cli_mod,
+        "ExchangeCommandClient",
+        lambda gw, push_addr, pub_addr, timeout_ms: _GoneClient(
+            gw, push_addr, pub_addr, timeout_ms
+        ),
+    )
+    monkeypatch.setattr(cli_mod, "execute_command", _lost)
+    monkeypatch.setattr(
+        sys, "argv", ["pm-admin-cli", "--id", "GW_ADMIN", "--format", fmt, "halt"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        cli_mod.main()
+    assert exc.value.code == 1
+    out, err = capsys.readouterr()
+    if fmt == "json":
+        assert json.loads(out) == {"error": "engine_unreachable"}
+    else:
+        assert "Engine connection lost" in err
+
+
+def test_build_parser_refuses_a_non_positive_timeout() -> None:
+    parser = cli_mod.build_parser()
+    for bad in ("0", "-5"):
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args(["--id", "GW", "--timeout", bad, "halt"])
+        assert exc.value.code == 2
+
+
+def test_main_text_output_to_a_pipe_has_no_ansi(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """pm-admin-cli is the scripting tool: a redirected stdout gets plain text."""
+
+    class _HaltClient(_FakeClient):
+        def halt_all(self) -> dict[str, Any]:
+            return {"accepted": True, "halted_symbols": 2, "cancelled_quotes": 0}
+
+    for var in ("FORCE_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(
+        cli_mod,
+        "ExchangeCommandClient",
+        lambda gw, push_addr, pub_addr, timeout_ms: _HaltClient(
+            gw, push_addr, pub_addr, timeout_ms
+        ),
+    )
+    monkeypatch.setattr(sys, "argv", ["pm-admin-cli", "--id", "GW_ADMIN", "halt"])
+    with pytest.raises(SystemExit) as exc:
+        cli_mod.main()
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "HALTED  2 symbol(s)" in out
+    assert "\x1b[" not in out
+
+
+def test_main_reopen_nan_price_exits_one_and_sends_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[str] = []
+
+    class _ReopenClient(_FakeClient):
+        def force_uncross(self, *a: Any, **k: Any) -> dict[str, Any]:
+            sent.append("force_uncross")
+            return {"accepted": True}
+
+    monkeypatch.setattr(
+        cli_mod,
+        "ExchangeCommandClient",
+        lambda gw, push_addr, pub_addr, timeout_ms: _ReopenClient(
+            gw, push_addr, pub_addr, timeout_ms
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pm-admin-cli",
+            "--id",
+            "GW_ADMIN",
+            "reopen",
+            "--sym",
+            "AAPL",
+            "--price",
+            "nan",
+        ],
+    )
+    with pytest.raises(SystemExit) as exc:
+        cli_mod.main()
+    assert exc.value.code == 1
+    assert sent == []

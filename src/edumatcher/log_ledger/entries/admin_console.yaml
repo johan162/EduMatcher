@@ -1,0 +1,16 @@
+# Log ledger entries for pm-admin (edumatcher.commands.console).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.commands.console
+  template: "command failed gateway_id=%s line=%r"
+  level: ERROR
+  explanation: >
+    A line typed at the ADMIN console prompt raised an error the command
+    handlers did not foresee (for example a malformed engine reply). The
+    session goes on; the traceback follows the message. The request may
+    already have reached the engine: a halt, kill or session change can have
+    been carried out even though no result was printed.
+  actions:
+    - "Check the effect with a read command (GATEWAYS, ORDERS, SESSION_STATUS, BOOK) before retyping a command that changes state."
+    - "Report the line and the traceback as a pm-admin bug."

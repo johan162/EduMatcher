@@ -118,3 +118,24 @@ def test_the_audit_names_the_admin(monkeypatch, tmp_path):
     assert (
         action["scope"]["symbol"] == "AAPL" and action["scope"]["quotes_only"] is True
     )
+
+
+def test_an_unknown_target_is_refused(monkeypatch, tmp_path):
+    """A mistyped id was acknowledged with zero cancels, so pm-admin's
+    `KILL OK  NOSUCH01  orders=0  quotes=0` hid the typo (Admin commands
+    review 2026-11, C2); the REST kill switch answered 200 the same way."""
+    engine, pub_sock = _engine(monkeypatch, tmp_path)
+    engine._handle_kill_switch_gateway(
+        {"gateway_id": ADMIN, "target_gateway_id": "NOSUCH01", "command_id": "c9"}
+    )
+    ack = _ack(pub_sock)
+    assert ack["accepted"] is False
+    assert ack["reason"] == "Gateway not configured: NOSUCH01"
+    (action,) = [
+        m
+        for m in msgs(pub_sock, f"admin.action.{ADMIN}")
+        if m.get("action") == "kill_switch.gateway"
+    ]
+    assert action["accepted"] is False
+    assert action["scope"]["target_gateway_id"] == "NOSUCH01"
+    assert len(_resting(engine, "AAPL")) == 3  # MM01: quote legs + order kept

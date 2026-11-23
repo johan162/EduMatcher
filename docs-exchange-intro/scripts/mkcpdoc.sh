@@ -51,7 +51,7 @@ rm -rf "$DEST_DIR"/parts-a4-pdf
 
 # Copy the artifacts
 echo -e "${DARK_YELLOW}Copying artifacts from ${CYAN}'${SRC_DIR}/'${DARK_YELLOW} to ${CYAN}'${DEST_DIR}/' ${DARK_YELLOW}...${NC}"
-cp -r "$SRC_DIR"/* "$DEST_DIR"
+cp -ra "$SRC_DIR"/* "$DEST_DIR"
 
 echo -e "${DARK_YELLOW}Updating version to ${CYAN}${VERSION}${DARK_YELLOW}...${NC}"
 sed "${SED_INLINE[@]}" -E "s/[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/g" "$DEST_DIR/index.md"
