@@ -17,10 +17,18 @@ model, the link resolver and the open episodes, because all three carry
 context across a chunk boundary; without them an episode spanning the boundary
 splits in two. Resuming instead from the oldest still-open episode avoids that
 and buys nothing -- a ``gateway`` span stays open for the whole session, which
-on this repo's own logs puts the resume point at ordinal 0. Measured at
-~6 300 lines/s a full rebuild is 2.7 minutes for a million-line day, so the
-build is simply run again, and ``rebuild=False`` upserts on stable keys so
-running it twice costs nothing but time.
+on this repo's own logs puts the resume point at ordinal 0. So the build is
+simply run again: about 6 000 lines/s, which is minutes for a session's log
+and over an hour for a simulation day of ~27 million lines -- which is why
+only ``story`` and ``index`` use the index, and every report reads the log.
+
+**A build is atomic.** It writes a scratch file beside the index and moves it
+into place with :func:`os.replace` once complete, so a reader sees the old
+index or the new one, never a half one; two builds at once each finish (the
+last one wins); and an interrupted build leaves the old index as it was. The
+finished file is in rollback-journal mode, not WAL: nothing writes to it once
+it is in place, and a ``-wal``/``-shm`` pair would belong to the file name,
+not to the file, so it would outlive the replace.
 
 **Links are resolved in SQL, not in memory.** The resolver names a link's two
 ends by message id; the table wants episode ids. Holding the mapping in a dict
@@ -32,11 +40,13 @@ index.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterable, Mapping
+from urllib.parse import quote
 
 from edumatcher.audit.replay.derived import derive
 from edumatcher.audit.replay.episodes import Episode
@@ -51,8 +61,9 @@ from edumatcher.audit.replay.state import StateModel
 #: no column. There is no migration -- :func:`check_versions` refuses the old
 #: index and ``ensure_index`` rebuilds it, which is the whole of the policy.
 #: Version 3 added ``eseq``; version 4 added ``publisher_run`` for reset-aware
-#: canonical ordering.
-SCHEMA_VERSION = 4
+#: canonical ordering; version 5 added ``idx_sl_to``, without which every
+#: ``story`` hop read the whole ``stated_links`` table.
+SCHEMA_VERSION = 5
 
 #: What the rows *mean*: the link rules of section 5.1, the episode claim
 #: rules of section 4, and :func:`~edumatcher.audit.replay.ordering.pack_sort_key`.
@@ -80,9 +91,8 @@ META_BUILT_AT = "built_at"
 META_COVERED_FROM = "covered_from"
 META_COVERED_TO = "covered_to"
 
-#: Rows per transaction. Large enough that the per-statement overhead
-#: disappears, small enough that a build interrupted halfway has not buffered
-#: a session's worth of work it is about to lose.
+#: Episodes per transaction. Large enough that the per-statement overhead
+#: disappears, small enough that the rows buffered in memory stay small.
 DEFAULT_BATCH = 500
 
 _SCHEMA = """
@@ -151,8 +161,7 @@ CREATE TABLE IF NOT EXISTS links (
 --     (`condition:KILL_SWITCH`): a thing that happened, not a thing that was
 --     published, so it has no episode and cannot satisfy `links`'s foreign
 --     key. Ask `WHERE to_ref = ? AND from_ref LIKE 'condition:%'`.
--- It is also what lets an incremental build attach an effect to a cause
--- written in an earlier chunk.
+-- `story` reads the links pointing at the refs it shows, over idx_sl_to.
 CREATE TABLE IF NOT EXISTS stated_links (
     from_ref    TEXT NOT NULL,
     to_ref      TEXT NOT NULL,
@@ -199,6 +208,7 @@ CREATE INDEX IF NOT EXISTS idx_ee_cause      ON episode_events(causation_id);
 CREATE INDEX IF NOT EXISTS idx_ee_chain      ON episode_events(correlation_id);
 CREATE INDEX IF NOT EXISTS idx_ep_chain      ON episodes(correlation_id);
 CREATE INDEX IF NOT EXISTS idx_links_to      ON links(to_episode);
+CREATE INDEX IF NOT EXISTS idx_sl_to         ON stated_links(to_ref);
 CREATE INDEX IF NOT EXISTS idx_anom_code     ON anomalies(code, sort_key);
 """
 
@@ -267,6 +277,14 @@ class StaleIndexError(RuntimeError):
     """
 
 
+class NotAnIndexError(RuntimeError):
+    """The file ``--db`` names exists and is not an episode index.
+
+    Refused, never replaced: an index can be rebuilt from the log, the file a
+    mistyped ``--db`` names (``clearing.db``, someone's notes) cannot.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Connections
 # ---------------------------------------------------------------------------
@@ -289,32 +307,17 @@ def reading(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
         conn.close()
 
 
-@contextmanager
-def writing(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
-    """Open the index for writing and close it again."""
-    conn = open_index(db_path)
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
 def open_index(db_path: Path) -> sqlite3.Connection:
-    """Open (creating if needed) the episode index, in WAL.
+    """Open an existing episode index for writing, or create an empty one.
 
-    A file written under a different :data:`SCHEMA_VERSION` is **deleted**
-    rather than opened. Nothing else would do it: ``CREATE TABLE IF NOT
-    EXISTS`` leaves a table that already exists in the wrong shape exactly as
-    it found it, and :func:`clear` empties rows without touching columns -- so
-    the first insert naming a new column fails on an old file and the version
-    bump is a number nobody acts on.
-
-    There is no migration, by design. The index is derived from the log and is
-    cheaper to rebuild than to reason about.
+    Refuses (:class:`NotAnIndexError`) a file that is not an episode index.
+    The builder does not use this -- :func:`build` writes a scratch file and
+    replaces the index whole -- so what is left is opening an index to
+    inspect or adjust its metadata.
     """
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    if db_path.exists() and _schema_version_of(db_path) != SCHEMA_VERSION:
-        _discard(db_path)
+    if db_path.exists():
+        _require_index(db_path)
     conn = sqlite3.connect(str(db_path))
     initialize_schema(conn)
     return conn
@@ -323,42 +326,46 @@ def open_index(db_path: Path) -> sqlite3.Connection:
 def initialize_schema(conn: sqlite3.Connection) -> None:
     """Create the current replay-index schema on an open SQLite connection."""
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(_SCHEMA)
     conn.commit()
 
 
-def _schema_version_of(db_path: Path) -> int | None:
-    """What an existing file says it was built under, or None if it cannot say.
+def _readonly_uri(db_path: Path) -> str:
+    """A ``mode=ro`` URI that survives ``?``, ``#`` and ``%`` in the path."""
+    return f"file:{quote(str(db_path.resolve()))}?mode=ro"
 
-    None covers a file that is not one of ours and a half-written one from an
-    interrupted build; both answer the only question being asked -- "is this
-    the shape this code writes?" -- with no.
+
+def _require_index(db_path: Path) -> None:
+    """Raise :class:`NotAnIndexError` unless *db_path* is an episode index.
+
+    An index is a SQLite file with a ``replay_meta`` table, whatever version
+    it declares: an index of an older shape is still ours to replace. Asked
+    of the schema rather than of a row, so a file with no version row (one
+    built before metadata was written) is an index too.
     """
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn = sqlite3.connect(_readonly_uri(db_path), uri=True)
     try:
-        row = conn.execute(
-            "SELECT value FROM replay_meta WHERE key = ?", (META_SCHEMA_VERSION,)
+        found = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'replay_meta'"
         ).fetchone()
     except sqlite3.DatabaseError:
-        return None
+        found = None
     finally:
         conn.close()
-    return int(row[0]) if row else None
-
-
-def _discard(db_path: Path) -> None:
-    """Remove an index of the wrong shape, WAL siblings and all."""
-    for path in (db_path, Path(f"{db_path}-wal"), Path(f"{db_path}-shm")):
-        path.unlink(missing_ok=True)
+    if found is None:
+        raise NotAnIndexError(
+            f"{db_path} is not an episode index; refusing to read or replace "
+            f"it. Point --db at the index file (default name "
+            f"audit_replay.db)."
+        )
 
 
 def open_readonly(db_path: Path) -> sqlite3.Connection:
     """Open an existing index for queries, refusing a stale one."""
     if not db_path.exists():
         raise FileNotFoundError(f"Episode index not found: {db_path}")
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    _require_index(db_path)
+    conn = sqlite3.connect(_readonly_uri(db_path), uri=True)
     conn.row_factory = sqlite3.Row
     try:
         check_versions(conn)
@@ -404,7 +411,7 @@ def check_versions(conn: sqlite3.Connection) -> None:
 
 
 class IndexWriter:
-    """Writes episodes as they retire, in batches, inside one WAL transaction.
+    """Writes episodes as they retire, one transaction per batch.
 
     Fed the same stream a renderer would read, so an indexed and an unindexed
     run see the same episodes in the same order -- which is what makes the
@@ -666,46 +673,49 @@ def build(
     state: StateModel,
     source_files: Iterable[Path],
     *,
-    rebuild: bool = False,
     batch_size: int = DEFAULT_BATCH,
     detection: str = "",
 ) -> int:
-    """Write *episodes* into the index at *db_path*, returning how many.
+    """Write *episodes* into a fresh index at *db_path*, returning how many.
 
-    ``rebuild`` empties the tables first. Without it the write is an upsert on
-    stable keys, so building the same log twice is indistinguishable from
-    building it once -- which is what lets the CLI build unconditionally when
-    the index is absent or stale without having to reason about what is
-    already there.
+    Refuses (:class:`NotAnIndexError`) before reading anything when
+    *db_path* exists and is not an episode index. The rows go to a scratch
+    file beside it, which replaces the index only once complete (the module
+    docstring says why); on any failure, Ctrl-C included, the scratch file is
+    removed and the old index is untouched.
+
+    The scratch file is written with no journal and no fsync: until the
+    replace it is nobody's, and a crash simply leaves a file the next build's
+    name does not collide with.
     """
-    conn = open_index(db_path)
+    if db_path.exists():
+        _require_index(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    scratch = db_path.with_name(f"{db_path.name}.building-{os.getpid()}")
+    scratch.unlink(missing_ok=True)
     try:
-        if rebuild:
-            clear(conn)
-        writer = IndexWriter(conn, state, batch_size=batch_size)
-        for episode in episodes:
-            writer.write(episode)
-        writer.finish(source_files)
-        write_meta(conn, META_DETECTION, detection)
-        conn.commit()
+        conn = sqlite3.connect(str(scratch))
+        try:
+            conn.execute("PRAGMA journal_mode=OFF")
+            conn.execute("PRAGMA synchronous=OFF")
+            initialize_schema(conn)
+            writer = IndexWriter(conn, state, batch_size=batch_size)
+            for episode in episodes:
+                writer.write(episode)
+            writer.finish(source_files)
+            write_meta(conn, META_DETECTION, detection)
+            conn.commit()
+        finally:
+            conn.close()
+        # Siblings of a WAL-mode index of an older build: they belong to the
+        # name, so left behind they would be applied to the new file.
+        for sibling in (Path(f"{db_path}-wal"), Path(f"{db_path}-shm")):
+            sibling.unlink(missing_ok=True)
+        os.replace(scratch, db_path)
         return writer.episodes
-    finally:
-        conn.close()
-
-
-def clear(conn: sqlite3.Connection) -> None:
-    """Empty every table. The index is derived, so this loses nothing."""
-    for table in (
-        "links",
-        "stated_links",
-        "anomalies",
-        "episode_events",
-        "episodes",
-        "actors",
-        "replay_meta",
-    ):
-        conn.execute(f"DELETE FROM {table}")
-    conn.commit()
+    except BaseException:
+        scratch.unlink(missing_ok=True)
+        raise
 
 
 def is_current(conn: sqlite3.Connection, source_files: Iterable[Path]) -> bool:

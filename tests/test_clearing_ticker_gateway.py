@@ -282,12 +282,17 @@ class TestTradeFromDict:
             price=150,
             quantity=100,
             aggressor_side="BUY",
+            tick_decimals=2,
         )
-        d = trade.to_dict()
-        restored = Trade.from_dict(d)
+        # The one production round trip: the engine publishes to_wire() and
+        # pm-clearing rebuilds the Trade from it.
+        from edumatcher.clearing.main import _trade_from_payload
+
+        restored = _trade_from_payload(trade.to_wire())
         assert restored.id == trade.id
         assert restored.symbol == "AAPL"
-        assert restored.price == 150.0
+        assert restored.price == 150
+        assert restored.tick_decimals == 2
 
 
 # ---------------------------------------------------------------------------

@@ -97,4 +97,5 @@ def same_outputs(ds: Dataset) -> Outcome:
 )
 def final_book(ds: Dataset) -> Outcome:
     r = _rerun(ds)
-    return Outcome(r.counts["E4"], r.samples["E4"])
+    note = "" if r.book_checked else f"not checked: {r.book_unchecked}"
+    return Outcome(r.counts["E4"], r.samples["E4"], note)

@@ -159,9 +159,10 @@ CANCEL_UNMATCHED = "CANCEL_UNMATCHED"
 TRADE_LEG_MISSING = "TRADE_LEG_MISSING"
 
 #: An ``order.fill`` whose ``trade_ids`` name no ``trade.executed`` in the
-#: window. The trade is published before its fills, so by the time a fill is
-#: read its trade has been read too -- unless the window starts between them,
-#: or the message was lost.
+#: window. The engine publishes a match's fills *before* its trade, so the
+#: check waits for the trade (``Detector._resolve_named_trades``) and fires
+#: only when it never comes -- the window ends between them, or the message
+#: was lost.
 FILL_WITHOUT_TRADE = "FILL_WITHOUT_TRADE"
 
 #: The two legs of one trade report different ``fill_qty``.

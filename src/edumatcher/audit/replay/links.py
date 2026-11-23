@@ -503,12 +503,18 @@ class LinkResolver:
     def _structural(self, fact: Fact, this: str, found: list[Anomaly]) -> list[Link]:
         """Relations that are not causes, so the envelope does not settle them.
 
-        Parentage (a quote leg, an OCO leg, a combo leg), the join from a fill
-        to its trade, and the market condition a rejection names. All three are
-        carried explicitly by the messages, so all three are CERTAIN or
-        STRONG -- and none of them is what ``causation_id`` records, which
-        answers *which message* triggered this one, not *what this one is part
-        of*.
+        Parentage (a quote leg, an OCO leg, a combo leg), the join between a
+        trade and its orders, and the market condition a rejection names. All
+        three are carried explicitly by the messages, so all three are
+        CERTAIN or STRONG -- and none of them is what ``causation_id``
+        records, which answers *which message* triggered this one, not *what
+        this one is part of*.
+
+        The trade/order join is stated from whichever end is read second. The
+        engine publishes a match's fills before its trade, so on a current
+        trail the trade states it (``buy_order_id``/``sell_order_id`` to each
+        order's submission) and the fill-to-trade rule below finds no trade
+        yet; that rule serves trails in which the trade came first.
         """
         links: list[Link] = []
         payload = fact.payload
@@ -789,9 +795,12 @@ class LinkResolver:
 
         The inverse of :meth:`_register`, entry for entry. Only entries still
         pointing at *this* fact are removed, so a newer registration under the
-        same key survives -- and the request lists, the open halts and the
-        pending transitions are left alone: resolution already pops those, and
-        what is left in them is what has not happened yet.
+        same key survives. That includes the request lists: resolution pops a
+        request only on an envelope-less trail (the fallback tiers), so on an
+        enveloped one every cancel and amend of the day stayed there -- about
+        35 MB per simulation part -- until its episode retired with it. The
+        open halts and the pending transitions are left alone: what is in
+        them has not happened yet.
         """
         this = ref(fact)
         if fact.msg_id is not None:
@@ -809,6 +818,14 @@ class LinkResolver:
             key = _str(payload, field_name)
             if key and index.get(key) == this:
                 del index[key]
+        kind = fact.kind
+        if kind == kinds.ORDER_CANCEL:
+            _unregister(self._cancel_requests, _str(payload, "order_id"), this)
+        elif kind == kinds.ORDER_AMEND:
+            _unregister(self._amend_requests, _str(payload, "order_id"), this)
+        elif kind in _CANCEL_ACK_REQUEST.values():
+            key = _structure_cancel_key(kind, _str(payload, "gateway_id"), payload)
+            _unregister(self._structure_cancels, key, this)
         command_id = _str(payload, "command_id")
         if command_id and self._command.get(command_id) == this:
             del self._command[command_id]
@@ -816,6 +833,19 @@ class LinkResolver:
             # against these a whole window ago, since the ack is what closed
             # the episode now falling out of scope.
             self._command_effects.pop(command_id, None)
+
+
+def _unregister(
+    pending: dict[str, list[tuple[str, str | None]]], key: str | None, this: str
+) -> None:
+    """Drop the request *this* registered under *key*, and the key with its
+    last request."""
+    waiting = pending.get(key) if key else None
+    if key is None or waiting is None:
+        return
+    waiting[:] = [entry for entry in waiting if entry[0] != this]
+    if not waiting:
+        del pending[key]
 
 
 def _transport(fact: Fact) -> tuple[str, ...]:

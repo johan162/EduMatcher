@@ -19,6 +19,7 @@ import pytest
 from edumatcher.models import message as M
 from edumatcher.models.generated import order as G
 from edumatcher.models.generated._runtime import MessageValidationError
+from tests.fill_frames import fill_frames
 
 _LIMIT: dict[str, Any] = {
     "symbol": "AAPL",
@@ -119,18 +120,6 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             )
         )
 
-    def test_fill(self) -> None:
-        assert M.make_fill_msg("GW1", "O1", 5, 1.25, 3, "PARTIAL") == (
-            G.make_order_fill_unchecked(
-                gateway_id="GW1",
-                order_id="O1",
-                fill_qty=5,
-                fill_price=1.25,
-                remaining_qty=3,
-                status="PARTIAL",
-            )
-        )
-
     def test_cancelled_bare(self) -> None:
         assert M.make_cancelled_msg("GW1", "O1") == G.make_order_cancelled_unchecked(
             gateway_id="GW1", order_id="O1"
@@ -218,13 +207,13 @@ class TestPresenceSemantics:
 
     def test_fill_liquidity_flag_absent_by_default(self) -> None:
         """G9: no default, no guess -- absent unless the caller says which."""
-        _topic, payload = M.decode(M.make_fill_msg("GW1", "O1", 5, 1.25, 3, "PARTIAL"))
+        _topic, payload = M.decode(fill_frames("GW1", "O1", 5, 1.25, 3, "PARTIAL"))
         assert "liquidity_flag" not in payload
 
     @pytest.mark.parametrize("flag", ["MAKER", "TAKER", "AUCTION"])
     def test_fill_liquidity_flag_present_when_given(self, flag: str) -> None:
         _topic, payload = M.decode(
-            M.make_fill_msg(
+            fill_frames(
                 "GW1", "O1", 5, 1.25, 3, "PARTIAL", liquidity_flag=flag  # type: ignore[arg-type]
             )
         )
@@ -245,7 +234,7 @@ class TestTheOneDeliberateWireChange:
         if maker == "ack":
             frames = M.make_ack_msg("GW1", "O1", True, "", order=_MARKET)
         else:
-            frames = M.make_fill_msg("GW1", "O1", 5, 1.0, 0, "FILLED", order=_MARKET)
+            frames = fill_frames("GW1", "O1", 5, 1.0, 0, "FILLED", order=_MARKET)
         _topic, payload = M.decode(frames)
         assert "price" not in payload
         assert payload["symbol"] == "AAPL"

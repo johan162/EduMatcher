@@ -100,7 +100,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. IOC and FOK orders can both rest in the book if not fully filled
 - [ ] B. A fund manager expecting a specific news date might use GTD to auto-expire unfilled orders
 - [ ] C. NYSE's Market-At-Open and Limit-At-Open orders are variants of the ATO time-in-force
-- [ ] D. GTD behaves like GTC plus a scheduled cancellation task
+- [ ] D. GTD behaves like GTC plus a scheduled expiry task
 - [ ] E. ATC orders target the price that emerges from the closing auction uncross
 
 ### 11. Depth measures

@@ -199,7 +199,6 @@ class TestEpisodes:
             [
                 "--log-file",
                 str(SIMPLE),
-                "--no-index",
                 "episodes",
                 "--outcome",
                 "PARTIAL",
@@ -273,9 +272,9 @@ class TestTheIndexAndTheLogAgree:
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        common = ["--log-file", str(fixture)]
-        streamed = run(common + ["--no-index", view], capsys)
-        indexed = run(common + ["--db", str(tmp_path / "replay.db"), view], capsys)
+        common = ["--log-file", str(fixture), "--db", str(tmp_path / "replay.db")]
+        streamed = run(common + [view], capsys)
+        indexed = run(common + [view], capsys)
 
         # An index path that loaded nothing would show up here as a short
         # report against a long one, so equality is the whole assertion --

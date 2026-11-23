@@ -14,9 +14,12 @@ model cannot reconcile is returned as an :class:`Anomaly`; nothing is dropped.
 Bounded-ness is driven from outside. Section 7.1 retires an entry once its
 episode closes and falls out of the reorder window, and only the episode
 assembler knows when that is -- so it calls :meth:`StateModel.retire_order`
-and the model itself keeps whatever it is given. Left alone it keeps
-everything, which is what makes ``FILL_AFTER_TERMINAL`` and ``ACK_DUPLICATE``
-work at any distance.
+and :meth:`StateModel.forget_request`, and the model itself keeps whatever it
+is given. The pipeline always retires, so ``FILL_AFTER_TERMINAL``,
+``ACK_DUPLICATE`` and ``ILLEGAL_STATUS_TRANSITION`` reach as far as the
+reorder window past an order's end and no further: a later fact finds no
+order and starts a fresh one (decision Q3 of the 2026-11 review; the
+operator guide says so, and ``--reorder-window`` widens it).
 """
 
 from __future__ import annotations
@@ -40,7 +43,7 @@ from edumatcher.audit.replay.anomalies import (
     Anomaly,
 )
 from edumatcher.audit.replay import kinds
-from edumatcher.audit.replay.facts import Fact
+from edumatcher.audit.replay.facts import Fact, price_text
 
 # ---------------------------------------------------------------------------
 # The status ladder
@@ -213,6 +216,9 @@ class SymbolState:
     halted_since: datetime | None = None
     corridor_low: float | None = None
     corridor_high: float | None = None
+    #: The corridor's tick decimals when its message declared them, so the
+    #: corridor prints at the instrument's precision.
+    tick_decimals: int | None = None
     resume_at: datetime | None = None
     trigger_price: float | None = None
     reference_price: float | None = None
@@ -233,7 +239,9 @@ class SymbolState:
         if self.halt_level:
             parts.append(f"at level {self.halt_level}")
         if self.corridor_low is not None and self.corridor_high is not None:
-            parts.append(f"corridor {self.corridor_low:g}-{self.corridor_high:g}")
+            low = price_text(self.corridor_low, self.tick_decimals)
+            high = price_text(self.corridor_high, self.tick_decimals)
+            parts.append(f"corridor {low}-{high}")
         return ", ".join(parts)
 
 
@@ -313,11 +321,20 @@ class StateModel:
 
         Section 7.1's retirement, called by the episode assembler because that
         is the only thing that knows an order's story is over. Until it runs
-        the model keeps every order it has seen, which is what makes
-        ``FILL_AFTER_TERMINAL`` work at any distance -- and what would make a
-        day-long log unbounded.
+        the model keeps the order, which is what lets ``FILL_AFTER_TERMINAL``
+        see a late fill; after it, a fill for the order starts a fresh one.
         """
         self.orders.pop(order_id, None)
+
+    def forget_request(self, fact: Fact) -> None:
+        """Forget a cancel or amend request once its episode has retired.
+
+        Its id is discarded when a refusal answers it; a request that was
+        carried out is answered by the cancel or amend itself, which leaves
+        the id here -- every request of the day, on an enveloped trail.
+        """
+        if fact.msg_id is not None:
+            self._requests.discard(fact.msg_id)
 
     # -- the one entry point ------------------------------------------------
 
@@ -558,6 +575,7 @@ class StateModel:
         state.halted_since = fact.receipt_ts
         state.corridor_low = _price(fact, "corridor_low")
         state.corridor_high = _price(fact, "corridor_high")
+        state.tick_decimals = _int(fact.payload, "tick_decimals")
         state.trigger_price = _price(fact, "trigger_price")
         state.reference_price = _price(fact, "reference_price")
         resume = fact.times.get("resume_at_ns")
@@ -569,6 +587,7 @@ class StateModel:
         state = self.symbol(fact.symbol)
         state.corridor_low = _price(fact, "corridor_low")
         state.corridor_high = _price(fact, "corridor_high")
+        state.tick_decimals = _int(fact.payload, "tick_decimals")
         resume = fact.times.get("resume_at_ns")
         state.resume_at = resume.when if resume is not None else None
 

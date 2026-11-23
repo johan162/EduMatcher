@@ -187,3 +187,25 @@ class TestScaleTakingConverter:
         with pytest.raises(TickViolation) as exc:
             to_ticks_exact_at(1.23455, 4, "EURUSD")
         assert exc.value.tick_decimals == 4
+
+
+EIGHT_DECIMALS = """
+symbols:
+  BTCX:
+    tick_decimals: 8
+    last_buy_price: 1234.56789012
+participants:
+  - id: GW01
+"""
+
+
+class TestEightDecimals:
+    """WP-MOD02 (Models review C1): a valid 8-decimal price loads."""
+
+    def test_the_loader_accepts_it(self, tmp_path: Path) -> None:
+        cfg = load_engine_config(_write(tmp_path, EIGHT_DECIMALS))
+        assert cfg.symbols["BTCX"].last_buy_price == 1234.56789012
+
+    def test_the_verifier_reports_no_s078(self, tmp_path: Path) -> None:
+        results = _schema_codes(tmp_path, EIGHT_DECIMALS)
+        assert [r for r in results if r.code == "S078"] == []

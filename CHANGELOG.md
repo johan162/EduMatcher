@@ -1,3 +1,38 @@
+## [v0.84.0] - 2026-11-23
+
+Release Type: major
+
+### 📋 Summary
+This release hardens order, command, process-control, and audit-replay behavior, and improves new-symbol listing and operator workflows. It also substantially updates the operator, reference, training, and Exchange Introduction documentation.
+
+### ⚠️ Breaking Changes
+- Updated `pm-audit-replay` to require a subcommand and removed `--no-index`; use report subcommands to read the audit log directly, and `story` or `index` for indexed workflows
+- Tightened inbound model validation to reject non-integer tick and quantity fields; integrations must send integer ticks and quantities
+- Changed `pm-opctl-cli clear` to refuse while `pm-*` processes are running unless `--force` is supplied
+
+### ✨ Additions
+- Added `--discard-saved-state` to `pm-new-symbol` and `pm-valuation --list` to remove only the selected symbol's saved state when relisting
+- Added reference-manual coverage of machine-readable reject and cancel codes
+- Added bounded audit replay reports, safe index rebuilding, and improved queue and rerun diagnostics
+
+### 🚀 Improvements
+- Improved process control with PID identity checks, safer process discovery and termination, truthful start/stop results, and clearer reporting
+- Improved admin command reliability for idle consoles, gateway validation, request-specific replies, and piped output
+- Improved tick conversion and price formatting for exact values, and made the engine reset client-supplied order state
+- Improved IPO listing checks for exactly representable prices and warnings about processes using an older configuration
+
+### 🐛 Bug Fixes
+- Fixed audit replay treating partial or malformed audit lines as valid data and comparing a live, uncheckpointed book as final
+- Fixed admin requests that could lose replies, lock a gateway ID, or accept misspelled gateway targets
+- Fixed process-control commands risking signals to unrelated processes or reporting success when processes had failed to start or stop
+
+### 📚 Documentation
+- Updated operator, reference, training, architecture, and Exchange Introduction content, including cancel/reject codes, audit replay, admin commands, and new-symbol workflows
+- Updated Exchange Introduction examples, glossary, quizzes, and answer keys
+
+### 🛠 Internal
+- Added component reviews and regression coverage for audit replay, models, admin commands, process control, and new-symbol listing
+
 ## [v0.83.4] - 2026-11-22
 
 Release Type: minor

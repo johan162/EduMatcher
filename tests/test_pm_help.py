@@ -270,3 +270,37 @@ def test_the_pm_log_srv_options_match_its_parser() -> None:
         if flag not in ("-h", "--help", "--version")
     }
     assert listed == parser_flags
+
+
+def test_the_pm_audit_replay_entry_matches_its_parser() -> None:
+    """WP-RPL10 (D1): every global option and every subcommand argparse
+    defines, and nothing it does not -- the entry still said "no subcommand
+    is registered yet" and listed a removed ``--no-index``."""
+    import argparse
+
+    from edumatcher.audit.replay.cli import build_parser
+    from edumatcher.pm_help.registry import get_command
+
+    info = get_command("pm-audit-replay")
+    assert info is not None
+    listed = {
+        token.rstrip(",")
+        for opt in info.options
+        for token in opt.flags.split()
+        if token.startswith("-")
+    }
+    parser = build_parser()
+    parser_flags = {
+        flag
+        for action in parser._actions
+        for flag in action.option_strings
+        if flag not in ("-h", "--help", "--version")
+    }
+    assert listed == parser_flags
+    commands = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    assert {sub.name for sub in info.subcommands} == set(commands.choices)
+    assert not any("Under construction" in line for line in info.description)

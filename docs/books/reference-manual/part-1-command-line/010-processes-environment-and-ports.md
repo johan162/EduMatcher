@@ -1028,8 +1028,9 @@ then poll for new ones every `--interval` seconds (default `1.0`).
 Reconstructs the causal structure of the audit trail and narrates it: which
 order caused which trade, which kill switch cancelled what, where the log
 disagrees with itself. It reads the same JSONL files as `pm-audit-cli`,
-read-only, and keeps a derived *episode index* in its own SQLite file. It joins
-no ZeroMQ socket.
+read-only. The reports read their window straight off the log; `story` reads a
+derived *episode index* in its own SQLite file, which it builds when it has
+none. It joins no ZeroMQ socket.
 
 ```bash
 pm-audit-replay [global options] COMMAND [command options]
@@ -1042,25 +1043,29 @@ pm-audit-replay anomalies --severity warn
 
 | Command | Purpose | Command options |
 |---|---|---|
-| `stream` | Narrate a window chronologically (the default view) | — |
+| `stream` | Narrate a window chronologically | — |
 | `story` | One entity and everything causally connected to it (needs the index) | exactly one selector: `--order`, `--trade`, `--quote`, `--oco`, `--combo`, `--command`, `--client-tag`, `--chain ULID`, `--msg ULID`; `--depth N` (default 2; not with `--chain`), `--strict-causality` |
-| `digest` | One paragraph per episode, most significant first | `--top N`, `--significance {anomalies,notional,qty,duration}` |
-| `episodes` | The index as a table, one row per episode | `--outcome OUTCOME` (repeatable) |
+| `digest` | One paragraph per episode, most significant first | `--top N` (N ≥ 1), `--significance {anomalies,notional,qty,duration}` |
+| `episodes` | One row per episode | `--outcome OUTCOME` (repeatable) |
 | `anomalies` | Every finding, worst first, with the `story` command to run next | `--severity {error,warn,info}` (a floor; default `info`) |
 | `stats` | Link confidence and envelope coverage over the window | — |
-| `index` | Build or refresh the episode index | `--stats` |
-| `rerun` | Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did | — |
-| `queue` | Follow one resting order, or one price level, through the queue (observes the re-run) | `--order ID` (order view), or `--price P` with the global `--symbol` and optional `--side {BUY,SELL}` (level view); `--anonymise` names other gateways A, B, C and hides iceberg reserve |
+| `index` | Build or refresh the episode index `story` reads (takes `--date`, not `--from`/`--to`/`--last`) | `--stats` |
+| `rerun` | Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did; the final book only when the trail ends with the engine's shutdown | — |
+| `queue` | Follow one resting order, or one price level, through the queue (observes the re-run) | `--order ID` (order view; a prefix two orders share is refused), or `--price P` with the global `--symbol` and optional `--side {BUY,SELL}` (level view); `--anonymise` names other gateways A, B, C and hides iceberg reserve |
+
+A subcommand is required. `rerun` and `queue` read the whole trail of the
+data directory whose `audit.log` `--log-file` names, and refuse the options
+they would ignore (a window, `--gateway`, `--kind`, the index and detection
+options; `--symbol` for `rerun`, `--tz` for `queue`).
 
 **Global options** (accepted before or after the command):
 
 | Flag | Default | Description |
 |---|---|---|
 | `--log-file PATH` | `<DATA_DIR>/audit.log` | Audit log to read: the live trail (unarchived day parts, then this file). An archive or day part named here is read alone |
-| `--db PATH` | `<DATA_DIR>/audit_replay.db` | Episode index |
-| `--no-index` | off | Stream without building or reading an index |
-| `--rebuild` | off | Rebuild the index before rendering. There is no incremental mode; the index rebuilds itself whenever the reconstruction rules, the detection settings or the source logs change |
-| `--from ISO_TS`, `--to ISO_TS` | — | Window bounds (ISO-8601 or `YYYY-MM-DD`) |
+| `--db PATH` | `<DATA_DIR>/audit_replay.db` | Episode index `story` and `index` use; a file that is not one is refused (exit `2`) and left untouched. The reports carry it into the `story` commands they suggest |
+| `--rebuild` | off | `story`, `index` only: rebuild the index first. There is no incremental mode; `story` builds when the index is absent or was built under other rules or detection settings, and reads one whose trail has since grown as it stands, saying so on stderr; `index` also rebuilds a grown trail |
+| `--from ISO_TS`, `--to ISO_TS` | — | Window bounds (ISO-8601 or `YYYY-MM-DD`; a bare date in `--to` is the end of that day) |
 | `--date YYYY-MM-DD` | — | One trading day, in the session timezone. Cannot be combined with `--from`/`--to` or with an archive named by `--log-file` |
 | `--last DURATION` | — | Relative window, e.g. `15m`, `2h`, `1d`. Cannot be combined with `--from`, `--to` or `--date` |
 | `--symbol`, `--gateway`, `--kind` | — | Restrict to symbols, gateways or episode kinds; each repeatable |
@@ -1075,13 +1080,17 @@ pm-audit-replay anomalies --severity warn
 | `--reorder-window SPEC` | `2000`/`5s` | Reorder buffer, a message count or a duration |
 | `--no-color` / `--force-color` | auto | Never / always emit ANSI colour (`--force-color` for `... \| less -R`) |
 | `--strict` | off | Also report findings that are expected at a window edge (`ARRIVAL_SEQ_GAP`) |
-| `--clock-skew-warn SECONDS` | `0.1` | Engine-versus-receipt clock difference worth reporting |
+| `--clock-skew-warn SECONDS` | `0.1` | Engine-versus-receipt clock difference worth reporting (a finite number ≥ 0) |
 | `--version` | — | Print version and exit |
 
-**Exit codes:** `0` success; `1` nothing to narrate, or no audit log at the
-given path (`rerun`: a difference; `queue`: order not in the trail); `2`
-argument error; `3` `rerun`/`queue`: the trail cannot be re-run (it does not
-begin at an engine start with an empty book, or has a proven hole).
+**Exit codes:** `0` success (a report with no findings included); `1` nothing
+to narrate (the window holds no episode; `stats`: no fact; `story`: nothing
+matching), or no audit log at the given path (`rerun`: a difference; `queue`:
+order not in the trail); `2` argument error (no subcommand, a value out of
+range, an option the subcommand does not take, an ambiguous `queue --order`, a
+`--db` that is not an episode index); `3` `rerun`/`queue`: the trail cannot be
+re-run (it does not begin at an engine start with an empty book, has a proven
+hole, or holds a line that does not parse).
 
 See [Audit Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md) for how causality is
 recovered, what each anomaly means and worked examples.
@@ -2616,14 +2625,19 @@ pm-new-symbol --config my_config.yaml --symbol NEWCO --ipo-price 25.00 --outstan
 | `--mm-tif {DAY,GTC}` | `DAY` | Time-in-force of the seed quote |
 | `--mm-seed-once` / `--no-mm-seed-once` | on | Skip the seed when a restored quote already exists |
 | `--field KEY=YAML_VALUE` | none | Optional symbol section: `level`, `collar`, `order_limits` or `circuit_breaker`; repeatable, e.g. `--field 'collar={static_band_pct: 0.2}'` |
+| `--discard-saved-state` | off | Remove this symbol's saved engine state (its last prices, resting orders, and resting combos with a leg in it, with their legs) instead of refusing; needs the engine stopped |
 | `--version` | — | Print version and exit |
 
 Nothing is written until the edited file passes the same four verification
 layers as `pm-config-deploy`; a refusal leaves both the YAML and the deployed
 artifact untouched. It refuses while `pm-engine` runs (when editing the
 deployed source), when the deployed source has undeployed edits, when saved
-engine state already exists for the symbol, and when the file is only a copy
-or a bundled example.
+engine state already exists for the symbol (unless `--discard-saved-state`),
+and when the file is only a copy or a bundled example. A deployed listing
+names any other `pm-*` process still running on the old configuration
+(`[WARN]`); restart every process of the exchange afterwards.
+
+**Exit codes:** `0` listed; `1` refused, nothing changed; `2` usage error.
 
 See [Listing a New Symbol](../../operator-guide/part-4-run-a-market/010-new-symbols.md) for the full
 list of refusals, how the seed quote is priced and the IPO-day checklist.
@@ -2843,6 +2857,7 @@ pm-valuation --load my_scenario.yaml --no-tui --export report.md
 | `--presets FILE` | bundled | Alternative presets file |
 | `--list` | off | With `--no-tui`: list the priced IPO with `pm-new-symbol` |
 | `--config FILE` | deployed source | With `--list`: the engine YAML that `pm-new-symbol` edits |
+| `--discard-saved-state` | off | With `--list`: passed on to `pm-new-symbol`, which removes the ticker's saved engine state instead of refusing |
 | `--version` | — | Print version and exit |
 
 See [IPO Valuation](../../operator-guide/part-4-run-a-market/020-valuation.md) for the finance behind
@@ -3240,8 +3255,11 @@ See [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-
 
 ## pm-admin — Interactive Admin Console
 
-An interactive REPL for sending operational commands to a running engine without
-needing a full gateway session.
+An interactive REPL for sending operational commands to a running engine. It
+logs on as the participant named by `--id` (a `system.gateway_connect`, like
+any gateway) but carries no orders of its own. Exit code `0` after `EXIT`,
+EOF or Ctrl-C; `1` when the connect timed out or was refused, or the engine
+connection was lost.
 
 ```bash
 pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
@@ -3288,9 +3306,11 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.symbol_resume`                | `RESUME_SYM` — resume one symbol                              |
 | `risk.cancel_symbol`                | `CANCEL_SYM` — cancel all resting orders on one symbol        |
 | `risk.force_uncross`                | `REOPEN` — force a symbol to uncross now and clear any halt   |
-| `risk.kill_switch`                  | `KILL` — cancel all (or symbol-scoped) orders/quotes for a gateway |
+| `risk.kill_switch_gateway`          | `KILL` / `QCANCEL` on another gateway — the ADMIN kill switch (all, symbol-scoped, or quotes only) |
+| `risk.kill_switch`                  | `KILL` on the console's own gateway                           |
+| `quote.cancel`                      | `QCANCEL` on the console's own gateway                        |
+| `system.gateways_request`           | `KICK` — checks first that the target is configured and connected |
 | `system.gateway_disconnect`         | `KICK` — forcefully disconnect a gateway (no ack published)   |
-| `quote.cancel`                      | `QCANCEL` — cancel a gateway's active two-sided quote         |
 | `book.snapshot_request`             | `BOOK` — request a book snapshot                              |
 | `order.orders_request`              | `ORDERS` — request a gateway's resting orders                 |
 | `order.price_level_orders_request`  | `LEVEL` — request every resting order at a symbol (optionally one price level) |
@@ -3301,6 +3321,8 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `system.gateways_request`           | `GATEWAYS` — request gateway connection states                |
 | `system.volume_request`             | `VOLUME` — request the daily volume summary                   |
 | `system.position_request`           | `POSITION` — request a gateway's net position snapshot         |
+| `system.quote_bootstrap_request`    | `POSITION` — request the gateway's live quotes                 |
+| `system.session_state_request`      | Also sent before the connect, until its reply arrives, to make sure replies can reach the console |
 
 **Messages subscribed** (SUB from :5556):
 
@@ -3313,18 +3335,25 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.symbol_resume_ack.{GW_ID}`       | `RESUME_SYM` acknowledgement                               |
 | `risk.cancel_symbol_ack.{GW_ID}`       | `CANCEL_SYM` acknowledgement                               |
 | `risk.force_uncross_ack.{GW_ID}`       | `REOPEN` acknowledgement, with indicative/printed price    |
-| `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement                                     |
-| `quote.ack.{GW_ID}`                    | `QCANCEL` acknowledgement                                  |
-| `book.{SYMBOL}`                        | `BOOK` reply — book snapshot                               |
-| `order.orders.{GW_ID}`                 | `ORDERS` reply — resting order list                        |
+| `risk.kill_switch_gateway_ack.{GW_ID}` | `KILL` / `QCANCEL` acknowledgement for another gateway     |
+| `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement for the console's own gateway       |
+| `quote.cancel_ack.{GW_ID}`             | `QCANCEL` acknowledgement for the console's own gateway    |
+| `book.{SYMBOL}`                        | `BOOK` reply — book snapshot (subscribed only while `BOOK` waits) |
+| `order.orders.{TARGET}`                | `ORDERS` reply — resting order list (subscribed only while `ORDERS` waits) |
 | `order.price_level_orders.{GW_ID}`     | `LEVEL` reply — per-order book composition                 |
 | `system.symbols.{GW_ID}`               | `SYMBOLS` reply                                            |
 | `system.session_status.{GW_ID}`        | `SESSION_STATUS` reply                                     |
 | `system.session_schedule.{GW_ID}`      | `SCHEDULE` reply                                           |
 | `system.gateways.{GW_ID}`              | `GATEWAYS` reply                                           |
 | `system.volume.{GW_ID}`                | `VOLUME` reply                                             |
-| `system.position_snapshot.{GW_ID}`     | `POSITION` reply                                           |
-| `session.state`                        | Session phase changes (broadcast; also the `SESSION` reply) |
+| `system.position_snapshot.{TARGET}`    | `POSITION` reply (subscribed only while `POSITION` waits)  |
+| `system.quote_bootstrap.{TARGET}`      | `POSITION` live quotes (subscribed only while `POSITION` waits) |
+| `session.transition_ack.{GW_ID}`       | `SESSION` reply                                            |
+
+Only the replies addressed to the console's own id are subscribed all the
+time; a reply keyed by a symbol or another gateway is subscribed for the one
+request. An idle console therefore never queues market data, which would
+make ZeroMQ drop the next reply once the queue is full.
 
 
 
@@ -3347,7 +3376,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.
 | `--id <GW_ID>`   | Yes      | ADMIN gateway ID                              |
 | `--push <ADDR>`  | No       | Engine PULL address (default from config)     |
 | `--sub <ADDR>`   | No       | Engine PUB address (default from config)      |
-| `--timeout <MS>` | No       | Ack timeout in milliseconds (default: `3000`) |
+| `--timeout <MS>` | No       | Ack timeout in milliseconds, at least 1 (default: `3000`) |
 | `--format {text,json}` | No | `text` (default) prints a human-readable result; `json` prints it machine-readable to stdout, for scripts |
 | `--version`      | No       | Print version and exit                        |
 
@@ -3375,7 +3404,16 @@ Subcommands and required arguments:
 | `schedule`       | none                          | none               | Read configured schedule                                |
 | `gateways`       | none                          | none               | List gateway states                                     |
 | `volume`         | none                          | none               | Show daily volume summary                               |
-| `position`       | `--gw <GW_ID>`                | none               | Show net position, avg cost, and live bid/ask/spread/mid per symbol for gateway |
+| `position`       | `--gw <GW_ID>`                | `--sym <SYMBOL>[,<SYMBOL>...]` | Show net position, avg cost, and live bid/ask/spread/mid per symbol for gateway |
+
+**Exit codes:**
+
+- `0` — the command was accepted or answered
+- `1` — auth refused, command rejected (an unknown gateway included; for `kick` also a disconnected one), timeout, or engine connection lost
+- `2` — usage error
+
+Use an ADMIN `--id` that no running `pm-admin` console holds: the engine
+refuses a second connection under the same id.
 
 
 
@@ -3884,7 +3922,7 @@ pm-opctl-cli stop
 pm-opctl-cli kill
 pm-opctl-cli init
 pm-opctl-cli show [--json]
-pm-opctl-cli clear (--state | --all) [--yes]
+pm-opctl-cli clear (--state | --all) [--yes] [--force]
 ```
 
 **Profiles:**
@@ -3900,7 +3938,7 @@ that file exists:
 | `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, the BALF gateway, and the index calculation process (`pm-index`) |
 | `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
 | `ai-swarm` | The `default` set, `mm-demo`'s market-maker bot with `--anchor-sim 0.3` (quoting around the true values; an unanchored passive maker pins prices), `pm-market-sim --verbose` (the market model and its news) and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000 --verbose`: twenty AI traders (`AI001`–`AI020`, every built-in preset in equal shares, each on every symbol) in one worker process. Needs a config that registers them and ships a `market_sim.yaml`, such as the `s150` examples or `s300-load` |
-| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 120 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7` and `pm-clearing --print-every 0 --retention-days 7`, plus a third API gateway instance, `monitor` on `8082`, for the admin monitor feed. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
+| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 120 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 2 --human-gateways 'TRADER*' --keep-human-order-events-days 7`, `pm-clearing --print-every 0 --retention-days 7`, `pm-audit --max-file-mb 256 --keep-days 7`, `pm-scheduler --on-close 'pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db'`, plus a third API gateway instance, `monitor` on `8082`, for the admin monitor feed. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
 
 Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
 once that file exists its profiles replace the built-ins entirely (a missing
@@ -3912,14 +3950,22 @@ once that file exists its profiles replace the built-ins entirely (a missing
 |---|---|---|---|
 | `start [PROFILE]` | `up` | `-d`/`--debug`/`-vv` (append `--log-level DEBUG` to every process's command) | Start a profile (`default` when omitted), skipping entries already running |
 | `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer), `--no-tcp-probe` (do not connect to each process's port; a live process reads as running) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
-| `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list`; exits `0` only when every process is running — for monitoring scripts |
-| `stop` | `down` | — | Send `SIGTERM` to processes this tool started (recorded in the PID directory) |
-| `kill` | — | — | Emergency stop: `pkill -15 -f -i -l pm-` — signals every process whose command line contains `pm-`, including ones this tool did not start |
+| `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list` (always with the `tcp` probe); exits `0` only when every process is running — for monitoring scripts |
+| `stop` | `down` | — | `SIGTERM`, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running 15 s later keeps its PID file and makes `stop` exit `1` |
+| `kill` | — | — | Emergency stop: `SIGTERM` to every running process of this user whose program is a `pm-*` command, including ones this tool did not start (never to `npm`, editors or the calling shell, which merely mention `pm-`), plus every process recorded in the PID directory; exits `1` when one survives |
 | `init` | — | — | Write the built-in profiles to `<DATA_DIR>/emo-config.yaml`; refuses to overwrite an existing file |
 | `show` | — | `--json` | Print version, resolved data directory, and deployed config paths — same info as `pm-config-deploy --show` |
-| `clear` | — | `--state` (the exchange's working state: GTC orders and combos, book statistics, `stats.db`, `clearing.db`, index state) or `--all` (also the audit trail and its index, `log.db`, `metrics.db`, fallback logs, the PID directory, and `pm-eod`'s `eod.db`, `settlement/` and `backup/`), `--yes` (skip prompt) | Delete persisted data under the data directory; `ref_data/` (configuration) is never touched |
+| `clear` | — | `--state` (the exchange's working state: GTC orders and combos, book statistics, `stats.db`, `clearing.db`, index state, the market model's `market_sim_state.json`) or `--all` (also the audit trail and its indexes `audit_index.db`/`audit_replay.db`, `log.db`, `metrics.db`, fallback logs, the PID directory, `pm-eod`'s `eod.db`, `settlement/` and `backup/`, `market_sim_news.db`, `ai_swarm/` and the engine's `eod/` archives), `--yes` (skip prompt), `--force` (clear even while `pm-*` processes run) | Delete persisted data under the data directory; `ref_data/`, `engine_run_seq.json` and `companies.db` are never touched |
 
-Exactly one of `--state`/`--all` must be given to `clear`.
+Exactly one of `--state`/`--all` must be given to `clear`. It refuses (exit
+`1`) while `pm-*` processes of this user run, since they would keep writing to
+the deleted files; stop them first or pass `--force`.
+
+**Exit codes:** `0` success; `1` — `start`: a process it started exited
+within a second (named with its exit code and log); `stop`/`kill`: a process
+outlived `SIGTERM` (its PID file is kept); `health`: a process is not
+`running`, or no profile is active; `clear`: refused or declined; `2` — usage
+or configuration error.
 
 `start --debug` appends `--log-level DEBUG` to every process's command line
 before it is launched, overriding whatever level a profile's `--verbose` (or
@@ -3947,11 +3993,16 @@ configured check passed). A `healthcheck` command takes precedence over a
 **Process tracking:**
 
 Started processes are detached into their own session and recorded as
-`<DATA_DIR>/emo/<name>.pid`, with combined stdout/stderr appended to
+`<DATA_DIR>/emo/<name>.pid` (the PID, the process's start time and the
+command it was launched with), with combined stdout/stderr appended to
 `<DATA_DIR>/emo/<name>.log`. The active profile name is remembered in
-`<DATA_DIR>/emo/active-profile`. A process restarted outside this tool is
-re-adopted on the next `list`/`health`/`stop` by matching its command line via
-`pgrep`, so a stale PID file is never treated as final.
+`<DATA_DIR>/emo/active-profile`. A PID file is trusted only while the process
+with that PID also has the recorded start time (or, after the wall clock was
+stepped, still runs the recorded command as this user): after a crash, a killed container or a reboot the PID may belong to
+another process, and such a file is removed rather than acted on. A profile
+process whose PID file is missing or stale (one restarted outside this tool)
+is re-adopted on the next `start`/`list`/`health`/`stop` by matching its exact
+command line among this user's processes.
 
 This tool is local orchestration logic — it starts other `pm-*` processes as
 subprocesses and reads their PID/log files, but binds no ZeroMQ or TCP port

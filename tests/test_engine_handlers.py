@@ -110,7 +110,7 @@ def _make_order_payload(
     side=Side.BUY,
     order_type=OrderType.LIMIT,
     qty=100,
-    price=100.0,
+    price=100,
     gateway_id="GW01",
     tif=TIF.DAY,
     stop_price=None,
@@ -250,7 +250,7 @@ class TestHandleAmend:
     def test_amend_succeeds(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
-        engine._handle_new_order(_make_order_payload(qty=100, price=100.0))
+        engine._handle_new_order(_make_order_payload(qty=100, price=100))
         # find order id from ack
         _, ack = decode(pub_sock.sent[-1])
         order_id = ack.get("order_id") or _get_last_ack_id(pub_sock)
@@ -545,7 +545,7 @@ class TestNewOrderSessionGating:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, sessions_enabled=True)
         _connect(engine)
         engine._session_state = SessionState.PRE_OPEN
-        payload = _make_order_payload(order_type=OrderType.FOK, price=100.0)
+        payload = _make_order_payload(order_type=OrderType.FOK, price=100)
         engine._handle_new_order(payload)
         _, msg = decode(pub_sock.sent[-1])
         assert msg["accepted"] is False
@@ -638,7 +638,7 @@ class TestNewOrderSessionGating:
         _connect(engine)
         engine._handle_new_order(
             _make_order_payload(
-                order_type=OrderType.FOK, price=100.0, client_tag="T1-FOK"
+                order_type=OrderType.FOK, price=100, client_tag="T1-FOK"
             )
         )
 
@@ -679,7 +679,7 @@ class TestTrailingStopNewOrder:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         # Seed a last trade price
-        engine._book("AAPL").last_trade_price = 100.0
+        engine._book("AAPL").last_trade_price = 100
         o = Order.create(
             symbol="AAPL",
             side=Side.SELL,
@@ -1041,7 +1041,7 @@ class TestGatewayHeartbeat:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._sessions["GW01"].disconnect_behaviour = DisconnectBehaviour.CANCEL_ALL
-        engine._handle_new_order(_make_order_payload(price=99.0))
+        engine._handle_new_order(_make_order_payload(price=99))
         self._beat(engine, interval_sec=10)
         self._age(engine, 31)
         pub_sock.sent.clear()

@@ -29,11 +29,13 @@ pm-opctl-cli init
 ```
 
 `start` without a name starts the `default` profile. When no
-`<DATA-DIR>/emo-config.yaml` exists, the built-in `default`, `mini` and
-`micro` profiles are available. When the file exists, its profiles replace the built-ins and a
-missing `default` profile is supplied from the built-in nominal profile.
+`<DATA-DIR>/emo-config.yaml` exists, the six built-in profiles are available
+(`default`, `micro`, `mini`, `mm-demo`, `ai-swarm`, `ai-sim`; see the module
+docstring in `cli.py`). When the file exists, its profiles replace the
+built-ins and a missing `default` profile is supplied from the built-in
+nominal profile.
 
-`init` writes all built-in profiles (`default`, `micro`, and `mini`) to
+`init` writes all built-in profiles to
 `<DATA-DIR>/emo-config.yaml` as a starting point for customization. It refuses
 to overwrite an existing file and returns a nonzero exit code; remove or move
 the existing file explicitly before creating a fresh one.
@@ -43,7 +45,19 @@ starts a trading-capable subset with external access but no audit or clearing.
 The `micro` profile starts only centralized logging and the engine.
 Processes are launched from the repository root, inherit the
 current environment (including `EDUMATCHER_DATA_DIR`), and write their combined
-stdout/stderr to `<DATA-DIR>/emo/<process>.log`. PID files are kept beside them.
+stdout/stderr to `<DATA-DIR>/emo/<process>.log`. PID files are kept beside them,
+each holding the PID, the process's start time and the argv it was launched
+with: a file is trusted only while the process with that PID also has that
+start time (or, after the clock was stepped, still runs that argv as this
+user), because after a crash, a killed container or a reboot the PID belongs
+to some other process.
+A file that does not match is removed, never acted on, and a profile process
+whose file is missing or stale is re-adopted by its exact command line among
+this user's processes.
+
+`start` exits `1` when a process it started has already exited one second
+after the last one was launched (a bad configuration, a port in use); it names
+each one with its exit code and log file. The others keep running.
 
 When a profile contains both `pm-audit` and `pm-engine`, `start` launches the
 audit recorder first and waits for `pm-audit-cli health -q` to succeed before
@@ -52,28 +66,28 @@ startup stops and the engine is not started. The healthcheck confirms that
 `pm-audit` is running and its health endpoint responds; it does not confirm that
 the ZeroMQ subscription has joined an already-running publisher.
 
-`stop` stops only processes that `pm-opctl-cli` recorded in its PID directory. It
-does not search for or terminate unrelated processes with the same executable
-name.
+`stop` stops the processes recorded in the PID directory, plus any process of
+the active profile whose PID file was lost, found by its exact command line
+among this user's processes. It never signals a process whose start time does
+not match its PID file.
 
 It stops the exchange in order, waiting for each step to exit before starting the
 next: gateways, bots and other processes first, then `pm-engine`, then the
 recorders (`pm-clearing`, `pm-stats`, `pm-audit`, `pm-index`, `pm-monitor`), and
 `pm-log-srv` last. The recorders therefore see everything the engine published
-before it exited. A process still running 15 seconds after `SIGTERM` is reported
-and the next step proceeds.
+before it exited. A process still running 15 seconds after `SIGTERM` is
+reported, keeps its PID file and makes `stop` exit `1`; the next steps proceed,
+and a later `stop` (or `kill`) tries it again.
 
-`kill` is an emergency command. It runs:
-
-```bash
-pkill -15 -f -i -l 'pm-'
-```
-
-This sends signal 15 (`SIGTERM`) to every process whose full command line
-contains `pm-`, including processes not started by `pm-opctl-cli`. Use it only when
-you intentionally want to stop the entire EduMatcher process group. It also
-clears `pm-opctl-cli`'s persisted PID and active-profile state. A result with no
-matching processes is treated as success.
+`kill` is an emergency command. It sends signal 15 (`SIGTERM`) to every running
+process of this user whose program is a `pm-*` command (`pm-engine`, or a
+Python interpreter running `pm-engine`), including processes not started by
+`pm-opctl-cli`, but never to anything that merely mentions `pm-` in its
+arguments (`npm`, an editor, the shell that ran the command) or to
+`pm-opctl-cli` itself; every process recorded in the PID directory is signalled
+too, whatever its program. It waits up to 15 seconds, then removes the PID files of
+the processes that are gone. A survivor keeps its PID file and makes `kill`
+exit `1`. Finding nothing to stop is success.
 
 `list` reads the active profile recorded by `start` and prints one status row
 per configured process. The markers are:
@@ -84,7 +98,8 @@ per configured process. The markers are:
 - yellow `⚠` — the PID is alive but its configured `healthcheck` or `tcp` check
   failed or timed out
 
-`health` runs the same checks as `list` but is meant for scripting: it prints
+`health` runs the same checks as `list` (always including the `tcp` probe) but
+is meant for scripting: it prints
 a compact per-process line plus an overall `health: OK`/`health: FAIL` line,
 and exits `0` only when every process in the active profile is `running`
 (exits `1` otherwise, including when no profile is active). Pass `-q`/`--quiet`
@@ -128,7 +143,7 @@ default:
 			healthcheck: [curl, --fail, --silent, http://127.0.0.1:8080/api/v1/health]
 ```
 
-Healthchecks are executed with a two-second timeout and do not inherit stdin.
+Healthchecks are executed with a five-second timeout and do not inherit stdin.
 They should be read-only and inexpensive. For processes without a suitable
 `tcp` address or health endpoint, `list`/`health` can only report process
 liveness, not application health.
@@ -185,7 +200,7 @@ Each process entry has:
 
 | Field | Required | Meaning |
 |---|---:|---|
-| `name` | yes | Unique PID/log identifier within the profile |
+| `name` | yes | Unique PID/log identifier within the profile; one file name (no `/`, `\`, newline, NUL or leading `.`) |
 | `command` | yes | Either a YAML list of argv tokens or a shell-like command string; it is launched without a shell |
 | `healthcheck` | no | Optional YAML command list or shell-like string; exit code `0` means responsive |
 | `tcp` | no | Optional `"host:port"` string; a successful connect means responsive (see caveat above) |
@@ -198,6 +213,19 @@ available from the Poetry environment.
 The profile format is deliberately small so future commands can reuse the same
 profile loader. A future `status` command can read the same PID files and
 compare them with the selected profile without changing the YAML format.
+
+## Clearing data
+
+`clear --state` deletes the exchange's working state: GTC orders and combos,
+book statistics, `stats.db`, `clearing.db`, index state and the market
+model's `market_sim_state.json`. `clear --all` also deletes the records: the
+audit trail and its indexes (`audit_index.db`, `audit_replay.db`), `log.db`,
+`metrics.db`, fallback logs, the `emo/` directory, `eod.db`, `settlement/`,
+`backup/`, the market model's `market_sim_news.db`, the AI traders' `ai_swarm/`
+summaries and the engine's `eod/` close archives. `ref_data/`,
+`engine_run_seq.json` and `companies.db` are never deleted. `clear` refuses
+(exit `1`) while `pm-*` processes of this user run, since they would keep
+writing to the deleted files; stop them first, or pass `--force`.
 
 ## Data directory
 

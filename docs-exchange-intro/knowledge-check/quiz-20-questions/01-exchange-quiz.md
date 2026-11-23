@@ -89,9 +89,9 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. An OCO order pair automatically cancels the other leg once one leg fills or is cancelled
 
 ### 9. IOC vs FOK
-- [ ] A. A FOK order either fills completely on arrival or is cancelled without any fill
+- [ ] A. A FOK order either fills completely on arrival or is rejected without any fill
 - [ ] B. IOC requires the entire order to fill immediately or it is cancelled in full
-- [ ] C. FOK allows partial fills, with the remainder cancelled
+- [ ] C. FOK allows partial fills, the same way IOC does
 - [ ] D. IOC can carry a limit price and fills as much as is immediately possible, cancelling the remainder
 - [ ] E. Both IOC and FOK orders can rest in the book if not immediately filled
 

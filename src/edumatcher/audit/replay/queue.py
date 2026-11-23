@@ -22,8 +22,10 @@ Both are read-only observers and cost one ``checkpoint()`` per relevant input.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from edumatcher.audit import rawlines
 from edumatcher.audit.replay import lexicon
 from edumatcher.audit.replay.rerun import Step
 from edumatcher.models.generated.order import (
@@ -42,6 +44,23 @@ Record = dict[str, Any]
 
 #: How many orders ahead are listed by name before the rest are counted.
 _LISTED = 5
+
+
+def order_ids(data_dir: Path, prefix: str) -> list[str]:
+    """The ids of the trail's orders (``order.new``) that start with *prefix*.
+
+    Read before the re-run, so ``queue --order`` can refuse a prefix two
+    orders share instead of answering for whichever came first. Only an
+    ``order.new`` line whose text holds the prefix is parsed.
+    """
+    found: set[str] = set()
+    for ln in rawlines.lines(rawlines.audit_files(data_dir), (TOPIC_ORDER_NEW,)):
+        if ln.topic != TOPIC_ORDER_NEW or prefix not in ln.body:
+            continue
+        ident = str(rawlines.body(ln).get("id", ""))
+        if ident.startswith(prefix):
+            found.add(ident)
+    return sorted(found)
 
 
 def queued(rec: Record) -> int:

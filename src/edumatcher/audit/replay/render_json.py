@@ -25,8 +25,7 @@ holding the window in memory. The edges come last, deduplicated and sorted:
 a link is a fact about two episodes, not about the beat that happened to
 state it, and which of its two ends carries it differs between a live
 reconstruction and one read back from the index -- so interleaving them would
-make ``--no-index`` and an indexed run emit the same edges in different
-places. Deduplicated on ``(from, to, relation)``, which is the primary key
+make ``stream`` and ``story`` emit the same edges in different places. Deduplicated on ``(from, to, relation)``, which is the primary key
 the index's own ``links`` table uses.
 
 ``--tz`` and ``--no-color`` reach none of the objects below. The timestamps
@@ -51,8 +50,8 @@ more than a matching example:
   with ``templates.py``; a payload that is simply complete cannot drift.
 * An anomaly hangs off its **episode**, not off a beat. Read back out of the
   index every finding arrives on the episode's first event rather than on the
-  fact that produced it, so anchoring to the beat would make ``--no-index``
-  and indexed runs disagree about where a finding sits.
+  fact that produced it, so anchoring to the beat would make a reconstruction
+  off the log and one read from the index disagree about where a finding sits.
 
 An anomaly carries a ``source`` that section 11 does not give it, for the
 reason ``Anomaly`` carries a file and line at all: a finding a reader cannot
@@ -186,7 +185,10 @@ def markdown(
 
 
 def anomalies(
-    episodes: Sequence[Episode], *, severity: str = SEVERITY_INFO
+    episodes: Iterable[Episode | views.Row],
+    *,
+    severity: str = SEVERITY_INFO,
+    story_source: str = "",
 ) -> Iterator[dict[str, Any]]:
     """Just the findings, for ``anomalies --format ndjson``.
 
@@ -206,7 +208,7 @@ def anomalies(
         obj = _anomaly(anomaly, episode.episode_id)
         obj["episode_kind"] = episode.kind
         obj["anchor"] = episode.anchor_key
-        obj["story"] = views.story_command(episode)
+        obj["story"] = views.story_command(episode, story_source)
         yield obj
 
 

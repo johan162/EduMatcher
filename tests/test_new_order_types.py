@@ -54,7 +54,7 @@ def _make_order(
     symbol="AAPL",
     side=Side.BUY,
     qty=10,
-    price=100.0,
+    price=100,
     order_type=OrderType.LIMIT,
     tif=TIF.DAY,
     gateway_id="TRADER01",
@@ -137,9 +137,9 @@ class TestIOCOrderBook:
 
     def test_ioc_fully_fills_when_liquidity_sufficient(self, book):
         """IOC fully fills when the opposite side has enough quantity."""
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0))  # resting ask
+        book.process(_make_order(side=Side.SELL, qty=10, price=100))  # resting ask
 
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         trades, events = book.process(ioc)
 
         assert len(trades) == 1
@@ -149,11 +149,9 @@ class TestIOCOrderBook:
 
     def test_ioc_partial_fill_cancels_remainder(self, book):
         """IOC fills what it can and cancels any unfilled portion."""
-        book.process(
-            _make_order(side=Side.SELL, qty=5, price=100.0)
-        )  # only 5 available
+        book.process(_make_order(side=Side.SELL, qty=5, price=100))  # only 5 available
 
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         trades, events = book.process(ioc)
 
         assert len(trades) == 1
@@ -167,7 +165,7 @@ class TestIOCOrderBook:
     def test_ioc_no_fill_cancels_entire_order(self, book):
         """IOC with no matching liquidity is immediately cancelled."""
         # No resting orders at all
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         trades, events = book.process(ioc)
 
         assert trades == []
@@ -176,7 +174,7 @@ class TestIOCOrderBook:
 
     def test_ioc_does_not_rest_on_book(self, book):
         """After processing, an IOC order must not appear in resting_orders()."""
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         book.process(ioc)
 
         resting = book.resting_orders()
@@ -185,10 +183,10 @@ class TestIOCOrderBook:
     def test_ioc_respects_price_limit(self, book):
         """IOC only crosses orders at or within its price limit."""
         book.process(
-            _make_order(side=Side.SELL, qty=10, price=105.0)
+            _make_order(side=Side.SELL, qty=10, price=105)
         )  # ask above IOC limit
 
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         trades, events = book.process(ioc)
 
         assert trades == []
@@ -196,11 +194,11 @@ class TestIOCOrderBook:
 
     def test_ioc_sweeps_multiple_levels(self, book):
         """IOC sweeps across several price levels until filled or limit hit."""
-        book.process(_make_order(side=Side.SELL, qty=3, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=3, price=101.0))
-        book.process(_make_order(side=Side.SELL, qty=3, price=102.0))
+        book.process(_make_order(side=Side.SELL, qty=3, price=100))
+        book.process(_make_order(side=Side.SELL, qty=3, price=101))
+        book.process(_make_order(side=Side.SELL, qty=3, price=102))
 
-        ioc = _make_order(side=Side.BUY, qty=9, price=102.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=9, price=102, order_type=OrderType.IOC)
         trades, events = book.process(ioc)
 
         total_filled = sum(t.quantity for t in trades)
@@ -209,9 +207,9 @@ class TestIOCOrderBook:
 
     def test_ioc_sell_side_partial(self, book):
         """Sell-side IOC: partial fill, remainder cancelled."""
-        book.process(_make_order(side=Side.BUY, qty=4, price=100.0))  # resting bid
+        book.process(_make_order(side=Side.BUY, qty=4, price=100))  # resting bid
 
-        ioc = _make_order(side=Side.SELL, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.SELL, qty=10, price=100, order_type=OrderType.IOC)
         trades, events = book.process(ioc)
 
         assert len(trades) == 1
@@ -221,7 +219,7 @@ class TestIOCOrderBook:
 
     def test_ioc_rejected_in_no_match_mode(self, book):
         """IOC cannot rest — must be rejected during auction (no-match) mode."""
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         trades, events = book.process(ioc, match=False)
 
         assert trades == []
@@ -236,12 +234,12 @@ class TestIOCEngine:
         engine, pub_sock = eng
 
         # Post a resting sell
-        sell = _make_order(side=Side.SELL, qty=10, price=100.0)
+        sell = _make_order(side=Side.SELL, qty=10, price=100)
         engine._handle_new_order(sell.to_dict())
         pub_sock.sent.clear()
 
         # Post IOC buy
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         engine._handle_new_order(ioc.to_dict())
 
         topics = _topics(pub_sock)
@@ -253,11 +251,11 @@ class TestIOCEngine:
         engine, pub_sock = eng
 
         # Only 5 on the sell side
-        sell = _make_order(side=Side.SELL, qty=5, price=100.0)
+        sell = _make_order(side=Side.SELL, qty=5, price=100)
         engine._handle_new_order(sell.to_dict())
         pub_sock.sent.clear()
 
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         engine._handle_new_order(ioc.to_dict())
 
         topics = _topics(pub_sock)
@@ -277,7 +275,7 @@ class TestIOCEngine:
             engine._handle_session_transition({"to_state": state})
         pub_sock.sent.clear()
 
-        ioc = _make_order(side=Side.BUY, qty=10, price=100.0, order_type=OrderType.IOC)
+        ioc = _make_order(side=Side.BUY, qty=10, price=100, order_type=OrderType.IOC)
         engine._handle_new_order(ioc.to_dict())
 
         ack_payloads = [
@@ -297,8 +295,8 @@ class TestTrailingStopOrderBook:
     def test_sell_trailing_stop_triggers_when_price_falls(self, book):
         """SELL trailing stop triggers when price drops to stop level."""
         # Create a trade to establish last_trade_price = 100
-        book.process(_make_order(side=Side.BUY, qty=10, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=10, price=100))
+        book.process(_make_order(side=Side.SELL, qty=10, price=100))
         assert book.last_trade_price == 100.0
 
         # Place SELL trailing stop: trail=2, initial stop=98
@@ -307,7 +305,7 @@ class TestTrailingStopOrderBook:
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         book.process(ts)
@@ -315,15 +313,15 @@ class TestTrailingStopOrderBook:
         assert len(book._trailing_stops) == 1
 
         # Trade at 105 → stop ratchets to 103
-        book.process(_make_order(side=Side.BUY, qty=1, price=105.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=105.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=105))
+        book.process(_make_order(side=Side.SELL, qty=1, price=105))
         assert ts.stop_price_ticks == 103.0
 
         # Now need a buy resting at 103 so the triggered MARKET order can fill
-        book.process(_make_order(side=Side.BUY, qty=10, price=103.0))
+        book.process(_make_order(side=Side.BUY, qty=10, price=103))
 
         # Trade at 103 → triggers (103 <= 103)
-        book.process(_make_order(side=Side.SELL, qty=1, price=103.0))
+        book.process(_make_order(side=Side.SELL, qty=1, price=103))
 
         assert ts.status == OrderStatus.FILLED
         assert ts not in book._trailing_stops
@@ -331,34 +329,34 @@ class TestTrailingStopOrderBook:
     def test_sell_trailing_stop_ratchets_up_only(self, book):
         """SELL trailing stop's stop_price never decreases."""
         # Establish last trade
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         ts = _make_order(
             side=Side.SELL,
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         book.process(ts)
 
         # Price rises: stop moves up
-        book.process(_make_order(side=Side.BUY, qty=1, price=110.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=110.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=110))
+        book.process(_make_order(side=Side.SELL, qty=1, price=110))
         assert ts.stop_price_ticks == 108.0  # 110 - 2
 
         # Price falls back: stop does NOT move down
-        book.process(_make_order(side=Side.BUY, qty=1, price=102.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=102.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=102))
+        book.process(_make_order(side=Side.SELL, qty=1, price=102))
         assert ts.stop_price_ticks == 108.0  # unchanged — still 108, not 100
 
     def test_buy_trailing_stop_triggers_when_price_rises(self, book):
         """BUY trailing stop triggers when price rises to stop level."""
         # Establish price = 100
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         # BUY trailing stop: trail=2, initial stop=102
         ts = _make_order(
@@ -366,60 +364,60 @@ class TestTrailingStopOrderBook:
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=102.0,
+            stop_price=102,
             trail_offset=2.0,
         )
         book.process(ts)
 
         # Price falls to 95 → stop ratchets down to 97
-        book.process(_make_order(side=Side.BUY, qty=1, price=95.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=95.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=95))
+        book.process(_make_order(side=Side.SELL, qty=1, price=95))
         assert ts.stop_price_ticks == 97.0
 
         # Add resting sell at 97 for the triggered MARKET buy to fill against
-        book.process(_make_order(side=Side.SELL, qty=10, price=97.0))
+        book.process(_make_order(side=Side.SELL, qty=10, price=97))
 
         # Trade at 97 → triggers (97 >= 97)
-        book.process(_make_order(side=Side.BUY, qty=1, price=97.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=97))
 
         assert ts.status == OrderStatus.FILLED
 
     def test_buy_trailing_stop_ratchets_down_only(self, book):
         """BUY trailing stop's stop_price never increases."""
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         ts = _make_order(
             side=Side.BUY,
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=102.0,
+            stop_price=102,
             trail_offset=2.0,
         )
         book.process(ts)
 
         # Price falls → stop moves down
-        book.process(_make_order(side=Side.BUY, qty=1, price=90.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=90.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=90))
+        book.process(_make_order(side=Side.SELL, qty=1, price=90))
         assert ts.stop_price_ticks == 92.0  # 90 + 2
 
         # Price rises back → stop does NOT move up
-        book.process(_make_order(side=Side.BUY, qty=1, price=99.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=99.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=99))
+        book.process(_make_order(side=Side.SELL, qty=1, price=99))
         assert ts.stop_price_ticks == 92.0  # unchanged
 
     def test_trailing_stop_cancel_removes_from_list(self, book):
         """Cancelling a trailing stop removes it from the active list."""
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         ts = _make_order(
             side=Side.SELL,
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         book.process(ts)
@@ -429,21 +427,21 @@ class TestTrailingStopOrderBook:
         assert ts.status == OrderStatus.CANCELLED
 
         # After next trade, lazy deletion should prune it
-        book.process(_make_order(side=Side.BUY, qty=1, price=101.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=101.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=101))
+        book.process(_make_order(side=Side.SELL, qty=1, price=101))
         assert len(book._trailing_stops) == 0
 
     def test_trailing_stop_in_resting_orders(self, book):
         """Trailing stop appears in resting_orders() for persistence."""
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         ts = _make_order(
             side=Side.SELL,
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         book.process(ts)
@@ -491,7 +489,7 @@ class TestTrailingStopOrderBook:
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         book.process(ts)
@@ -502,8 +500,8 @@ class TestTrailingStopOrderBook:
 
     def test_multiple_trailing_stops_all_evaluated(self, book):
         """Multiple trailing stops are all updated after each trade."""
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         ts1 = _make_order(
             side=Side.SELL,
@@ -511,7 +509,7 @@ class TestTrailingStopOrderBook:
             price=None,
             gateway_id="TRADER01",
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         ts2 = _make_order(
@@ -520,15 +518,15 @@ class TestTrailingStopOrderBook:
             price=None,
             gateway_id="TRADER02",
             order_type=OrderType.TRAILING_STOP,
-            stop_price=95.0,
+            stop_price=95,
             trail_offset=5.0,
         )
         book.process(ts1)
         book.process(ts2)
 
         # Trade at 110 → ts1 stop → 108, ts2 stop → 105
-        book.process(_make_order(side=Side.BUY, qty=1, price=110.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=110.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=110))
+        book.process(_make_order(side=Side.SELL, qty=1, price=110))
 
         assert ts1.stop_price_ticks == 108.0
         assert ts2.stop_price_ticks == 105.0
@@ -581,7 +579,7 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset_ticks=3.0,
+            trail_offset_ticks=3,
         )
         # stop_price is None, no prior trade on AAPL
         engine._handle_new_order(ts.to_dict())
@@ -601,8 +599,8 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset_ticks=2.0,
-            stop_price_ticks=95.0,
+            trail_offset_ticks=2,
+            stop_price_ticks=95,
         )
         engine._handle_new_order(ts.to_dict())
 
@@ -616,8 +614,8 @@ class TestTrailingStopEngine:
         engine, pub_sock = eng
 
         # Establish last trade at 100 (TRADER02 vs TRADER02 so no confusion with TRADER01 fills)
-        s = _make_order(side=Side.SELL, qty=10, price=100.0, gateway_id="TRADER02")
-        b = _make_order(side=Side.BUY, qty=10, price=100.0, gateway_id="TRADER02")
+        s = _make_order(side=Side.SELL, qty=10, price=100, gateway_id="TRADER02")
+        b = _make_order(side=Side.BUY, qty=10, price=100, gateway_id="TRADER02")
         engine._handle_new_order(s.to_dict())
         engine._handle_new_order(b.to_dict())
 
@@ -628,25 +626,23 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset_ticks=2.0,
-            stop_price_ticks=98.0,
+            trail_offset_ticks=2,
+            stop_price_ticks=98,
         )
         engine._handle_new_order(ts.to_dict())
 
         # Resting BUY at 97 — will cause a trade at 97 (≤98) to trigger ts
-        trigger_bid = _make_order(
-            side=Side.BUY, qty=1, price=97.0, gateway_id="TRADER02"
-        )
+        trigger_bid = _make_order(side=Side.BUY, qty=1, price=97, gateway_id="TRADER02")
         engine._handle_new_order(trigger_bid.to_dict())
 
         # Resting BUY at 96 — fills the trailing stop once it converts to MARKET SELL
-        fill_bid = _make_order(side=Side.BUY, qty=5, price=96.0, gateway_id="TRADER02")
+        fill_bid = _make_order(side=Side.BUY, qty=5, price=96, gateway_id="TRADER02")
         engine._handle_new_order(fill_bid.to_dict())
         pub_sock.sent.clear()
 
         # Trade at 97 (sell 97 crosses resting buy 97) → triggers ts → MARKET sell fills fill_bid
         aggressor_sell = _make_order(
-            side=Side.SELL, qty=1, price=97.0, gateway_id="TRADER02"
+            side=Side.SELL, qty=1, price=97, gateway_id="TRADER02"
         )
         engine._handle_new_order(aggressor_sell.to_dict())
 
@@ -955,8 +951,8 @@ class TestNewOrderTypeInteractions:
     def test_ioc_after_trailing_stop_triggers(self, book):
         """A trailing stop trigger does not affect a separately submitted IOC."""
         # Establish base price
-        book.process(_make_order(side=Side.BUY, qty=1, price=100.0))
-        book.process(_make_order(side=Side.SELL, qty=1, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=1, price=100))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100))
 
         # Trailing stop
         ts = _make_order(
@@ -964,7 +960,7 @@ class TestNewOrderTypeInteractions:
             qty=5,
             price=None,
             order_type=OrderType.TRAILING_STOP,
-            stop_price=98.0,
+            stop_price=98,
             trail_offset=2.0,
         )
         book.process(ts)
@@ -973,13 +969,13 @@ class TestNewOrderTypeInteractions:
         ioc = _make_order(
             side=Side.BUY,
             qty=3,
-            price=100.0,
+            price=100,
             order_type=OrderType.IOC,
             gateway_id="TRADER02",
         )
         # Post a sell to give IOC something to match
         book.process(
-            _make_order(side=Side.SELL, qty=3, price=100.0, gateway_id="TRADER02")
+            _make_order(side=Side.SELL, qty=3, price=100, gateway_id="TRADER02")
         )
         trades, events = book.process(ioc)
 
@@ -989,13 +985,13 @@ class TestNewOrderTypeInteractions:
     def test_ioc_smp_cancel_aggressor(self, book):
         """IOC with SMP=CANCEL_AGGRESSOR cancels itself on self-match."""
         book.process(
-            _make_order(side=Side.SELL, qty=10, price=100.0, gateway_id="TRADER01")
+            _make_order(side=Side.SELL, qty=10, price=100, gateway_id="TRADER01")
         )
 
         ioc = _make_order(
             side=Side.BUY,
             qty=10,
-            price=100.0,
+            price=100,
             order_type=OrderType.IOC,
             gateway_id="TRADER01",
             smp_action=SmpAction.CANCEL_AGGRESSOR,
@@ -1013,8 +1009,8 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.TRAILING_STOP,
             quantity=100,
             gateway_id="TRADER01",
-            stop_price_ticks=98.0,
-            trail_offset_ticks=2.0,
+            stop_price_ticks=98,
+            trail_offset_ticks=2,
         )
         restored = Order.from_dict(ts.to_dict())
 
@@ -1030,7 +1026,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price_ticks=110.0,
+            price_ticks=110,
             oco_group_id="MY_OCO",
         )
         restored = Order.from_dict(leg.to_dict())
@@ -1044,7 +1040,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.IOC,
             quantity=10,
             gateway_id="TRADER01",
-            price_ticks=100.0,
+            price_ticks=100,
         )
         restored = Order.from_dict(ioc.to_dict())
         assert restored.order_type == OrderType.IOC
@@ -1059,7 +1055,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price_ticks=100.0,
+            price_ticks=100,
         )
         assert order.smp_action is None
 
@@ -1073,7 +1069,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price_ticks=100.0,
+            price_ticks=100,
         )
         wire = order.to_dict()
         assert wire["smp_action"] is None
@@ -1091,7 +1087,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price_ticks=100.0,
+            price_ticks=100,
             smp_action=SmpAction.NONE,
         )
         wire = order.to_dict()
@@ -1178,7 +1174,7 @@ class TestSmpGatewayDefaultFallback:
 
     def test_new_order_unspecified_smp_gets_gateway_default(self, eng_with_smp_default):
         engine, pub_sock = eng_with_smp_default
-        order = _make_order(gateway_id="TRADER01", price=100.0, smp_action=None)
+        order = _make_order(gateway_id="TRADER01", price=100, smp_action=None)
         engine._handle_new_order(order.to_dict())
 
         book = engine._book("AAPL")
@@ -1190,9 +1186,7 @@ class TestSmpGatewayDefaultFallback:
         self, eng_with_smp_default
     ):
         engine, pub_sock = eng_with_smp_default
-        order = _make_order(
-            gateway_id="TRADER01", price=100.0, smp_action=SmpAction.NONE
-        )
+        order = _make_order(gateway_id="TRADER01", price=100, smp_action=SmpAction.NONE)
         engine._handle_new_order(order.to_dict())
 
         book = engine._book("AAPL")
@@ -1206,7 +1200,7 @@ class TestSmpGatewayDefaultFallback:
         engine, pub_sock = eng_with_smp_default
         order = _make_order(
             gateway_id="TRADER01",
-            price=100.0,
+            price=100,
             smp_action=SmpAction.CANCEL_AGGRESSOR,
         )
         engine._handle_new_order(order.to_dict())
@@ -1223,7 +1217,7 @@ class TestSmpGatewayDefaultFallback:
         an unspecified order resolves to SmpAction.NONE, same as before
         this feature existed."""
         engine, pub_sock = eng_with_smp_default
-        order = _make_order(gateway_id="TRADER02", price=100.0, smp_action=None)
+        order = _make_order(gateway_id="TRADER02", price=100, smp_action=None)
         engine._handle_new_order(order.to_dict())
 
         book = engine._book("AAPL")
@@ -1245,7 +1239,7 @@ class TestSmpGatewayDefaultFallback:
                     order_type=OrderType.LIMIT,
                     quantity=10,
                     tick_decimals=2,
-                    price_ticks=100.0,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
@@ -1253,7 +1247,7 @@ class TestSmpGatewayDefaultFallback:
                     order_type=OrderType.LIMIT,
                     quantity=5,
                     tick_decimals=2,
-                    price_ticks=200.0,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -1290,7 +1284,7 @@ class TestSmpGatewayDefaultFallback:
                     order_type=OrderType.LIMIT,
                     quantity=10,
                     tick_decimals=2,
-                    price_ticks=100.0,
+                    price_ticks=100,
                     smp_action=SmpAction.NONE,
                 ),
                 ComboLeg(
@@ -1299,7 +1293,7 @@ class TestSmpGatewayDefaultFallback:
                     order_type=OrderType.LIMIT,
                     quantity=5,
                     tick_decimals=2,
-                    price_ticks=200.0,
+                    price_ticks=200,
                     smp_action=SmpAction.CANCEL_BOTH,
                 ),
             ],
@@ -1338,7 +1332,7 @@ class TestComboLegSmpSentinel:
             order_type=OrderType.LIMIT,
             quantity=10,
             tick_decimals=2,
-            price_ticks=100.0,
+            price_ticks=100,
         )
         assert leg.smp_action is None
 
@@ -1349,7 +1343,7 @@ class TestComboLegSmpSentinel:
             order_type=OrderType.LIMIT,
             quantity=10,
             tick_decimals=2,
-            price_ticks=100.0,
+            price_ticks=100,
         )
         wire = leg.to_dict()
         assert wire["smp_action"] is None
@@ -1366,7 +1360,7 @@ class TestComboLegSmpSentinel:
             order_type=OrderType.LIMIT,
             quantity=10,
             tick_decimals=2,
-            price_ticks=100.0,
+            price_ticks=100,
             smp_action=SmpAction.NONE,
         )
         wire = leg.to_dict()

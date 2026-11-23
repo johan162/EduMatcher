@@ -14,6 +14,11 @@
 #   TIRNEX_ADITUS_FTP_USER  - user name
 #   TIRNEX_ADITUS_FTP_PWD   - password
 #
+# Github Pages
+#   GITHUB_PAGES            - GitHub Pages 
+#   LOCAL_GITHUB_PAGES      - local path to the GitHub Pages site
+#
+#
 # Usage:
 #   ./scripts/mkweb.sh [--no-clean] [--dry-run]
 #
@@ -23,6 +28,14 @@
 #   -h, --help   Show this help
 
 set -euo pipefail
+
+RED='\033[0;31m'
+DARK_RED='\033[1;31m'
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+DARK_YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 CLEAN=true
 DRY_RUN=false
@@ -39,6 +52,8 @@ done
 : "${TIRNEX_ADITUS_FTP_SITE:?TIRNEX_ADITUS_FTP_SITE is not set}"
 : "${TIRNEX_ADITUS_FTP_USER:?TIRNEX_ADITUS_FTP_USER is not set}"
 : "${TIRNEX_ADITUS_FTP_PWD:?TIRNEX_ADITUS_FTP_PWD is not set}"
+: "${LOCAL_GITHUB_PAGES:?LOCAL_GITHUB_PAGES is not set}"
+: "${GITHUB_PAGES:?GITHUB_PAGES is not set}"
 
 SITE_DIR="${MKWEB_SITE_DIR:-$(cd "$(dirname "$0")/.." && pwd)/web_site}"
 DIRS=(assets docs downloads)
@@ -49,6 +64,7 @@ for d in "${DIRS[@]}"; do
         exit 1
     fi
 done
+
 # Never wipe the server for a site that cannot replace it.
 for f in index.html docs/index.html; do
     if [[ ! -f "$SITE_DIR/$f" ]]; then
@@ -57,7 +73,56 @@ for f in index.html docs/index.html; do
     fi
 done
 
-command -v expect >/dev/null || { echo "✗ 'expect' is required" >&2; exit 1; }
+echo -e "${CYAN}-------------------------------------------${NC}"
+echo -e "${CYAN}---       Copy to GitHub Pages          ---${NC}"
+echo -e "${CYAN}-------------------------------------------${NC}"
+
+# Check if local git repository exists for GitHub Pages
+if [ ! -d "$LOCAL_GITHUB_PAGES" ]; then
+    echo -e "${RED}✗ Local GitHub Pages repository not found at $LOCAL_GITHUB_PAGES${NC}"
+    exit 1
+fi
+
+# Clean old files in the local GitHub Pages repository
+rm -rf "$LOCAL_GITHUB_PAGES"/*
+echo -e "${GREEN}✓ Cleaned old files in $LOCAL_GITHUB_PAGES${NC}"
+
+# Copy from SITE_DIR to LOCAL_GITHUB_PAGES
+cp -ra "$SITE_DIR"/* "$LOCAL_GITHUB_PAGES"
+rm -f "$LOCAL_GITHUB_PAGES/.gitignore"
+rm -rf "$LOCAL_GITHUB_PAGES/__pycache__"
+rm -f "$LOCAL_GITHUB_PAGES/README.md"
+touch "$LOCAL_GITHUB_PAGES/.nojekyll"
+
+echo -e "${GREEN}✓ Copied site to $LOCAL_GITHUB_PAGES${NC}"
+
+echo ""
+echo -e "${CYAN}-------------------------------------------${NC}"
+echo -e "${CYAN}---   Adding and pushing to GitHub      ---${NC}"
+echo -e "${CYAN}-------------------------------------------${NC}"
+
+cd "$LOCAL_GITHUB_PAGES"
+
+if [ -z "$(git status --porcelain)" ]; then
+    echo -e "${GREEN}✓ No changes to commit in $LOCAL_GITHUB_PAGES${NC}"
+    exit 0
+fi
+
+git add .
+git commit -m "chore: Market simulator site updated"
+git push origin main
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}✗ Failed to push changes to GitHub Pages${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Changes committed and pushed to GitHub Pages${NC}"
+
+echo ""
+exit 0
+
+command -v expect >/dev/null || { echo -e "${RED}✗ 'expect' is required${NC}" >&2; exit 1; }
 
 BATCH="$(mktemp)"
 trap 'rm -f "$BATCH"' EXIT
@@ -192,7 +257,7 @@ if [[ "$CLEAN" == "true" || "$DRY_RUN" == "true" ]]; then
 fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
-    echo "✓ Dry run complete - nothing removed, nothing uploaded"
+    echo -e "${DARK_YELLOW}✓ Dry run complete - nothing removed, nothing uploaded${NC}"
     exit 0
 fi
 
@@ -217,4 +282,5 @@ lassign [wait] pid spawnid os_error status
 exit $status
 EOF
 
-echo "✓ Upload complete"
+echo "✓ Upload to external site complete"
+echo ""

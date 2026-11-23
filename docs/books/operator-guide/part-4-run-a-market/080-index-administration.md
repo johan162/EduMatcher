@@ -158,7 +158,7 @@ unaffected and still produces the original timeout message:
 
 ```bash
 $ pm-index-admin-cli --id OPS01 --push tcp://127.0.0.1:59999 --yes split --index TECH10 --sym AAPL --ratio 4:1
-Timed out waiting for pm-index: No ack with prefix 'index.corp_action_ack.OPS01' within 3000 ms
+Timed out waiting for pm-index: No ack on 'index.corp_action_ack.OPS01' within 3000 ms
 Is pm-index running and reachable at tcp://127.0.0.1:59999?
 ```
 

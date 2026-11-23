@@ -113,8 +113,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 12. Time-in-force
 - [ ] A. ATC orders submitted after the closing auction has run are accepted into the next day's opening auction
 - [ ] B. An IOC order can rest in the book if it is not immediately and fully filled
-- [ ] C. FOK requires the entire order to fill immediately or the whole order is cancelled
-- [ ] D. A DAY order is automatically cancelled at the end of the current session if unfilled
+- [ ] C. FOK requires the entire order to fill immediately or the whole order is rejected
+- [ ] D. A DAY order automatically expires at the end of the current session if unfilled
 - [ ] E. GTC orders must be persisted to durable storage between sessions
 
 ### 13. The order book and depth

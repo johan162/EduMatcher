@@ -25,10 +25,10 @@ import pytest
 
 from edumatcher.models.generated.drop_copy import make_drop_copy_event
 from edumatcher.models.message import (
-    make_fill_msg,
     make_orders_msg,
     make_position_snapshot_msg,
 )
+from tests.fill_frames import fill_frames
 from tests.alf_console_harness import console_harness  # noqa: F401
 from tests.conftest import free_ports
 from tests.test_alf_console_position_query import (
@@ -39,7 +39,7 @@ _ORDER = {"symbol": "AAPL", "side": "BUY", "quantity": 1, "order_type": "LIMIT"}
 
 
 def _own_fill(gateway_id: str, order_id: str = "o1") -> list[bytes]:
-    return make_fill_msg(gateway_id, order_id, 1, 100.0, 0, "FILLED", order=_ORDER)
+    return fill_frames(gateway_id, order_id, 1, 100.0, 0, "FILLED", order=_ORDER)
 
 
 # ---------------------------------------------------------------------------
@@ -50,13 +50,13 @@ _ENGINE_SIDE = textwrap.dedent("""
     import select, sys, time
     import zmq
     from edumatcher.messaging.bus import get_context, make_publisher
-    from edumatcher.models.message import make_fill_msg
     from tests.alf_console_harness import trade_frames
+    from tests.fill_frames import fill_frames
 
     addr, gateway_id, n_trades, n_fills = sys.argv[1:5]
     n_trades, n_fills = int(n_trades), int(n_fills)
     order = {"symbol": "AAPL", "side": "BUY", "quantity": 1, "order_type": "LIMIT"}
-    fill = make_fill_msg(gateway_id, "o1", 1, 100.0, 0, "FILLED", order=order)
+    fill = fill_frames(gateway_id, "o1", 1, 100.0, 0, "FILLED", order=order)
     trade = trade_frames(1)
     # Keep the fake publisher's queue from dropping the burst before it
     # reaches the console. This default applies only to child-process sockets.

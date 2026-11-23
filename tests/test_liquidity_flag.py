@@ -154,7 +154,7 @@ class TestNoTradeNoFlag:
     ) -> None:
         """A seeded/resting order with no fill yet must not claim a flag it
         has no trade to justify -- covered defensively since every current
-        call site only reaches make_fill_msg from a real fill, but the field
+        call site only reaches ``Engine._fill_frames`` from a real fill, but the field
         is nullable/omit_when_none precisely for this case."""
         engine, pub = make_engine(monkeypatch, tmp_path)
         connect(engine, "GW01")

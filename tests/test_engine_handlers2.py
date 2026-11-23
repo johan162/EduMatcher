@@ -104,7 +104,7 @@ def _order(
     side=Side.BUY,
     order_type=OrderType.LIMIT,
     qty=100,
-    price=100.0,
+    price=100,
     gateway_id="GW01",
     tif=TIF.DAY,
     smp=SmpAction.NONE,
@@ -183,12 +183,12 @@ class TestSMPCancellation:
         _connect(engine)
         # Resting sell from GW01
         engine._handle_new_order(
-            _order(side=Side.SELL, price=100.0, smp=SmpAction.CANCEL_AGGRESSOR)
+            _order(side=Side.SELL, price=100, smp=SmpAction.CANCEL_AGGRESSOR)
         )
         pub_sock.sent.clear()
         # Aggressive buy from same gateway — should be SMP-cancelled
         engine._handle_new_order(
-            _order(side=Side.BUY, price=100.0, smp=SmpAction.CANCEL_AGGRESSOR)
+            _order(side=Side.BUY, price=100, smp=SmpAction.CANCEL_AGGRESSOR)
         )
         topics = [decode(f)[0] for f in pub_sock.sent]
         # A cancelled notification should be published
@@ -198,11 +198,11 @@ class TestSMPCancellation:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(
-            _order(side=Side.SELL, price=100.0, smp=SmpAction.CANCEL_RESTING)
+            _order(side=Side.SELL, price=100, smp=SmpAction.CANCEL_RESTING)
         )
         pub_sock.sent.clear()
         engine._handle_new_order(
-            _order(side=Side.BUY, price=100.0, smp=SmpAction.CANCEL_RESTING)
+            _order(side=Side.BUY, price=100, smp=SmpAction.CANCEL_RESTING)
         )
         topics = [decode(f)[0] for f in pub_sock.sent]
         # Resting order should be cancelled

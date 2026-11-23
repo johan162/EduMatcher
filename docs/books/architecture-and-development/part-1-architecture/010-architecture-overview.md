@@ -1874,6 +1874,9 @@ add a new field with a default value to the dataclass, `from_dict` won't
 automatically pick it up — you'll get an `AttributeError` on first access.
 This pattern also breaks the implicit contract that dataclass instances are
 always fully initialized, which can confuse static analysis tools like mypy.
+`Order.from_dict` therefore does the one check that matters itself: the
+quantity and tick fields must be `int`, so a payload with a float tick count is
+refused as malformed instead of resting off the tick grid.
 
 
 

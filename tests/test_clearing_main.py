@@ -61,6 +61,7 @@ def _make_trade(
         price=price,
         quantity=qty,
         aggressor_side="BUY",
+        tick_decimals=2,
     )
     # Override the auto-generated id so tests can be deterministic.
     object.__setattr__(t, "id", trade_id)
@@ -174,6 +175,7 @@ class TestToTradeEventRow:
             price=100,
             quantity=5,
             aggressor_side="SELL",
+            tick_decimals=2,
         )
         row = _to_trade_event_row(t, ingest_ts_ns=1)
         assert row.buy_order_id is None
@@ -938,6 +940,7 @@ class TestHandleSessionState:
                     price=15000,
                     quantity=10,
                     aggressor_side="BUY",
+                    tick_decimals=2,
                     ts_ns=1_000_000_000,
                 )
             )

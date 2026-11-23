@@ -17,6 +17,7 @@ def _make_trade() -> Trade:
         price=15000,
         quantity=100,
         aggressor_side="BUY",
+        tick_decimals=2,
     )
 
 

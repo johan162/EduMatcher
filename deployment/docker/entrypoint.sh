@@ -94,7 +94,12 @@ if [ -n "${EM_START:-}" ]; then
 fi
 
 log "starting profile '${PROFILE}'"
-pm-opctl-cli start "${PROFILE}"
+# start exits 1 when a process died at once (named above it, with its log);
+# the container stays up so `make status`, the logs and EM_RESTART_DEAD can
+# deal with it, as they deal with a process that dies later.
+if ! pm-opctl-cli start "${PROFILE}"; then
+    log "warning: not every process of '${PROFILE}' is running (see above)"
+fi
 pm-opctl-cli list --no-restart || true
 
 trap shutdown TERM INT

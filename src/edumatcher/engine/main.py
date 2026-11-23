@@ -548,6 +548,26 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     return d
 
 
+def _reset_engine_state(order: Order) -> None:
+    """Put back the engine's own state on an order decoded from ``order.new``.
+
+    ``Order.from_dict`` also reads the persistence file, so it takes these
+    fields from the payload, but on ``order.new`` they are the engine's to
+    set, as ``displayed_qty`` is (K3). A client-sent ``FILLED`` was acked and
+    then never rested; a client-sent ``cum_notional_ticks`` became its fills'
+    average price; a quote or combo id tagged its fills as a structure's
+    (Models review 2026-11, holistic HR1).
+    """
+    order.status = OrderStatus.NEW
+    order.cum_notional_ticks = 0
+    order.origin = OrderOrigin.ORDER
+    order.is_seed = False
+    order.quote_id = None
+    order.combo_parent_id = None
+    order.leg_index = None
+    order.oco_group_id = None
+
+
 def ack_detail(order: Order) -> dict[str, Any]:
     """The order record an ``order.ack`` carries: the display projection
     plus the tick prices, which are canonical on the ack (S22)."""
@@ -2126,6 +2146,7 @@ class Engine:
         # _validate_new_order checks below).
         if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
             order.displayed_qty = min(order.visible_qty, order.remaining_qty)
+        _reset_engine_state(order)
 
         # SMP=None means the client omitted it -- fall back to the gateway's
         # configured default (participants[].smp_action). An explicit value
@@ -4967,6 +4988,15 @@ class Engine:
 
         if not target_gateway_id:
             _reject("target_gateway_id required")
+            return
+
+        # An unknown id would be acknowledged with zero cancels, and a typo'd
+        # kill switch would look like it worked (Admin commands review C2).
+        if (
+            self._allowed_participants is not None
+            and target_gateway_id.upper() not in self._allowed_participants
+        ):
+            _reject(f"Gateway not configured: {target_gateway_id}")
             return
 
         cancelled_order_ids: list[str] = []

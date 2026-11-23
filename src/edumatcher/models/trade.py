@@ -55,7 +55,7 @@ def reset_trade_ids_for_tests() -> None:
 # Trade objects are created on every fill and passed through the event pipeline.
 # With __slots__, attribute access is ~30% faster (fixed C-struct offset vs.
 # hash-table lookup), and each instance uses ~40% less memory (no per-object
-# __dict__).  The to_dict() method accesses 9 attributes — slots saves ~0.5µs
+# __dict__).  The to_wire() method accesses 16 attributes — slots saves ~0.5µs
 # per trade on serialization alone.
 # ---------------------------------------------------------------------------
 @dataclass(slots=True)
@@ -70,7 +70,7 @@ class Trade:
     quantity: int
     aggressor_side: str
     ts_ns: int  # unit: epoch_nanos
-    tick_decimals: int = 2
+    tick_decimals: int
     run_seq: int | None = None
     #: How the trade came about (spec: trade.executed.match_type). The engine
     #: stamps an uncross's prints; everything else is continuous matching.
@@ -94,7 +94,7 @@ class Trade:
         price: int,
         quantity: int,
         aggressor_side: str,
-        tick_decimals: int = 2,
+        tick_decimals: int,
         # PERF #3: Accept a pre-computed timestamp from the caller instead of
         # calling time.time() independently.  The engine computes one timestamp
         # per incoming order and passes it through the entire processing chain,
@@ -133,15 +133,10 @@ class Trade:
         **display money** on the wire -- the one place the two shapes still
         disagree, now that the match instant is ``ts_ns`` on both.
 
-        The scale comes from the tick registry, keyed on the symbol, and *not*
-        from ``self.tick_decimals``: the engine never sets that field (``create``
-        defaults it to 2), so it is wrong for any instrument that does not trade
-        in hundredths. ``price.has_tick_decimals`` spells out why that is not
-        cosmetic -- a 4-decimal price scaled by 100 is a different price, not a
-        rounded one.
-
-        ``to_dict`` is the *internal* shape -- persistence and round-trips --
-        and publishing it directly is the bug this method exists to prevent.
+        The price is converted at the symbol's registered scale, which is the
+        scale the book minted this trade at (``self.tick_decimals``): the
+        engine registers every symbol's scale once at start-up and refuses an
+        order at any other (``Engine._tick_scale_mismatch``).
         """
         return {
             "id": self.id,
@@ -160,27 +155,6 @@ class Trade:
             "match_type": self.match_type,
             "auction_id": self.auction_id,
             "trigger_order_id": self.trigger_order_id,
-        }
-
-    def to_dict(self) -> dict[str, Any]:
-        """This trade in its **internal** shape: prices in ticks.
-
-        For persistence and in-process round-trips (``from_dict`` is its
-        inverse). Not a wire payload -- see ``to_wire``.
-        """
-        return {
-            "id": self.id,
-            "symbol": self.symbol,
-            "buy_order_id": self.buy_order_id,
-            "sell_order_id": self.sell_order_id,
-            "buy_gateway_id": self.buy_gateway_id,
-            "sell_gateway_id": self.sell_gateway_id,
-            "price": self.price,
-            "quantity": self.quantity,
-            "aggressor_side": self.aggressor_side,
-            "ts_ns": self.ts_ns,
-            "tick_decimals": self.tick_decimals,
-            "run_seq": self.run_seq,
         }
 
     @classmethod

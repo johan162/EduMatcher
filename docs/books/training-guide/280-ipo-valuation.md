@@ -287,7 +287,7 @@ List Tornfalk on your exchange and trade it.
     [output]
     Listed TORN in …/engine_config.yaml: IPO price 105.00, 158095238 shares outstanding
       seed quote MM01: 1000 @ 104.90 / 1000 @ 105.10 (DAY)
-    Deployed to …/engine_config.json. Start the exchange to open trading.
+    Deployed to …/engine_config.json. Start every process of the exchange to open trading.
     ```
 
     The seed-quote line appears when the deployed configuration has a market
@@ -315,7 +315,8 @@ out of two?
     The refusals are `pm-new-symbol`'s: the deployed configuration is a bundled
     example (`--example …`), which is never edited — deploy a copy, as in
     Exercise 8; the exchange is still running, the
-    data directory holds saved state for TORN from an earlier run, or the
+    data directory holds saved state for TORN from an earlier run (add
+    `--discard-saved-state`, as Exercise 8 does), or the
     configuration has several market-maker gateways and one must be chosen for
     the seed quote. See
     [Why it refused](../operator-guide/part-4-run-a-market/010-new-symbols.md#why-it-refused). For the
@@ -342,14 +343,23 @@ Stop the exchange again as in Exercise 7, then:
 ```bash
 cp docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml classroom.yaml
 pm-config-deploy classroom.yaml
-pm-valuation --case tornfalk --no-tui --mode deterministic --list
+pm-valuation --case tornfalk --no-tui --mode deterministic --list --discard-saved-state
 ```
+
+The exchange ran with `TORN` in Exercise 7, so the data directory remembers
+its last prices and the orders still resting in it, and the engine would
+restore them in place of a fresh listing. `--discard-saved-state` removes
+exactly that (and says so; the order count depends on what was left
+resting); without it the listing is refused.
 
 ```text
 [output]
+Removed saved state for TORN:
+  …/book_stats.json: last prices
+  …/gtc_orders.json: <n> resting order(s), combo legs included
 Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding
   no seed quote: the book opens empty
-Deployed to …/ref_data/engine_config.json. Start the exchange to open trading.
+Deployed to …/ref_data/engine_config.json. Start every process of the exchange to open trading.
 ```
 
 `s3-nominal-nomm` has sessions enabled (the opening auction needs them) and its

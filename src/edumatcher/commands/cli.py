@@ -10,7 +10,9 @@ requires changes in that one place plus an argparse subcommand here.
 Exit codes
 ----------
   0  Command accepted / completed successfully
-  1  Auth failure, command rejected, or timeout
+  1  Auth failure, command rejected (including an unknown or, for kick, a
+     disconnected gateway), timeout, or engine connection lost
+  2  Usage error (argparse)
 """
 
 from __future__ import annotations
@@ -20,10 +22,21 @@ import json
 import sys
 from typing import Any
 
+import zmq
+from rich.console import Console
+
 from edumatcher.cli_pipe import pipe_safe
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
+from edumatcher.commands import console as console_mod
 from edumatcher.commands.console import execute_command
 from edumatcher.config import ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
+
+
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {value}")
+    return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,7 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--id",
         required=True,
         metavar="GW_ID",
-        help="ADMIN gateway ID configured in engine_config.yaml (e.g. GW_ADMIN)",
+        help=(
+            "ADMIN gateway ID configured in engine_config.yaml (e.g. ADMIN_CLI); "
+            "not one a running pm-admin console holds"
+        ),
     )
     parser.add_argument(
         "--push",
@@ -82,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--timeout",
-        type=int,
+        type=_positive_int,
         default=3000,
         metavar="MS",
         help="Ack timeout in milliseconds (default: 3000)",
@@ -157,10 +173,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reason string recorded in the engine log",
     )
 
-    # ---- Any connected gateway ----
+    # ---- Per-gateway (another gateway: ADMIN only) ----
     p = sub.add_parser(
         "kill",
-        help="Cancel all resting orders and quotes for a gateway",
+        help=(
+            "Cancel all resting orders and quotes for a gateway, connected or "
+            "not (another gateway: ADMIN role required)"
+        ),
     )
     p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
     p.add_argument(
@@ -172,7 +191,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "kick",
-        help="Forcefully disconnect a gateway",
+        help=(
+            "Forcefully disconnect a connected gateway (no ack; refused for an "
+            "unknown or disconnected one)"
+        ),
     )
     p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
     p.add_argument(
@@ -184,7 +206,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "qcancel",
-        help="Cancel the active two-sided quote for a gateway on one symbol",
+        help=(
+            "Cancel the active two-sided quote for a gateway on one symbol "
+            "(another gateway: ADMIN role required)"
+        ),
     )
     p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
     p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to cancel")
@@ -197,7 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "orders",
-        help="List all resting orders for a gateway",
+        help="List all resting orders for a gateway, connected or not",
     )
     p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
 
@@ -319,13 +344,14 @@ def main() -> None:
         sys.exit(1)
 
     if not auth.get("accepted"):
-        print(
-            f"Auth refused: {auth.get('reason', '')}  "
-            "(check role: ADMIN in engine_config.yaml)",
-            file=sys.stderr,
-        )
+        print(f"Auth refused: {auth.get('reason', '')}", file=sys.stderr)
         client.close()
         sys.exit(1)
+
+    # Text output for scripts: let rich detect the destination, so a pipe or
+    # file gets plain text (and NO_COLOR is honoured). The shared console
+    # forces ANSI only for the REPL, whose patch_stdout hides the terminal.
+    console_mod.console = Console()
 
     # Execute the single command
     # argparse uses hyphens; normalise to UNDERSCORE for execute_command
@@ -342,8 +368,19 @@ def main() -> None:
         else:
             print(f"Timeout: {exc}", file=sys.stderr)
         ok = False
+    except zmq.Again:
+        # The PUSH socket fails fast (SNDTIMEO 0, IMMEDIATE): the engine went
+        # away after the connect.
+        if args.format == "json":
+            print(json.dumps({"error": "engine_unreachable"}))
+        else:
+            print(f"Engine connection lost ({args.push}).", file=sys.stderr)
+        ok = False
     finally:
-        client.disconnect()
+        try:
+            client.disconnect()
+        except zmq.Again:
+            pass  # nobody left to log out from
         client.close()
 
     sys.exit(0 if ok else 1)

@@ -1691,16 +1691,16 @@ complete -o bashdefault -F _shtab_pm_audit_cli pm-audit-cli
 
 _shtab_pm_audit_replay_subparsers=(stream story index digest episodes anomalies rerun queue stats)
 
-_shtab_pm_audit_replay_stream_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
-_shtab_pm_audit_replay_story_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --order --trade --quote --oco --combo --command --client-tag --chain --msg --depth --strict-causality)
-_shtab_pm_audit_replay_index_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --stats)
-_shtab_pm_audit_replay_digest_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --top --significance)
-_shtab_pm_audit_replay_episodes_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --outcome)
-_shtab_pm_audit_replay_anomalies_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --severity)
-_shtab_pm_audit_replay_rerun_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
-_shtab_pm_audit_replay_queue_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --order --price --side --anonymise)
-_shtab_pm_audit_replay_stats_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
-_shtab_pm_audit_replay_option_strings=(-h --help --version --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
+_shtab_pm_audit_replay_stream_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
+_shtab_pm_audit_replay_story_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --order --trade --quote --oco --combo --command --client-tag --chain --msg --depth --strict-causality)
+_shtab_pm_audit_replay_index_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --stats)
+_shtab_pm_audit_replay_digest_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --top --significance)
+_shtab_pm_audit_replay_episodes_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --outcome)
+_shtab_pm_audit_replay_anomalies_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --severity)
+_shtab_pm_audit_replay_rerun_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
+_shtab_pm_audit_replay_queue_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --order --price --side --anonymise)
+_shtab_pm_audit_replay_stats_option_strings=(-h --help --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
+_shtab_pm_audit_replay_option_strings=(-h --help --version --log-file --db --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
 
 
 
@@ -1731,7 +1731,6 @@ _shtab_pm_audit_replay___actor_style_choices=(id descriptive)
 
 _shtab_pm_audit_replay_stream__h_nargs=0
 _shtab_pm_audit_replay_stream___help_nargs=0
-_shtab_pm_audit_replay_stream___no_index_nargs=0
 _shtab_pm_audit_replay_stream___rebuild_nargs=0
 _shtab_pm_audit_replay_stream__q_nargs=0
 _shtab_pm_audit_replay_stream__v_nargs=0
@@ -1743,7 +1742,6 @@ _shtab_pm_audit_replay_stream___force_color_nargs=0
 _shtab_pm_audit_replay_stream___strict_nargs=0
 _shtab_pm_audit_replay_story__h_nargs=0
 _shtab_pm_audit_replay_story___help_nargs=0
-_shtab_pm_audit_replay_story___no_index_nargs=0
 _shtab_pm_audit_replay_story___rebuild_nargs=0
 _shtab_pm_audit_replay_story__q_nargs=0
 _shtab_pm_audit_replay_story__v_nargs=0
@@ -1756,7 +1754,6 @@ _shtab_pm_audit_replay_story___strict_nargs=0
 _shtab_pm_audit_replay_story___strict_causality_nargs=0
 _shtab_pm_audit_replay_index__h_nargs=0
 _shtab_pm_audit_replay_index___help_nargs=0
-_shtab_pm_audit_replay_index___no_index_nargs=0
 _shtab_pm_audit_replay_index___rebuild_nargs=0
 _shtab_pm_audit_replay_index__q_nargs=0
 _shtab_pm_audit_replay_index__v_nargs=0
@@ -1769,7 +1766,6 @@ _shtab_pm_audit_replay_index___strict_nargs=0
 _shtab_pm_audit_replay_index___stats_nargs=0
 _shtab_pm_audit_replay_digest__h_nargs=0
 _shtab_pm_audit_replay_digest___help_nargs=0
-_shtab_pm_audit_replay_digest___no_index_nargs=0
 _shtab_pm_audit_replay_digest___rebuild_nargs=0
 _shtab_pm_audit_replay_digest__q_nargs=0
 _shtab_pm_audit_replay_digest__v_nargs=0
@@ -1781,7 +1777,6 @@ _shtab_pm_audit_replay_digest___force_color_nargs=0
 _shtab_pm_audit_replay_digest___strict_nargs=0
 _shtab_pm_audit_replay_episodes__h_nargs=0
 _shtab_pm_audit_replay_episodes___help_nargs=0
-_shtab_pm_audit_replay_episodes___no_index_nargs=0
 _shtab_pm_audit_replay_episodes___rebuild_nargs=0
 _shtab_pm_audit_replay_episodes__q_nargs=0
 _shtab_pm_audit_replay_episodes__v_nargs=0
@@ -1793,7 +1788,6 @@ _shtab_pm_audit_replay_episodes___force_color_nargs=0
 _shtab_pm_audit_replay_episodes___strict_nargs=0
 _shtab_pm_audit_replay_anomalies__h_nargs=0
 _shtab_pm_audit_replay_anomalies___help_nargs=0
-_shtab_pm_audit_replay_anomalies___no_index_nargs=0
 _shtab_pm_audit_replay_anomalies___rebuild_nargs=0
 _shtab_pm_audit_replay_anomalies__q_nargs=0
 _shtab_pm_audit_replay_anomalies__v_nargs=0
@@ -1805,7 +1799,6 @@ _shtab_pm_audit_replay_anomalies___force_color_nargs=0
 _shtab_pm_audit_replay_anomalies___strict_nargs=0
 _shtab_pm_audit_replay_rerun__h_nargs=0
 _shtab_pm_audit_replay_rerun___help_nargs=0
-_shtab_pm_audit_replay_rerun___no_index_nargs=0
 _shtab_pm_audit_replay_rerun___rebuild_nargs=0
 _shtab_pm_audit_replay_rerun__q_nargs=0
 _shtab_pm_audit_replay_rerun__v_nargs=0
@@ -1817,7 +1810,6 @@ _shtab_pm_audit_replay_rerun___force_color_nargs=0
 _shtab_pm_audit_replay_rerun___strict_nargs=0
 _shtab_pm_audit_replay_queue__h_nargs=0
 _shtab_pm_audit_replay_queue___help_nargs=0
-_shtab_pm_audit_replay_queue___no_index_nargs=0
 _shtab_pm_audit_replay_queue___rebuild_nargs=0
 _shtab_pm_audit_replay_queue__q_nargs=0
 _shtab_pm_audit_replay_queue__v_nargs=0
@@ -1830,7 +1822,6 @@ _shtab_pm_audit_replay_queue___strict_nargs=0
 _shtab_pm_audit_replay_queue___anonymise_nargs=0
 _shtab_pm_audit_replay_stats__h_nargs=0
 _shtab_pm_audit_replay_stats___help_nargs=0
-_shtab_pm_audit_replay_stats___no_index_nargs=0
 _shtab_pm_audit_replay_stats___rebuild_nargs=0
 _shtab_pm_audit_replay_stats__q_nargs=0
 _shtab_pm_audit_replay_stats__v_nargs=0
@@ -1844,7 +1835,6 @@ _shtab_pm_audit_replay_pos_0_nargs=A...
 _shtab_pm_audit_replay__h_nargs=0
 _shtab_pm_audit_replay___help_nargs=0
 _shtab_pm_audit_replay___version_nargs=0
-_shtab_pm_audit_replay___no_index_nargs=0
 _shtab_pm_audit_replay___rebuild_nargs=0
 _shtab_pm_audit_replay__q_nargs=0
 _shtab_pm_audit_replay__v_nargs=0
@@ -5353,7 +5343,7 @@ complete -o bashdefault -F _shtab_pm_index_cli pm-index-cli
 
 
 
-_shtab_pm_ipo_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --field)
+_shtab_pm_ipo_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --discard-saved-state --field)
 
 
 
@@ -5364,6 +5354,7 @@ _shtab_pm_ipo___help_nargs=0
 _shtab_pm_ipo___version_nargs=0
 _shtab_pm_ipo___mm_seed_once_nargs=0
 _shtab_pm_ipo___no_mm_seed_once_nargs=0
+_shtab_pm_ipo___discard_saved_state_nargs=0
 
 
 # $1=COMP_WORDS[1]
@@ -7166,7 +7157,7 @@ complete -o bashdefault -F _shtab_pm_msgen pm-msgen
 
 
 
-_shtab_pm_new_symbol_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --field)
+_shtab_pm_new_symbol_option_strings=(-h --help --version --config --symbol --ipo-price --outstanding-shares --tick-decimals --mm-gateway-id --mm-bid-price --mm-ask-price --mm-bid-qty --mm-ask-qty --mm-tif --mm-seed-once --no-mm-seed-once --discard-saved-state --field)
 
 
 
@@ -7177,6 +7168,7 @@ _shtab_pm_new_symbol___help_nargs=0
 _shtab_pm_new_symbol___version_nargs=0
 _shtab_pm_new_symbol___mm_seed_once_nargs=0
 _shtab_pm_new_symbol___no_mm_seed_once_nargs=0
+_shtab_pm_new_symbol___discard_saved_state_nargs=0
 
 
 # $1=COMP_WORDS[1]
@@ -7539,7 +7531,7 @@ _shtab_pm_opctl_cli_kill_option_strings=(-h --help)
 _shtab_pm_opctl_cli_list_option_strings=(-h --help -y --restart --no-restart --no-tcp-probe)
 _shtab_pm_opctl_cli_health_option_strings=(-h --help -q --quiet)
 _shtab_pm_opctl_cli_show_option_strings=(-h --help --json)
-_shtab_pm_opctl_cli_clear_option_strings=(-h --help --state --all --yes)
+_shtab_pm_opctl_cli_clear_option_strings=(-h --help --state --all --yes --force)
 _shtab_pm_opctl_cli_option_strings=(-h --help --version)
 
 
@@ -7582,6 +7574,7 @@ _shtab_pm_opctl_cli_clear___help_nargs=0
 _shtab_pm_opctl_cli_clear___state_nargs=0
 _shtab_pm_opctl_cli_clear___all_nargs=0
 _shtab_pm_opctl_cli_clear___yes_nargs=0
+_shtab_pm_opctl_cli_clear___force_nargs=0
 _shtab_pm_opctl_cli_pos_0_nargs=A...
 _shtab_pm_opctl_cli__h_nargs=0
 _shtab_pm_opctl_cli___help_nargs=0
@@ -9374,7 +9367,7 @@ complete -o bashdefault -F _shtab_pm_ticker pm-ticker
 
 
 
-_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --level --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config)
+_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --level --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config --discard-saved-state)
 
 
 
@@ -9390,6 +9383,7 @@ _shtab_pm_valuation___version_nargs=0
 _shtab_pm_valuation___no_tui_nargs=0
 _shtab_pm_valuation___with_defaults_nargs=0
 _shtab_pm_valuation___list_nargs=0
+_shtab_pm_valuation___discard_saved_state_nargs=0
 
 
 # $1=COMP_WORDS[1]

@@ -437,11 +437,20 @@ def test_a_server_restart_loses_at_most_one_record(tmp_path: Path) -> None:
     )
     sent = 0
     rs2: _RunningServer | None = None
+    # Holds the port while the server is down. Bound but not listening, it
+    # refuses connections like a stopped server, yet the kernel cannot hand
+    # the port to another xdist worker's bind(0) or to the handler's own
+    # connect (a self-connect); either made the restart fail with EADDRINUSE.
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         for phase in ("before", "down", "after"):
             if phase == "down":
-                rs.stop()
+                rs.server.stop()
+                rs.thread.join(timeout=5.0)
+                holder.bind((_HOST, rs.port))
             if phase == "after":
+                holder.close()
                 rs2 = _RunningServer(tmp_path, port=rs.port)
                 rs2.start()
             for _ in range(100):
@@ -453,6 +462,7 @@ def test_a_server_restart_loses_at_most_one_record(tmp_path: Path) -> None:
         _wait_for(lambda: rs2.row_count() >= sent - 1, timeout=10.0)
         stored = {m for (m,) in rs2.query("SELECT message FROM log_events")}
     finally:
+        holder.close()
         if rs2 is not None:
             rs2.stop()
 

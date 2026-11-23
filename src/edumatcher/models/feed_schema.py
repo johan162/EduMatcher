@@ -9,8 +9,8 @@ document units per field:
   - price: display price (float, not ticks)
   - ts_ns: Unix epoch nanoseconds (int), the engine clock unscaled
   - tick_decimals: decimal scale for display<->ticks conversion
-- session.state:
-  - state / prev_state: phase labels
+
+``session.state`` is read through the generated ``SessionState``.
 
 ``system.eod``, ``system.gateway_auth.{id}`` and ``system.gateway_bye.{id}``
 used to live here too. Phase 6.1e declared them in ``spec/messages/system.yaml``

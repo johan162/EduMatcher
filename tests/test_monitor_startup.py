@@ -76,6 +76,8 @@ def test_start_mini_launches_the_monitor_before_the_engine(
 
     monkeypatch.setattr(emo_cli, "spawn_process", spawn)
     monkeypatch.setattr(emo_cli, "resolve_pid", lambda process, claimed: (None, False))
+    # PID 4242 is not a process: skip the check that started ones still run.
+    monkeypatch.setattr(emo_cli, "_report_early_exits", lambda spawned: False)
     assert emo_cli.start_profile("mini") == 0
     assert "pm-monitor" in started
     assert started.index("pm-monitor") < started.index("pm-engine")

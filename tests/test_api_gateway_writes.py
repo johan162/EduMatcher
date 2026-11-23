@@ -496,3 +496,18 @@ async def test_a_late_structure_cancel_ack_is_202_with_ack_timeout() -> None:
         "PENDING_CANCEL",
         True,
     )
+
+
+# --- WP-MOD02: a price no grid can hold is a tick violation, not a 500 ----------
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("price", [1e308, -1e308])
+async def test_an_overflowing_price_is_a_400_tick_violation(price: float) -> None:
+    engine = _Engine()
+    status, _, body = await call(
+        make_app(engine), "POST", "/api/v1/orders", body={**_ORDER, "price": price}
+    )
+    assert status == 400
+    assert body["error"]["reject_code"] == "TICK_VIOLATION"
+    assert engine.kinds() == []

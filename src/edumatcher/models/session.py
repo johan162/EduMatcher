@@ -4,7 +4,8 @@ Domain models: SessionState enum and helpers for the trading session lifecycle.
 The engine moves through session states during the trading day:
   PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
 
-Transitions are driven by the session scheduler (pm-scheduler) process.
+Transitions are driven by the session scheduler (pm-scheduler), or by an
+operator (``session.transition`` with a ``reply_to``).
 """
 
 from __future__ import annotations

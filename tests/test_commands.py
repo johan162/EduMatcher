@@ -1337,26 +1337,60 @@ class TestBookDepthIgnoresStaleSnapshots:
             timeout_ms=3000,
         )
         try:
-            # Let the subscription reach the publisher, then queue three
-            # broadcasts that nobody reads (the idle operator at a prompt).
-            deadline = time.monotonic() + 3
-            while not client._sub.poll(0) and time.monotonic() < deadline:
-                pub.send_multipart(self._book(100.0))
-                time.sleep(0.05)
-            assert client._sub.poll(0), "subscription never connected"
+            # Broadcasts published while the operator sits at the prompt:
+            # since the Admin commands review (H1) the client is not even
+            # subscribed to book.AAPL between requests, so none can answer.
+            time.sleep(0.2)
             for _ in range(3):
                 pub.send_multipart(self._book(100.0))
             time.sleep(0.2)
+            stop = threading.Event()
 
             def engine() -> None:
-                pull.recv_multipart()  # the snapshot request
-                pub.send_multipart(self._book(150.25))
+                # Every request is answered: a query may be sent again when
+                # its first reply beat the temporary subscription.
+                while not stop.is_set():
+                    if pull.poll(50):
+                        pull.recv_multipart()
+                        pub.send_multipart(self._book(150.25))
 
             thread = threading.Thread(target=engine)
             thread.start()
-            result = client.book_depth("AAPL")
-            thread.join()
+            try:
+                result = client.book_depth("AAPL")
+            finally:
+                stop.set()
+                thread.join()
             assert result["last_price"] == 150.25
         finally:
             for sock in (pub, pull, client._sub, client._push):
                 sock.close(linger=0)
+
+
+class TestUnknownGatewayQueries:
+    """An unknown target is not "no orders" / "flat" (Admin commands review C2)."""
+
+    def test_order_list_raises_for_an_unknown_gateway(self) -> None:
+        client, _ = _client(
+            recv_queue=_q(make_orders_msg("NOSUCH01", [], "UNKNOWN_GATEWAY"))
+        )
+        with pytest.raises(CommandError, match="Gateway not configured: NOSUCH01"):
+            client.order_list("nosuch01")
+
+    def test_position_snapshot_raises_for_an_unknown_gateway(self) -> None:
+        client, _ = _client(
+            recv_queue=_q(make_position_snapshot_msg("NOSUCH01", [], "UNKNOWN_GATEWAY"))
+        )
+        with pytest.raises(CommandError, match="Gateway not configured: NOSUCH01"):
+            client.position_snapshot("NOSUCH01")
+
+    def test_replies_keep_a_not_connected_status(self) -> None:
+        client, _ = _client(
+            recv_queue=_q(make_orders_msg("TRADER01", [], "NOT_CONNECTED"))
+        )
+        reply = client.orders_reply("trader01")
+        assert reply == {
+            "gateway_id": "TRADER01",
+            "orders": [],
+            "status": "NOT_CONNECTED",
+        }

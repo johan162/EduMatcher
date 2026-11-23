@@ -89,7 +89,7 @@ class OrderOrigin(str, Enum):
 # PERF improvement #5: Pre-built enum-by-value lookup dicts.
 #
 # Python's Enum(value) constructor iterates through all members doing string
-# comparisons (~600-800ns per call).  A dict lookup is ~50ns.  With 5 enum
+# comparisons (~600-800ns per call).  A dict lookup is ~50ns.  With 6 enum
 # constructions per Order.from_dict() call, this saves ~3-4µs per order on
 # the hot path — a ~15-20% improvement for the deserialization step.
 # ---------------------------------------------------------------------------
@@ -99,6 +99,19 @@ _TIF_MAP: dict[str, TIF] = {v.value: v for v in TIF}
 _STATUS_MAP: dict[str, OrderStatus] = {v.value: v for v in OrderStatus}
 _SMP_MAP: dict[str, SmpAction] = {v.value: v for v in SmpAction}
 _ORIGIN_MAP: dict[str, OrderOrigin] = {v.value: v for v in OrderOrigin}
+
+#: The integer fields ``Order.from_dict`` refuses in any other type; the four
+#: optional ones may also be None.
+_INT_FIELDS = (
+    "quantity",
+    "remaining_qty",
+    "ts_ns",
+    "tick_decimals",
+    "price_ticks",
+    "stop_price_ticks",
+    "visible_qty",
+    "trail_offset_ticks",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +138,8 @@ class Order:
 
     * ``quantity``         the original size; never changes by trading.
     * ``remaining_qty``    what is still unfilled.  Hits 0 -> status FILLED.
-    * ``status``           NEW -> PARTIAL -> FILLED, or CANCELLED / REJECTED.
+    * ``status``           NEW -> PARTIAL -> FILLED, or CANCELLED / REJECTED /
+                           EXPIRED.
                            Note a CANCELLED order usually still has
                            ``remaining_qty > 0``: always test ``status``.
     * ``price_ticks``      limit price as an INTEGER number of ticks (never a
@@ -360,4 +374,24 @@ class Order:
         # dataclass default, so the slot must be initialised here or the first
         # read raises AttributeError.
         o.cancel_reason = None
+        # This is the engine's decoder for order.new, and it copies values as
+        # they arrive. A float tick count would rest off the grid and print as
+        # a display price 10**tick_decimals too large; a float or string
+        # quantity would break the book's arithmetic. One expression on the
+        # path every order takes; the loop below only names the culprit.
+        # `type(v) is int` also refuses bool, which is an int subclass.
+        if not (
+            type(o.quantity) is int
+            and type(o.remaining_qty) is int
+            and type(o.ts_ns) is int
+            and type(o.tick_decimals) is int
+            and (o.price_ticks is None or type(o.price_ticks) is int)
+            and (o.stop_price_ticks is None or type(o.stop_price_ticks) is int)
+            and (o.visible_qty is None or type(o.visible_qty) is int)
+            and (o.trail_offset_ticks is None or type(o.trail_offset_ticks) is int)
+        ):
+            for name in _INT_FIELDS:
+                value = getattr(o, name)
+                if value is not None and type(value) is not int:
+                    raise ValueError(f"{name} must be an integer, not {value!r}")
         return o

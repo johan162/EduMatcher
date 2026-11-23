@@ -69,6 +69,7 @@ def _make_trade(
         price=price,
         quantity=qty,
         aggressor_side="BUY",
+        tick_decimals=2,
     )
     object.__setattr__(t, "id", trade_id)
     return t

@@ -12,7 +12,10 @@ narration can be trusted:
   conclusion from it.
 
 So this is a diagnostic on the *audit trail*, not on the tool, which is why it
-reports envelope coverage and the anomaly mix beside the link mix.
+reports envelope coverage and the anomaly mix beside the link mix. The
+command counts over :func:`collect_episodes`: the episodes ``anomalies``
+reads, after the same detector and the same filters, so the two commands can
+never disagree about which findings a window holds.
 """
 
 from __future__ import annotations
@@ -24,6 +27,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable
 
+from edumatcher.audit.replay.anomalies import Anomaly
+from edumatcher.audit.replay.episodes import Episode
 from edumatcher.audit.replay.links import CONFIDENCE_ORDER, Confidence
 from edumatcher.audit.replay.pipeline import Step
 
@@ -51,24 +56,49 @@ class Stats:
 
 
 def collect(steps: Iterable[Step]) -> Stats:
+    """Counts over pass 1's steps alone: no detector, no episode findings."""
     stats = Stats()
     for step in steps:
-        stats.facts += 1
-        if step.fact.has_envelope:
-            stats.with_envelope += 1
-        if not step.fact.known:
-            stats.unknown_topics += 1
-        if step.resolution.origin:
-            stats.origins += 1
-        elif step.resolution.orphan:
-            stats.orphans += 1
-        for link in step.resolution.links:
-            stats.links[link.confidence] += 1
-            stats.relations[link.relation] += 1
-        for anomaly in step.anomalies:
-            stats.anomalies[anomaly.code] += 1
-            stats.severities[anomaly.severity] += 1
+        _count(stats, step)
     return stats
+
+
+def collect_episodes(episodes: Iterable[Episode]) -> Stats:
+    """Counts over finished episodes, one at a time.
+
+    Every fact of every episode, and the findings both of its facts and of
+    the episode as a whole -- what ``anomalies`` lists for the same episodes.
+    Consumes an iterator without holding it, so a day's trail is counted in
+    the memory of one episode.
+    """
+    stats = Stats()
+    for episode in episodes:
+        for event in episode.events:
+            _count(stats, event.step)
+        _count_anomalies(stats, episode.anomalies)
+    return stats
+
+
+def _count(stats: Stats, step: Step) -> None:
+    stats.facts += 1
+    if step.fact.has_envelope:
+        stats.with_envelope += 1
+    if not step.fact.known:
+        stats.unknown_topics += 1
+    if step.resolution.origin:
+        stats.origins += 1
+    elif step.resolution.orphan:
+        stats.orphans += 1
+    for link in step.resolution.links:
+        stats.links[link.confidence] += 1
+        stats.relations[link.relation] += 1
+    _count_anomalies(stats, step.anomalies)
+
+
+def _count_anomalies(stats: Stats, anomalies: Iterable[Anomaly]) -> None:
+    for anomaly in anomalies:
+        stats.anomalies[anomaly.code] += 1
+        stats.severities[anomaly.severity] += 1
 
 
 def _bar(share: float, width: int = 24) -> str:

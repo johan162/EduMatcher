@@ -77,6 +77,12 @@ class ComboLeg:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ComboLeg":
+        # The engine decodes order.combo legs here: a float tick count or
+        # quantity must be refused, not rested (see Order.from_dict).
+        for name in ("quantity", "tick_decimals", "price_ticks", "stop_price_ticks"):
+            value = d.get(name)
+            if value is not None and type(value) is not int:
+                raise ValueError(f"{name} must be an integer, not {value!r}")
         _smp_raw = d.get("smp_action")
         return cls(
             symbol=d["symbol"],

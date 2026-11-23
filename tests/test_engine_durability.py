@@ -343,6 +343,7 @@ def test_run_sets_run_seq_before_gtc_restore(tmp_path: Path) -> None:
             price=15000,
             quantity=100,
             aggressor_side="AUCTION",
+            tick_decimals=2,
         )
         assert trade.id == "000001-000000001"
         engine._running = False

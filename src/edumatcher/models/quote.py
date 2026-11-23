@@ -68,7 +68,7 @@ class QuoteLegSnapshot:
     # priced limit order, and this mirrors `QuoteLeg.price` on the live half
     # so an ACTIVE row and a RECENT row for the same leg read identically.
     # `None` when the order's price was unavailable at snapshot time; it has
-    # a default so the four positional fields above keep their old call
+    # a default so the five positional fields above keep their old call
     # shape.
     price: Optional[float] = None
 

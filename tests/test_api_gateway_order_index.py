@@ -24,9 +24,9 @@ from edumatcher.models.message import (
     decode,
     make_ack_msg,
     make_cancelled_msg,
-    make_fill_msg,
     make_symbols_msg,
 )
+from tests.fill_frames import fill_frames
 
 WORKING = {"PENDING", "NEW", "PARTIAL", "AMENDED"}
 
@@ -57,10 +57,10 @@ def _feed_mixed(engine: EngineClient) -> None:
                 *decode(make_ack_msg(gw, f"{gw}-A{n}", True, request="NEW"))
             )
         engine._handle_event(
-            *decode(make_fill_msg(gw, f"{gw}-A1", 5, 20.0, 5, "PARTIAL"))
+            *decode(fill_frames(gw, f"{gw}-A1", 5, 20.0, 5, "PARTIAL"))
         )
         engine._handle_event(
-            *decode(make_fill_msg(gw, f"{gw}-A2", 10, 20.0, 0, "FILLED"))
+            *decode(fill_frames(gw, f"{gw}-A2", 10, 20.0, 0, "FILLED"))
         )
         engine._handle_event(*decode(make_cancelled_msg(gw, f"{gw}-A3")))
         engine._handle_event(

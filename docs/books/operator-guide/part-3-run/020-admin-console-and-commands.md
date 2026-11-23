@@ -148,14 +148,13 @@ KILL OK  TRADER01  orders=4  quotes=0
 No resting orders for TRADER01
 
 [GW_ADMIN|ADMIN]> LEVEL|SYM=AAPL|PRICE=149.50
-┌─────────────────────────────────────────────────────────────────────┐
-│              Price-level composition — AAPL @ 149.50                │
-├──────────────┬────────────┬──────┬──────────────┬───────────┬───────┤
-│ ID           │ Gateway    │ Side │ Type         │ Remaining │ Price │
-├──────────────┼────────────┼──────┼──────────────┼───────────┼───────┤
-│ 66d5940c-f1a7│ MM01       │ BUY  │ LIMIT        │       200 │149.50 │
-│ 9a2b1c04-88de│ TRADER01   │ BUY  │ LIMIT        │       100 │149.50 │
-└──────────────┴────────────┴──────┴──────────────┴───────────┴───────┘
+                              Price-level composition — AAPL @ 149.50
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ ID                               ┃ Gateway    ┃ Side   ┃ Type         ┃  Remaining ┃      Price ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ 66d5940cf1a74e0b9c2d5a3e8b7f1c04 │ MM01       │ BUY    │ LIMIT        │        200 │     149.50 │
+│ 9a2b1c0488de4f6a8e3b2d1c7f5a9e60 │ TRADER01   │ BUY    │ LIMIT        │        100 │     149.50 │
+└──────────────────────────────────┴────────────┴────────┴──────────────┴────────────┴────────────┘
 
 [GW_ADMIN|ADMIN]> RESUME
 RESUMED  3 symbol(s)
@@ -217,29 +216,42 @@ for shell scripts, CI/CD pipelines, and automation where you want the
 exchange to be driven non-interactively.
 
 ```bash
-poetry run pm-admin-cli --id GW_ADMIN <subcommand> [options]
+poetry run pm-admin-cli --id ADMIN_CLI <subcommand> [options]
 ```
 
-Exit code is **0** on success and **1** on failure (auth refused, engine
-rejection, or timeout).  This makes it safe to use in `set -e` shell scripts.
+Exit code is **0** on success, **1** on failure (auth refused, engine
+rejection, a gateway id that is not configured, timeout, or a lost engine
+connection) and **2** on a usage error.  This makes it safe to use in
+`set -e` shell scripts.
+
+!!! note "One ADMIN id per running client"
+    The engine refuses a second connection under an id that is already
+    connected, so `pm-admin-cli` needs an ADMIN participant of its own while a
+    `pm-admin` console runs: this page uses `GW_ADMIN` for the console and
+    `ADMIN_CLI` for the CLI, both with `role: ADMIN` in `engine_config.yaml`
+    (training chapter 01 configures both). Text output goes to a pipe or a
+    file without colour codes.
 
 ### Global flags
 
 | Flag | Default | Description |
 |---|---|---|
-| `--id GW_ID` | *(required)* | ADMIN gateway ID (must match `engine_config.yaml`) |
+| `--id GW_ID` | *(required)* | ADMIN gateway ID (must match `engine_config.yaml`; not one a running `pm-admin` holds) |
 | `--push ADDR` | `tcp://127.0.0.1:5555` | Engine PULL socket address |
 | `--sub ADDR` | `tcp://127.0.0.1:5556` | Engine PUB socket address |
-| `--timeout MS` | `3000` | Ack wait timeout in milliseconds |
+| `--timeout MS` | `3000` | Ack wait timeout in milliseconds (at least 1) |
 | `--format {text,json}` | `text` | Output format — `text` is the human-readable form shown throughout this page; `json` prints the same result as machine-readable JSON to stdout instead |
 
 `--format json` works identically for **every** subcommand below — it is a
 global flag handled once in the shared `execute_command` dispatcher, not a
 per-command option. This is useful for scripting: pipe the output through
-`jq` rather than parsing the text tables.
+`jq` rather than parsing the text tables. `orders` and `position` print an
+object carrying the engine's `status` (`OK`, `NOT_CONNECTED` or
+`UNKNOWN_GATEWAY`) beside the list: `{"gateway_id", "status", "orders"}` and
+`{"gateway_id", "status", "positions"}`.
 
 ```bash
-pm-admin-cli --id GW_ADMIN --format json volume | jq '.total_qty'
+pm-admin-cli --id ADMIN_CLI --format json volume | jq '.total_qty'
 ```
 
 ### Subcommands
@@ -247,7 +259,7 @@ pm-admin-cli --id GW_ADMIN --format json volume | jq '.total_qty'
 #### `halt` — Exchange-wide halt
 
 ```bash
-pm-admin-cli --id GW_ADMIN halt
+pm-admin-cli --id ADMIN_CLI halt
 ```
 ```
 HALTED  3 symbol(s), 6 quote leg(s) cancelled
@@ -259,7 +271,7 @@ Requires `role: ADMIN`.  Exit code 0 if accepted, 1 if rejected.
 #### `resume` — Lift the exchange-wide halt
 
 ```bash
-pm-admin-cli --id GW_ADMIN resume
+pm-admin-cli --id ADMIN_CLI resume
 ```
 ```
 RESUMED  3 symbol(s)
@@ -271,7 +283,7 @@ Requires `role: ADMIN`.
 #### `halt-sym` — Halt trading on a single symbol
 
 ```bash
-pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL
+pm-admin-cli --id ADMIN_CLI halt-sym --sym AAPL
 ```
 ```
 HALTED  AAPL  0 quote leg(s) cancelled
@@ -289,7 +301,7 @@ until `resume-sym` is called.  Requires `role: ADMIN`.
 #### `resume-sym` — Resume a single halted symbol
 
 ```bash
-pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL
+pm-admin-cli --id ADMIN_CLI resume-sym --sym AAPL
 ```
 ```
 RESUMED  AAPL
@@ -306,7 +318,7 @@ trigger.  Requires `role: ADMIN`.
 #### `cancel-sym` — Cancel all resting orders for a symbol
 
 ```bash
-pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL
+pm-admin-cli --id ADMIN_CLI cancel-sym --sym AAPL
 ```
 ```
 CANCEL_SYM OK  AAPL  orders=12  quotes=2
@@ -328,21 +340,21 @@ Requires `role: ADMIN`.
 
 ```bash
 # Peek the indicative print WITHOUT changing any state:
-pm-admin-cli --id GW_ADMIN reopen --sym AAPL --dry-run
+pm-admin-cli --id ADMIN_CLI reopen --sym AAPL --dry-run
 ```
 ```
 REOPEN DRY-RUN  AAPL  indicative=100.00 x 500  imbalance=BUY (200)
 ```
 ```bash
 # Open at the naturally computed equilibrium (if any):
-pm-admin-cli --id GW_ADMIN reopen --sym AAPL
+pm-admin-cli --id ADMIN_CLI reopen --sym AAPL
 ```
 ```
 REOPEN OK  AAPL  printed=100.00 x 500  (indicative was 100.00 x 500)
 ```
 ```bash
 # Assert an operator opening price (failed-auction recovery):
-pm-admin-cli --id GW_ADMIN reopen --sym AAPL --price 100.00 --note "manual open"
+pm-admin-cli --id ADMIN_CLI reopen --sym AAPL --price 100.00 --note "manual open"
 ```
 ```
 REOPEN OK  AAPL  printed=100.00 x 500  (indicative was no cross)
@@ -379,10 +391,10 @@ Requires `role: ADMIN`.
 
 ```bash
 # All symbols
-pm-admin-cli --id GW_ADMIN kill --gw TRADER01
+pm-admin-cli --id ADMIN_CLI kill --gw TRADER01
 
 # Scoped to one symbol
-pm-admin-cli --id GW_ADMIN kill --gw TRADER01 --sym AAPL
+pm-admin-cli --id ADMIN_CLI kill --gw TRADER01 --sym AAPL
 ```
 ```
 KILL OK  TRADER01  orders=4  quotes=0
@@ -395,7 +407,9 @@ KILL OK  TRADER01  orders=4  quotes=0
 
 For another gateway, `kill` sends the ADMIN kill switch
 (`risk.kill_switch_gateway`): the audit trail names you, and the target need
-not be connected. On your own gateway it is the self-service
+not be connected. An id that is not configured is refused
+(`REJECTED  Gateway not configured: X`, exit code 1) rather than acknowledged
+with nothing cancelled. On your own gateway it is the self-service
 `risk.kill_switch`.
 
 
@@ -403,17 +417,21 @@ not be connected. On your own gateway it is the self-service
 #### `kick` — Forcefully disconnect a gateway
 
 ```bash
-pm-admin-cli --id GW_ADMIN kick --gw TRADER01
-pm-admin-cli --id GW_ADMIN kick --gw TRADER01 --reason "Compliance hold"
+pm-admin-cli --id ADMIN_CLI kick --gw TRADER01
+pm-admin-cli --id ADMIN_CLI kick --gw TRADER01 --reason "Compliance hold"
 ```
 
 ```
 KICK  sent disconnect for TRADER01
 ```
 
-No ack is published, so the line only confirms that the request was sent.
-Exit code is always 0 if the engine is reachable.
-Verify with `orders --gw TRADER01`.
+The engine publishes no ack for a disconnect, so `kick` first asks for the
+gateway list: an id that is not configured (`REJECTED  Gateway not
+configured: X`) or not connected (`REJECTED  Gateway not connected: X`) is
+refused with exit code 1 and nothing is sent. Otherwise the line confirms
+that the disconnect was sent; verify it with `gateways` (the gateway shows
+`no` under *Connected*). What happens to its orders depends on its
+`disconnect_behaviour`; use `kill` to clear them.
 
 | Flag            | Required | Description                              |
 |-----------------|----------|------------------------------------------|
@@ -425,7 +443,7 @@ Verify with `orders --gw TRADER01`.
 #### `qcancel` — Cancel a market-maker's active quote on one symbol
 
 ```bash
-pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL
+pm-admin-cli --id ADMIN_CLI qcancel --gw MM01 --sym AAPL
 ```
 ```
 QCANCEL OK  MM01  AAPL
@@ -433,14 +451,15 @@ QCANCEL OK  MM01  AAPL
 Cancels both bid and ask legs of the active quote.  Resting limit orders
 are unaffected.  Use `kill` to also remove those.  For another gateway this
 is the ADMIN kill switch limited to quotes, so the audit trail names you and
-the market maker need not be connected.
+the market maker need not be connected; an id that is not configured is
+refused with exit code 1.
 
 
 
 #### `book` — Print the order-book snapshot for a symbol
 
 ```bash
-pm-admin-cli --id GW_ADMIN book --sym AAPL
+pm-admin-cli --id ADMIN_CLI book --sym AAPL
 ```
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -459,14 +478,18 @@ pm-admin-cli --id GW_ADMIN book --sym AAPL
 #### `orders` — List resting orders for a gateway
 
 ```bash
-pm-admin-cli --id GW_ADMIN orders --gw TRADER01
+pm-admin-cli --id ADMIN_CLI orders --gw TRADER01
 ```
 
-Useful to confirm a `kill` or `kick` took effect:
+Works for a participant that is logged off: its stored orders are listed
+after the line `TRADER01 is not connected (stored state shown)`. An id that is
+not configured is refused with `REJECTED  Gateway not configured: X` and exit
+code 1, so a typo cannot read as "no orders". Useful to confirm a `kill` took
+effect:
 
 ```bash
-pm-admin-cli --id GW_ADMIN kill --gw TRADER01
-pm-admin-cli --id GW_ADMIN orders --gw TRADER01   # should print 'No resting orders'
+pm-admin-cli --id ADMIN_CLI kill --gw TRADER01
+pm-admin-cli --id ADMIN_CLI orders --gw TRADER01   # should print 'No resting orders'
 ```
 
 
@@ -475,20 +498,19 @@ pm-admin-cli --id GW_ADMIN orders --gw TRADER01   # should print 'No resting ord
 
 ```bash
 # Every resting order for the symbol, across every gateway
-pm-admin-cli --id GW_ADMIN level --sym AAPL
+pm-admin-cli --id ADMIN_CLI level --sym AAPL
 
 # Narrowed to a single price level
-pm-admin-cli --id GW_ADMIN level --sym AAPL --price 149.50
+pm-admin-cli --id ADMIN_CLI level --sym AAPL --price 149.50
 ```
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│              Price-level composition — AAPL @ 149.50                │
-├──────────────┬────────────┬──────┬──────────────┬───────────┬───────┤
-│ ID           │ Gateway    │ Side │ Type         │ Remaining │ Price │
-├──────────────┼────────────┼──────┼──────────────┼───────────┼───────┤
-│ 66d5940c-f1a7│ MM01       │ BUY  │ LIMIT        │       200 │149.50 │
-│ 9a2b1c04-88de│ TRADER01   │ BUY  │ LIMIT        │       100 │149.50 │
-└──────────────┴────────────┴──────┴──────────────┴───────────┴───────┘
+                              Price-level composition — AAPL @ 149.50
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ ID                               ┃ Gateway    ┃ Side   ┃ Type         ┃  Remaining ┃      Price ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ 66d5940cf1a74e0b9c2d5a3e8b7f1c04 │ MM01       │ BUY    │ LIMIT        │        200 │     149.50 │
+│ 9a2b1c0488de4f6a8e3b2d1c7f5a9e60 │ TRADER01   │ BUY    │ LIMIT        │        100 │     149.50 │
+└──────────────────────────────────┴────────────┴────────┴──────────────┴────────────┴────────────┘
 ```
 
 Unlike `book`, which only ever reports the aggregate `{price, qty, count}`
@@ -508,7 +530,7 @@ table.
 #### `symbols` — List all configured instruments
 
 ```bash
-pm-admin-cli --id GW_ADMIN symbols
+pm-admin-cli --id ADMIN_CLI symbols
 ```
 ```
      Configured      
@@ -527,7 +549,7 @@ pm-admin-cli --id GW_ADMIN symbols
 #### `session` — Request a session-phase transition
 
 ```bash
-pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
+pm-admin-cli --id ADMIN_CLI session --state CONTINUOUS
 ```
 ```
 SESSION  now CONTINUOUS
@@ -548,7 +570,7 @@ also announced to everyone by the `session.state` broadcast.
 #### `session-status` — Show current session state (read-only)
 
 ```bash
-pm-admin-cli --id GW_ADMIN session-status
+pm-admin-cli --id ADMIN_CLI session-status
 ```
 ```
   Session state     : CONTINUOUS
@@ -562,7 +584,7 @@ monitoring scripts that need to know the exchange state before taking action.
 #### `schedule` — Show the session-transition schedule
 
 ```bash
-pm-admin-cli --id GW_ADMIN schedule
+pm-admin-cli --id ADMIN_CLI schedule
 ```
 ```
                                      Session schedule                                      
@@ -587,7 +609,7 @@ scheduling is disabled.
 #### `gateways` — List all configured gateways
 
 ```bash
-pm-admin-cli --id GW_ADMIN gateways
+pm-admin-cli --id ADMIN_CLI gateways
 ```
 ```
                         Configured gateways                        
@@ -608,7 +630,7 @@ somehow connected will not appear (it would have been rejected during auth).
 #### `volume` — Show daily traded volume
 
 ```bash
-pm-admin-cli --id GW_ADMIN volume
+pm-admin-cli --id ADMIN_CLI volume
 ```
 ```
                     Daily traded volume                    
@@ -632,14 +654,19 @@ each day's volume separately rather than an ever-growing cumulative total.
 #### `position` — Show a gateway's net position and live quote
 
 ```bash
-pm-admin-cli --id GW_ADMIN position --gw MM_AAPL_01
+pm-admin-cli --id ADMIN_CLI position --gw MM_AAPL_01
 ```
 ```
-MM_AAPL_01
-  AAPL
-    Position : +500   Avg cost: 149.7500
-    Quote    : bid 149.7000  ask 149.9000   spread 0.2000   mid 149.8000
+AAPL
+  Position : +500   Avg cost: 149.7500
+  Quote    : bid 149.70  ask 149.90   spread 0.20   mid 149.800
 ```
+
+Quote prices are printed at the symbol's scale (mid one place finer); the
+average cost, a volume-weighted mean, keeps four decimals. An id that is not
+configured is refused (`REJECTED  Gateway not configured: X`, exit code 1); a
+logged-off gateway's stored position follows the line `X is not connected
+(stored state shown)`.
 
 Combines two independent engine queries into one row per symbol:
 
@@ -656,26 +683,30 @@ Add `--sym` to narrow to one or more comma-separated symbols; a symbol with
 neither a position nor an active quote is omitted from the result:
 
 ```bash
-pm-admin-cli --id GW_ADMIN position --gw MM_AAPL_01 --sym AAPL,MSFT
+pm-admin-cli --id ADMIN_CLI position --gw MM_AAPL_01 --sym AAPL,MSFT
 ```
 
 Machine-readable form (`--format json`):
 
 ```bash
-pm-admin-cli --id GW_ADMIN --format json position --gw MM_AAPL_01
+pm-admin-cli --id ADMIN_CLI --format json position --gw MM_AAPL_01
 ```
 ```json
-[
-  {
-    "symbol": "AAPL",
-    "net_qty": 500,
-    "avg_cost": 149.75,
-    "bid_price": 149.70,
-    "ask_price": 149.90,
-    "spread": 0.20,
-    "mid": 149.80
-  }
-]
+{
+  "gateway_id": "MM_AAPL_01",
+  "status": "OK",
+  "positions": [
+    {
+      "symbol": "AAPL",
+      "net_qty": 500,
+      "avg_cost": 149.75,
+      "bid_price": 149.7,
+      "ask_price": 149.9,
+      "spread": 0.2,
+      "mid": 149.8
+    }
+  ]
+}
 ```
 
 This is the same `system.position_request`/`system.position_snapshot.{GW}`
@@ -693,14 +724,17 @@ same engine ledger. The bid/ask/spread/mid addition here is specific to
 ```bash
 #!/bin/bash
 set -e
-ID="--id GW_ADMIN"
+ID="--id ADMIN_CLI"
 
 # Halt the entire exchange while investigating
 pm-admin-cli $ID halt
 
-# Cancel all exposure and disconnect the offending participant
+# Cancel all exposure and disconnect the offending participant. Both refuse
+# an id that is not configured (exit 1), so a typo stops the script here, with
+# the market still halted. kick also refuses a participant that is already
+# logged off: drop "|| true" if that should stop the script too.
 pm-admin-cli $ID kill --gw ROGUE01
-pm-admin-cli $ID kick --gw ROGUE01 --reason "Automated risk breach"
+pm-admin-cli $ID kick --gw ROGUE01 --reason "Automated risk breach" || true
 
 # Confirm no orders remain
 pm-admin-cli $ID orders --gw ROGUE01
@@ -713,7 +747,7 @@ pm-admin-cli $ID resume
 #!/bin/bash
 # Targeted: suspend one symbol and clear its book, keep everything else trading
 set -e
-ID="--id GW_ADMIN"
+ID="--id ADMIN_CLI"
 
 # Halt only AAPL — MSFT and TSLA keep trading
 pm-admin-cli $ID halt-sym --sym AAPL
@@ -732,7 +766,7 @@ pm-admin-cli $ID resume-sym --sym AAPL
 # Recover a failed auction: an opening/closing uncross that found no price
 # leaves the symbol closed with its orders untouched. Reopen it by hand.
 set -e
-ID="--id GW_ADMIN"
+ID="--id ADMIN_CLI"
 
 # 1. Peek what would print — the auction.indicative feed is silent for a
 #    halted/closed symbol, so this on-demand read is the only view.
@@ -1136,19 +1170,19 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `disconnect()`                  | —                             | —                | `system.gateway_disconnect`       | *(none)*                                   |
 | `halt_all()`                    | —                             | **ADMIN**        | `risk.circuit_breaker_halt_all`   | `risk.circuit_breaker_halt_all_ack.{GW}`   |
 | `resume_all()`                  | —                             | **ADMIN**        | `risk.circuit_breaker_resume_all` | `risk.circuit_breaker_resume_all_ack.{GW}` |
-| `kill_switch(target, symbol?)`  | target GW ID, optional symbol | Any connected GW | `risk.kill_switch`                | `risk.kill_switch_ack.{target}`            |
-| `quote_cancel(target, symbol)`  | target GW ID, symbol          | Any connected GW | `quote.cancel`                    | `quote.cancel_ack.{target}`                |
-| `gateway_kick(target, reason?)` | target GW ID, optional reason | Any connected GW | `system.gateway_disconnect`       | *(none)*                                   |
+| `kill_switch(target, symbol?)`  | target GW ID, optional symbol | none checked (the target's own message, L044) | `risk.kill_switch` | `risk.kill_switch_ack.{target}` |
+| `quote_cancel(target, symbol)`  | target GW ID, symbol          | none checked (the target's own message, L044) | `quote.cancel`     | `quote.cancel_ack.{target}`     |
+| `gateway_kick(target, reason?)` | target GW ID, optional reason | none checked (L044) | `system.gateway_disconnect`       | *(none)*                                   |
 | `book_depth(symbol)`            | symbol                        | Any connected GW | `book.snapshot_request`           | `book.{SYMBOL}`                            |
-| `order_list(target)`            | target GW ID                  | Any connected GW | `order.orders_request`            | `order.orders.{target}`                    |
+| `order_list(target)` / `orders_reply(target)` | target GW ID  | Any connected GW | `order.orders_request`            | `order.orders.{target}`                    |
 | `price_level_orders(sym, price?)` | symbol, optional price      | **ADMIN**         | `order.price_level_orders_request` | `order.price_level_orders.{GW}`           |
-| `symbol_list()`                 | —                             | Any connected GW | `system.symbols_request`          | `system.symbols.{GW}`                      |
-| `session_advance(state)`        | target state string           | Any connected GW | `session.transition`              | `session.state`                            |
+| `symbol_list()` / `tick_decimals(symbol)` | — / symbol      | Any connected GW | `system.symbols_request`          | `system.symbols.{GW}`                      |
+| `session_advance(state)`        | target state string           | Any connected GW | `session.transition`              | `session.transition_ack.{GW}`              |
 | `session_status()`              | —                             | Any connected GW | `system.session_state_request`    | `system.session_status.{GW}`               |
 | `session_schedule()`            | —                             | Any connected GW | `system.session_schedule_request` | `system.session_schedule.{GW}`             |
 | `gateway_list()`                | —                             | Any connected GW | `system.gateways_request`         | `system.gateways.{GW}`                     |
 | `volume()`                      | —                             | Any connected GW | `system.volume_request`           | `system.volume.{GW}`                       |
-| `position_snapshot(target)`     | target GW ID                  | Any connected GW | `system.position_request`         | `system.position_snapshot.{target}`        |
+| `position_snapshot(target)` / `positions_reply(target)` | target GW ID | Any connected GW | `system.position_request` | `system.position_snapshot.{target}` |
 | `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
@@ -1163,6 +1197,22 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `index_add_constituent(index, symbol, shares, price)` | index ID, symbol, shares, price | — | `index.constituent_change` | `index.constituent_change_ack.{GW}` |
 
 `mass_cancel(target, symbol)` is a convenience alias for `kill_switch(target, symbol=symbol)` — same message and ack, not a separate command.
+`kill_switch`, `mass_cancel` and `quote_cancel` are the participant's own
+self-service messages: an operator acting on *another* gateway uses
+`kill_switch_gateway` (with `symbol=` / `quotes_only=True`), which the engine
+checks for the ADMIN role and records under the operator's id.
+
+`order_list` and `position_snapshot` raise `CommandError` (`Gateway not
+configured: X`) for an id that is not a participant; `orders_reply` and
+`positions_reply` return the whole reply with its `status` instead.
+`tick_decimals(symbol)` is the symbol's display scale from the engine's
+symbol list (fetched once per client).
+
+A reply addressed to the client's own id (`{GW}` in the last column) is
+subscribed for the client's whole life; one keyed by a symbol or a target
+(`{SYMBOL}`, `{target}`) is subscribed only while its request waits, so an
+idle client never queues market data. Every request first drops whatever
+queued since the last one.
 
 The four `index_*` methods talk to `pm-index`'s PUSH/PUB pair (ports 5559/5558), not the engine's — see [Index Admin CLI — Why there is no connect() step](../part-4-run-a-market/080-index-administration.md#why-there-is-no-connect-authentication-step) for why they carry no auth.
 
@@ -1323,7 +1373,9 @@ The engine applies the gateway's configured `disconnect_behaviour`:
 | `CANCEL_QUOTES_ONLY` | Quotes cancelled, limit orders left resting                     |
 | `CANCEL_ALL`         | All quotes and orders cancelled                                 |
 
-No ack is published.  Verify the effect with `order_list("TRADER01")`.
+No ack is published, and the engine ignores an id that is not a participant.
+Check the target with `gateway_list()` before, and verify the effect there
+after: the entry's `connected` turns `False`.
 
 
 
@@ -1380,8 +1432,11 @@ for o in orders:
 ```
 
 Returns all resting (unfilled, non-cancelled) orders across all symbols for the
-target gateway.  Useful for confirming that a `kill_switch` or `mass_cancel`
-took effect.
+target gateway, connected or not, and raises `CommandError` (`Gateway not
+configured: X`) for an id that is not a participant.  Useful for confirming
+that a `kill_switch` or `mass_cancel` took effect.  `client.orders_reply("X")`
+returns the whole reply instead: `gateway_id`, `orders` and the engine's
+`status` (`OK`, `NOT_CONNECTED` or `UNKNOWN_GATEWAY`).
 
 
 
@@ -1532,8 +1587,10 @@ result = client.halt_all()
 print(f"HALT: {result['halted_symbols']} symbols halted, "
       f"{result['cancelled_quotes']} quotes cancelled")
 
-# 4. Cancel all exposure for the affected participant
-result = client.kill_switch("TRADER01")
+# 4. Cancel all exposure for the affected participant (the ADMIN kill
+#    switch: refused for an id that is not configured, recorded under yours)
+result = client.kill_switch_gateway("TRADER01", note="Compliance review")
+assert result["accepted"], result["reason"]
 print(f"Kill switch TRADER01: {result['cancelled_orders']} orders cancelled")
 
 # 5. Kick the affected gateway

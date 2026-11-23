@@ -38,19 +38,32 @@ Do these in order and keep the output; each step makes the next one worth quotin
    the *head hash* it prints with the one you anchored off-host (see
    [below](#anchoring-the-head-hash)). A match means no archived day, and no
    manifest entry before the anchor, has changed since it was anchored.
-2. **Prove it is complete.** `pm-audit-replay anomalies --severity warn` over the
-   day. A clean result means every per-topic and engine-wide sequence runs without
-   a hole, every fill has its trade, and the quantities conserve. Any `SEQ_GAP`,
-   `ESEQ_GAP` or `RECORDER_RESTART` in the window you are about to quote must be
-   explained first.
+2. **Prove it is complete.** `pm-audit-replay --date DAY anomalies --severity warn`
+   over the day. No finding at error means every per-topic and engine-wide
+   sequence runs without a hole, every fill has its trade, and the quantities
+   conserve. Any `SEQ_GAP`, `ESEQ_GAP` or `RECORDER_RESTART` in the window you are
+   about to quote must be explained first. On a busy day expect `CLOCK_SKEW`
+   warnings (the engine's and the recorder's clocks drifting apart under load)
+   and findings at the window's edges (`RESUME_WITHOUT_HALT` for a halt that began
+   before it, `TRADE_LEG_MISSING` "0 fill leg(s)" for a trade in the first
+   milliseconds of it, whose fills came just before); they say nothing about
+   completeness. Check that an error at the edge is one of these before quoting. The report reads the whole
+   day at about 11 000 lines a second in flat memory (about 320 MB): allow some
+   40 minutes for a simulation day of 27 million lines, or narrow it with
+   `--from`/`--to` to the hours in dispute.
 3. **Show the engine agrees.** `pm-audit-replay rerun` over the trail. Zero hidden
    inputs and zero differing episodes mean the trail is not only self-consistent but
    is what the matching engine does with those commands. Run it with the engine
-   version the day ran on (the output names both versions).
+   version the day ran on (the output names both versions). The final book is
+   compared only when the trail ends with the engine's shutdown; during the day
+   `rerun` says it was not checked, which is not a difference.
 4. **Answer the question** with `story`, `queue` or `stream` from the table above.
-5. **Quote with `--anonymise`** when the answer goes to a participant, so other
-   gateways appear as `gateway A`, `gateway B` and iceberg reserve is left out. The
-   inspected order's own gateway keeps its name.
+5. **Quote anonymised** when the answer goes to a participant. `queue
+   --anonymise` names other gateways `gateway A`, `gateway B` and leaves iceberg
+   reserve out; the inspected order's own gateway keeps its name. `story` and
+   `stream` have no such switch and name every counterparty: quote from them only
+   the lines about the participant's own orders, or replace the other gateway
+   names before sending.
 
 Every sentence the narrator prints traces to a field in a recorded line, and
 `--show-source` prints the file and line number so a reader can go and look.

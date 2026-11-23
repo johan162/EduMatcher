@@ -45,11 +45,16 @@ pm-opctl-cli start
 ```text
 Listed NEWCO in /home/me/course/engine_config.yaml: IPO price 20.00, 50000000 shares outstanding
   seed quote MM01: 1000 @ 19.90 / 1000 @ 20.10 (DAY)
-Deployed to /home/me/.local/share/edumatcher/ref_data/engine_config.json. Start the exchange to open trading.
+Deployed to /home/me/.local/share/edumatcher/ref_data/engine_config.json. Start every process of the exchange to open trading.
 ```
 
 `pm-ipo` is the same command under another name. Use whichever reads better
 in your course material.
+
+Every `pm-*` process reads the configuration only when it starts. If any of
+them still runs when the listing is deployed (a gateway, a recorder, a bot),
+the command names them in a `[WARN] still running on the configuration
+without NEWCO, restart them: …` line; restart those before trading starts.
 
 ## What the command does
 
@@ -207,22 +212,23 @@ configuration validation and then fail at the first fill.
 
 ## Why it refused
 
-Every refusal leaves the YAML and the deployed artifact unchanged.
+Every refusal leaves the YAML, the deployed artifact and the saved state
+unchanged, and exits with code 1 (a usage error exits with 2).
 
 | Message (abridged) | Cause | What to do |
 |---|---|---|
 | `something is listening on tcp://…:5556` / `pm-engine is running (pid …)` | The exchange is running | `pm-opctl-cli stop`, then run again |
-| `pgrep is unavailable …` | The running check cannot be done | Install `procps`. The command errs on the side of refusing |
 | `has edits that were never deployed` | The deployed source differs from what was deployed | Deploy or revert those edits first |
 | `is only the deployed copy of …` | `--config` points at `ref_data/` while the source lives elsewhere | Pass the real source with `--config` |
 | `is a bundled example` | The exchange runs a shipped example | Copy it, `pm-config-deploy` the copy, then list |
 | `already listed` | The symbol exists (in any letter case) | Choose another symbol |
 | `must be 1-8 characters …` | Invalid symbol name | See *Symbol names* |
 | `not on the … tick grid` | Price has too many decimals | Round it, or raise `--tick-decimals` |
+| `… cannot be represented exactly` | The price (or the seed bid/ask derived from it) is too large to be stored exactly at this many decimals | Use a smaller price or fewer `--tick-decimals` |
 | `several MARKET_MAKER gateways` | More than one market maker could seed it | Pass `--mm-gateway-id` |
 | `exceeds …'s obligation` / `below …'s obligation` | The explicit quote breaks the market maker's obligation | Tighten the spread or raise the quantities |
 | `… has a bid of …` | The default spread would push the bid to zero or below (penny stocks) | Give `--mm-bid-price` / `--mm-ask-price`, or more `--tick-decimals` |
-| `holds saved state for …` | `book_stats.json`, `gtc_orders.json` or `gtc_combos.json` still holds data for this symbol name | See below |
+| `holds saved state for …` | `book_stats.json`, `gtc_orders.json` or `gtc_combos.json` still holds data for this symbol name | Run again with `--discard-saved-state` (see below) |
 | `would make … invalid`, followed by check codes | The edited file fails validation (for example a bad `--field` value) | Fix what the listed codes describe (see [Config Verifier](../part-2-configure/020-config-verifier.md)) |
 | `rewrite 'symbols' in block style` / `cannot be appended …` | The YAML layout cannot be edited safely | Add the symbol by hand |
 
@@ -233,10 +239,16 @@ Every refusal leaves the YAML and the deployed artifact unchanged.
     before would open at the old price, with the old orders, not at the offer
     price. The same happens if you list a symbol, start the exchange, then
     remove it to correct a mistake before the engine has run again.
-    `pm-new-symbol` refuses in all of these cases. Remove the symbol's
-    entries from the files it names, or clear all engine state with
-    `pm-opctl-cli clear`. Note that the second option discards the resting
-    orders of *every* symbol. See [Persistence](../part-6-observe-and-recover/010-persistence.md).
+    `pm-new-symbol` refuses in all of these cases. Run it again with
+    `--discard-saved-state` (the engine must be stopped): once the edited
+    file has passed validation, it removes exactly this symbol's saved state
+    and says what it removed — its entry in `book_stats.json`, its resting
+    orders, and every resting combo with a leg in it, together with that
+    combo's legs in other symbols (a combo is one order). Nothing else is
+    touched. The heavy alternative, `pm-opctl-cli clear --state`, also
+    deletes every other symbol's resting orders and last prices,
+    `clearing.db` (all positions and P&L), `stats.db`, the index state and
+    the market model's values. See [Persistence](../part-6-observe-and-recover/010-persistence.md).
 
 ## The IPO-day checklist
 
@@ -296,6 +308,7 @@ The command handles the configuration. These steps are yours:
 | `--mm-tif` | `DAY` | `DAY` or `GTC` |
 | `--[no-]mm-seed-once` | on | Skip the seed when a restored quote exists |
 | `--field KEY=YAML_VALUE` | none | `level`, `collar`, `order_limits`, `circuit_breaker`; repeatable |
+| `--discard-saved-state` | off | Remove this symbol's saved engine state instead of refusing (engine stopped) |
 
 ## Where to go next
 

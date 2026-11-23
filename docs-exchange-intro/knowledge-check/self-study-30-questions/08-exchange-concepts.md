@@ -75,8 +75,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 7. TIF, a comprehensive review
 - [ ] A. IOC orders can rest in the book awaiting a better price
-- [ ] B. DAY orders are cancelled automatically at session end if unfilled
-- [ ] C. FOK requires a full, immediate fill or the entire order is cancelled
+- [ ] B. DAY orders expire automatically at session end if unfilled
+- [ ] C. FOK requires a full, immediate fill or the entire order is rejected
 - [ ] D. ATC orders specifically target the price set by the closing auction uncross
 - [ ] E. GTC orders must be persisted and reloaded across sessions
 

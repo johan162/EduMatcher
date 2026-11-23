@@ -390,7 +390,7 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x07` | `RC_HALT_REJECTION` | Symbol halted, by a circuit breaker or by an administrator — BALF has one code for both |
 | `0x08` | `RC_PHASE_REJECTION` | Rejected by the current session phase |
 | `0x09` | `RC_TRAILING_STOP_NO_PRICE` | TRAILING_STOP with no prior trade price |
-| `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
+| `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | A `FOK` could not be filled in full at its price or better; nothing traded. A `MARKET` or `IOC` order that runs out of book is *accepted*, and its remainder arrives as a `CANCEL_ACK` with `cancel_reason` `2` instead |
 | `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
 | `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, a price field the order type needs and lacks (`"LIMIT requires price"`) or does not use (`"LIMIT forbids trail_offset"`), or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
 | `0x0D` | `RC_RATE_LIMITED` | The session sent more than `max_messages_per_second`; `reason` = `"RATE_LIMITED"`. A rate-limited `CANCEL_ORDER` or `AMEND_ORDER` is answered with its own ack, `accepted = 0`; a rate-limited heartbeat gets no answer. `LOGOUT` is never rate-limited. |

@@ -32,6 +32,8 @@ from edumatcher.audit.replay.index import (
     META_SCHEMA_VERSION,
     RULES_VERSION,
     SCHEMA_VERSION,
+    IndexWriter,
+    NotAnIndexError,
     StaleIndexError,
     build,
     describe,
@@ -50,16 +52,13 @@ KILL_SWITCH = FIXTURES / "02_halted_reject_and_kill_switch.log"
 ARCHIVED = FIXTURES / "03_archived_no_envelope.log"
 
 
-def build_from(
-    log: Path, db: Path, *, rebuild: bool = False, batch_size: int = 500
-) -> int:
+def build_from(log: Path, db: Path, *, batch_size: int = 500) -> int:
     run, steps = reconstruct(iter_entries([log]))
     return build(
         db,
         assemble(steps, run.state, run.links),
         run.state,
         [log],
-        rebuild=rebuild,
         batch_size=batch_size,
     )
 
@@ -119,7 +118,7 @@ class TestTheVersionGuard:
 class TestCoverage:
     def test_every_line_of_the_log_is_one_event_row(self, db: Path) -> None:
         for log in (SIMPLE, KILL_SWITCH, ARCHIVED):
-            build_from(log, db, rebuild=True)
+            build_from(log, db)
             conn = opened(open_readonly(db))
             rows = conn.execute("SELECT file, line_no FROM episode_events").fetchall()
             lines = [
@@ -374,13 +373,13 @@ class TestRebuilding:
         fresh = tmp_path / "fresh.db"
         build_from(KILL_SWITCH, fresh)
         build_from(SIMPLE, db)
-        build_from(KILL_SWITCH, db, rebuild=True)
+        build_from(KILL_SWITCH, db)
         assert _rows(db) == _rows(fresh)
 
     def test_building_the_same_log_twice_is_indistinguishable_from_once(
         self, db: Path
     ) -> None:
-        """Keys are stable, so a re-run upserts rather than doubling.
+        """Every build starts from an empty scratch file, so nothing doubles.
 
         This is what lets the CLI build whenever the index is absent or stale
         without first working out what is already in it.
@@ -398,11 +397,15 @@ class TestRebuilding:
         build_from(KILL_SWITCH, db, batch_size=10_000)
         assert _rows(db) == _rows(one_at_a_time)
 
-    def test_the_index_is_in_wal_mode(self, db: Path) -> None:
+    def test_the_finished_index_is_one_file(self, db: Path) -> None:
+        """Not WAL: a ``-wal``/``-shm`` pair belongs to the name, not the
+        file, and would outlive the ``os.replace`` that installs a build."""
         build_from(SIMPLE, db)
+        build_from(KILL_SWITCH, db)
         conn = sqlite3.connect(str(db))
-        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
         conn.close()
+        assert sorted(p.name for p in db.parent.iterdir()) == [db.name]
 
 
 _TABLES = (
@@ -433,3 +436,130 @@ def _rows(db: Path) -> dict[str, list[tuple[object, ...]]]:
         (key, value) for key, value in describe(conn).items() if key != "built_at"
     )
     return snapshot
+
+
+# ---------------------------------------------------------------------------
+# WP-RPL01: --db never destroys a file that is not an index (H1), and a build
+# never leaves a half index behind (C7)
+# ---------------------------------------------------------------------------
+
+
+class TestOnlyAnIndexIsEverReplaced:
+    """`open_index` used to discard any file it could not read a version
+    from, which is every file that is not an episode index: `--db
+    clearing.db --rebuild` deleted the ledger and wrote an index in its
+    place, exit 0."""
+
+    def test_a_foreign_sqlite_file_is_refused_and_kept(self, tmp_path: Path) -> None:
+        other = tmp_path / "other.db"
+        conn = sqlite3.connect(other)
+        conn.execute("CREATE TABLE money (amount INTEGER)")
+        conn.execute("INSERT INTO money VALUES (100)")
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(NotAnIndexError, match="other.db"):
+            build_from(SIMPLE, other)
+        with pytest.raises(NotAnIndexError, match="other.db"):
+            open_readonly(other)
+
+        conn = sqlite3.connect(other)
+        assert conn.execute("SELECT amount FROM money").fetchall() == [(100,)]
+        conn.close()
+
+    def test_a_file_that_is_not_a_database_is_refused_and_kept(
+        self, tmp_path: Path
+    ) -> None:
+        notes = tmp_path / "notes.txt"
+        notes.write_bytes(b"my notes, keep\n")
+        with pytest.raises(NotAnIndexError):
+            build_from(SIMPLE, notes)
+        with pytest.raises(NotAnIndexError):
+            open_readonly(notes)
+        assert notes.read_bytes() == b"my notes, keep\n"
+
+    def test_an_index_of_an_older_schema_is_still_replaced(self, db: Path) -> None:
+        build_from(SIMPLE, db)
+        conn = opened(open_index(db))
+        write_meta(conn, META_SCHEMA_VERSION, str(SCHEMA_VERSION - 1))
+        conn.commit()
+        conn.close()
+        build_from(KILL_SWITCH, db)
+        with reading(db) as conn:
+            assert describe(conn)[META_SCHEMA_VERSION] == str(SCHEMA_VERSION)
+
+
+class TestABuildIsAtomic:
+    def test_a_build_that_fails_halfway_leaves_the_old_index(
+        self, db: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        build_from(KILL_SWITCH, db)
+        before = _rows(db)
+
+        original = IndexWriter.flush
+        calls = {"n": 0}
+
+        def failing(self: IndexWriter) -> None:
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise RuntimeError("disk full")
+            original(self)
+
+        monkeypatch.setattr(IndexWriter, "flush", failing)
+        with pytest.raises(RuntimeError, match="disk full"):
+            build_from(SIMPLE, db, batch_size=1)
+
+        assert _rows(db) == before
+        assert sorted(p.name for p in db.parent.iterdir()) == [db.name]
+
+    def test_a_reader_keeps_the_index_it_opened(self, db: Path) -> None:
+        build_from(KILL_SWITCH, db)
+        old = opened(open_readonly(db))
+        old_count = old.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
+
+        build_from(SIMPLE, db)
+
+        assert old.execute("SELECT COUNT(*) FROM episodes").fetchone()[0] == old_count
+        with reading(db) as new:
+            new_count = new.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
+        assert new_count != old_count
+
+
+class TestStoryReadsOnlyItsOwnLinks:
+    """WP-RPL05 (P2): every hop of ``story`` read the whole ``stated_links``
+    table -- 1.6 s and 72 MB per part, ×72 for a day's index."""
+
+    def test_no_statement_story_runs_scans_stated_links(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from edumatcher.audit.replay import index as index_mod
+        from edumatcher.audit.replay.cli import main
+
+        log = FIXTURES / "04_quote_oco_combo.log"
+        db = tmp_path / "replay.db"
+        assert main(["--log-file", str(log), "--db", str(db), "index"]) == 0
+
+        statements: list[str] = []
+        real = index_mod.open_readonly
+
+        def traced(path: Path) -> sqlite3.Connection:
+            conn = real(path)
+            conn.set_trace_callback(statements.append)
+            return conn
+
+        monkeypatch.setattr(index_mod, "open_readonly", traced)
+        with reading(db) as conn:
+            order = conn.execute(
+                "SELECT anchor_key FROM episodes WHERE kind = 'order' LIMIT 1"
+            ).fetchone()[0]
+        argv = ["--log-file", str(log), "--db", str(db), "story", "--order", order]
+        assert main([*argv, "--explain", "-vv"]) == 0
+
+        selects = [s for s in statements if s.lstrip().upper().startswith("SELECT")]
+        assert any("stated_links" in s for s in selects)
+        with reading(db) as conn:
+            for sql in selects:
+                plan = " | ".join(
+                    str(row[3]) for row in conn.execute(f"EXPLAIN QUERY PLAN {sql}")
+                )
+                assert "SCAN stated_links" not in plan, sql

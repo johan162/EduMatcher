@@ -221,3 +221,117 @@ def test_a_run_that_is_not_the_first_start_of_its_data_dir_reruns_clean(
     code, out = run(record(tmp_path / "data", run_seq=9), capsys)
     assert code == 0, out
     assert "outputs: 0 differing episodes" in out
+
+
+class TestALiveTrail:
+    """WP-RPL08: `rerun` on a trail the exchange is still writing (C6, C8)."""
+
+    def test_a_half_written_last_line_is_not_read(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = record(tmp_path / "data")
+        whole = run(data, capsys)
+        log = data / "audit.log"
+        # A line the re-run parses (not a system.* line it skips unread).
+        last = [ln for ln in log.read_text().splitlines() if "[order.ack." in ln][-1]
+        with log.open("a") as handle:
+            handle.write(last[: last.index("{") + 12])  # cut inside its JSON
+        assert run(data, capsys) == whole
+
+    @pytest.mark.parametrize(
+        "change",
+        (
+            lambda ln: [ln.replace("[seq=", "[seq=abc", 1)],
+            lambda ln: [ln[: ln.index("{") + 12] + "\n"],
+        ),
+        ids=("meta", "body"),
+    )
+    def test_a_malformed_line_inside_the_trail_is_unavailable(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], change: Any
+    ) -> None:
+        data = record(tmp_path / "data")
+        edit(data, "[order.ack.TRADER02]", change)
+        code = main(["--log-file", str(data / "audit.log"), "rerun"])
+        assert code == 3
+        err = capsys.readouterr().err
+        assert "order.ack.TRADER02" in err
+        assert "2026-10-24T07:00:00.000+00:00" in err
+
+    def test_a_trail_whose_engine_had_not_shut_down_does_not_compare_the_book(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = record(tmp_path / "data", shutdown=False)
+        # A periodic checkpoint older than the trail's end: one order fewer.
+        (data / "gtc_orders.json").write_text("[]")
+        code, out = run(data, capsys)
+        assert code == 0, out
+        assert "final book: not checked (the engine had not shut down" in out
+
+    def test_a_trail_that_ends_with_the_shutdown_compares_the_book(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = record(tmp_path / "data")
+        (data / "gtc_orders.json").write_text("[]")
+        code, out = run(data, capsys)
+        assert code == 1
+        assert "final book: " in out and "differences" in out
+        assert "final book: 0 differences" not in out
+
+
+def test_an_order_the_engine_does_not_persist_is_not_a_book_difference(
+    tmp_path: Path,
+) -> None:
+    """The engine persists only GTC and DAY orders; an ATO or ATC order
+    resting at the end is not missing from ``gtc_orders.json``."""
+    from types import SimpleNamespace
+
+    from edumatcher.audit.replay.rerun import Rerun
+    from edumatcher.models.order import TIF
+
+    (tmp_path / "gtc_orders.json").write_text(
+        json.dumps([{"id": "a" * 32, "remaining_qty": 5}])
+    )
+    r = Rerun(tmp_path)
+    r.shut_down = True
+    orders = [
+        SimpleNamespace(id="a" * 32, remaining_qty=5, tif=TIF.DAY),
+        SimpleNamespace(id="b" * 32, remaining_qty=7, tif=TIF.ATO),
+        SimpleNamespace(id="c" * 32, remaining_qty=7, tif=TIF.ATC),
+    ]
+    book = SimpleNamespace(resting_orders=lambda: orders)
+    r.engine = SimpleNamespace(books={"AAPL": book})
+    r.final_book()
+    assert r.book_checked
+    assert r.counts["E4"] == 0
+
+
+class TestOptionsItIgnores:
+    """C11: `rerun` and `queue` read the whole trail of the --log-file's
+    directory; a window or filter they would ignore is refused."""
+
+    @pytest.mark.parametrize(
+        "argv",
+        (
+            ["--date", "1999-01-01", "rerun"],
+            ["--from", "2026-10-24", "rerun"],
+            ["--last", "1h", "rerun"],
+            ["--gateway", "TRADER01", "rerun"],
+            ["--kind", "order", "rerun"],
+            ["--symbol", "AAPL", "rerun"],
+            ["--strict", "rerun"],
+            ["--tz", "Europe/Stockholm", "queue", "--order", "ab"],
+            ["--to", "2026-10-24", "queue", "--order", "ab"],
+        ),
+    )
+    def test_an_ignored_option_is_refused(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], argv: list[str]
+    ) -> None:
+        assert main(["--log-file", str(tmp_path / "audit.log"), *argv]) == 2
+        assert "takes no" in capsys.readouterr().err
+
+    def test_an_archive_as_log_file_is_refused(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        archive = tmp_path / "audit" / "audit-2026-10-24.log.zst"
+        assert main(["--log-file", str(archive), "rerun"]) == 2
+        assert "audit.log" in capsys.readouterr().err

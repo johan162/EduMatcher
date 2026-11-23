@@ -86,12 +86,12 @@ _shtab_pm_admin_cli_commands() {
     gateways:'List all configured gateways and their connection status'
     halt:'Exchange-wide circuit-breaker halt (ADMIN role required)'
     halt-sym:'Halt trading on a single symbol (ADMIN role required)'
-    kick:'Forcefully disconnect a gateway'
-    kill:'Cancel all resting orders and quotes for a gateway'
+    kick:'Forcefully disconnect a connected gateway (no ack; refused for an unknown or disconnected one)'
+    kill:'Cancel all resting orders and quotes for a gateway, connected or not (another gateway: ADMIN role required)'
     level:'Show every resting order making up a symbol (or one price level), across all gateways (ADMIN role required)'
-    orders:'List all resting orders for a gateway'
+    orders:'List all resting orders for a gateway, connected or not'
     position:'Show net position, avg cost, and live bid/ask/spread/mid per symbol for a gateway (any gateway, not just a market maker)'
-    qcancel:'Cancel the active two-sided quote for a gateway on one symbol'
+    qcancel:'Cancel the active two-sided quote for a gateway on one symbol (another gateway: ADMIN role required)'
     reopen:'Force one symbol to uncross now and clear any halt in one step (ADMIN role required)'
     resume:'Resume all symbols halted by '"'"'halt'"'"' (ADMIN role required)'
     resume-sym:'Resume a single symbol halted by '"'"'halt-sym'"'"' or a circuit breaker (ADMIN role required)'
@@ -107,7 +107,7 @@ _shtab_pm_admin_cli_commands() {
 _shtab_pm_admin_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--id[ADMIN gateway ID configured in engine_config.yaml (e.g. GW_ADMIN)]:GW_ID:"
+  "--id[ADMIN gateway ID configured in engine_config.yaml (e.g. ADMIN_CLI)\; not one a running pm-admin console holds]:GW_ID:"
   "--push[Engine PULL socket address (default\: tcp\:\/\/127.0.0.1\:5555)]:ADDR:"
   "--sub[Engine PUB socket address (default\: tcp\:\/\/127.0.0.1\:5556)]:ADDR:"
   "--timeout[Ack timeout in milliseconds (default\: 3000)]:MS:"
@@ -1018,9 +1018,8 @@ _shtab_pm_audit_replay_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log). Reads the live trail\: unarchived day parts, then this file. An archive or day part named here is read alone.]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\; the reports name it in the story commands they suggest]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1050,9 +1049,8 @@ _shtab_pm_audit_replay_defaults_added=0
 _shtab_pm_audit_replay_anomalies_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1083,9 +1081,8 @@ _shtab_pm_audit_replay_anomalies_defaults_added=0
 _shtab_pm_audit_replay_digest_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1117,9 +1114,8 @@ _shtab_pm_audit_replay_digest_defaults_added=0
 _shtab_pm_audit_replay_episodes_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1150,9 +1146,8 @@ _shtab_pm_audit_replay_episodes_defaults_added=0
 _shtab_pm_audit_replay_index_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1183,9 +1178,8 @@ _shtab_pm_audit_replay_index_defaults_added=0
 _shtab_pm_audit_replay_queue_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1219,9 +1213,8 @@ _shtab_pm_audit_replay_queue_defaults_added=0
 _shtab_pm_audit_replay_rerun_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1251,9 +1244,8 @@ _shtab_pm_audit_replay_rerun_defaults_added=0
 _shtab_pm_audit_replay_stats_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1283,9 +1275,8 @@ _shtab_pm_audit_replay_stats_defaults_added=0
 _shtab_pm_audit_replay_story_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -1326,9 +1317,8 @@ _shtab_pm_audit_replay_story_defaults_added=0
 _shtab_pm_audit_replay_stream_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
-  "--no-index[Stream without building or reading an index]"
-  "--rebuild[Rebuild the episode index before rendering]"
+  "--db[Episode index story and index use (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)\;]:PATH:"
+  "--rebuild[story, index\: rebuild the episode index first]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
@@ -3295,15 +3285,16 @@ _shtab_pm_ipo_options=(
   "--config[Authored YAML to edit (default\: the deployed configuration\'s source)]:config:"
   "--symbol[New symbol, 1-8 of A-Z 0-9 . _]:symbol:"
   "--ipo-price[Offer price\: the book\'s reference price for collars and breakers]:ipo_price:"
-  "--outstanding-shares[outstanding_shares]:outstanding_shares:"
-  "--tick-decimals[tick_decimals]:tick_decimals:"
+  "--outstanding-shares[Shares outstanding, positive (for index market caps)]:outstanding_shares:"
+  "--tick-decimals[Price grid\: decimals of one tick, 0..8 (default\: 2)]:tick_decimals:"
   "--mm-gateway-id[MARKET_MAKER gateway that posts the seed quote]:mm_gateway_id:"
-  "--mm-bid-price[mm_bid_price]:mm_bid_price:"
-  "--mm-ask-price[mm_ask_price]:mm_ask_price:"
-  "--mm-bid-qty[mm_bid_qty]:mm_bid_qty:"
-  "--mm-ask-qty[mm_ask_qty]:mm_ask_qty:"
-  "--mm-tif[mm_tif]:mm_tif:(DAY GTC)"
-  {--mm-seed-once,--no-mm-seed-once}"[mm_seed_once]"
+  "--mm-bid-price[Seed quote bid\; with --mm-ask-price (default\: the widest spread the market maker may quote, around the IPO price)]:mm_bid_price:"
+  "--mm-ask-price[Seed quote ask\; with --mm-bid-price]:mm_ask_price:"
+  "--mm-bid-qty[Seed bid size (default\: 1000)]:mm_bid_qty:"
+  "--mm-ask-qty[Seed ask size (default\: 1000)]:mm_ask_qty:"
+  "--mm-tif[Seed quote time in force (default\: DAY)]:mm_tif:(DAY GTC)"
+  {--mm-seed-once,--no-mm-seed-once}"[Skip the seed when the market maker\'s quote was restored at start (default\: on)]"
+  "--discard-saved-state[Remove this symbol\'s saved engine state (last prices, resting orders, combos with a leg in it) before listing, instead of refusing\; needs the engine stopped]"
   "*--field[Optional symbol section, one of level, collar, order_limits, circuit_breaker\; repeatable (e.g. --field \'collar\=\{static_band_pct\: 0.2\}\')]:KEY=YAML_VALUE:"
 )
 
@@ -4243,15 +4234,16 @@ _shtab_pm_new_symbol_options=(
   "--config[Authored YAML to edit (default\: the deployed configuration\'s source)]:config:"
   "--symbol[New symbol, 1-8 of A-Z 0-9 . _]:symbol:"
   "--ipo-price[Offer price\: the book\'s reference price for collars and breakers]:ipo_price:"
-  "--outstanding-shares[outstanding_shares]:outstanding_shares:"
-  "--tick-decimals[tick_decimals]:tick_decimals:"
+  "--outstanding-shares[Shares outstanding, positive (for index market caps)]:outstanding_shares:"
+  "--tick-decimals[Price grid\: decimals of one tick, 0..8 (default\: 2)]:tick_decimals:"
   "--mm-gateway-id[MARKET_MAKER gateway that posts the seed quote]:mm_gateway_id:"
-  "--mm-bid-price[mm_bid_price]:mm_bid_price:"
-  "--mm-ask-price[mm_ask_price]:mm_ask_price:"
-  "--mm-bid-qty[mm_bid_qty]:mm_bid_qty:"
-  "--mm-ask-qty[mm_ask_qty]:mm_ask_qty:"
-  "--mm-tif[mm_tif]:mm_tif:(DAY GTC)"
-  {--mm-seed-once,--no-mm-seed-once}"[mm_seed_once]"
+  "--mm-bid-price[Seed quote bid\; with --mm-ask-price (default\: the widest spread the market maker may quote, around the IPO price)]:mm_bid_price:"
+  "--mm-ask-price[Seed quote ask\; with --mm-bid-price]:mm_ask_price:"
+  "--mm-bid-qty[Seed bid size (default\: 1000)]:mm_bid_qty:"
+  "--mm-ask-qty[Seed ask size (default\: 1000)]:mm_ask_qty:"
+  "--mm-tif[Seed quote time in force (default\: DAY)]:mm_tif:(DAY GTC)"
+  {--mm-seed-once,--no-mm-seed-once}"[Skip the seed when the market maker\'s quote was restored at start (default\: on)]"
+  "--discard-saved-state[Remove this symbol\'s saved engine state (last prices, resting orders, combos with a leg in it) before listing, instead of refusing\; needs the engine stopped]"
   "*--field[Optional symbol section, one of level, collar, order_limits, circuit_breaker\; repeatable (e.g. --field \'collar\=\{static_band_pct\: 0.2\}\')]:KEY=YAML_VALUE:"
 )
 
@@ -4439,7 +4431,7 @@ _shtab_pm_opctl_cli_commands() {
     down:'stop processes started by pm-opctl'
     health:'check health of every process in the active profile'
     init:'create the built-in process profile configuration'
-    kill:'send SIGTERM to every process whose command line contains pm-'
+    kill:'send SIGTERM to every running pm-* program of this user (not only those started here); exit 1 if one survives'
     list:'list status for the active process profile'
     show:'print version, data directory and configuration paths'
     start:'start a named process profile'
@@ -4459,9 +4451,10 @@ _shtab_pm_opctl_cli_defaults_added=0
 
 _shtab_pm_opctl_cli_clear_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--state[delete persisted engine\/session state (order books, GTC orders, stats, index\/clearing state) but keep logs and audit files]"
+  "--state[delete persisted engine\/session state (order books, GTC orders, stats, index\/clearing state, market-model values) but keep logs and audit files]"
   "--all[delete all data, including logs and audit files]"
   "--yes[skip the confirmation prompt]"
+  "--force[clear even while pm-\* processes are running (they may keep writing to the deleted files)]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -5428,6 +5421,7 @@ _shtab_pm_valuation_options=(
   "--presets[Alternative presets file]:presets:"
   "--list[With --no-tui\: list the priced IPO with pm-new-symbol]"
   "--config[With --list\: the engine YAML pm-new-symbol edits]:config:"
+  "--discard-saved-state[With --list\: let pm-new-symbol remove the ticker\'s saved engine state from an earlier run instead of refusing]"
 )
 
 # guard to ensure default positional specs are added only once per session

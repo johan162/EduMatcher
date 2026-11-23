@@ -109,7 +109,7 @@ class TestEveryPathAgrees:
     def test_every_published_fill_passes_the_generated_validator(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
     ) -> None:
-        """The check the enum declaration buys. ``make_fill_msg`` publishes
+        """The check the enum declaration buys. ``Engine._fill_frames`` publishes
         unchecked for speed, so nothing validates these in production -- this
         is where a status off the enum is caught instead."""
         engine, pub_sock = make_engine(
