@@ -3916,7 +3916,7 @@ pm-opctl-cli stop
 pm-opctl-cli kill
 pm-opctl-cli init
 pm-opctl-cli show [--json]
-pm-opctl-cli clear (--state | --all) [--yes]
+pm-opctl-cli clear (--state | --all) [--yes] [--force]
 ```
 
 **Profiles:**
@@ -3932,7 +3932,7 @@ that file exists:
 | `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, the BALF gateway, and the index calculation process (`pm-index`) |
 | `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
 | `ai-swarm` | The `default` set, `mm-demo`'s market-maker bot with `--anchor-sim 0.3` (quoting around the true values; an unanchored passive maker pins prices), `pm-market-sim --verbose` (the market model and its news) and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000 --verbose`: twenty AI traders (`AI001`–`AI020`, every built-in preset in equal shares, each on every symbol) in one worker process. Needs a config that registers them and ships a `market_sim.yaml`, such as the `s150` examples or `s300-load` |
-| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 120 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7` and `pm-clearing --print-every 0 --retention-days 7`, plus a third API gateway instance, `monitor` on `8082`, for the admin monitor feed. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
+| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 120 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 2 --human-gateways 'TRADER*' --keep-human-order-events-days 7`, `pm-clearing --print-every 0 --retention-days 7`, `pm-audit --max-file-mb 256 --keep-days 7`, `pm-scheduler --on-close 'pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db'`, plus a third API gateway instance, `monitor` on `8082`, for the admin monitor feed. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
 
 Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
 once that file exists its profiles replace the built-ins entirely (a missing
@@ -3944,14 +3944,22 @@ once that file exists its profiles replace the built-ins entirely (a missing
 |---|---|---|---|
 | `start [PROFILE]` | `up` | `-d`/`--debug`/`-vv` (append `--log-level DEBUG` to every process's command) | Start a profile (`default` when omitted), skipping entries already running |
 | `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer), `--no-tcp-probe` (do not connect to each process's port; a live process reads as running) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
-| `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list`; exits `0` only when every process is running — for monitoring scripts |
-| `stop` | `down` | — | Send `SIGTERM` to processes this tool started (recorded in the PID directory) |
-| `kill` | — | — | Emergency stop: `pkill -15 -f -i -l pm-` — signals every process whose command line contains `pm-`, including ones this tool did not start |
+| `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list` (always with the `tcp` probe); exits `0` only when every process is running — for monitoring scripts |
+| `stop` | `down` | — | `SIGTERM`, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running 15 s later keeps its PID file and makes `stop` exit `1` |
+| `kill` | — | — | Emergency stop: `SIGTERM` to every running process of this user whose program is a `pm-*` command, including ones this tool did not start (never to `npm`, editors or the calling shell, which merely mention `pm-`), plus every process recorded in the PID directory; exits `1` when one survives |
 | `init` | — | — | Write the built-in profiles to `<DATA_DIR>/emo-config.yaml`; refuses to overwrite an existing file |
 | `show` | — | `--json` | Print version, resolved data directory, and deployed config paths — same info as `pm-config-deploy --show` |
-| `clear` | — | `--state` (the exchange's working state: GTC orders and combos, book statistics, `stats.db`, `clearing.db`, index state) or `--all` (also the audit trail and its index, `log.db`, `metrics.db`, fallback logs, the PID directory, and `pm-eod`'s `eod.db`, `settlement/` and `backup/`), `--yes` (skip prompt) | Delete persisted data under the data directory; `ref_data/` (configuration) is never touched |
+| `clear` | — | `--state` (the exchange's working state: GTC orders and combos, book statistics, `stats.db`, `clearing.db`, index state, the market model's `market_sim_state.json`) or `--all` (also the audit trail and its indexes `audit_index.db`/`audit_replay.db`, `log.db`, `metrics.db`, fallback logs, the PID directory, `pm-eod`'s `eod.db`, `settlement/` and `backup/`, `market_sim_news.db`, `ai_swarm/` and the engine's `eod/` archives), `--yes` (skip prompt), `--force` (clear even while `pm-*` processes run) | Delete persisted data under the data directory; `ref_data/`, `engine_run_seq.json` and `companies.db` are never touched |
 
-Exactly one of `--state`/`--all` must be given to `clear`.
+Exactly one of `--state`/`--all` must be given to `clear`. It refuses (exit
+`1`) while `pm-*` processes of this user run, since they would keep writing to
+the deleted files; stop them first or pass `--force`.
+
+**Exit codes:** `0` success; `1` — `start`: a process it started exited
+within a second (named with its exit code and log); `stop`/`kill`: a process
+outlived `SIGTERM` (its PID file is kept); `health`: a process is not
+`running`, or no profile is active; `clear`: refused or declined; `2` — usage
+or configuration error.
 
 `start --debug` appends `--log-level DEBUG` to every process's command line
 before it is launched, overriding whatever level a profile's `--verbose` (or
@@ -3979,11 +3987,16 @@ configured check passed). A `healthcheck` command takes precedence over a
 **Process tracking:**
 
 Started processes are detached into their own session and recorded as
-`<DATA_DIR>/emo/<name>.pid`, with combined stdout/stderr appended to
+`<DATA_DIR>/emo/<name>.pid` (the PID, the process's start time and the
+command it was launched with), with combined stdout/stderr appended to
 `<DATA_DIR>/emo/<name>.log`. The active profile name is remembered in
-`<DATA_DIR>/emo/active-profile`. A process restarted outside this tool is
-re-adopted on the next `list`/`health`/`stop` by matching its command line via
-`pgrep`, so a stale PID file is never treated as final.
+`<DATA_DIR>/emo/active-profile`. A PID file is trusted only while the process
+with that PID also has the recorded start time (or, after the wall clock was
+stepped, still runs the recorded command as this user): after a crash, a killed container or a reboot the PID may belong to
+another process, and such a file is removed rather than acted on. A profile
+process whose PID file is missing or stale (one restarted outside this tool)
+is re-adopted on the next `start`/`list`/`health`/`stop` by matching its exact
+command line among this user's processes.
 
 This tool is local orchestration logic — it starts other `pm-*` processes as
 subprocesses and reads their PID/log files, but binds no ZeroMQ or TCP port

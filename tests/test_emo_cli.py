@@ -30,6 +30,10 @@ from edumatcher.emo.cli import (
 def _data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point every resolve_data_path() call in emo.cli at an isolated tmp_path."""
     monkeypatch.setattr(emo_cli, "resolve_data_path", lambda p: tmp_path / p)
+    # These tests spawn through mocks that hand out PIDs of no process; the
+    # check that started processes are still alive has its own tests
+    # (tests/test_emo_reporting.py).
+    monkeypatch.setattr(emo_cli, "_report_early_exits", lambda spawned: False)
     return tmp_path
 
 
@@ -296,31 +300,55 @@ def test_init_creates_editable_profiles_but_never_overwrites(
 @pytest.mark.parametrize(
     "cmdline, command, expected",
     [
-        ("python /venv/bin/pm-engine --verbose", ["pm-engine", "--verbose"], True),
-        ("/venv/bin/pm-engine --quiet", ["pm-engine", "--verbose"], False),
-        ("python pm-stats --verbose", ["pm-engine", "--verbose"], False),
-        ('python "unterminated', ["pm-engine"], False),
+        (
+            ["python", "/venv/bin/pm-engine", "--verbose"],
+            ["pm-engine", "--verbose"],
+            True,
+        ),
+        (["/venv/bin/pm-engine", "--quiet"], ["pm-engine", "--verbose"], False),
+        (["python", "pm-stats", "--verbose"], ["pm-engine", "--verbose"], False),
+        (["python", '"unterminated'], ["pm-engine"], False),
+        # One argv element with spaces is one argument (pm-opctl review C3).
+        (
+            ["python", "/v/pm-scheduler", "--on-close", "pm-eod run --pending"],
+            ["pm-scheduler", "--on-close", "pm-eod run --pending"],
+            True,
+        ),
+        (
+            ["python", "/v/pm-scheduler", "--on-close", "pm-eod", "run", "--pending"],
+            ["pm-scheduler", "--on-close", "pm-eod run --pending"],
+            False,
+        ),
     ],
 )
 def test_command_matching_requires_program_and_every_argument(
-    cmdline: str, command: list[str], expected: bool
+    cmdline: list[str], command: list[str], expected: bool
 ) -> None:
     assert emo_cli.matches_command(cmdline, command) is expected
 
 
-def test_read_pid_distinguishes_missing_dead_and_permission_denied(
+def test_read_pid_trusts_only_the_process_that_started_at_the_recorded_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     assert emo_cli.read_pid("engine") is None
 
     emo_cli.pid_path("engine").parent.mkdir(parents=True)
-    emo_cli.pid_path("engine").write_text("123\n", encoding="ascii")
-    monkeypatch.setattr(os, "kill", Mock(side_effect=ProcessLookupError))
-    assert emo_cli.read_pid("engine") is None
+    starts = {123: None, 456: 1000.5}
+    monkeypatch.setattr(emo_cli, "process_start_time", lambda pid: starts[pid])
+
+    emo_cli.pid_path("engine").write_text("123 99.0\n", encoding="ascii")
+    assert emo_cli.read_pid("engine") is None  # gone
+    assert not emo_cli.pid_path("engine").exists()
+
+    emo_cli.pid_path("engine").write_text("456 999.0\n", encoding="ascii")
+    assert emo_cli.read_pid("engine") is None  # PID reused by another process
     assert not emo_cli.pid_path("engine").exists()
 
     emo_cli.pid_path("engine").write_text("456\n", encoding="ascii")
-    monkeypatch.setattr(os, "kill", Mock(side_effect=PermissionError))
+    assert emo_cli.read_pid("engine") is None  # no start time: stale
+    assert not emo_cli.pid_path("engine").exists()
+
+    emo_cli.pid_path("engine").write_text("456 1000.5\n", encoding="ascii")
     assert emo_cli.read_pid("engine") == 456
 
 
@@ -338,8 +366,11 @@ def test_resolve_pid_prefers_recorded_pid_and_re_adopts_matching_restart(
     discover.assert_not_called()
 
     monkeypatch.setattr(emo_cli, "read_pid", lambda name: None)
+    monkeypatch.setattr(emo_cli, "process_start_time", lambda pid: 77.25)
     assert emo_cli.resolve_pid(process, claimed) == (202, True)
-    assert emo_cli.pid_path("engine").read_text(encoding="ascii") == "202\n"
+    assert emo_cli.pid_path("engine").read_text(encoding="ascii") == (
+        '202 77.25\n["pm-engine", "--verbose"]\n'
+    )
 
 
 def test_discovery_skips_self_and_claimed_before_matching_command(
@@ -348,8 +379,12 @@ def test_discovery_skips_self_and_claimed_before_matching_command(
     process = {"name": "engine", "command": ["pm-engine", "--verbose"]}
     monkeypatch.setattr(os, "getpid", lambda: 10)
     monkeypatch.setattr(emo_cli, "pgrep_pids", lambda program: [10, 20, 30, 40])
-    lines = {30: "python pm-engine --quiet", 40: "python pm-engine --verbose"}
+    lines = {
+        30: ["python", "pm-engine", "--quiet"],
+        40: ["python", "pm-engine", "--verbose"],
+    }
     monkeypatch.setattr(emo_cli, "command_line", lambda pid: lines[pid])
+    monkeypatch.setattr(emo_cli, "owned_by_me", lambda pid: True)
 
     assert emo_cli.discover_pid(process, {20}) == 40
 
@@ -571,28 +606,21 @@ def test_stop_waits_for_each_wave_before_signalling_the_next(
     monkeypatch.setattr(emo_cli, "is_alive", alive)
 
     assert emo_cli.stop_profile() == 0
+    # Each wave: signal, wait while alive, then report each member.
     assert events == [
         ("term", 4),
         ("poll", 4),
+        ("poll", 4),
         ("term", 3),
+        ("poll", 3),
         ("poll", 3),
         ("term", 2),
         ("poll", 2),
+        ("poll", 2),
         ("term", 1),
         ("poll", 1),
+        ("poll", 1),
     ]
-
-
-@pytest.mark.parametrize("returncode, expected", [(0, 0), (1, 0), (9, 9)])
-def test_emergency_kill_translates_pkill_outcomes(
-    returncode: int, expected: int, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        Mock(return_value=subprocess.CompletedProcess([], returncode)),
-    )
-    assert emo_cli.kill_all_processes() == expected
 
 
 def test_clear_state_preserves_logs_configuration_and_audit(
@@ -628,6 +656,7 @@ def test_clear_reset_scopes_match_the_documented_data_sets(
         Path("stats.db"),
         Path("clearing.db"),
         Path("indexes"),
+        Path("market_sim_state.json"),
     }
     non_state_relative = {
         Path("audit.log"),
@@ -640,6 +669,10 @@ def test_clear_reset_scopes_match_the_documented_data_sets(
         Path("eod.db"),
         Path("settlement"),
         Path("backup"),
+        Path("audit_replay.db"),
+        Path("market_sim_news.db"),
+        Path("ai_swarm"),
+        Path("eod"),
     }
     assert {
         path.relative_to(DATA_DIR) for path in emo_cli.STATE_PATHS
@@ -653,7 +686,9 @@ def test_clear_reset_scopes_match_the_documented_data_sets(
         tmp_path / "ref_data" / "engine_config.json",
         tmp_path / "emo-config.yaml",
     )
-    directory_names = {"indexes", "audit", "logs", "emo", "settlement", "backup"}
+    directory_names = {
+        "indexes", "audit", "logs", "emo", "settlement", "backup", "ai_swarm", "eod",
+    }  # fmt: skip
     for path in (*state_paths, *non_state_paths, *config_paths):
         if path.name in directory_names:
             path.mkdir(parents=True)
@@ -704,7 +739,9 @@ def test_clear_requires_confirmation_and_warns_about_live_processes(
     )
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
-    assert emo_cli.clear_data(scope=scope, assume_yes=False) == 1
+    # --force: past the live-process refusal (tests/test_emo_clear.py), the
+    # confirmation is still required.
+    assert emo_cli.clear_data(scope=scope, assume_yes=False, force=True) == 1
     assert state_file.exists() and log_file.exists()
     captured = capsys.readouterr()
     assert "2 pm-* process(es)" in captured.out
@@ -750,7 +787,10 @@ def test_process_discovery_helpers_degrade_safely_when_host_tools_fail(
         subprocess, "run", Mock(side_effect=FileNotFoundError("missing"))
     )
     assert emo_cli.pgrep_pids("pm-engine") == []
-    assert emo_cli.command_line(123) == ""
+    import psutil
+
+    monkeypatch.setattr(psutil, "Process", Mock(side_effect=psutil.NoSuchProcess(123)))
+    assert emo_cli.command_line(123) == []
 
 
 def test_process_discovery_ignores_non_numeric_pgrep_output(
@@ -1011,10 +1051,11 @@ def test_running_process_detection_ignores_itself_and_its_ancestors(
     me = Mock(pid=101)
     me.parents.return_value = [Mock(pid=100), Mock(pid=1)]
     monkeypatch.setattr("edumatcher.emo.cli.psutil.Process", lambda: me)
+    monkeypatch.setattr(emo_cli, "owned_by_me", lambda pid: True)
     monkeypatch.setattr(
         "edumatcher.emo.cli.psutil.process_iter",
         lambda _attrs: [
-            types.SimpleNamespace(info={"pid": pid, "cmdline": cmd})
+            types.SimpleNamespace(pid=pid, info={"pid": pid, "cmdline": cmd})
             for pid, cmd in procs
         ],
     )
@@ -1090,7 +1131,9 @@ def test_main_clear_dispatches_selected_scope(
     monkeypatch.setattr(emo_cli, "clear_data", clear)
     monkeypatch.setattr(sys, "argv", ["pm-opctl-cli", *argv])
     assert emo_cli.main() == 0
-    clear.assert_called_once_with(scope=scope, assume_yes="--yes" in argv)
+    clear.assert_called_once_with(
+        scope=scope, assume_yes="--yes" in argv, force="--force" in argv
+    )
 
 
 def test_main_translates_configuration_errors_to_cli_exit_code(

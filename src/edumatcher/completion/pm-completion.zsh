@@ -4429,7 +4429,7 @@ _shtab_pm_opctl_cli_commands() {
     down:'stop processes started by pm-opctl'
     health:'check health of every process in the active profile'
     init:'create the built-in process profile configuration'
-    kill:'send SIGTERM to every process whose command line contains pm-'
+    kill:'send SIGTERM to every running pm-* program of this user (not only those started here); exit 1 if one survives'
     list:'list status for the active process profile'
     show:'print version, data directory and configuration paths'
     start:'start a named process profile'
@@ -4449,9 +4449,10 @@ _shtab_pm_opctl_cli_defaults_added=0
 
 _shtab_pm_opctl_cli_clear_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--state[delete persisted engine\/session state (order books, GTC orders, stats, index\/clearing state) but keep logs and audit files]"
+  "--state[delete persisted engine\/session state (order books, GTC orders, stats, index\/clearing state, market-model values) but keep logs and audit files]"
   "--all[delete all data, including logs and audit files]"
   "--yes[skip the confirmation prompt]"
+  "--force[clear even while pm-\* processes are running (they may keep writing to the deleted files)]"
 )
 
 # guard to ensure default positional specs are added only once per session

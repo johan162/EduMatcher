@@ -70,23 +70,30 @@ port, not that it is still processing messages.
 Process tracking
 ----------------
 Started processes are detached into their own session and recorded as
-``<DATA_DIR>/emo/<name>.pid``, with combined stdout/stderr appended to
-``<DATA_DIR>/emo/<name>.log``. The active profile name is remembered in
-``<DATA_DIR>/emo/active-profile``.
+``<DATA_DIR>/emo/<name>.pid`` -- the PID, the process's start time and the
+argv it was launched with -- with
+combined stdout/stderr appended to ``<DATA_DIR>/emo/<name>.log``. The active
+profile name is remembered in ``<DATA_DIR>/emo/active-profile``.
 
-Because a process restarted outside this tool gets a new PID, a stale PID file
-is not treated as final. ``pgrep`` is used to look for a live process whose
-command line matches the profile entry, and any match is re-adopted and
-written back to the PID file. Matching ignores ``argv[0]`` and compares the
-remaining arguments, since a console script appears in ``ps`` as
-``python /path/to/pm-engine --verbose`` rather than ``pm-engine --verbose``.
+A PID file is trusted only while the process with that PID also has the
+recorded start time (or, after the wall clock was stepped, which shifts
+psutil's start times, is this user's process still running the recorded
+argv). After a crash, a killed container or a reboot the PID is reused by
+other processes, so a file that does not match is removed, never acted on. A profile process whose PID file is missing or stale (restarted
+outside this tool) is re-adopted: ``pgrep`` finds candidates, and one of this
+user's processes whose exact argv matches the entry is written back to the
+PID file. Matching ignores the interpreter, since a console script runs as
+``python /path/to/pm-engine --verbose``, and compares the argv elements, so
+an argument with a space (``--on-close "pm-eod run --pending"``) stays one.
 
 Commands
 --------
 ``start [profile]`` (alias ``up``)
     Start a profile (``default`` when omitted), skipping entries already
     running. When both ``pm-audit`` and ``pm-engine`` are configured, wait for
-    the audit healthcheck before starting the engine.
+    the audit healthcheck before starting the engine. Exits ``1`` when a
+    process it started has already exited a second after the last launch,
+    naming it with its exit code and log file.
 ``list``
     Print a status table for the active profile, including each process's
     uptime as ``HH:MM`` and resident memory in MiB, and offer to restart any
@@ -96,14 +103,19 @@ Commands
     port (a gateway sees that as a client that logs on nothing); a live
     process then reads as running.
 ``health [-q]``
-    Same checks as ``list``, but exits ``0`` only when every process is
-    running. ``-q`` suppresses output for use in monitoring scripts.
+    Same checks as ``list`` (always with the ``tcp`` probe), but exits ``0``
+    only when every process is running. ``-q`` suppresses output for use in
+    monitoring scripts.
 ``stop`` (alias ``down``)
-    Send ``SIGTERM`` only to processes recorded in the PID directory.
+    Send ``SIGTERM`` to the processes recorded in the PID directory and to
+    active-profile processes re-adopted by command line, in waves. A process
+    still running 15 s later keeps its PID file and makes ``stop`` exit ``1``.
 ``kill``
-    Emergency stop: ``pkill -15 -f -i -l pm-``, which signals every process
-    whose command line contains ``pm-``, including ones this tool did not
-    start.
+    Emergency stop: ``SIGTERM`` to every running process of this user whose
+    program is a ``pm-*`` command, including ones this tool did not start, but
+    not to processes that merely mention ``pm-`` (``npm``, an editor, the
+    calling shell) nor to pm-opctl-cli itself; plus every process recorded in
+    the PID directory, whatever its program. Exits ``1`` when one survives.
 ``init``
     Write the built-in profiles to ``<DATA_DIR>/emo-config.yaml``, refusing to
     overwrite an existing file.
@@ -112,15 +124,17 @@ Commands
     configuration paths (source and compiled -- same paths as
     ``pm-config-deploy --show``). ``--json`` emits the same information as a
     JSON object instead of plain text.
-``clear (--state | --all) [--yes]``
+``clear (--state | --all) [--yes] [--force]``
     Delete persisted data under the data directory. ``--state`` removes only
     engine/session state (order books, GTC orders, derived stats, index and
-    clearing state) — the files whose staleness causes surprises like a
-    ``seed_once: true`` market-maker quote silently failing to re-seed
-    because ``book_stats.json`` still remembers the symbol from a previous
-    run. ``--all`` additionally removes logs and the audit trail. Exactly one
-    of ``--state``/``--all`` must be given; ``--yes`` skips the confirmation
-    prompt. Configuration under ``ref_data/`` is never touched.
+    clearing state, the market model's values) — the files whose staleness
+    causes surprises like a ``seed_once: true`` market-maker quote silently
+    failing to re-seed because ``book_stats.json`` still remembers the symbol
+    from a previous run. ``--all`` additionally removes logs, the audit trail
+    and the other records (``NON_STATE_PATHS``). Exactly one of
+    ``--state``/``--all`` must be given; ``--yes`` skips the confirmation
+    prompt. Refused while pm-* processes run unless ``--force``. Configuration
+    under ``ref_data/`` is never touched.
 
 All paths resolve through :func:`edumatcher.config.resolve_data_path`, so the
 tool and the processes it launches agree on ``EDUMATCHER_DATA_DIR``.
@@ -151,6 +165,7 @@ from edumatcher.examples import examples_root
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     AUDIT_LOG_FILE,
+    AUDIT_REPLAY_DB_FILE,
     CLEARING_DB_FILE,
     COMPILED_CONFIG_FILE,
     DATA_DIR,
@@ -170,11 +185,18 @@ from edumatcher.config import (
 CONFIG_NAME = "emo-config.yaml"
 RUNTIME_DIR_NAME = "emo"
 ACTIVE_PROFILE_FILE = "active-profile"
-HEALTHCHECK_TIMEOUT_SEC = 2.0
+# pm-monitor-cli's check alone needs Python start-up, a ZeroMQ slow join and
+# up to a second to pm-monitor's next snapshot; 2 s left 0.6 s of headroom on
+# an idle host. Checks run only for live PIDs, so a longer budget costs time
+# only when a process is really hung.
+HEALTHCHECK_TIMEOUT_SEC = 5.0
 TCP_CHECK_TIMEOUT_SEC = 0.3
 LOG_SRV_COMMAND = "pm-log-srv"
 LOG_SRV_READY_TIMEOUT_SEC = 10.0
 LOG_SRV_READY_POLL_SEC = 0.1
+#: How long ``start`` waits after its last spawn before checking that every
+#: process it started is still running.
+START_GRACE_SEC = 1.0
 AUDIT_COMMAND = "pm-audit"
 AUDIT_READY_TIMEOUT_SEC = 10.0
 # `stop` signals in waves, each waited out before the next: everything else,
@@ -583,6 +605,16 @@ def validate_processes(
         tcp = item.get("tcp")
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"profile {profile_name!r} process {index} needs a name")
+        if (
+            name.startswith(".")
+            or any(c in name for c in "/\\\0\n\r")
+            or name != os.path.basename(name)
+        ):
+            # The name becomes <name>.pid and <name>.log under emo/.
+            raise ValueError(
+                f"profile {profile_name!r} process name {name!r} must be one "
+                "file name (no '/', '\\', newline, NUL or leading '.')"
+            )
         if name in seen:
             raise ValueError(f"profile {profile_name!r} repeats process name {name!r}")
         if isinstance(command, str):
@@ -625,19 +657,57 @@ def validate_processes(
     return processes
 
 
+def process_start_time(pid: int) -> float | None:
+    """When *pid* started (``psutil`` create time), or ``None`` if it is gone."""
+    try:
+        return float(psutil.Process(pid).create_time())
+    except psutil.Error:
+        return None
+
+
+def write_pid(name: str, pid: int, command: list[str] | None = None) -> None:
+    """Record *pid* with its start time, and the argv it was launched with:
+    a PID alone is reused by other processes after a crash, a killed
+    container or a reboot."""
+    start = process_start_time(pid)
+    argv = f"{json.dumps(command)}\n" if command is not None else ""
+    pid_path(name).write_text(f"{pid} {start!r}\n{argv}", encoding="ascii")
+
+
 def read_pid(name: str) -> int | None:
+    """The PID recorded for *name*, only while that very process runs.
+
+    The process must have the recorded start time; or, since psutil derives
+    start times from the boot time and that moves when the wall clock is
+    stepped, it must be this user's process still running the recorded argv
+    (then the file is rewritten with the new start time). Anything else -- a
+    process gone, a PID reused, a file without a start time -- is stale: the
+    file is removed and ``None`` returned, so nothing ever signals a stranger.
+    """
+    path = pid_path(name)
     try:
-        pid = int(pid_path(name).read_text(encoding="ascii").strip())
-    except FileNotFoundError, ValueError:
+        lines = path.read_text(encoding="ascii").splitlines()
+    except FileNotFoundError:
         return None
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        pid_path(name).unlink(missing_ok=True)
+        fields = lines[0].split()
+        pid, recorded = int(fields[0]), float(fields[1])
+        command = json.loads(lines[1]) if len(lines) > 1 else None
+    except IndexError, ValueError:
+        path.unlink(missing_ok=True)
         return None
-    except PermissionError:
+    if process_start_time(pid) == recorded:
         return pid
-    return pid
+    if (
+        isinstance(command, list)
+        and command
+        and owned_by_me(pid)
+        and matches_command(command_line(pid), command)
+    ):
+        write_pid(name, pid, command)
+        return pid
+    path.unlink(missing_ok=True)
+    return None
 
 
 def pgrep_pids(program: str) -> list[int]:
@@ -654,26 +724,17 @@ def pgrep_pids(program: str) -> list[int]:
     return [int(line) for line in result.stdout.split() if line.isdigit()]
 
 
-def command_line(pid: int) -> str:
+def command_line(pid: int) -> list[str]:
+    """*pid*'s exact argv. ``ps`` text joins it with spaces, which loses the
+    quoting of an argument such as ``--on-close "pm-eod run --pending"``."""
     try:
-        result = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "args="],
-            capture_output=True,
-            text=True,
-            timeout=HEALTHCHECK_TIMEOUT_SEC,
-            check=False,
-        )
-    except OSError, subprocess.TimeoutExpired:
-        return ""
-    return result.stdout.strip()
+        return list(psutil.Process(pid).cmdline())
+    except psutil.Error:
+        return []
 
 
-def matches_command(cmdline: str, command: list[str]) -> bool:
+def matches_command(tokens: list[str], command: list[str]) -> bool:
     """Match ignoring argv[0]; console scripts run as `python /path/pm-foo ...`."""
-    try:
-        tokens = shlex.split(cmdline)
-    except ValueError:
-        tokens = cmdline.split()
     program = os.path.basename(command[0])
     for index, token in enumerate(tokens):
         if os.path.basename(token) == program:
@@ -681,12 +742,21 @@ def matches_command(cmdline: str, command: list[str]) -> bool:
     return False
 
 
+def owned_by_me(pid: int) -> bool:
+    """*pid* runs as this user. pgrep lists every user's processes, and on a
+    shared host another user's identical stack must never be adopted."""
+    try:
+        return bool(psutil.Process(pid).uids().real == os.getuid())
+    except psutil.Error:
+        return False
+
+
 def discover_pid(process: dict[str, Any], claimed: set[int]) -> int | None:
-    """Find a running process matching this entry's command line."""
+    """Find a running process of this user matching this entry's command line."""
     command = process["command"]
     own_pid = os.getpid()
     for pid in pgrep_pids(os.path.basename(command[0])):
-        if pid == own_pid or pid in claimed:
+        if pid == own_pid or pid in claimed or not owned_by_me(pid):
             continue
         if matches_command(command_line(pid), command):
             return pid
@@ -705,8 +775,13 @@ def resolve_pid(process: dict[str, Any], claimed: set[int]) -> tuple[int | None,
         return None, False
     claimed.add(pid)
     runtime_dir().mkdir(parents=True, exist_ok=True)
-    pid_path(name).write_text(f"{pid}\n", encoding="ascii")
+    write_pid(name, pid, process["command"])
     return pid, True
+
+
+#: The children this run started, kept so their exit codes can be read:
+#: ``subprocess`` reaps an unreferenced ``Popen`` at the next spawn.
+_SPAWNED: dict[int, subprocess.Popen[bytes]] = {}
 
 
 def spawn_process(process: dict[str, Any]) -> int | None:
@@ -729,7 +804,8 @@ def spawn_process(process: dict[str, Any]) -> int | None:
         return None
     finally:
         output.close()
-    pid_path(name).write_text(f"{child.pid}\n", encoding="ascii")
+    _SPAWNED[child.pid] = child
+    write_pid(name, child.pid, command)
     return child.pid
 
 
@@ -975,9 +1051,11 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
             for process in processes
         ]
     write_active_profile(profile_name)
-    print(f"Starting pm-opctl configuration {profile_name!r} from {config_path()}")
+    source = config_path() if config_path().exists() else "the built-in profiles"
+    print(f"Starting pm-opctl configuration {profile_name!r} from {source}")
     print(f"Data directory: {DATA_DIR}")
     claimed: set[int] = set()
+    spawned: list[tuple[str, int]] = []
     # pm-log-srv always goes first: every other process probes for it once at
     # startup and never re-probes, so it has to be accepting connections by then.
     processes = sorted(processes, key=lambda p: p["command"][0] != LOG_SRV_COMMAND)
@@ -1019,6 +1097,7 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
             if spawned_pid is None:
                 return 1
             pid = spawned_pid
+            spawned.append((str(name), pid))
             print(f"  started {name} (pid {pid}): {' '.join(process['command'])}")
         if wait_for_audit and not wait_for_health(
             health_process, pid, AUDIT_READY_TIMEOUT_SEC
@@ -1037,11 +1116,34 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
                     f"after {LOG_SRV_READY_TIMEOUT_SEC:g}s; continuing",
                     file=sys.stderr,
                 )
-    return 0
+    return 1 if spawned and _report_early_exits(spawned) else 0
+
+
+def _report_early_exits(spawned: list[tuple[str, int]]) -> bool:
+    """After ``START_GRACE_SEC``, name every process this ``start`` spawned
+    that has already exited (a bad configuration, a port in use), with its
+    exit code and log file. True when there was one."""
+    time.sleep(START_GRACE_SEC)
+    exited = False
+    for name, pid in spawned:
+        if is_alive(pid):
+            continue
+        child = _SPAWNED.get(pid)
+        code = child.poll() if child is not None else None
+        detail = f"exit code {code}" if code is not None else "exited"
+        print(
+            f"  error: {name} (pid {pid}) exited at once ({detail}); "
+            f"see {log_path(name)}",
+            file=sys.stderr,
+        )
+        pid_path(name).unlink(missing_ok=True)
+        exited = True
+    return exited
 
 
 def stop_wave(name: str, programs: dict[str, str]) -> int:
-    """Index into STOP_WAVES for a process (0 is the first to stop)."""
+    """The order in which *name* is stopped: 0 for a process in no
+    ``STOP_WAVES`` entry (stopped first), else its wave's index plus one."""
     program = programs.get(name)
     for index, wave in enumerate(STOP_WAVES):
         if program in wave:
@@ -1057,67 +1159,129 @@ def is_alive(pid: int) -> bool:
 
 
 def stop_profile() -> int:
-    runtime = runtime_dir()
-    pid_files = sorted(runtime.glob("*.pid"))
-    if not pid_files:
+    active = read_active_profile()
+    profile = load_profiles().get(active or "", [])
+    programs = {
+        process["name"]: os.path.basename(process["command"][0]) for process in profile
+    }
+    waves: dict[int, dict[str, int]] = {}
+    claimed: set[int] = set()
+    # Every process recorded with a trusted PID file (read_pid removes the
+    # stale ones), then each active-profile entry whose file was lost or
+    # stale, re-adopted by its exact command line.
+    for path in sorted(runtime_dir().glob("*.pid")):
+        pid = read_pid(path.stem)
+        if pid is None:
+            path.unlink(missing_ok=True)
+            continue
+        claimed.add(pid)
+        waves.setdefault(stop_wave(path.stem, programs), {})[path.stem] = pid
+    for process in profile:
+        name = process["name"]
+        if any(name in members for members in waves.values()):
+            continue
+        pid = discover_pid(process, claimed)
+        if pid is not None:
+            claimed.add(pid)
+            # Recorded like any other, so a survivor's PID file is real.
+            runtime_dir().mkdir(parents=True, exist_ok=True)
+            write_pid(name, pid, process["command"])
+            waves.setdefault(stop_wave(name, programs), {})[name] = pid
+    if not waves:
         print("No pm-opctl-managed processes are running.")
         active_profile_path().unlink(missing_ok=True)
         return 0
 
-    active = read_active_profile()
-    programs = {
-        process["name"]: os.path.basename(process["command"][0])
-        for process in load_profiles().get(active or "", [])
-    }
-    waves: dict[int, dict[str, int]] = {}
-    for path in pid_files:
-        name = path.stem
-        pid = read_pid(name)
-        if pid is None:
-            path.unlink(missing_ok=True)
-            continue
-        waves.setdefault(stop_wave(name, programs), {})[name] = pid
-
+    failed = False
     for _, members in sorted(waves.items()):
         for name, pid in members.items():
             try:
                 os.kill(pid, signal.SIGTERM)
-                print(f"  stopped {name} (pid {pid})")
             except ProcessLookupError:
                 pass
-            pid_path(name).unlink(missing_ok=True)
+            except OSError as exc:
+                # One entry must not leave the rest of the stack running.
+                print(
+                    f"  error: cannot signal {name} (pid {pid}): {exc}",
+                    file=sys.stderr,
+                )
         deadline = time.monotonic() + STOP_WAIT_SEC
         while any(is_alive(pid) for pid in members.values()):
             if time.monotonic() >= deadline:
-                print(
-                    f"  warning: {', '.join(members)} still running "
-                    f"{STOP_WAIT_SEC:g}s after SIGTERM; continuing",
-                    file=sys.stderr,
-                )
                 break
             time.sleep(STOP_POLL_SEC)
-    active_profile_path().unlink(missing_ok=True)
-    return 0
+        # A survivor keeps its PID file, so the next stop (or kill) still
+        # knows it; the later waves are stopped all the same.
+        for name, pid in members.items():
+            if is_alive(pid):
+                print(
+                    f"  error: {name} (pid {pid}) still running "
+                    f"{STOP_WAIT_SEC:g}s after SIGTERM; PID file kept",
+                    file=sys.stderr,
+                )
+                failed = True
+            else:
+                print(f"  stopped {name} (pid {pid})")
+                pid_path(name).unlink(missing_ok=True)
+    if not failed:
+        active_profile_path().unlink(missing_ok=True)
+    return 1 if failed else 0
 
 
 def kill_all_processes() -> int:
-    """Send SIGTERM to every process whose full command line contains pm-."""
-    print("Sending signal 15 to all matching EduMatcher processes...")
-    result = subprocess.run(
-        ["pkill", "-15", "-f", "-i", "-l", "pm-"],
-        check=False,
-    )
-    runtime = runtime_dir()
-    for path in runtime.glob("*.pid"):
-        path.unlink(missing_ok=True)
+    """Emergency stop: SIGTERM every running pm-* program of this user.
+
+    Not only what this tool recorded (that is ``stop``): also processes it
+    lost track of. A process counts by its program (``_is_pm_program``),
+    never by text elsewhere on its command line, and this process and its
+    ancestors are never signalled. Every process with a trusted PID file is
+    signalled too (a custom profile may run any command). PID files are
+    removed only for processes that are gone afterwards.
+    """
+    targets = pm_processes()
+    selected = {proc.pid for proc, _ in targets}
+    for path in sorted(runtime_dir().glob("*.pid")):
+        pid = read_pid(path.stem)
+        if pid is not None and pid not in selected:
+            try:
+                targets.append((psutil.Process(pid), path.stem))
+                selected.add(pid)
+            except psutil.NoSuchProcess:
+                pass
+    if not targets:
+        print("No running EduMatcher processes were found.")
+    else:
+        print(f"Sending signal 15 to {len(targets)} EduMatcher process(es)...")
+    for proc, program in targets:
+        try:
+            proc.send_signal(signal.SIGTERM)
+            print(f"  signalled {program} (pid {proc.pid})")
+        except psutil.NoSuchProcess:
+            pass
+        except psutil.Error as exc:
+            print(
+                f"  error: cannot signal {program} (pid {proc.pid}): {exc}",
+                file=sys.stderr,
+            )
+    _, alive = psutil.wait_procs([proc for proc, _ in targets], timeout=STOP_WAIT_SEC)
+    survivors = {proc.pid for proc in alive}
+    for path in runtime_dir().glob("*.pid"):
+        pid = read_pid(path.stem)
+        if pid is None or pid not in survivors:
+            path.unlink(missing_ok=True)
+    if survivors:
+        names = ", ".join(
+            f"{program} (pid {proc.pid})"
+            for proc, program in targets
+            if proc.pid in survivors
+        )
+        print(
+            f"  warning: still running {STOP_WAIT_SEC:g}s after SIGTERM: {names}",
+            file=sys.stderr,
+        )
+        return 1
     active_profile_path().unlink(missing_ok=True)
-    if result.returncode == 0:
-        return 0
-    if result.returncode == 1:
-        print("No matching EduMatcher processes were found.")
-        return 0
-    print(f"pkill failed with exit code {result.returncode}", file=sys.stderr)
-    return result.returncode
+    return 0
 
 
 def show_info(*, json_output: bool) -> int:
@@ -1170,6 +1334,9 @@ STATE_PATHS: tuple[Path, ...] = (
     STATS_DB_FILE,
     CLEARING_DB_FILE,
     DATA_DIR / "indexes",
+    # pm-market-sim's values, which it would resume instead of starting from
+    # the (cleared) prices (tests/test_emo_clear.py checks the writer's path).
+    DATA_DIR / "market_sim_state.json",
 )
 
 # Everything else `--all` additionally removes: logs, the audit trail,
@@ -1190,6 +1357,13 @@ NON_STATE_PATHS: tuple[Path, ...] = (
     EOD_DB_FILE,
     SETTLEMENT_DIR,
     DATA_DIR / "backup",
+    # Records of what happened, like the logs: the audit trail's derived
+    # episode index, the market model's news, the AI traders' daily
+    # summaries and the engine's close archives.
+    AUDIT_REPLAY_DB_FILE,
+    DATA_DIR / "market_sim_news.db",
+    DATA_DIR / "ai_swarm",
+    DATA_DIR / "eod",
 )
 
 
@@ -1238,33 +1412,41 @@ def _is_pm_program(cmdline: list[str]) -> bool:
     return any(_PM_PROGRAM.fullmatch(os.path.basename(p)) for p in programs)
 
 
-def _running_pm_pids() -> list[str]:
-    """Best-effort "pm-engine (pid 7)" for each live pm-* process, for the
-    confirmation prompt.
+def pm_processes() -> list[tuple[psutil.Process, str]]:
+    """Each running pm-* program of this user, with its program name.
 
     Excludes this process and its ancestors: the shell that ran
-    ``pm-opctl-cli clear`` cannot write to the data directory.
+    ``pm-opctl-cli`` is not a pm-* program to stop or to warn about.
     """
     try:
         me = psutil.Process()
         skip = {me.pid, *(parent.pid for parent in me.parents())}
-        found: list[str] = []
+        found: list[tuple[psutil.Process, str]] = []
         for proc in psutil.process_iter(["pid", "cmdline"]):
             pid, cmdline = proc.info["pid"], proc.info["cmdline"] or []
-            if pid in skip or not _is_pm_program(cmdline):
+            if pid in skip or not _is_pm_program(cmdline) or not owned_by_me(pid):
                 continue
             program = next(
                 os.path.basename(p)
                 for p in cmdline[:2]
                 if _PM_PROGRAM.fullmatch(os.path.basename(p))
             )
-            found.append(f"{program} (pid {pid})")
+            found.append((proc, program))
         return found
+    except psutil.Error:
+        return []
+
+
+def _running_pm_pids() -> list[str]:
+    """Best-effort "pm-engine (pid 7)" for each live pm-* process, for the
+    confirmation prompt; never fails the command it decorates."""
+    try:
+        return [f"{program} (pid {proc.pid})" for proc, program in pm_processes()]
     except Exception:
         return []
 
 
-def clear_data(*, scope: str, assume_yes: bool) -> int:
+def clear_data(*, scope: str, assume_yes: bool, force: bool = False) -> int:
     """Delete persisted data under DATA_DIR.
 
     scope="state" removes only engine/session state (STATE_PATHS).
@@ -1287,6 +1469,16 @@ def clear_data(*, scope: str, assume_yes: bool) -> int:
         print("  (nothing to delete — no matching files or directories exist)")
 
     live_pids = _running_pm_pids()
+    if live_pids and not force:
+        # A running writer keeps writing to the deleted file, and the engine
+        # rewrites its state at the next checkpoint: the clear is lost.
+        print(
+            f"Refusing to clear while {len(live_pids)} pm-* process(es) run: "
+            f"{', '.join(live_pids)}. Stop them first (pm-opctl-cli stop), or "
+            "pass --force.",
+            file=sys.stderr,
+        )
+        return 1
     if live_pids:
         print(
             f"\nWarning: {len(live_pids)} pm-* process(es) appear to be running "
@@ -1343,7 +1535,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser(
         "kill",
-        help="send SIGTERM to every process whose command line contains pm-",
+        help="send SIGTERM to every running pm-* program of this user "
+        "(not only those started here); exit 1 if one survives",
     )
     listing = subparsers.add_parser(
         "list", help="list status for the active process profile"
@@ -1402,7 +1595,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "delete persisted engine/session state (order books, GTC orders, "
-            "stats, index/clearing state) but keep logs and audit files"
+            "stats, index/clearing state, market-model values) but keep logs "
+            "and audit files"
         ),
     )
     clear.add_argument(
@@ -1415,6 +1609,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="skip the confirmation prompt",
+    )
+    clear.add_argument(
+        "--force",
+        action="store_true",
+        help="clear even while pm-* processes are running (they may keep "
+        "writing to the deleted files)",
     )
     return parser
 
@@ -1453,7 +1653,7 @@ def main() -> int:
                 )
                 return 2
             scope = "all" if args.clear_all else "state"
-            return clear_data(scope=scope, assume_yes=args.yes)
+            return clear_data(scope=scope, assume_yes=args.yes, force=args.force)
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"pm-opctl: {exc}", file=sys.stderr)
         return 2

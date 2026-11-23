@@ -451,7 +451,7 @@ write files during or immediately after a reset.
 | Reset | Command/effect | Preserved |
 |---|---|---|
 | Reset only remembered reference/last-trade prices | Stop `pm-engine`, remove `$EDUMATCHER_DATA_DIR/book_stats.json` (container shell: `/data/book_stats.json`), then restart the engine. | Orders, quotes, clearing/statistics history, logs, audit, and configuration. |
-| Clear exchange working state | After stopping every process, run `pm-opctl-cli clear --state`. This removes `book_stats.json`, persisted GTC orders and combos, `stats.db`, `clearing.db`, and `indexes/`. Use `--yes` only when intentionally skipping the confirmation. | Configuration, audit/log data, EOD records, settlements, and backups. |
+| Clear exchange working state | After stopping every process, run `pm-opctl-cli clear --state`. This removes `book_stats.json`, persisted GTC orders and combos, `stats.db`, `clearing.db`, `indexes/` and the market model's `market_sim_state.json`. It refuses while any `pm-*` program still runs (a console included) and names it. Use `--yes` only when intentionally skipping the confirmation. | Configuration, audit/log data, EOD records, settlements, and backups. |
 | Clear all managed data | After stopping every process, run `pm-opctl-cli clear --all`. This removes all `--state` data plus the audit trail/index, log database/fallback logs, monitor metrics, operator process tracking, and EOD database/settlement/backup data. | Deployed configuration under `ref_data/` and `emo-config.yaml`. |
 
 Neither clear mode removes the deployed configuration or requires redeployment;

@@ -7529,7 +7529,7 @@ _shtab_pm_opctl_cli_kill_option_strings=(-h --help)
 _shtab_pm_opctl_cli_list_option_strings=(-h --help -y --restart --no-restart --no-tcp-probe)
 _shtab_pm_opctl_cli_health_option_strings=(-h --help -q --quiet)
 _shtab_pm_opctl_cli_show_option_strings=(-h --help --json)
-_shtab_pm_opctl_cli_clear_option_strings=(-h --help --state --all --yes)
+_shtab_pm_opctl_cli_clear_option_strings=(-h --help --state --all --yes --force)
 _shtab_pm_opctl_cli_option_strings=(-h --help --version)
 
 
@@ -7572,6 +7572,7 @@ _shtab_pm_opctl_cli_clear___help_nargs=0
 _shtab_pm_opctl_cli_clear___state_nargs=0
 _shtab_pm_opctl_cli_clear___all_nargs=0
 _shtab_pm_opctl_cli_clear___yes_nargs=0
+_shtab_pm_opctl_cli_clear___force_nargs=0
 _shtab_pm_opctl_cli_pos_0_nargs=A...
 _shtab_pm_opctl_cli__h_nargs=0
 _shtab_pm_opctl_cli___help_nargs=0

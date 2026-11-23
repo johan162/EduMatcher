@@ -318,10 +318,18 @@ Each entry in a profile is a `name`, a `command`, and optionally a
   socket proves only that libzmq's I/O thread is accepting — not that the
   application is still processing messages.
 - **Log files instead of scrollback.** Combined stdout and stderr are appended
-  to `<DATA_DIR>/emo/<name>.log`, with PID files beside them.
-- **A stop that stops only what it started**, from those PID files. `kill` is
-  the blunt instrument: it sends `SIGTERM` to *every* process whose command
-  line contains `pm-`, including ones it never started.
+  to `<DATA_DIR>/emo/<name>.log`, with PID files beside them. A PID file holds
+  the PID and the process's start time and is trusted only while both match,
+  so a PID reused by another process after a crash or a reboot is never
+  signalled.
+- **A start that says what failed.** A process that exits within a second of
+  being started is named with its exit code and log file, and `start` exits 1.
+- **A stop that stops only what it started**, from those PID files, plus any
+  process of the profile whose PID file was lost (found by its exact command
+  line). `kill` is the blunt instrument: it sends `SIGTERM` to *every* running
+  `pm-*` program of your user, including ones it never started, and every
+  process in its PID files (but not to `npm`, editors or shells that merely
+  mention `pm-`).
 
 `pm-opctl-cli` does not start the browser applications. Those are containers
 (`make up-all`) or a local dev server — see
@@ -1069,6 +1077,12 @@ below (gateways, scheduler, bots), then `pm-engine`, then the recorders
 the engine's last messages, and last `pm-log-srv`. Participant terminals it did
 not start are not touched: for a session whose records matter, close them (or
 halt the session with `pm-admin`) first.
+
+A process that is still running 15 s after `SIGTERM` is named, keeps its PID
+file and makes `stop` exit 1; the later waves are stopped anyway. Run `stop`
+again, or find out why it hangs (`<DATA_DIR>/emo/<name>.log`) before you
+`pm-opctl-cli kill` it. `clear` refuses to run while such a process is left
+(see the reference manual), so `stop && clear --state --yes` is safe to script.
 
 For a container:
 

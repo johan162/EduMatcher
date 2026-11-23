@@ -46,10 +46,10 @@ def _free_port() -> int:
 class _StandInEngine:
     """Answers connect, session-state, volume, halt-all and book requests."""
 
-    def __init__(self, pub_delay: float = 0.0) -> None:
+    def __init__(self, pub_delay: float = 0.0, pub_addr: str | None = None) -> None:
         self._pub_delay = pub_delay
         self.pull_addr = f"tcp://127.0.0.1:{_free_port()}"
-        self.pub_addr = f"tcp://127.0.0.1:{_free_port()}"
+        self.pub_addr = pub_addr or f"tcp://127.0.0.1:{_free_port()}"
         self.received: list[str] = []
         self.volume_qty = 222
         self.accept = True
@@ -245,11 +245,14 @@ def test_no_engine_still_times_out() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_connect_waits_until_replies_can_arrive() -> None:
+def test_connect_waits_until_replies_can_arrive(tmp_path: Path) -> None:
     """The engine answers the connect before this client's SUB socket is
     connected: the auth reply is lost, the engine holds the ID, and the real
     engine refused every later connect for three minutes."""
-    eng = _StandInEngine(pub_delay=0.3)
+    # An ipc endpoint, not a free TCP port: the port would be unreserved for
+    # the 0.3 s before the late bind, long enough for another xdist worker
+    # to take it in a full run.
+    eng = _StandInEngine(pub_delay=0.3, pub_addr=f"ipc://{tmp_path / 'pub'}")
     c = _client(eng)
     try:
         assert c.connect()["accepted"] is True

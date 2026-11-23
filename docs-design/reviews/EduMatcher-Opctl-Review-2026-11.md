@@ -44,8 +44,12 @@ signal unrelated processes). *(measured)* means timed on this host (Fedora,
 procps-ng 4.0.6). The other findings are by inspection, with line numbers
 given.
 
-Status: **Open.** Decisions Q1–Q5 are needed before WP-OPC01, WP-OPC02,
-WP-OPC03 and WP-OPC04.
+Status: **Done, uncommitted (2026-11-23).** All six WPs and a holistic
+review done in one go; last full suite 15 521 passed, 1 skipped. Q1–Q5 taken
+as recommended without an explicit answer (to confirm). Beyond the plan:
+`stop` re-adopts lost entries (WP-OPC01), the container entrypoint tolerates
+`start`'s new exit 1 (WP-OPC03), the holistic review's HR1–HR3, and a
+port-race fix in a test of the pm-admin review.
 
 ---
 
@@ -83,12 +87,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-OPC01 | A PID file names its own process, or it is not trusted | H1, C1, C3, D1 | Q1 | 0.75 d | ☐ | |
-| 2 | WP-OPC02 | `kill` stops every pm-* program and nothing else, and keeps track of survivors | H2 | Q2 | 0.5 d | ☐ | |
-| 3 | WP-OPC03 | `start` and `stop` report what really happened | C2, C4 | Q3 | 0.5 d | ☐ | |
-| 4 | WP-OPC04 | `clear` never deletes under a running process and covers every data file | C5, C6 | Q4, Q5 | 0.5 d | ☐ | |
-| 5 | WP-OPC05 | Healthchecks get time to answer; process names are file names | C7, C8 | — | 0.25 d | ☐ | |
-| 6 | WP-OPC06 | Comments, help texts and guides say what the code does | D2–D7 | WP-OPC01–05 | 0.5 d | ☐ | |
+| 1 | WP-OPC01 | A PID file names its own process, or it is not trusted | H1, C1, C3, D1 | Q1 | 0.75 d | ☑ | 2026-11-23 |
+| 2 | WP-OPC02 | `kill` stops every pm-* program and nothing else, and keeps track of survivors | H2 | Q2 | 0.5 d | ☑ | 2026-11-23 |
+| 3 | WP-OPC03 | `start` and `stop` report what really happened | C2, C4 | Q3 | 0.5 d | ☑ | 2026-11-23 |
+| 4 | WP-OPC04 | `clear` never deletes under a running process and covers every data file | C5, C6 | Q4, Q5 | 0.5 d | ☑ | 2026-11-23 |
+| 5 | WP-OPC05 | Healthchecks get time to answer; process names are file names | C7, C8 | — | 0.25 d | ☑ | 2026-11-23 |
+| 6 | WP-OPC06 | Comments, help texts and guides say what the code does | D2–D7 | WP-OPC01–05 | 0.5 d | ☑ | 2026-11-23 |
 
 Suggested order: **WP-OPC01 → WP-OPC02 → WP-OPC03 → WP-OPC04 → WP-OPC05 →
 WP-OPC06**. WP-OPC01 removes the path on which `stop` signals an unrelated
@@ -458,6 +462,9 @@ beyond C7's budget.
 
 ## 7. Decisions
 
+Answers (2026-11-23, user asked for all WPs in one go): Q1–Q5 taken as
+recommended, to confirm.
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | How does a PID file prove its process (H1, C1)? (a) write `pid` and the process's start time (`psutil.Process(pid).create_time()`) and trust the file only when both match; (b) check the live process's command line against the profile entry; (c) both | **(a)**: the start time identifies one process exactly, also for a `--debug` start (extra arguments) and for spaced arguments (C3). (b) fails for both, and a reused PID running the same program (a second scheduler) would pass it. An untrusted file is deleted and the entry falls back to re-adoption (which uses exact argv, C3). |
@@ -499,6 +506,35 @@ removed). `command_line`/`matches_command` use `psutil.Process(pid).cmdline()`
 and C3 scratch repros show the entry started, the stranger alive, and the
 scheduler stand-in re-adopted.
 
+**Outcome (2026-11-23).** Q1 taken as recommended. A PID file now holds
+`<pid> <start time>` (`write_pid`, psutil `create_time`), and `read_pid`
+returns the PID only while the process with that PID has that start time; a
+file that does not match, or carries no start time, is removed and never
+acted on (no migration: a bare-PID file of an earlier version is stale and
+its process is re-adopted). `command_line` returns the exact argv from psutil
+instead of `ps` text, `matches_command` compares argv lists (C3), and
+re-adoption skips processes of other users (`owned_by_me`; pgrep lists every
+user's). `stop` catches `OSError` per entry, reports it on stderr, stops the
+rest and exits 1 (C1). Beyond the plan: `stop` also re-adopts active-profile
+entries whose PID file is missing or stale. The C1 repro showed why: after the
+fix `stop` no longer aborted, but left the entry whose file was overwritten
+running; and after an upgrade every PID file of a running stack is in the
+old format, so a `stop` before any `list` would have stopped nothing. The
+reference manual already promised re-adoption on `stop` (D1); D1 and the
+module docstring now describe the start-time rule.
+
+Failed first: the reused-PID test (the stranger's PID was taken for the
+entry), the stale-start-time test (no `process_start_time`), both `stop` tests
+(`PermissionError` raised), the spaced-argument re-adoption (`(None, False)`),
+then the two tests added for the extension (the entry with a stale file kept
+running; no `owned_by_me`). The two "unchanged" cases passed before and
+after. Five existing `tests/test_emo_cli.py` tests encoded the old contract
+(bare-PID files, `ps` strings) and were updated; the matching test gained the
+spaced-argument cases. Scratch repros through the installed CLI: H1 — entry
+started, stranger alive after `stop`; C1 — `stop` exits 0 and stops the other
+entry; C3 — the scheduler stand-in re-adopted by `list` and stopped. Full
+suite: 15 490 passed, 1 skipped.
+
 ### WP-OPC02 — `kill` stops every pm-* program and nothing else, and keeps track of survivors (H2; after Q2)
 
 **Tests first** (`tests/test_emo_kill.py`):
@@ -524,6 +560,29 @@ any remain. The active-profile file is deleted only when nothing remains.
 **Exit criteria.** Tests 1–3 pass; the H2 scratch repro (real function,
 harmless pattern) is replaced by test 2; `tests/test_emo*.py` green.
 
+**Outcome (2026-11-23).** Q2 taken as recommended. `kill` no longer runs
+`pkill`: a new `pm_processes()` lists this user's running processes whose
+*program* is a pm-* command (`_is_pm_program`), excluding pm-opctl-cli itself
+and its ancestors; `kill` sends each SIGTERM, waits up to `STOP_WAIT_SEC`
+(`psutil.wait_procs`), removes the PID files of the processes that are gone,
+and for survivors keeps their PID files and the active profile, names them on
+stderr and exits 1. Nothing to kill prints "No running EduMatcher processes
+were found." and exits 0. `_running_pm_pids` (the `clear` warning) is now a
+formatter over the same `pm_processes()` and keeps its never-fail contract;
+`kill` lets an unexpected error surface. The current-user filter is shared
+with re-adoption (`owned_by_me`, WP-OPC01).
+
+Tests (`tests/test_emo_kill.py`) run the real selection on real children,
+with `psutil.process_iter` narrowed to those children and `subprocess.run`
+stubbed, so neither the old `pkill` nor the new selection can reach any other
+process on the host. Failed first: the three kill tests (`pkill failed with
+exit code 2`: today's command run against the stub) and the user-filter test
+(no `pm_processes`); the selection cases passed before and after. Removed:
+`test_emergency_kill_translates_pkill_outcomes` (pkill exit codes); one
+planned test (self/ancestor exclusion) duplicated the existing
+`test_running_process_detection_ignores_itself_and_its_ancestors`, which now
+covers `pm_processes()`. Full suite: 15 498 passed, 1 skipped.
+
 ### WP-OPC03 — `start` and `stop` report what really happened (C2, C4; after Q3)
 
 **Tests first** (`tests/test_emo_reporting.py`):
@@ -546,6 +605,36 @@ after the last spawn, and reports each that has exited (`psutil` /
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_emo*.py` and the container e2e
 helpers that call `start`/`stop` green.
+
+**Outcome (2026-11-23).** Q3 taken as recommended. `stop` signals a wave,
+waits, then reports each member: `stopped X (pid N)` and its PID file removed,
+or `error: X (pid N) still running 15s after SIGTERM; PID file kept`; the
+later waves are stopped all the same, the active profile is kept while a
+survivor remains, and the exit code is 1. `start` remembers what it spawned
+and, after `START_GRACE_SEC` (1 s) following the last spawn, names each one
+that has already exited with its exit code and log path, removes its PID
+file and exits 1. The exit code comes from the `Popen` object, which
+`spawn_process` now keeps (`_SPAWNED`): `subprocess` reaps an unreferenced
+`Popen` at the next spawn, so the first implementation reported "exited"
+without a code.
+
+Beyond the plan (re-walk, lessons B1): the container entrypoint runs
+`pm-opctl-cli start` under `set -euo pipefail`, and its own comments say a
+bot can die at start when it races the engine (what `EM_RESTART_DEAD`
+repairs). With the new exit code that would have ended PID 1 and stopped the
+container. `entrypoint.sh` now logs a warning and carries on; a static test
+pins it. The same change means an unhealthy `pm-audit` (already exit 1 before
+this WP) no longer stops the container either: the engine stays unstarted,
+`list` shows it dead, and `EM_RESTART_DEAD` starts it. To confirm.
+
+Failed first: the survivor test (`stop` exit 0), the early-exit test
+(`start` exit 0), the entrypoint test; the clean-stop and running-entry cases
+passed before and after. Existing tests adjusted: the wave-order test records
+the one extra `is_alive` per member that reporting needs; the start tests in
+`tests/test_emo_cli.py` and `test_monitor_startup.py` spawn through mocks that
+return PIDs of no process, so they opt out of the early-exit check. Real CLI:
+`false` named with `exit code 1`, `start` exit 1; the SIGTERM-ignoring entry
+kept its PID file, `stop` exit 1. Full suite: 15 503 passed, 1 skipped.
 
 ### WP-OPC04 — `clear` never deletes under a running process and covers every data file (C5, C6; after Q4, Q5)
 
@@ -571,6 +660,31 @@ defined in their modules today: import them, or move the constant to
 **Exit criteria.** Tests 1–4 pass; `tests/test_emo*.py` green; `make
 completion` regenerated.
 
+**Outcome (2026-11-23).** Q4 and Q5 taken as recommended. `clear` refuses
+with exit 1 while pm-* processes of this user run (`_running_pm_pids`, now
+built on WP-OPC02's `pm_processes`), naming them and pointing at
+`pm-opctl-cli stop` / `--force`, also under `--yes`; `--force` keeps the old
+behaviour (warning, then the prompt unless `--yes`). `STATE_PATHS` gained
+`market_sim_state.json`; `NON_STATE_PATHS` gained `audit_replay.db`,
+`market_sim_news.db`, `ai_swarm/` and `eod/`. The paths are written as the
+module already writes `indexes` and `backup` (`DATA_DIR / "…"`), and a test
+ties each one to its writer's own constant or default (pm-market-sim's
+`STATE_FILE`, `news_history.NEWS_HISTORY_DB`, the AI worker's `summary_dir`
+default, `config.AUDIT_REPLAY_DB_FILE`), with another proving that
+`engine_run_seq.json`, `companies.db` and `ref_data/` are in neither scope.
+`make completion` regenerated for `--force`.
+
+Failed first: the refusal (`clear` exit 0), the two `--force` tests (no such
+option), the writers'-paths test (`market_sim_state.json` not in
+`STATE_PATHS`); the kept-files test passed before and after. Existing tests
+updated for the new contract: the documented-data-sets test (the five files),
+the confirmation test (now with `force=True`, since without it the refusal
+comes first), and the `main` dispatch test (`force=`). Re-walk: every guide
+procedure that runs `clear` stops the stack first (quick-start container and
+Python routes, training 000/110/140/195/260/270); inside the container `stop`
+removes the active profile, so `EM_RESTART_DEAD` cannot restart processes
+between `stop` and `clear`. Full suite: 15 508 passed, 1 skipped.
+
 ### WP-OPC05 — Healthchecks get time to answer; process names are file names (C7, C8)
 
 **Tests first** (`tests/test_emo_config.py`):
@@ -587,6 +701,20 @@ completion` regenerated.
 
 **Exit criteria.** Tests 1–3 pass; `tests/test_emo*.py` green.
 
+**Outcome (2026-11-23).** `HEALTHCHECK_TIMEOUT_SEC` is 5 s, with the
+reason next to it. `validate_processes` refuses a name that is not a single
+file name (`/`, `\`, NUL, newline, carriage return, a leading `.`, or anything
+`os.path.basename` would change); every built-in name passes.
+
+Failed first: the six name cases (`DID NOT RAISE`) and the 3 s healthcheck
+(`not responding`); the built-in names and the hanging-check case passed
+before and after. Found on the way, in the tests: the first full run of the
+opctl tests under `-n logical` failed two WP-OPC01 tests, because two xdist
+workers ran sleepers with the same argv and re-adoption in one adopted the
+other's. The sleepers in `test_emo_pid_identity.py` and
+`test_emo_reporting.py` now carry a unique tag; three parallel runs green.
+Full suite: 15 517 passed, 1 skipped.
+
 ### WP-OPC06 — Comments, help texts and guides say what the code does (D2–D7)
 
 **Tests first.** None for texts; `tests/test_shell_completion.py` and the
@@ -601,6 +729,75 @@ especially `clear` now refusing while processes run (lessons B1).
 
 **Exit criteria.** Every D item resolved; `make _check` green; `mkdocs
 build` without new warnings.
+
+**Outcome (2026-11-23).** D2: the reference manual's `ai-sim` row says
+`--keep-order-events-days 2` and lists pm-audit's and the scheduler's
+options. D3: `stop_wave`'s docstring says 0 means "in no wave, stopped
+first". D4: `start` names "the built-in profiles" when no `emo-config.yaml`
+exists. D5: `kill` is described as the pm-*-program selection in the module
+docstring, README, registry, `--help`, reference manual and operator guide.
+D6: `health` "always with the tcp probe" in the same places. D7: what
+`clear` removes, its refusal and `--force`, the exit codes of `start`, `stop`,
+`kill`, `health` and `clear`, and the PID-file rule in the README (which also
+listed only three of the six profiles), registry, reference manual, operator
+guide (process-tracking bullets and the shut-down section) and training
+chapter 11's reset matrix. `make completion` regenerated.
+
+Re-walk (lessons B1): every guide procedure that runs `clear` stops every
+pm-* program first, consoles included (training 000, 110, 140, 195, 260,
+270; quick-start FAQ and troubleshooting); none runs `kill`. Full suite:
+15 517 passed, 1 skipped; `mkdocs build`: the one pre-existing warning.
+
+### Holistic review (2026-11-23)
+
+All changes re-read as one diff (`emo/cli.py`, the entrypoint, the texts),
+looking for interference between the WPs, and the whole flow run through the
+installed CLI on a scratch profile of two `pm-*` stand-ins, one with the
+scheduler's spaced argument: `start -d` (both started with `--log-level
+DEBUG`), `health` OK, `clear --state --yes` refused (exit 1) while they ran,
+`stop` (both stopped, exit 0), `clear --state --yes` (deleted
+`market_sim_state.json`, exit 0). The real `kill` was not run on this host
+(it would signal the user's own pm-* programs); its tests run the real
+selection on the tests' own children.
+
+- **HR1 (fixed; WP-OPC01 × WP-OPC03).** `stop` re-adopted a process whose
+  PID file was lost but wrote no file for it, so a survivor was reported as
+  "PID file kept" without one. Re-adopted entries are now recorded like any
+  other. Test: a re-adopted survivor has a trusted PID file after `stop`
+  (failed first: `None`).
+- **HR2 (fixed; WP-OPC01).** psutil's start time is the kernel's boot time
+  plus the process's ticks, and the boot time moves when the wall clock is
+  stepped (NTP at a VM's boot, `date -s`). After a step every PID file looked
+  stale; plain entries were re-adopted by argv, but a `start --debug` stack
+  (extra arguments) could not be, and `stop` would have reported "nothing
+  running" with the stack up. The PID file now also records the argv
+  actually launched (second line, JSON); a start-time mismatch is accepted
+  only when that PID is this user's process still running exactly that argv,
+  and the file is then rewritten. Tests: a 37 s shift on a debug-started entry
+  is still recognised and stopped (failed first: `None`); a reused PID
+  running another command is stale even with an argv recorded.
+- **HR3 (fixed; WP-OPC02 × WP-OPC01).** `kill` selected pm-* programs only,
+  then removed the PID file of every process not among its survivors; an
+  entry of a custom profile running another program was neither signalled
+  nor tracked any more. Every process with a trusted PID file is now a
+  target too. Test failed first (the process was still alive); texts say so.
+- **Checked, no change.** `clear --all` can no longer delete `emo/` under a
+  running stack (C3's trigger), because WP-OPC04 refuses first. An
+  upgraded host's bare-PID files are stale (no migration code), and their
+  processes are re-adopted by `start`/`list`/`stop`. `pm_processes` serves
+  both `kill` and `clear`'s refusal, so the two always agree on what counts
+  as running. Re-adoption matches exact argv, so two stacks of one user with
+  identical commands on one host would adopt each other's processes; the
+  fixed engine ports make such a setup impossible today, and other users'
+  processes are excluded.
+- **A flaky test from the pm-admin review** failed once in a full run:
+  `test_connect_waits_until_replies_can_arrive` chose a free TCP port and
+  bound it 0.3 s later on purpose, which leaves the port to any other xdist
+  worker in between. It passed 5/5 alone and 24/24 under full CPU load; it now
+  uses an `ipc://` endpoint in its temp directory, and still fails without
+  WP-ADM02's fix (checked with the probe disabled).
+
+Full suite after the review: 15 521 passed, 1 skipped.
 
 ---
 

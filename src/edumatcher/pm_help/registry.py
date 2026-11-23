@@ -2272,13 +2272,18 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-opctl-cli start|up [PROFILE]",
             "pm-opctl-cli list [-y|--no-restart] | health [-q] | stop|down | kill",
-            "pm-opctl-cli init | show [--json] | clear (--state|--all) [--yes]",
+            "pm-opctl-cli init | show [--json] | clear (--state|--all) [--yes] [--force]",
         ),
         description=(
             "The recommended way to bring up or tear down a full EduMatcher stack, "
             "instead of launching each process by hand. A profile is a named list "
-            "of processes defined in <DATA_DIR>/emo-config.yaml; three profiles "
-            "(micro, mini, default) are built in until that file exists.",
+            "of processes defined in <DATA_DIR>/emo-config.yaml; six profiles "
+            "(micro, mini, default, mm-demo, ai-swarm, ai-sim) are built in until "
+            "that file exists.",
+            "Exit codes: start 1 when a process it started exited at once; stop 1 "
+            "when a process outlived SIGTERM (its PID file is kept); kill 1 when one "
+            "survived; clear 1 while pm-* processes run (unless --force); 2 on a "
+            "usage or configuration error.",
         ),
         subcommands=(
             Subcommand(
@@ -2294,16 +2299,16 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand(
                 "health",
                 args="[-q]",
-                purpose="Same checks as list; exits 0 only when every process is running -- for monitoring scripts",
+                purpose="Same checks as list (always with the tcp probe); exits 0 only when every process is running -- for monitoring scripts",
             ),
             Subcommand(
                 "stop",
                 aliases=("down",),
-                purpose="Send SIGTERM to processes this tool started",
+                purpose="SIGTERM, in waves, to the processes this tool started or re-adopted",
             ),
             Subcommand(
                 "kill",
-                purpose="Emergency stop: signals every process whose command line contains pm-, including ones this tool did not start",
+                purpose="Emergency stop: SIGTERM to every running pm-* program of this user (including ones this tool did not start) and every recorded process",
             ),
             Subcommand(
                 "init",
@@ -2316,8 +2321,8 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             ),
             Subcommand(
                 "clear",
-                args="(--state|--all) [--yes]",
-                purpose="Delete persisted data; ref_data/ configuration is never touched",
+                args="(--state|--all) [--yes] [--force]",
+                purpose="Delete persisted data (refused while pm-* processes run unless --force); ref_data/ configuration is never touched",
             ),
         ),
         related=("pm-engine", "pm-config-deploy", "pm-setup", "pm-admin"),
@@ -2332,8 +2337,9 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         notes=(
             "Health is reported at three confidence levels: dead, not responding, "
-            "or running. A restarted-outside-this-tool process is re-adopted by "
-            "matching its command line, so a stale PID file is never treated as final.",
+            "or running. A PID file holds the PID and the process's start time and is "
+            "trusted only while both match; a process restarted outside this tool is "
+            "re-adopted by its exact command line among this user's processes.",
         ),
     ),
 )
