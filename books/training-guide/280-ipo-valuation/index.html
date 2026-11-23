@@ -3869,6 +3869,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -8180,7 +8268,7 @@ again, as in every earlier chapter, and open the market yourself
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[output]
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Listed TORN in …/engine_config.yaml: IPO price 105.00, 158095238 shares outstanding
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>  seed quote MM01: 1000 @ 104.90 / 1000 @ 105.10 (DAY)
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Deployed to …/engine_config.json. Start the exchange to open trading.
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Deployed to …/engine_config.json. Start every process of the exchange to open trading.
 </code></pre></div>
 <p>The seed-quote line appears when the deployed configuration has a market
 maker with seeded quotes (as in chapters 01–03). If you are still on one of
@@ -8208,7 +8296,8 @@ out of two?</p>
 <p>The refusals are <code>pm-new-symbol</code>'s: the deployed configuration is a bundled
 example (<code>--example …</code>), which is never edited — deploy a copy, as in
 Exercise 8; the exchange is still running, the
-data directory holds saved state for TORN from an earlier run, or the
+data directory holds saved state for TORN from an earlier run (add
+<code>--discard-saved-state</code>, as Exercise 8 does), or the
 configuration has several market-maker gateways and one must be chosen for
 the seed quote. See
 <a href="../../operator-guide/part-4-run-a-market/010-new-symbols/#why-it-refused">Why it refused</a>. For the
@@ -8228,12 +8317,20 @@ package: replace <code>docs/examples</code> below by <code>$EX</code>, with
 <p>Stop the exchange again as in Exercise 7, then:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>cp<span class="w"> </span>docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml<span class="w"> </span>classroom.yaml
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-config-deploy<span class="w"> </span>classroom.yaml
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list<span class="w"> </span>--discard-saved-state
 </code></pre></div>
+<p>The exchange ran with <code>TORN</code> in Exercise 7, so the data directory remembers
+its last prices and the orders still resting in it, and the engine would
+restore them in place of a fresh listing. <code>--discard-saved-state</code> removes
+exactly that (and says so; the order count depends on what was left
+resting); without it the listing is refused.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[output]
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  no seed quote: the book opens empty
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Deployed to …/ref_data/engine_config.json. Start the exchange to open trading.
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Removed saved state for TORN:
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  …/book_stats.json: last prices
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  …/gtc_orders.json: &lt;n&gt; resting order(s), combo legs included
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>  no seed quote: the book opens empty
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>Deployed to …/ref_data/engine_config.json. Start every process of the exchange to open trading.
 </code></pre></div>
 <p><code>s3-nominal-nomm</code> has sessions enabled (the opening auction needs them) and its
 market maker has no seeded quotes, so <code>TORN</code> opens on an empty book. Start the

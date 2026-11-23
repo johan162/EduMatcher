@@ -3498,6 +3498,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3881,10 +3892,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#read-a-log-with-no-index-at-all" class="md-nav__link">
+  <a href="#read-a-one-off-trail" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Read a log with no index at all
+        Read a one-off trail
       
     </span>
   </a>
@@ -4495,6 +4506,94 @@
     
   
     Engine Configuration Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
   
 
     
@@ -8480,10 +8579,11 @@ identity used for causality; <code>eseq</code> tells replay when the engine publ
 the recorded message.</p>
 </div>
 <h3 id="the-episode-index">The episode index<a class="headerlink" href="#the-episode-index" title="Permanent link">&para;</a></h3>
-<p>Reconstruction is a single streaming pass with bounded memory, so
-<code>--no-index</code> works on any log. The optional SQLite index at
-<code>data/audit_replay.db</code> materialises the episode model so that <code>story</code> can
-find one order without re-reading the log.</p>
+<p>The reports — <code>stream</code>, <code>episodes</code>, <code>digest</code>, <code>anomalies</code> and <code>stats</code> —
+reconstruct their window straight off the log and never build or read an
+index. Only <code>story</code> needs random access to the trail: the SQLite index at
+<code>data/audit_replay.db</code> materialises the episode model so that <code>story</code> can find
+one order without re-reading the log. <code>index</code> builds it ahead of time.</p>
 <table>
 <thead>
 <tr>
@@ -8493,37 +8593,55 @@ find one order without re-reading the log.</p>
 </thead>
 <tbody>
 <tr>
+<td>Used by</td>
+<td><code>story</code> and <code>index</code> only</td>
+</tr>
+<tr>
 <td>Built</td>
-<td>Automatically, when a command needs it and it is absent or stale</td>
+<td>When <code>story</code> or <code>index</code> finds it absent, or built under other reconstruction rules, another schema or other detection settings; and on <code>--rebuild</code></td>
+</tr>
+<tr>
+<td>Trail grown since</td>
+<td><code>story</code> answers from the index as it stands and says on stderr how far it reaches (<code>covered_to</code>) and that <code>--rebuild</code> includes the rest; <code>index</code> rebuilds. A trail that is not the one indexed — another <code>--date</code>, a day archived since — is rebuilt</td>
 </tr>
 <tr>
 <td>Covers</td>
 <td>The whole log, always — never the window of the query that built it</td>
 </tr>
 <tr>
-<td>Stale when</td>
-<td>The source logs changed, the reconstruction rules changed, or the detection settings changed</td>
-</tr>
-<tr>
 <td>Incremental</td>
-<td><strong>No.</strong> A rebuild is the whole story — see AR-3.4 in the design</td>
+<td><strong>No.</strong> A rebuild reads the whole trail — see AR-3.4 in the design</td>
 </tr>
 <tr>
 <td>Size</td>
-<td>Roughly 4.4× the log (it keeps every payload, which is what makes it a complete substitute)</td>
+<td>About 2.8× the log (it keeps every payload, which is what makes it a complete substitute): 708 MB for one 256 MB simulation part</td>
 </tr>
 <tr>
 <td>Build rate</td>
-<td>~5 500 events/s; 87 s for a 205 MiB log on the dev VM</td>
+<td>About 6 000–7 000 lines/s: 54 s for one simulation part (375 000 lines)</td>
+</tr>
+<tr>
+<td>Written</td>
+<td>To a scratch file beside it, moved into place when complete: a reader sees the old index or the new one, and an interrupted build leaves the old one</td>
 </tr>
 <tr>
 <td>Discarded</td>
 <td>When its schema version is not current — no migration, by design</td>
 </tr>
+<tr>
+<td>Refused</td>
+<td>A <code>--db</code> that names a file which is not an episode index (another tool's database, a text file) is refused with exit 2 and left untouched</td>
+</tr>
 </tbody>
 </table>
-<p><code>story</code> requires the index. Everything else works with or without it, and is
-required to produce identical output either way.</p>
+<div class="admonition warning">
+<p class="admonition-title">A simulation day is large</p>
+<p>A simulation day is about 27 million lines in seventy-odd 256 MB parts.
+Building its index takes over an hour and some 50 GB of disk, so build it
+once, with <code>index</code>, and let <code>story</code> read it as the day grows. The reports
+read only their window: a <code>--from</code>/<code>--to</code> or <code>--last</code> that covers an hour
+reads an hour. Closed parts that end before <code>--from</code> are not opened at all.</p>
+</div>
 <div class="admonition tip">
 <p class="admonition-title">Why the index ignores the window</p>
 <p>A cache may not depend on the question that populated it. Narrowing the
@@ -8532,10 +8650,15 @@ source-file fingerprint — could not see the window it was built to, so a
 later, wider query was answered from a truncated model and said nothing
 about it. Putting the window into that check would be worse: <code>--last</code> is
 relative, so it moves, and almost every call would rebuild.</p>
-<p>The cost is that a narrow question against a large log pays for a full
-build once. <code>--no-index</code> is the way to avoid paying it at all on a one-off
-trail.</p>
 </div>
+<h3 id="memory">Memory<a class="headerlink" href="#memory" title="Permanent link">&para;</a></h3>
+<p><code>anomalies</code>, <code>digest --top N</code> and <code>stats</code> keep the findings, the N most
+significant episodes or a set of counters, so their memory does not grow with
+the window. <code>episodes</code>, and <code>digest</code> without <code>--top</code>, keep one row per episode
+— its columns, findings and figures, never its facts. <code>stream</code> and <code>story</code>
+narrate across episodes (a sentence names the counterparty's order) and hold
+their whole window: about 6.5 KB a line, so 2.5 GB for one simulation part.
+Narrow a <code>stream</code> to the minutes, symbols or gateways you need.</p>
 <h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8702,17 +8825,12 @@ contains nothing the tool inferred.</p>
 <tr>
 <td><code>--db PATH</code></td>
 <td><code>&lt;DATA_DIR&gt;/audit_replay.db</code></td>
-<td>The episode index</td>
-</tr>
-<tr>
-<td><code>--no-index</code></td>
-<td>off</td>
-<td>Stream without building or reading an index</td>
+<td>The episode index <code>story</code> and <code>index</code> use. The reports never open it; they name it in the <code>story</code> commands they suggest</td>
 </tr>
 <tr>
 <td><code>--rebuild</code></td>
 <td>off</td>
-<td>Rebuild the index before rendering</td>
+<td><code>story</code>, <code>index</code>: rebuild the index first. Refused by every other subcommand</td>
 </tr>
 </tbody>
 </table>
@@ -8740,7 +8858,7 @@ every order appears twice and the tool correctly reports each as
 </tr>
 <tr>
 <td><code>--to ISO_TS</code></td>
-<td>End of window</td>
+<td>End of window. A bare <code>YYYY-MM-DD</code> is the end of that day, as in <code>pm-audit-cli</code></td>
 </tr>
 <tr>
 <td><code>--date YYYY-MM-DD</code></td>
@@ -8758,10 +8876,15 @@ archive given as <code>--log-file</code>; <code>--last</code> cannot be combined
 <code>--tz</code> changes what is displayed, never what is selected. Yesterday replays
 from its archive with <code>--date</code>; today replays by default, across the midnight
 close, with no event repeated or missing. The episode index follows the file
-set, so it rebuilds by itself once a day has been archived.</p>
+set, so <code>story</code> rebuilds it once a day has been archived.</p>
 <p>The window narrows the <strong>query</strong>, never the index: an index always covers the
-whole log, so the same one answers a wide question and a narrow one. Passing a
-window to the <code>index</code> subcommand is refused rather than ignored.</p>
+whole log, so the same one answers a wide question and a narrow one. Passing
+<code>--from</code>, <code>--to</code> or <code>--last</code> to the <code>index</code> subcommand is refused rather than
+ignored; <code>--date</code> is accepted, because a day is its files.</p>
+<p>A report reads the lines of its window: an order submitted before <code>--from</code>
+whose fill is inside it appears by its tail, with the fill, and an order whose
+submission is inside the window but whose fill is after <code>--to</code> appears without
+it. Widen the window when an episode looks cut.</p>
 <h3 id="filters">Filters<a class="headerlink" href="#filters" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8969,13 +9092,13 @@ length of the codes.</p>
 <tr>
 <td><code>--clock-skew-warn SECONDS</code></td>
 <td><code>0.1</code></td>
-<td>Engine/receipt clock difference worth reporting</td>
+<td>Engine/receipt clock difference worth reporting; a finite number ≥ 0</td>
 </tr>
 </tbody>
 </table>
 <p>Detection settings are part of what makes an index stale: changing them
-forces a rebuild, so a stored index can never disagree with the flags that
-produced it.</p>
+forces <code>story</code> to rebuild it, so a stored index can never disagree with the
+flags that produced it.</p>
 <h3 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8987,15 +9110,15 @@ produced it.</p>
 <tbody>
 <tr>
 <td><code>0</code></td>
-<td>Success</td>
+<td>Success, including a report with no findings</td>
 </tr>
 <tr>
 <td><code>1</code></td>
-<td>Nothing to narrate, or no audit log at the given path</td>
+<td>Nothing to narrate: the window holds no episode (<code>stats</code>: no fact), <code>story</code> finds nothing matching, or there is no audit log at the given path. <code>rerun</code>: a difference. <code>queue</code>: the order is not in the trail</td>
 </tr>
 <tr>
 <td><code>2</code></td>
-<td>Argument error, including a format a subcommand cannot produce</td>
+<td>Argument error: no subcommand, a format a subcommand cannot produce, a value out of range (<code>--top 0</code>, a negative <code>--clock-skew-warn</code>), <code>--rebuild</code> on a report, an option <code>rerun</code>/<code>queue</code> would ignore, an ambiguous <code>queue --order</code> prefix, or a <code>--db</code> that is not an episode index</td>
 </tr>
 <tr>
 <td><code>3</code></td>
@@ -9040,12 +9163,12 @@ reader should look at, <strong>info</strong> is something expected at a window e
 <tr>
 <td><code>FILL_AFTER_TERMINAL</code></td>
 <td>error</td>
-<td>A fill for an order the trail has already ended</td>
+<td>A fill for an order the trail has already ended, within the reorder window of its end (see below)</td>
 </tr>
 <tr>
 <td><code>ILLEGAL_STATUS_TRANSITION</code></td>
 <td>error</td>
-<td>A status change outside <code>NEW → PARTIAL → FILLED \| CANCELLED \| REJECTED \| EXPIRED</code></td>
+<td>A status change outside <code>NEW → PARTIAL → FILLED \| CANCELLED \| REJECTED \| EXPIRED</code>, within the reorder window of the order's end</td>
 </tr>
 <tr>
 <td><code>TERMINAL_MISSING</code></td>
@@ -9055,12 +9178,12 @@ reader should look at, <strong>info</strong> is something expected at a window e
 <tr>
 <td><code>CANCEL_UNSOLICITED</code></td>
 <td>warn</td>
-<td><code>order.cancelled</code> with neither a request in its episode nor a <code>cancel_reason</code> naming a cause</td>
+<td><code>order.cancelled</code> with no recorded cause (<code>causation_id</code>), no request in its episode and no <code>cancel_reason</code>. An OCO's or a quote's legs cancelled by an <code>order.oco_cancel</code> or <code>quote.cancel</code> name that request as their cause</td>
 </tr>
 <tr>
 <td><code>CANCEL_UNMATCHED</code></td>
 <td>warn</td>
-<td><code>order.cancel</code> with nothing coming back</td>
+<td><code>order.cancel</code> with nothing coming back. A cancel that lost the race to a fill, and its <code>ORDER_NOT_FOUND</code> refusal, join the order's episode and are not reported</td>
 </tr>
 <tr>
 <td><code>FILL_STATUS_DISAGREE</code></td>
@@ -9082,7 +9205,7 @@ reader should look at, <strong>info</strong> is something expected at a window e
 <tr>
 <td><code>QTY_MISMATCH</code></td>
 <td>error</td>
-<td><code>Σ fill_qty ≠ quantity − remaining_qty</code> — the tool's own tally against the engine's</td>
+<td><code>Σ fill_qty ≠ quantity − remaining_qty</code> — the tool's own tally against the engine's; a late fill counts only within the reorder window of the order's end</td>
 </tr>
 <tr>
 <td><code>REMAINING_NOT_MONOTONIC</code></td>
@@ -9151,6 +9274,18 @@ reader should look at, <strong>info</strong> is something expected at a window e
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">How far after an order's end a late fill is seen</p>
+<p>Once an order's episode has ended and the reorder window has passed it
+(2 000 facts or 5 seconds; at simulation rate 2 000 facts is about 0.2 s),
+the tool forgets the order, which is what keeps memory flat over a day. A
+fill or status change that arrives later is still narrated, in an episode
+of its own, but <code>FILL_AFTER_TERMINAL</code>, <code>ILLEGAL_STATUS_TRANSITION</code> and the
+late fill's share of <code>QTY_MISMATCH</code> are not reported for it. A late fill
+from an engine defect normally follows within milliseconds; to look further,
+widen the window with <code>--reorder-window 200000</code> (a fact count) or
+<code>--reorder-window 60s</code>.</p>
+</div>
 <div class="admonition tip">
 <p class="admonition-title">Why both tallies are kept</p>
 <p><code>QTY_MISMATCH</code> compares what the fills add up to against what the engine
@@ -9362,6 +9497,16 @@ rather than deferred.</p>
 left. Any finding at warn or above fails the script. It is the
 end-to-end check that the engine's published account of itself is
 internally consistent, and it is expected to come out green.</p>
+<p>A simulation trail is checked the same way, with two kinds of finding to
+expect rather than explain away: <code>CLOCK_SKEW</code> when the host is loaded and
+the engine's and the recorder's clocks drift apart by more than
+<code>--clock-skew-warn</code>, and findings at a window edge: <code>RESUME_WITHOUT_HALT</code>
+for a halt that began before <code>--from</code> (or in an earlier part read alone),
+and — the one at error — <code>TRADE_LEG_MISSING</code> with 0 legs for a trade at
+the very start of the window, because the engine publishes a match's
+fills just <em>before</em> its trade and they fell outside. On one 21-minute part of a simulation day
+(375 000 lines) those were the only findings at warn: 135 <code>CLOCK_SKEW</code>
+and 18 <code>RESUME_WITHOUT_HALT</code>.</p>
 </div>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <h3 id="what-happened-to-this-order">What happened to this order?<a class="headerlink" href="#what-happened-to-this-order" title="Permanent link">&para;</a></h3>
@@ -9404,6 +9549,10 @@ recorded that nothing caused this"</em> is a declared origin — different from
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>1 finding(s) (1 warn) across 7 episode(s).
 </code></pre></div>
+<p>The suggested command carries the <code>--log-file</code>, <code>--db</code> and <code>--date</code> the report
+was run with, so pasting it reads the same trail: after
+<code>pm-audit-replay --log-file /tmp/run/audit.log anomalies</code> the suggestion is
+<code>pm-audit-replay --log-file /tmp/run/audit.log story --command 8812 -v --explain</code>.</p>
 <h3 id="did-a-kill-switch-do-what-it-said">Did a kill switch do what it said?<a class="headerlink" href="#did-a-kill-switch-do-what-it-said" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-audit-replay<span class="w"> </span>story<span class="w"> </span>--command<span class="w"> </span><span class="m">8812</span><span class="w"> </span>-v<span class="w"> </span>--explain
 </code></pre></div>
@@ -9472,12 +9621,17 @@ circuit breaker reopening, and a gateway disconnected for missed heartbeats.</p>
 </tr>
 <tr>
 <td><code>final book</code></td>
-<td>The re-run's resting book against <code>gtc_orders.json</code> beside the trail. Said plainly when the file is not there</td>
+<td>The re-run's resting <code>GTC</code> and <code>DAY</code> orders (the ones the engine persists) against <code>gtc_orders.json</code> beside the trail. Compared only when the trail's last run ends with the engine's shutdown (its <code>EOD</code> book checkpoints); while the engine runs, the file is a periodic checkpoint up to seconds older than the trail. Otherwise the line says why it was not checked</td>
 </tr>
 </tbody>
 </table>
 <p><code>rerun</code> reads every file in the data directory, archived days included, from the
-first line on. An engine restart in the trail is re-run as a restart: the fresh
+first line on. <code>--log-file</code> names the data directory's <code>audit.log</code>; an archive
+or a day part is refused, and so is every option <code>rerun</code> would ignore (a
+window, <code>--gateway</code>, <code>--kind</code>, <code>--symbol</code>, the detection options), with exit 2.
+On a running exchange the last line may be half written: it is not read. A
+line inside the trail whose sequence or payload does not parse ends the re-run
+with exit 3, naming its time and topic. An engine restart in the trail is re-run as a restart: the fresh
 engine persists its book as the live one did on its way down, and the next run's
 engine starts from those files, on that run's own configuration and run
 sequence. Each start's book is compared with the live engine's <code>STARTUP</code>
@@ -9536,20 +9690,23 @@ naming their counterparties.</p>
 differ on the symbol from that point, so the positions after it are the re-run's.
 The other says the live engine's own <code>engine.trace</code> queued the order at a
 different priority than the re-run did; a clean trail never shows either. Like
-<code>rerun</code>, <code>queue</code> needs a trail it can re-run (see above), and reads the whole
-trail per query. Exit codes: <code>0</code>
-answered, <code>1</code> the order is not in the trail, <code>2</code> bad arguments, <code>3</code> the trail
-cannot be re-run.</p>
+<code>rerun</code>, <code>queue</code> needs a trail it can re-run (see above), reads the whole
+trail per query and refuses the options it would ignore (<code>--tz</code> among them:
+its times are UTC). An <code>--order</code> prefix that two orders share is refused with
+exit 2, naming them. Exit codes: <code>0</code> answered, <code>1</code> the order is not in the
+trail, <code>2</code> bad arguments, <code>3</code> the trail cannot be re-run.</p>
 <h3 id="feed-it-to-something-else">Feed it to something else<a class="headerlink" href="#feed-it-to-something-else" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-audit-replay<span class="w"> </span>stream<span class="w"> </span>--last<span class="w"> </span>1h<span class="w"> </span>--format<span class="w"> </span>ndjson<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c<span class="w"> </span><span class="s1">'select(.type=="beat")'</span>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-audit-replay<span class="w"> </span>anomalies<span class="w"> </span>--severity<span class="w"> </span>error<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>&gt;<span class="w"> </span>findings.json
 <a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>pm-audit-replay<span class="w"> </span>story<span class="w"> </span>--order<span class="w"> </span>4f2c9a<span class="w"> </span>--format<span class="w"> </span>markdown<span class="w"> </span>&gt;&gt;<span class="w"> </span>incident.md
 </code></pre></div>
-<h3 id="read-a-log-with-no-index-at-all">Read a log with no index at all<a class="headerlink" href="#read-a-log-with-no-index-at-all" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-audit-replay<span class="w"> </span>stream<span class="w"> </span>--no-index<span class="w"> </span>--log-file<span class="w"> </span>/tmp/captured.log
+<h3 id="read-a-one-off-trail">Read a one-off trail<a class="headerlink" href="#read-a-one-off-trail" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-audit-replay<span class="w"> </span>--log-file<span class="w"> </span>/tmp/captured.log<span class="w"> </span>anomalies<span class="w"> </span>--severity<span class="w"> </span>warn
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-audit-replay<span class="w"> </span>--log-file<span class="w"> </span>/tmp/captured.log<span class="w"> </span>--db<span class="w"> </span>/tmp/captured.db<span class="w"> </span>story<span class="w"> </span>--order<span class="w"> </span>4f2c9a
 </code></pre></div>
-<p>Useful for a one-off trail that would only leave a database behind. <code>story</code>
-is the one subcommand this cannot serve.</p>
+<p>The reports leave nothing behind. <code>story</code> builds an index at <code>--db</code>; give a
+one-off trail its own, so the default index keeps describing the default
+trail.</p>
 <h2 id="outputs">Outputs<a class="headerlink" href="#outputs" title="Permanent link">&para;</a></h2>
 <h3 id="detail-levels">Detail levels<a class="headerlink" href="#detail-levels" title="Permanent link">&para;</a></h3>
 <p>Detail is one axis, and raising it only ever reveals — nothing shown at a

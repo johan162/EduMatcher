@@ -4738,6 +4738,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -10668,7 +10756,9 @@ with the same arguments the Next step section prints:</p>
   redeployed.</li>
 <li>Every <code>pm-new-symbol</code> guard applies: the exchange must be stopped, and no
   saved state may exist for the symbol (see
-  <a href="../010-new-symbols/#why-it-refused">Why it refused</a>).</li>
+  <a href="../010-new-symbols/#why-it-refused">Why it refused</a>). To list a ticker the
+  engine already ran with (a second classroom run), add
+  <code>--discard-saved-state</code>, which is passed on to <code>pm-new-symbol</code>.</li>
 <li>A postponed IPO has nothing to list: the report is printed, and the command
   exits with status 1.</li>
 <li>The seed quote, collar and other listing options are <code>pm-new-symbol</code>'s
@@ -10790,6 +10880,11 @@ join the index. That is a later step, not part of listing.</p>
 <td><code>--config PATH</code></td>
 <td>the deployed source</td>
 <td>With <code>--list</code>: the engine YAML to edit</td>
+</tr>
+<tr>
+<td><code>--discard-saved-state</code></td>
+<td>off</td>
+<td>With <code>--list</code>: passed on to <code>pm-new-symbol</code>, which removes the ticker's saved engine state instead of refusing</td>
 </tr>
 </tbody>
 </table>

@@ -4666,6 +4666,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -8958,10 +9046,18 @@ supported way to add a process, change a flag or define a profile of your own.</
   socket proves only that libzmq's I/O thread is accepting — not that the
   application is still processing messages.</li>
 <li><strong>Log files instead of scrollback.</strong> Combined stdout and stderr are appended
-  to <code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.log</code>, with PID files beside them.</li>
-<li><strong>A stop that stops only what it started</strong>, from those PID files. <code>kill</code> is
-  the blunt instrument: it sends <code>SIGTERM</code> to <em>every</em> process whose command
-  line contains <code>pm-</code>, including ones it never started.</li>
+  to <code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.log</code>, with PID files beside them. A PID file holds
+  the PID and the process's start time and is trusted only while both match,
+  so a PID reused by another process after a crash or a reboot is never
+  signalled.</li>
+<li><strong>A start that says what failed.</strong> A process that exits within a second of
+  being started is named with its exit code and log file, and <code>start</code> exits 1.</li>
+<li><strong>A stop that stops only what it started</strong>, from those PID files, plus any
+  process of the profile whose PID file was lost (found by its exact command
+  line). <code>kill</code> is the blunt instrument: it sends <code>SIGTERM</code> to <em>every</em> running
+  <code>pm-*</code> program of your user, including ones it never started, and every
+  process in its PID files (but not to <code>npm</code>, editors or shells that merely
+  mention <code>pm-</code>).</li>
 </ul>
 <p><code>pm-opctl-cli</code> does not start the browser applications. Those are containers
 (<code>make up-all</code>) or a local dev server — see
@@ -9864,6 +9960,11 @@ below (gateways, scheduler, bots), then <code>pm-engine</code>, then the recorde
 the engine's last messages, and last <code>pm-log-srv</code>. Participant terminals it did
 not start are not touched: for a session whose records matter, close them (or
 halt the session with <code>pm-admin</code>) first.</p>
+<p>A process that is still running 15 s after <code>SIGTERM</code> is named, keeps its PID
+file and makes <code>stop</code> exit 1; the later waves are stopped anyway. Run <code>stop</code>
+again, or find out why it hangs (<code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.log</code>) before you
+<code>pm-opctl-cli kill</code> it. <code>clear</code> refuses to run while such a process is left
+(see the reference manual), so <code>stop &amp;&amp; clear --state --yes</code> is safe to script.</p>
 <p>For a container:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">        </span><span class="c1"># or: make down-all</span>
 </code></pre></div>

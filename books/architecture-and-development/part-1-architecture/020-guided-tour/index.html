@@ -3869,6 +3869,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -9773,10 +9861,14 @@ looks like this:</p>
 <p><strong>Why enforce transitions explicitly?</strong> Without this guard, a bug in the scheduler
 (or a test script that sends transitions in the wrong order) could put the engine
 in an impossible state — for example, jumping from <code>CLOSED</code> directly to
-<code>CONTINUOUS</code>, bypassing the opening auction entirely. Real exchange rules require
-that every trading day begins with an opening auction to establish a fair opening
-price. Encoding the valid transitions explicitly ensures the engine’s session logic
-can never be violated by external inputs.</p>
+<code>CONTINUOUS</code>, skipping the pre-open in which orders are collected before the
+day trades. Encoding the valid transitions explicitly ensures the engine’s
+session logic can never be violated by external inputs.</p>
+<p>The table does not force an opening auction: <code>PRE_OPEN → CONTINUOUS</code> is a legal
+step, which an operator can take by hand to open straight into continuous
+trading. <code>pm-scheduler</code> always runs the opening auction, as most real exchanges
+do to establish a fair opening price; that is the scheduler's choice, not a
+rule this table enforces.</p>
 <h3 id="the-scheduler-a-separate-process">The Scheduler: A Separate Process<a class="headerlink" href="#the-scheduler-a-separate-process" title="Permanent link">&para;</a></h3>
 <p>Transitions are driven by the <code>pm-scheduler</code> process — a completely separate Python
 process that sends <code>session.transition</code> messages to the engine over ZMQ:</p>
@@ -10792,8 +10884,9 @@ generated bindings (<code>make_trade_executed_unchecked</code> holds its topic a
 <code>.encode()</code>. Cost: ~100ns per message. With 3-4 messages per order and thousands
 of orders per second, pre-caching saves ~300-400ns per order.</p>
 <h3 id="inlined-message-dicts-on-hot-paths">Inlined Message Dicts on Hot Paths<a class="headerlink" href="#inlined-message-dicts-on-hot-paths" title="Permanent link">&para;</a></h3>
-<p>The <code>make_fill_msg()</code> helper function builds a base dict then calls <code>.update()</code> to
-merge order fields. Two allocations plus a hash merge. For high-frequency paths,
+<p>A generic fill builder that takes the whole order dict (the former
+<code>make_fill_msg()</code>, since removed) builds a base dict and then merges the order
+fields into it: two allocations plus a hash merge. For high-frequency paths,
 EduMatcher inlines the entire dict literal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="c1"># Instead of:</span>
 <a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_fill_msg</span><span class="p">(</span><span class="n">gw</span><span class="p">,</span> <span class="n">order_id</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="o">...</span><span class="p">))</span>

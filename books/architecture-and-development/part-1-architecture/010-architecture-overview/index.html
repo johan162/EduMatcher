@@ -3869,6 +3869,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -11386,7 +11474,10 @@ assignment, or <code>__post_init__</code> logic in the dataclass is skipped.  If
 add a new field with a default value to the dataclass, <code>from_dict</code> won't
 automatically pick it up — you'll get an <code>AttributeError</code> on first access.
 This pattern also breaks the implicit contract that dataclass instances are
-always fully initialized, which can confuse static analysis tools like mypy.</p>
+always fully initialized, which can confuse static analysis tools like mypy.
+<code>Order.from_dict</code> therefore does the one check that matters itself: the
+quantity and tick fields must be <code>int</code>, so a payload with a float tick count is
+refused as malformed instead of resting off the tick grid.</p>
 <h3 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

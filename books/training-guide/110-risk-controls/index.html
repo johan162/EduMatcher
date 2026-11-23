@@ -3869,6 +3869,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -8350,7 +8438,7 @@ write files during or immediately after a reset.</p>
 </tr>
 <tr>
 <td>Clear exchange working state</td>
-<td>After stopping every process, run <code>pm-opctl-cli clear --state</code>. This removes <code>book_stats.json</code>, persisted GTC orders and combos, <code>stats.db</code>, <code>clearing.db</code>, and <code>indexes/</code>. Use <code>--yes</code> only when intentionally skipping the confirmation.</td>
+<td>After stopping every process, run <code>pm-opctl-cli clear --state</code>. This removes <code>book_stats.json</code>, persisted GTC orders and combos, <code>stats.db</code>, <code>clearing.db</code>, <code>indexes/</code> and the market model's <code>market_sim_state.json</code>. It refuses while any <code>pm-*</code> program still runs (a console included) and names it. Use <code>--yes</code> only when intentionally skipping the confirmation.</td>
 <td>Configuration, audit/log data, EOD records, settlements, and backups.</td>
 </tr>
 <tr>

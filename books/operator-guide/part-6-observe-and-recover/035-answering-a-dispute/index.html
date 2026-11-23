@@ -3996,6 +3996,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -7879,19 +7967,32 @@ page says which one to reach for.</p>
    the <em>head hash</em> it prints with the one you anchored off-host (see
    <a href="#anchoring-the-head-hash">below</a>). A match means no archived day, and no
    manifest entry before the anchor, has changed since it was anchored.</li>
-<li><strong>Prove it is complete.</strong> <code>pm-audit-replay anomalies --severity warn</code> over the
-   day. A clean result means every per-topic and engine-wide sequence runs without
-   a hole, every fill has its trade, and the quantities conserve. Any <code>SEQ_GAP</code>,
-   <code>ESEQ_GAP</code> or <code>RECORDER_RESTART</code> in the window you are about to quote must be
-   explained first.</li>
+<li><strong>Prove it is complete.</strong> <code>pm-audit-replay --date DAY anomalies --severity warn</code>
+   over the day. No finding at error means every per-topic and engine-wide
+   sequence runs without a hole, every fill has its trade, and the quantities
+   conserve. Any <code>SEQ_GAP</code>, <code>ESEQ_GAP</code> or <code>RECORDER_RESTART</code> in the window you are
+   about to quote must be explained first. On a busy day expect <code>CLOCK_SKEW</code>
+   warnings (the engine's and the recorder's clocks drifting apart under load)
+   and findings at the window's edges (<code>RESUME_WITHOUT_HALT</code> for a halt that began
+   before it, <code>TRADE_LEG_MISSING</code> "0 fill leg(s)" for a trade in the first
+   milliseconds of it, whose fills came just before); they say nothing about
+   completeness. Check that an error at the edge is one of these before quoting. The report reads the whole
+   day at about 11 000 lines a second in flat memory (about 320 MB): allow some
+   40 minutes for a simulation day of 27 million lines, or narrow it with
+   <code>--from</code>/<code>--to</code> to the hours in dispute.</li>
 <li><strong>Show the engine agrees.</strong> <code>pm-audit-replay rerun</code> over the trail. Zero hidden
    inputs and zero differing episodes mean the trail is not only self-consistent but
    is what the matching engine does with those commands. Run it with the engine
-   version the day ran on (the output names both versions).</li>
+   version the day ran on (the output names both versions). The final book is
+   compared only when the trail ends with the engine's shutdown; during the day
+   <code>rerun</code> says it was not checked, which is not a difference.</li>
 <li><strong>Answer the question</strong> with <code>story</code>, <code>queue</code> or <code>stream</code> from the table above.</li>
-<li><strong>Quote with <code>--anonymise</code></strong> when the answer goes to a participant, so other
-   gateways appear as <code>gateway A</code>, <code>gateway B</code> and iceberg reserve is left out. The
-   inspected order's own gateway keeps its name.</li>
+<li><strong>Quote anonymised</strong> when the answer goes to a participant. <code>queue
+   --anonymise</code> names other gateways <code>gateway A</code>, <code>gateway B</code> and leaves iceberg
+   reserve out; the inspected order's own gateway keeps its name. <code>story</code> and
+   <code>stream</code> have no such switch and name every counterparty: quote from them only
+   the lines about the participant's own orders, or replace the other gateway
+   names before sending.</li>
 </ol>
 <p>Every sentence the narrator prints traces to a field in a recorded line, and
 <code>--show-source</code> prints the file and line number so a reader can go and look.</p>

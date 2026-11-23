@@ -4956,6 +4956,97 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -11080,8 +11171,9 @@ then poll for new ones every <code>--interval</code> seconds (default <code>1.0<
 <p>Reconstructs the causal structure of the audit trail and narrates it: which
 order caused which trade, which kill switch cancelled what, where the log
 disagrees with itself. It reads the same JSONL files as <code>pm-audit-cli</code>,
-read-only, and keeps a derived <em>episode index</em> in its own SQLite file. It joins
-no ZeroMQ socket.</p>
+read-only. The reports read their window straight off the log; <code>story</code> reads a
+derived <em>episode index</em> in its own SQLite file, which it builds when it has
+none. It joins no ZeroMQ socket.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-audit-replay<span class="w"> </span><span class="o">[</span>global<span class="w"> </span>options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span><span class="nb">command</span><span class="w"> </span>options<span class="o">]</span>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-audit-replay<span class="w"> </span>--last<span class="w"> </span>15m<span class="w"> </span>stream
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-audit-replay<span class="w"> </span>story<span class="w"> </span>--order<span class="w"> </span>7f3a2c
@@ -11099,7 +11191,7 @@ no ZeroMQ socket.</p>
 <tbody>
 <tr>
 <td><code>stream</code></td>
-<td>Narrate a window chronologically (the default view)</td>
+<td>Narrate a window chronologically</td>
 <td>—</td>
 </tr>
 <tr>
@@ -11110,11 +11202,11 @@ no ZeroMQ socket.</p>
 <tr>
 <td><code>digest</code></td>
 <td>One paragraph per episode, most significant first</td>
-<td><code>--top N</code>, <code>--significance {anomalies,notional,qty,duration}</code></td>
+<td><code>--top N</code> (N ≥ 1), <code>--significance {anomalies,notional,qty,duration}</code></td>
 </tr>
 <tr>
 <td><code>episodes</code></td>
-<td>The index as a table, one row per episode</td>
+<td>One row per episode</td>
 <td><code>--outcome OUTCOME</code> (repeatable)</td>
 </tr>
 <tr>
@@ -11129,21 +11221,25 @@ no ZeroMQ socket.</p>
 </tr>
 <tr>
 <td><code>index</code></td>
-<td>Build or refresh the episode index</td>
+<td>Build or refresh the episode index <code>story</code> reads (takes <code>--date</code>, not <code>--from</code>/<code>--to</code>/<code>--last</code>)</td>
 <td><code>--stats</code></td>
 </tr>
 <tr>
 <td><code>rerun</code></td>
-<td>Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did</td>
+<td>Feed the trail's commands to a fresh engine and compare what it publishes with what the live engine did; the final book only when the trail ends with the engine's shutdown</td>
 <td>—</td>
 </tr>
 <tr>
 <td><code>queue</code></td>
 <td>Follow one resting order, or one price level, through the queue (observes the re-run)</td>
-<td><code>--order ID</code> (order view), or <code>--price P</code> with the global <code>--symbol</code> and optional <code>--side {BUY,SELL}</code> (level view); <code>--anonymise</code> names other gateways A, B, C and hides iceberg reserve</td>
+<td><code>--order ID</code> (order view; a prefix two orders share is refused), or <code>--price P</code> with the global <code>--symbol</code> and optional <code>--side {BUY,SELL}</code> (level view); <code>--anonymise</code> names other gateways A, B, C and hides iceberg reserve</td>
 </tr>
 </tbody>
 </table>
+<p>A subcommand is required. <code>rerun</code> and <code>queue</code> read the whole trail of the
+data directory whose <code>audit.log</code> <code>--log-file</code> names, and refuse the options
+they would ignore (a window, <code>--gateway</code>, <code>--kind</code>, the index and detection
+options; <code>--symbol</code> for <code>rerun</code>, <code>--tz</code> for <code>queue</code>).</p>
 <p><strong>Global options</strong> (accepted before or after the command):</p>
 <table>
 <thead>
@@ -11162,22 +11258,17 @@ no ZeroMQ socket.</p>
 <tr>
 <td><code>--db PATH</code></td>
 <td><code>&lt;DATA_DIR&gt;/audit_replay.db</code></td>
-<td>Episode index</td>
-</tr>
-<tr>
-<td><code>--no-index</code></td>
-<td>off</td>
-<td>Stream without building or reading an index</td>
+<td>Episode index <code>story</code> and <code>index</code> use; a file that is not one is refused (exit <code>2</code>) and left untouched. The reports carry it into the <code>story</code> commands they suggest</td>
 </tr>
 <tr>
 <td><code>--rebuild</code></td>
 <td>off</td>
-<td>Rebuild the index before rendering. There is no incremental mode; the index rebuilds itself whenever the reconstruction rules, the detection settings or the source logs change</td>
+<td><code>story</code>, <code>index</code> only: rebuild the index first. There is no incremental mode; <code>story</code> builds when the index is absent or was built under other rules or detection settings, and reads one whose trail has since grown as it stands, saying so on stderr; <code>index</code> also rebuilds a grown trail</td>
 </tr>
 <tr>
 <td><code>--from ISO_TS</code>, <code>--to ISO_TS</code></td>
 <td>—</td>
-<td>Window bounds (ISO-8601 or <code>YYYY-MM-DD</code>)</td>
+<td>Window bounds (ISO-8601 or <code>YYYY-MM-DD</code>; a bare date in <code>--to</code> is the end of that day)</td>
 </tr>
 <tr>
 <td><code>--date YYYY-MM-DD</code></td>
@@ -11252,7 +11343,7 @@ no ZeroMQ socket.</p>
 <tr>
 <td><code>--clock-skew-warn SECONDS</code></td>
 <td><code>0.1</code></td>
-<td>Engine-versus-receipt clock difference worth reporting</td>
+<td>Engine-versus-receipt clock difference worth reporting (a finite number ≥ 0)</td>
 </tr>
 <tr>
 <td><code>--version</code></td>
@@ -11261,10 +11352,14 @@ no ZeroMQ socket.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Exit codes:</strong> <code>0</code> success; <code>1</code> nothing to narrate, or no audit log at the
-given path (<code>rerun</code>: a difference; <code>queue</code>: order not in the trail); <code>2</code>
-argument error; <code>3</code> <code>rerun</code>/<code>queue</code>: the trail cannot be re-run (it does not
-begin at an engine start with an empty book, or has a proven hole).</p>
+<p><strong>Exit codes:</strong> <code>0</code> success (a report with no findings included); <code>1</code> nothing
+to narrate (the window holds no episode; <code>stats</code>: no fact; <code>story</code>: nothing
+matching), or no audit log at the given path (<code>rerun</code>: a difference; <code>queue</code>:
+order not in the trail); <code>2</code> argument error (no subcommand, a value out of
+range, an option the subcommand does not take, an ambiguous <code>queue --order</code>, a
+<code>--db</code> that is not an episode index); <code>3</code> <code>rerun</code>/<code>queue</code>: the trail cannot be
+re-run (it does not begin at an engine start with an empty book, has a proven
+hole, or holds a line that does not parse).</p>
 <p>See <a href="../../../operator-guide/part-6-observe-and-recover/030-audit-replay/">Audit Replay</a> for how causality is
 recovered, what each anomaly means and worked examples.</p>
 <h2 id="pm-clearing-clearing-pl">pm-clearing — Clearing &amp; P&amp;L<a class="headerlink" href="#pm-clearing-clearing-pl" title="Permanent link">&para;</a></h2>
@@ -14025,6 +14120,11 @@ deployed source, redeploys it. <code>pm-ipo</code> is an alias for the same comm
 <td>Optional symbol section: <code>level</code>, <code>collar</code>, <code>order_limits</code> or <code>circuit_breaker</code>; repeatable, e.g. <code>--field 'collar={static_band_pct: 0.2}'</code></td>
 </tr>
 <tr>
+<td><code>--discard-saved-state</code></td>
+<td>off</td>
+<td>Remove this symbol's saved engine state (its last prices, resting orders, and resting combos with a leg in it, with their legs) instead of refusing; needs the engine stopped</td>
+</tr>
+<tr>
 <td><code>--version</code></td>
 <td>—</td>
 <td>Print version and exit</td>
@@ -14035,8 +14135,11 @@ deployed source, redeploys it. <code>pm-ipo</code> is an alias for the same comm
 layers as <code>pm-config-deploy</code>; a refusal leaves both the YAML and the deployed
 artifact untouched. It refuses while <code>pm-engine</code> runs (when editing the
 deployed source), when the deployed source has undeployed edits, when saved
-engine state already exists for the symbol, and when the file is only a copy
-or a bundled example.</p>
+engine state already exists for the symbol (unless <code>--discard-saved-state</code>),
+and when the file is only a copy or a bundled example. A deployed listing
+names any other <code>pm-*</code> process still running on the old configuration
+(<code>[WARN]</code>); restart every process of the exchange afterwards.</p>
+<p><strong>Exit codes:</strong> <code>0</code> listed; <code>1</code> refused, nothing changed; <code>2</code> usage error.</p>
 <p>See <a href="../../../operator-guide/part-4-run-a-market/010-new-symbols/">Listing a New Symbol</a> for the full
 list of refusals, how the seed quote is priced and the IPO-day checklist.</p>
 <h2 id="pm-mm-bot-autonomous-market-maker-bot">pm-mm-bot — Autonomous Market-Maker Bot<a class="headerlink" href="#pm-mm-bot-autonomous-market-maker-bot" title="Permanent link">&para;</a></h2>
@@ -14574,6 +14677,11 @@ no ZeroMQ socket.</p>
 <td><code>--config FILE</code></td>
 <td>deployed source</td>
 <td>With <code>--list</code>: the engine YAML that <code>pm-new-symbol</code> edits</td>
+</tr>
+<tr>
+<td><code>--discard-saved-state</code></td>
+<td>off</td>
+<td>With <code>--list</code>: passed on to <code>pm-new-symbol</code>, which removes the ticker's saved engine state instead of refusing</td>
 </tr>
 <tr>
 <td><code>--version</code></td>
@@ -15545,8 +15653,11 @@ It also subscribes to <code>pm-index</code> and <code>pm-market-sim</code> for i
 simulator's state, values and news.</p>
 <p>See <a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a> for configuration, keys, caches and operation, and <a href="../../../protocols-and-clients/part-4-writing-clients/030-example-libraries/#rest-api-support-library-and-examples">Protocol Support Library Examples</a> for client code.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
-<p>An interactive REPL for sending operational commands to a running engine without
-needing a full gateway session.</p>
+<p>An interactive REPL for sending operational commands to a running engine. It
+logs on as the participant named by <code>--id</code> (a <code>system.gateway_connect</code>, like
+any gateway) but carries no orders of its own. Exit code <code>0</code> after <code>EXIT</code>,
+EOF or Ctrl-C; <code>1</code> when the connect timed out or was refused, or the engine
+connection was lost.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;<span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
@@ -15656,16 +15767,24 @@ needing a full gateway session.</p>
 <td><code>REOPEN</code> — force a symbol to uncross now and clear any halt</td>
 </tr>
 <tr>
+<td><code>risk.kill_switch_gateway</code></td>
+<td><code>KILL</code> / <code>QCANCEL</code> on another gateway — the ADMIN kill switch (all, symbol-scoped, or quotes only)</td>
+</tr>
+<tr>
 <td><code>risk.kill_switch</code></td>
-<td><code>KILL</code> — cancel all (or symbol-scoped) orders/quotes for a gateway</td>
+<td><code>KILL</code> on the console's own gateway</td>
+</tr>
+<tr>
+<td><code>quote.cancel</code></td>
+<td><code>QCANCEL</code> on the console's own gateway</td>
+</tr>
+<tr>
+<td><code>system.gateways_request</code></td>
+<td><code>KICK</code> — checks first that the target is configured and connected</td>
 </tr>
 <tr>
 <td><code>system.gateway_disconnect</code></td>
 <td><code>KICK</code> — forcefully disconnect a gateway (no ack published)</td>
-</tr>
-<tr>
-<td><code>quote.cancel</code></td>
-<td><code>QCANCEL</code> — cancel a gateway's active two-sided quote</td>
 </tr>
 <tr>
 <td><code>book.snapshot_request</code></td>
@@ -15707,6 +15826,14 @@ needing a full gateway session.</p>
 <td><code>system.position_request</code></td>
 <td><code>POSITION</code> — request a gateway's net position snapshot</td>
 </tr>
+<tr>
+<td><code>system.quote_bootstrap_request</code></td>
+<td><code>POSITION</code> — request the gateway's live quotes</td>
+</tr>
+<tr>
+<td><code>system.session_state_request</code></td>
+<td>Also sent before the connect, until its reply arrives, to make sure replies can reach the console</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Messages subscribed</strong> (SUB from :5556):</p>
@@ -15747,20 +15874,24 @@ needing a full gateway session.</p>
 <td><code>REOPEN</code> acknowledgement, with indicative/printed price</td>
 </tr>
 <tr>
-<td><code>risk.kill_switch_ack.{GW_ID}</code></td>
-<td><code>KILL</code> acknowledgement</td>
+<td><code>risk.kill_switch_gateway_ack.{GW_ID}</code></td>
+<td><code>KILL</code> / <code>QCANCEL</code> acknowledgement for another gateway</td>
 </tr>
 <tr>
-<td><code>quote.ack.{GW_ID}</code></td>
-<td><code>QCANCEL</code> acknowledgement</td>
+<td><code>risk.kill_switch_ack.{GW_ID}</code></td>
+<td><code>KILL</code> acknowledgement for the console's own gateway</td>
+</tr>
+<tr>
+<td><code>quote.cancel_ack.{GW_ID}</code></td>
+<td><code>QCANCEL</code> acknowledgement for the console's own gateway</td>
 </tr>
 <tr>
 <td><code>book.{SYMBOL}</code></td>
-<td><code>BOOK</code> reply — book snapshot</td>
+<td><code>BOOK</code> reply — book snapshot (subscribed only while <code>BOOK</code> waits)</td>
 </tr>
 <tr>
-<td><code>order.orders.{GW_ID}</code></td>
-<td><code>ORDERS</code> reply — resting order list</td>
+<td><code>order.orders.{TARGET}</code></td>
+<td><code>ORDERS</code> reply — resting order list (subscribed only while <code>ORDERS</code> waits)</td>
 </tr>
 <tr>
 <td><code>order.price_level_orders.{GW_ID}</code></td>
@@ -15787,15 +15918,23 @@ needing a full gateway session.</p>
 <td><code>VOLUME</code> reply</td>
 </tr>
 <tr>
-<td><code>system.position_snapshot.{GW_ID}</code></td>
-<td><code>POSITION</code> reply</td>
+<td><code>system.position_snapshot.{TARGET}</code></td>
+<td><code>POSITION</code> reply (subscribed only while <code>POSITION</code> waits)</td>
 </tr>
 <tr>
-<td><code>session.state</code></td>
-<td>Session phase changes (broadcast; also the <code>SESSION</code> reply)</td>
+<td><code>system.quote_bootstrap.{TARGET}</code></td>
+<td><code>POSITION</code> live quotes (subscribed only while <code>POSITION</code> waits)</td>
+</tr>
+<tr>
+<td><code>session.transition_ack.{GW_ID}</code></td>
+<td><code>SESSION</code> reply</td>
 </tr>
 </tbody>
 </table>
+<p>Only the replies addressed to the console's own id are subscribed all the
+time; a reply keyed by a symbol or another gateway is subscribed for the one
+request. An idle console therefore never queues market data, which would
+make ZeroMQ drop the next reply once the queue is full.</p>
 <h2 id="pm-admin-cli-cli-admin-commands">pm-admin-cli — CLI Admin Commands<a class="headerlink" href="#pm-admin-cli-cli-admin-commands" title="Permanent link">&para;</a></h2>
 <p>A non-interactive alternative to <code>pm-admin</code> for scripting or single-shot
 operational commands.</p>
@@ -15831,7 +15970,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 <tr>
 <td><code>--timeout &lt;MS&gt;</code></td>
 <td>No</td>
-<td>Ack timeout in milliseconds (default: <code>3000</code>)</td>
+<td>Ack timeout in milliseconds, at least 1 (default: <code>3000</code>)</td>
 </tr>
 <tr>
 <td><code>--format {text,json}</code></td>
@@ -15968,11 +16107,19 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 <tr>
 <td><code>position</code></td>
 <td><code>--gw &lt;GW_ID&gt;</code></td>
-<td>none</td>
+<td><code>--sym &lt;SYMBOL&gt;[,&lt;SYMBOL&gt;...]</code></td>
 <td>Show net position, avg cost, and live bid/ask/spread/mid per symbol for gateway</td>
 </tr>
 </tbody>
 </table>
+<p><strong>Exit codes:</strong></p>
+<ul>
+<li><code>0</code> — the command was accepted or answered</li>
+<li><code>1</code> — auth refused, command rejected (an unknown gateway included; for <code>kick</code> also a disconnected one), timeout, or engine connection lost</li>
+<li><code>2</code> — usage error</li>
+</ul>
+<p>Use an ADMIN <code>--id</code> that no running <code>pm-admin</code> console holds: the engine
+refuses a second connection under the same id.</p>
 <h2 id="pm-cverifier-config-verifier">pm-cverifier — Config Verifier<a class="headerlink" href="#pm-cverifier-config-verifier" title="Permanent link">&para;</a></h2>
 <p>Validates <code>engine_config.yaml</code> across four layers: YAML syntax, JSON schema, semantic checks, and completeness checks. Produces a human-readable or JSON report and exits with a non-zero code if any findings meet or exceed the minimum severity threshold.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>pm-cverifier<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>text<span class="p">|</span>json<span class="o">]</span><span class="w"> </span><span class="o">[</span>--level<span class="w"> </span>info<span class="p">|</span>warn<span class="p">|</span>error<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-color<span class="o">]</span><span class="w"> </span><span class="o">[</span>--strict<span class="o">]</span><span class="w"> </span>CONFIG_FILE
@@ -17058,7 +17205,7 @@ instead of launching each process by hand in its own terminal — see
 <a id="__codelineno-61-5" name="__codelineno-61-5" href="#__codelineno-61-5"></a>pm-opctl-cli<span class="w"> </span><span class="nb">kill</span>
 <a id="__codelineno-61-6" name="__codelineno-61-6" href="#__codelineno-61-6"></a>pm-opctl-cli<span class="w"> </span>init
 <a id="__codelineno-61-7" name="__codelineno-61-7" href="#__codelineno-61-7"></a>pm-opctl-cli<span class="w"> </span>show<span class="w"> </span><span class="o">[</span>--json<span class="o">]</span>
-<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span><span class="o">(</span>--state<span class="w"> </span><span class="p">|</span><span class="w"> </span>--all<span class="o">)</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span>
+<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span><span class="o">(</span>--state<span class="w"> </span><span class="p">|</span><span class="w"> </span>--all<span class="o">)</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span><span class="w"> </span><span class="o">[</span>--force<span class="o">]</span>
 </code></pre></div>
 <p><strong>Profiles:</strong></p>
 <p>A <em>profile</em> is a named list of processes to run together, defined in
@@ -17094,7 +17241,7 @@ that file exists:</p>
 </tr>
 <tr>
 <td><code>ai-sim</code></td>
-<td><code>ai-swarm</code> set up to run for weeks on the <code>s300-sim</code> example: <code>pm-ai-swarm --swarm &lt;examples&gt;/s300-sim-setup/swarm.yaml --verbose</code> (<code>AI001</code>–<code>AI100</code>, 120 order actions a second), the market maker with the <code>symmetric</code> strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), <code>pm-engine</code> without <code>--verbose</code>, <code>pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7</code> and <code>pm-clearing --print-every 0 --retention-days 7</code>, plus a third API gateway instance, <code>monitor</code> on <code>8082</code>, for the admin monitor feed. What the <code>edumatcher-ai-sim</code> image runs; needs <code>s300-sim</code> deployed. See <a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">AI Traders and Market Simulation</a></td>
+<td><code>ai-swarm</code> set up to run for weeks on the <code>s300-sim</code> example: <code>pm-ai-swarm --swarm &lt;examples&gt;/s300-sim-setup/swarm.yaml --verbose</code> (<code>AI001</code>–<code>AI100</code>, 120 order actions a second), the market maker with the <code>symmetric</code> strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), <code>pm-engine</code> without <code>--verbose</code>, <code>pm-stats --keep-days 7 --keep-order-events-days 2 --human-gateways 'TRADER*' --keep-human-order-events-days 7</code>, <code>pm-clearing --print-every 0 --retention-days 7</code>, <code>pm-audit --max-file-mb 256 --keep-days 7</code>, <code>pm-scheduler --on-close 'pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db'</code>, plus a third API gateway instance, <code>monitor</code> on <code>8082</code>, for the admin monitor feed. What the <code>edumatcher-ai-sim</code> image runs; needs <code>s300-sim</code> deployed. See <a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">AI Traders and Market Simulation</a></td>
 </tr>
 </tbody>
 </table>
@@ -17128,19 +17275,19 @@ once that file exists its profiles replace the built-ins entirely (a missing
 <td><code>health</code></td>
 <td>—</td>
 <td><code>-q</code>/<code>--quiet</code> (print nothing)</td>
-<td>Same checks as <code>list</code>; exits <code>0</code> only when every process is running — for monitoring scripts</td>
+<td>Same checks as <code>list</code> (always with the <code>tcp</code> probe); exits <code>0</code> only when every process is running — for monitoring scripts</td>
 </tr>
 <tr>
 <td><code>stop</code></td>
 <td><code>down</code></td>
 <td>—</td>
-<td>Send <code>SIGTERM</code> to processes this tool started (recorded in the PID directory)</td>
+<td><code>SIGTERM</code>, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running 15 s later keeps its PID file and makes <code>stop</code> exit <code>1</code></td>
 </tr>
 <tr>
 <td><code>kill</code></td>
 <td>—</td>
 <td>—</td>
-<td>Emergency stop: <code>pkill -15 -f -i -l pm-</code> — signals every process whose command line contains <code>pm-</code>, including ones this tool did not start</td>
+<td>Emergency stop: <code>SIGTERM</code> to every running process of this user whose program is a <code>pm-*</code> command, including ones this tool did not start (never to <code>npm</code>, editors or the calling shell, which merely mention <code>pm-</code>), plus every process recorded in the PID directory; exits <code>1</code> when one survives</td>
 </tr>
 <tr>
 <td><code>init</code></td>
@@ -17157,12 +17304,19 @@ once that file exists its profiles replace the built-ins entirely (a missing
 <tr>
 <td><code>clear</code></td>
 <td>—</td>
-<td><code>--state</code> (the exchange's working state: GTC orders and combos, book statistics, <code>stats.db</code>, <code>clearing.db</code>, index state) or <code>--all</code> (also the audit trail and its index, <code>log.db</code>, <code>metrics.db</code>, fallback logs, the PID directory, and <code>pm-eod</code>'s <code>eod.db</code>, <code>settlement/</code> and <code>backup/</code>), <code>--yes</code> (skip prompt)</td>
-<td>Delete persisted data under the data directory; <code>ref_data/</code> (configuration) is never touched</td>
+<td><code>--state</code> (the exchange's working state: GTC orders and combos, book statistics, <code>stats.db</code>, <code>clearing.db</code>, index state, the market model's <code>market_sim_state.json</code>) or <code>--all</code> (also the audit trail and its indexes <code>audit_index.db</code>/<code>audit_replay.db</code>, <code>log.db</code>, <code>metrics.db</code>, fallback logs, the PID directory, <code>pm-eod</code>'s <code>eod.db</code>, <code>settlement/</code> and <code>backup/</code>, <code>market_sim_news.db</code>, <code>ai_swarm/</code> and the engine's <code>eod/</code> archives), <code>--yes</code> (skip prompt), <code>--force</code> (clear even while <code>pm-*</code> processes run)</td>
+<td>Delete persisted data under the data directory; <code>ref_data/</code>, <code>engine_run_seq.json</code> and <code>companies.db</code> are never touched</td>
 </tr>
 </tbody>
 </table>
-<p>Exactly one of <code>--state</code>/<code>--all</code> must be given to <code>clear</code>.</p>
+<p>Exactly one of <code>--state</code>/<code>--all</code> must be given to <code>clear</code>. It refuses (exit
+<code>1</code>) while <code>pm-*</code> processes of this user run, since they would keep writing to
+the deleted files; stop them first or pass <code>--force</code>.</p>
+<p><strong>Exit codes:</strong> <code>0</code> success; <code>1</code> — <code>start</code>: a process it started exited
+within a second (named with its exit code and log); <code>stop</code>/<code>kill</code>: a process
+outlived <code>SIGTERM</code> (its PID file is kept); <code>health</code>: a process is not
+<code>running</code>, or no profile is active; <code>clear</code>: refused or declined; <code>2</code> — usage
+or configuration error.</p>
 <p><code>start --debug</code> appends <code>--log-level DEBUG</code> to every process's command line
 before it is launched, overriding whatever level a profile's <code>--verbose</code> (or
 lack of one) would otherwise select — see
@@ -17183,11 +17337,16 @@ configured check passed). A <code>healthcheck</code> command takes precedence ov
 <code>tcp</code> probe because it exercises the application itself, not just its socket.</p>
 <p><strong>Process tracking:</strong></p>
 <p>Started processes are detached into their own session and recorded as
-<code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.pid</code>, with combined stdout/stderr appended to
+<code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.pid</code> (the PID, the process's start time and the
+command it was launched with), with combined stdout/stderr appended to
 <code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.log</code>. The active profile name is remembered in
-<code>&lt;DATA_DIR&gt;/emo/active-profile</code>. A process restarted outside this tool is
-re-adopted on the next <code>list</code>/<code>health</code>/<code>stop</code> by matching its command line via
-<code>pgrep</code>, so a stale PID file is never treated as final.</p>
+<code>&lt;DATA_DIR&gt;/emo/active-profile</code>. A PID file is trusted only while the process
+with that PID also has the recorded start time (or, after the wall clock was
+stepped, still runs the recorded command as this user): after a crash, a killed container or a reboot the PID may belong to
+another process, and such a file is removed rather than acted on. A profile
+process whose PID file is missing or stale (one restarted outside this tool)
+is re-adopted on the next <code>start</code>/<code>list</code>/<code>health</code>/<code>stop</code> by matching its exact
+command line among this user's processes.</p>
 <p>This tool is local orchestration logic — it starts other <code>pm-*</code> processes as
 subprocesses and reads their PID/log files, but binds no ZeroMQ or TCP port
 of its own and does not participate in the runtime message bus.</p>

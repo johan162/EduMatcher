@@ -4445,6 +4445,94 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part III: Codes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part III: Codes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference-manual/part-4-codes/010-reject-and-cancel-codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reject and Cancel Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../../reference-manual/90-backmatter/010-glossary/" class="md-nav__link">
         
@@ -9125,8 +9213,10 @@ touched the order, or a cancel the exchange decided on.</p>
 <h3 id="unsolicited-cancels">Unsolicited cancels<a class="headerlink" href="#unsolicited-cancels" title="Permanent link">&para;</a></h3>
 <p>A <code>CANCELLED</code> line does not always answer a <code>CANCEL</code> you sent. The exchange
 cancels orders on its own: self-match prevention, the unfillable remainder of a
-<code>MARKET</code> or <code>IOC</code> order, a kill switch, an OCO sibling, a <code>DAY</code> order at the
-close. Two fields tell you which happened:</p>
+<code>MARKET</code> or <code>IOC</code> order, a kill switch, an OCO sibling. (An order whose time
+in force runs out — <code>DAY</code> at the end of the day, <code>ATO</code> / <code>ATC</code> at the end of
+their auction — is not cancelled: it arrives as <code>EXPIRED</code>.) Two fields tell
+you which happened:</p>
 <table>
 <thead>
 <tr>
