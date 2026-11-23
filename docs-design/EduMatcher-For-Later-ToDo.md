@@ -150,6 +150,7 @@ way.
 | L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Fixed 2026-11-19 (`state_since` on `system.session_status`) |
 | L043 | 2026-11-22 | pm-engine / msgen (inbound coercion) | The price-level orders filter rounds an off-grid price to the nearest tick, an amend's `qty` is truncated with `int()` (10.7 → 10), and the generated `from_dict` truncates float ticks (`int(10000.5)` → 10000) instead of refusing them (Models review 2026-11 §9) | Low | Open |
 | L044 | 2026-11-23 | pm-engine (target-only commands) | `risk.kill_switch`, `quote.cancel` and `system.gateway_disconnect` name only the gateway they act on, so any PUSH client can cancel or disconnect any participant, and pm-admin's `KICK` reaches the audit trail as the target's own logout, unattributed and without an ack (Admin commands review 2026-11 §9) | Low | Open |
+| L045 | 2026-11-23 | deployment (container stop) | `stop_grace_period` is 30 s (60 s for ai-sim) while `pm-opctl-cli stop` may wait up to four 15 s waves; a slow engine stop is SIGKILLed by Docker before the recorders' wave (pm-opctl review 2026-11 §9) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -938,6 +939,24 @@ and an `admin.action` record, used by pm-admin and pm-api-gwy; the
 self-service messages stay for their own gateway, and the PUSH socket's reach
 (internal network) is the other half of the answer, as for L039.
 
+
+## L045 — The container's stop grace is shorter than pm-opctl's stop budget
+
+**Found:** 2026-11-23, pm-opctl-cli review (`reviews/EduMatcher-Opctl-Review-2026-11.md` §9).
+
+**Finding.** `deployment/docker/compose.yaml` and `compose.ai-sim.yaml` give
+the container 30 s and 60 s (`stop_grace_period`) between SIGTERM and SIGKILL.
+The entrypoint's `shutdown` runs `pm-opctl-cli stop`, which signals in four
+waves and waits up to 15 s for each (`emo/cli.py:183-189`, `:1089-1098`). When
+the gateways or the engine take long to exit (a large GTC book to persist in
+ai-sim), Docker SIGKILLs the stack before the recorders' wave, so pm-clearing,
+pm-stats and pm-audit miss the engine's last messages and pm-log-srv its
+farewells.
+
+**Recommendation.** Measure `stop` on the ai-sim profile at a busy close and
+set `stop_grace_period` above the measured time plus margin (or 4 × 15 s +
+10 s), and/or let `pm-opctl-cli stop` take a total budget so it can share the
+grace period between waves.
 ---
 
 ## Work plan

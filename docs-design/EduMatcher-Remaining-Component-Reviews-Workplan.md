@@ -56,5 +56,5 @@ allows.
 |---|---|
 | CR01 | review written 2026-11-22: `reviews/EduMatcher-Audit-Replay-Review-2026-11.md`; WP-RPL01–10 open, Q1–Q4 pending |
 | CR02 | review written 2026-11-22: `reviews/EduMatcher-Models-Review-2026-11.md`; WP-MOD01–04 and a holistic review done 2026-11-23, uncommitted; Q1–Q4 taken as recommended (to confirm) |
-| CR03 | pm-admin/pm-admin-cli part: review 2026-11-23, `reviews/EduMatcher-Admin-Commands-Review-2026-11.md`; WP-ADM01–06 and holistic review done 2026-11-23, uncommitted; Q1 done as (b), Q2/Q3 as recommended (confirm); `emo/` (pm-opctl-cli) still open |
+| CR03 | pm-admin/pm-admin-cli part: review 2026-11-23, `reviews/EduMatcher-Admin-Commands-Review-2026-11.md`; WP-ADM01–06 and holistic review done 2026-11-23, uncommitted; Q1 done as (b), Q2/Q3 as recommended (confirm); `emo/` (pm-opctl-cli): review written 2026-11-23, `reviews/EduMatcher-Opctl-Review-2026-11.md`; WP-OPC01–06 open, Q1–Q5 pending |
 | CR04–CR18 | open |
