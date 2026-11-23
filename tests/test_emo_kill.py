@@ -25,7 +25,16 @@ import pytest
 from edumatcher.emo import cli as emo_cli
 
 _SLEEP = "import time; time.sleep(60)\n"
-_STUBBORN = "import signal, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(60)\n"
+
+
+def _stubborn(ready: Path) -> str:
+    """A script ignoring SIGTERM, which creates *ready* once it does."""
+    return (
+        "import pathlib, signal, time\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        f"pathlib.Path({str(ready)!r}).touch()\n"
+        "time.sleep(60)\n"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -88,6 +97,9 @@ def _wait_started(pids: list[int]) -> None:
     [
         (["python3", "/v/bin/pm-engine", "--verbose"], True),
         (["pm-log-srv"], True),
+        # A macOS framework Python re-executes itself under this name.
+        (["/f/Python.app/Contents/MacOS/Python", "/v/bin/pm-engine"], True),
+        (["/f/Python.app/Contents/MacOS/Python", "-c", "pm-engine"], False),
         (["node", "/usr/lib/npm-cli.js"], False),
         (["vim", "pm-notes.md"], False),
         (["bash", "-c", "pm-opctl-cli kill"], False),
@@ -121,10 +133,16 @@ def test_kill_signals_pm_programs_and_spares_the_rest(
 def test_a_survivor_keeps_its_pid_file_and_fails_the_command(
     tmp_path: Path, procs: list[Any], capsys: Any
 ) -> None:
-    stubborn = _spawn(procs, [str(_script(tmp_path, "pm-zzz-stubborn", _STUBBORN))])
+    ready = tmp_path / "stubborn.ready"
+    stubborn = _spawn(
+        procs, [str(_script(tmp_path, "pm-zzz-stubborn", _stubborn(ready)))]
+    )
     engine = _spawn(procs, [str(_script(tmp_path, "pm-zzz-engine", _SLEEP))])
     _wait_started([stubborn, engine])
-    time.sleep(0.3)  # let the stubborn script install its handler
+    deadline = time.monotonic() + 15
+    while not ready.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert ready.exists(), "the stubborn script never installed its handler"
     emo_cli.runtime_dir().mkdir(parents=True)
     emo_cli.write_pid("stubborn", stubborn)
     emo_cli.write_pid("engine", engine)

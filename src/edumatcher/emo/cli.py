@@ -733,11 +733,26 @@ def command_line(pid: int) -> list[str]:
         return []
 
 
+#: A Python interpreter's program name. Case-insensitive because a macOS
+#: framework build re-executes itself as ``.../Python.app/Contents/MacOS/Python``,
+#: so a running process's argv[0] is not the ``python`` it was launched as.
+_PYTHON_PROGRAM = re.compile(r"python[0-9.]*w?", re.IGNORECASE)
+
+
+def _is_python(program: str) -> bool:
+    return _PYTHON_PROGRAM.fullmatch(os.path.basename(program)) is not None
+
+
 def matches_command(tokens: list[str], command: list[str]) -> bool:
-    """Match ignoring argv[0]; console scripts run as `python /path/pm-foo ...`."""
+    """Match ignoring argv[0]; console scripts run as `python /path/pm-foo ...`.
+
+    Any interpreter name matches a command launched through an interpreter
+    (see ``_PYTHON_PROGRAM``); the arguments must still be identical.
+    """
     program = os.path.basename(command[0])
+    interpreter = _is_python(program)
     for index, token in enumerate(tokens):
-        if os.path.basename(token) == program:
+        if os.path.basename(token) == program or (interpreter and _is_python(token)):
             return tokens[index + 1 :] == list(command[1:])
     return False
 
@@ -755,7 +770,10 @@ def discover_pid(process: dict[str, Any], claimed: set[int]) -> int | None:
     """Find a running process of this user matching this entry's command line."""
     command = process["command"]
     own_pid = os.getpid()
-    for pid in pgrep_pids(os.path.basename(command[0])):
+    program = os.path.basename(command[0])
+    # pgrep is case-sensitive, and a framework build runs as ``Python``.
+    pattern = "[Pp]ython" if _is_python(program) else program
+    for pid in pgrep_pids(pattern):
         if pid == own_pid or pid in claimed or not owned_by_me(pid):
             continue
         if matches_command(command_line(pid), command):
@@ -1407,7 +1425,7 @@ def _is_pm_program(cmdline: list[str]) -> bool:
     if not cmdline:
         return False
     programs = [cmdline[0]]
-    if os.path.basename(cmdline[0]).startswith("python") and len(cmdline) > 1:
+    if _is_python(cmdline[0]) and len(cmdline) > 1:
         programs.append(cmdline[1])
     return any(_PM_PROGRAM.fullmatch(os.path.basename(p)) for p in programs)
 
