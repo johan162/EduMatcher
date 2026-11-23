@@ -2034,6 +2034,7 @@ class OrderBook:
             price=fill_price,
             quantity=fill_qty,
             aggressor_side=aggressor_side,
+            tick_decimals=get_tick_decimals(self.symbol),
             now=now,
             # A triggered stop keeps its stop price when it turns MARKET/LIMIT.
             trigger_order_id=(

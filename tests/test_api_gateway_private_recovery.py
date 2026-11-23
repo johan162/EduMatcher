@@ -26,10 +26,10 @@ from edumatcher.models.message import (
     make_ack_msg,
     make_cancelled_msg,
     make_expired_msg,
-    make_fill_msg,
     make_orders_msg,
     make_position_snapshot_msg,
 )
+from tests.fill_frames import fill_frames
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ def test_ack_carries_group_ids() -> None:
 
 def test_fill_carries_group_ids() -> None:
     payload = _payload(
-        make_fill_msg("GW01", "ORD-1", 50, 150.0, 50, "PARTIAL", order=COMBO_LEG)
+        fill_frames("GW01", "ORD-1", 50, 150.0, 50, "PARTIAL", order=COMBO_LEG)
     )
     assert payload["combo_parent_id"] == "CMB-1"
 
@@ -119,7 +119,7 @@ def test_an_ordinary_order_gains_no_empty_fields() -> None:
     it belongs to nothing."""
     for frames in (
         make_ack_msg("GW01", "ORD-1", True, order=PLAIN_ORDER),
-        make_fill_msg("GW01", "ORD-1", 1, 1.0, 0, "FILLED", order=PLAIN_ORDER),
+        fill_frames("GW01", "ORD-1", 1, 1.0, 0, "FILLED", order=PLAIN_ORDER),
         make_cancelled_msg("GW01", "ORD-1", order=PLAIN_ORDER),
         make_expired_msg("GW01", "ORD-1", order=PLAIN_ORDER),
     ):
@@ -321,7 +321,7 @@ RESTING = {
     "price": 20.0,
 }
 AAPL_PLUS_10 = [{"symbol": "AAPL", "net_qty": 10, "avg_cost": 20.0}]
-BUY_5_AAPL = make_fill_msg(
+BUY_5_AAPL = fill_frames(
     "GW01", "ORD-F", 5, 20.0, 0, "FILLED", order={"symbol": "AAPL", "side": "BUY"}
 )
 

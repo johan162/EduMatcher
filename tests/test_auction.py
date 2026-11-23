@@ -52,7 +52,7 @@ def _make_order(
     symbol="AAPL",
     side=Side.BUY,
     qty=10,
-    price=100.0,
+    price=100,
     order_type=OrderType.LIMIT,
     tif=TIF.DAY,
     gateway_id="TRADER01",
@@ -119,16 +119,16 @@ class TestEquilibriumPrice:
     def test_simple_cross(self) -> None:
         """Bid at 101 vs ask at 100 → equilibrium somewhere in between."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=101.0))
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0))
+        book.process(_make_order(side=Side.BUY, qty=10, price=101))
+        book.process(_make_order(side=Side.SELL, qty=10, price=100))
         # These should match immediately in continuous mode, leaving empty book.
         # For auction tests, we need to use match=False.
 
     def test_no_match_accumulates(self) -> None:
         """match=False prevents execution; orders rest on book."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=101.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=101), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=100), match=False)
 
         assert len(book.resting_orders()) == 2
         result = compute_equilibrium(book)
@@ -139,12 +139,12 @@ class TestEquilibriumPrice:
         """Pick price that maximizes executable quantity."""
         book = OrderBook("TEST")
         # 3 bids at different prices
-        book.process(_make_order(side=Side.BUY, qty=10, price=105.0), match=False)
-        book.process(_make_order(side=Side.BUY, qty=10, price=103.0), match=False)
-        book.process(_make_order(side=Side.BUY, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=105), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=103), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=100), match=False)
         # 2 asks
-        book.process(_make_order(side=Side.SELL, qty=15, price=102.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=104.0), match=False)
+        book.process(_make_order(side=Side.SELL, qty=15, price=102), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=104), match=False)
 
         result = compute_equilibrium(book)
         # At 102: buy_qty=20 (105+103), sell_qty=15 → exec=15, surplus=5
@@ -160,8 +160,8 @@ class TestEquilibriumPrice:
     def test_equilibrium_minimizes_surplus_on_tie(self) -> None:
         """When multiple prices give same max qty, pick lowest surplus."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=102.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=102), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=100), match=False)
 
         result = compute_equilibrium(book)
         assert result.eq_qty == 10
@@ -176,7 +176,7 @@ class TestEquilibriumPrice:
     def test_one_sided_book(self) -> None:
         """Only bids, no asks → no equilibrium."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=100), match=False)
         result = compute_equilibrium(book)
         assert result.eq_price is None
         assert result.eq_qty == 0
@@ -184,16 +184,16 @@ class TestEquilibriumPrice:
     def test_no_cross(self) -> None:
         """Bids below asks → no crossable interest."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=99.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=101.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=99), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=101), match=False)
         result = compute_equilibrium(book)
         assert result.eq_qty == 0
 
     def test_imbalance_side_buy(self) -> None:
         """More buy qty than sell qty at eq → BUY imbalance."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=20, price=100.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=20, price=100), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=100), match=False)
 
         result = compute_equilibrium(book)
         assert result.imbalance_side == "BUY"
@@ -201,8 +201,8 @@ class TestEquilibriumPrice:
 
     def test_imbalance_side_sell(self) -> None:
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=5, price=100.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=15, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=5, price=100), match=False)
+        book.process(_make_order(side=Side.SELL, qty=15, price=100), match=False)
 
         result = compute_equilibrium(book)
         assert result.imbalance_side == "SELL"
@@ -219,8 +219,8 @@ class TestUncrossExecution:
     def test_full_execution(self) -> None:
         """All interest crosses at eq price."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=101.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=101), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=100), match=False)
 
         result = compute_equilibrium(book)
         assert result.eq_price is not None
@@ -236,8 +236,8 @@ class TestUncrossExecution:
     def test_partial_execution_with_imbalance(self) -> None:
         """More bids than asks → surplus remains on book."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=20, price=100.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=20, price=100), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=100), match=False)
 
         result = compute_equilibrium(book)
         assert result.eq_price is not None
@@ -252,8 +252,8 @@ class TestUncrossExecution:
     def test_no_execution_needed(self) -> None:
         """No crossed prices → no trades."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=10, price=99.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=10, price=101.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=10, price=99), match=False)
+        book.process(_make_order(side=Side.SELL, qty=10, price=101), match=False)
 
         result = compute_equilibrium(book)
         assert result.eq_price is None
@@ -262,9 +262,9 @@ class TestUncrossExecution:
     def test_multiple_fills_at_single_price(self) -> None:
         """Multiple orders on each side → multiple trades, all at eq price."""
         book = OrderBook("TEST")
-        book.process(_make_order(side=Side.BUY, qty=5, price=102.0), match=False)
-        book.process(_make_order(side=Side.BUY, qty=5, price=101.0), match=False)
-        book.process(_make_order(side=Side.SELL, qty=3, price=100.0), match=False)
+        book.process(_make_order(side=Side.BUY, qty=5, price=102), match=False)
+        book.process(_make_order(side=Side.BUY, qty=5, price=101), match=False)
+        book.process(_make_order(side=Side.SELL, qty=3, price=100), match=False)
         book.process(_make_order(side=Side.SELL, qty=7, price=100.5), match=False)
 
         result = compute_equilibrium(book)
@@ -296,7 +296,7 @@ class TestOrderBookNoMatch:
 
     def test_fok_rejected_in_no_match(self) -> None:
         book = OrderBook("TEST")
-        order = _make_order(order_type=OrderType.FOK, price=100.0)
+        order = _make_order(order_type=OrderType.FOK, price=100)
         trades, events = book.process(order, match=False)
 
         assert trades == []
@@ -304,7 +304,7 @@ class TestOrderBookNoMatch:
 
     def test_limit_rests_in_no_match(self) -> None:
         book = OrderBook("TEST")
-        order = _make_order(order_type=OrderType.LIMIT, price=100.0)
+        order = _make_order(order_type=OrderType.LIMIT, price=100)
         trades, events = book.process(order, match=False)
 
         assert trades == []
@@ -375,7 +375,7 @@ class TestSessionTransitions:
         engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
         pub_sock.sent.clear()
 
-        order = _make_order(order_type=OrderType.FOK, price=100.0)
+        order = _make_order(order_type=OrderType.FOK, price=100)
         engine._handle_new_order(order.to_dict())
 
         topic, msg = decode(pub_sock.sent[-1])
@@ -402,7 +402,7 @@ class TestSessionTransitions:
         engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
         pub_sock.sent.clear()
 
-        order = _make_order(order_type=OrderType.LIMIT, price=100.0)
+        order = _make_order(order_type=OrderType.LIMIT, price=100)
         engine._handle_new_order(order.to_dict())
 
         topic, msg = decode(pub_sock.sent[0])
@@ -417,11 +417,11 @@ class TestSessionTransitions:
         pub_sock.sent.clear()
 
         # Seed a resting sell
-        sell = _make_order(side=Side.SELL, qty=10, price=100.0, gateway_id="TRADER02")
+        sell = _make_order(side=Side.SELL, qty=10, price=100, gateway_id="TRADER02")
         engine._handle_new_order(sell.to_dict())
 
         # Crossing buy — should rest, not match
-        buy = _make_order(side=Side.BUY, qty=10, price=101.0)
+        buy = _make_order(side=Side.BUY, qty=10, price=101)
         engine._handle_new_order(buy.to_dict())
 
         topics = _topics(pub_sock)
@@ -553,7 +553,7 @@ class TestAtoAtcOrders:
     def test_ato_rejected_during_continuous(self, session_engine) -> None:
         engine, pub_sock = session_engine
 
-        order = _make_order(tif=TIF.ATO, price=100.0)
+        order = _make_order(tif=TIF.ATO, price=100)
         engine._handle_new_order(order.to_dict())
 
         topic, msg = decode(pub_sock.sent[-1])
@@ -563,7 +563,7 @@ class TestAtoAtcOrders:
     def test_atc_rejected_during_continuous(self, session_engine) -> None:
         engine, pub_sock = session_engine
 
-        order = _make_order(tif=TIF.ATC, price=100.0)
+        order = _make_order(tif=TIF.ATC, price=100)
         engine._handle_new_order(order.to_dict())
 
         topic, msg = decode(pub_sock.sent[-1])
@@ -576,7 +576,7 @@ class TestAtoAtcOrders:
         engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
         pub_sock.sent.clear()
 
-        order = _make_order(tif=TIF.ATC, price=100.0)
+        order = _make_order(tif=TIF.ATC, price=100)
         engine._handle_new_order(order.to_dict())
 
         topic, msg = decode(pub_sock.sent[0])
@@ -592,7 +592,7 @@ class TestAtoAtcOrders:
         engine._handle_session_transition({"to_state": "OPENING_AUCTION"})
         pub_sock.sent.clear()
 
-        order = _make_order(tif=TIF.ATO, price=100.0)
+        order = _make_order(tif=TIF.ATO, price=100)
         engine._handle_new_order(order.to_dict())
 
         topic, msg = decode(pub_sock.sent[0])
@@ -610,7 +610,7 @@ class TestAtoAtcOrders:
         pub_sock.sent.clear()
 
         # Place ATO order
-        order = _make_order(tif=TIF.ATO, price=100.0)
+        order = _make_order(tif=TIF.ATO, price=100)
         engine._handle_new_order(order.to_dict())
 
         # Transition to CONTINUOUS — should trigger uncross + expire unfilled ATOs
@@ -633,7 +633,7 @@ class TestAtoAtcOrders:
         engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
         pub_sock.sent.clear()
 
-        order = _make_order(tif=TIF.ATC, price=100.0)
+        order = _make_order(tif=TIF.ATC, price=100)
         engine._handle_new_order(order.to_dict())
 
         engine._handle_session_transition({"to_state": "CLOSED"})
@@ -668,9 +668,9 @@ class TestUncrossIntegration:
         pub_sock.sent.clear()
 
         # Place crossing orders during auction
-        sell = _make_order(side=Side.SELL, qty=10, price=99.0, gateway_id="TRADER02")
+        sell = _make_order(side=Side.SELL, qty=10, price=99, gateway_id="TRADER02")
         engine._handle_new_order(sell.to_dict())
-        buy = _make_order(side=Side.BUY, qty=10, price=101.0)
+        buy = _make_order(side=Side.BUY, qty=10, price=101)
         engine._handle_new_order(buy.to_dict())
 
         # No trades yet (auction mode)
@@ -701,9 +701,9 @@ class TestUncrossIntegration:
         engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
         pub_sock.sent.clear()
 
-        sell = _make_order(side=Side.SELL, qty=5, price=98.0, gateway_id="TRADER02")
+        sell = _make_order(side=Side.SELL, qty=5, price=98, gateway_id="TRADER02")
         engine._handle_new_order(sell.to_dict())
-        buy = _make_order(side=Side.BUY, qty=5, price=102.0)
+        buy = _make_order(side=Side.BUY, qty=5, price=102)
         engine._handle_new_order(buy.to_dict())
 
         pub_sock.sent.clear()
@@ -772,9 +772,9 @@ class TestUncrossIntegration:
         pub_sock.sent.clear()
 
         # Bids below asks — no cross
-        sell = _make_order(side=Side.SELL, qty=10, price=105.0, gateway_id="TRADER02")
+        sell = _make_order(side=Side.SELL, qty=10, price=105, gateway_id="TRADER02")
         engine._handle_new_order(sell.to_dict())
-        buy = _make_order(side=Side.BUY, qty=10, price=95.0)
+        buy = _make_order(side=Side.BUY, qty=10, price=95)
         engine._handle_new_order(buy.to_dict())
 
         pub_sock.sent.clear()

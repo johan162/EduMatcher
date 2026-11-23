@@ -6,6 +6,7 @@ price values and ticks happens only at boundaries.
 
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 DEFAULT_TICK_DECIMALS = 2
@@ -107,6 +108,14 @@ class TickViolation(ValueError):
 # client could have meant. The gap between them is where float arithmetic
 # lands: a bot computing `100.00 - 3 * 0.01` produces 99.97000000000001, which
 # is the same price a human typed as "99.97" and must not be rejected.
+#
+# The floor alone is not enough. `price * 10**d` is itself rounded to the
+# nearest float, an error of about one ulp of the result, and one ulp passes
+# 1e-6 once the scaled value passes ~4.5e9: at 8 decimals that is a price of
+# about 45. The window therefore widens to two ulps of the scaled value.
+# Measured over 189 000 prices (0-8 decimals, 1 to 10**7): no typed on-grid
+# price refused and no half-tick price accepted; four ulps accepted half
+# ticks at 8 decimals from 10**6 up (Models review 2026-11, C1).
 _TICK_EPSILON = 1e-6
 
 
@@ -128,11 +137,15 @@ def to_ticks_exact_at(price: float, tick_decimals: int, symbol: str) -> int:
     *symbol* only names the instrument in the raised violation.
 
     Raises:
-        TickViolation: if *price* is not a multiple of ``10**-tick_decimals``.
+        TickViolation: if *price* is not a multiple of ``10**-tick_decimals``,
+            or is not finite (``inf``, ``nan``, or a value such as ``1e308``
+            whose scaled form overflows) and so is on no grid at all.
     """
     scaled = price * 10**tick_decimals
+    if not math.isfinite(scaled):
+        raise TickViolation(price, symbol, tick_decimals)
     ticks = round(scaled)
-    if abs(scaled - ticks) > _TICK_EPSILON:
+    if abs(scaled - ticks) > max(_TICK_EPSILON, 2 * math.ulp(scaled)):
         raise TickViolation(price, symbol, tick_decimals)
     return int(ticks)
 
@@ -166,14 +179,19 @@ def to_ticks_exact_or_none(price: Optional[float], symbol: str) -> Optional[int]
     return to_ticks_exact(price, symbol)
 
 
-def from_ticks(ticks: int | float, symbol: str) -> float:
+def from_ticks(ticks: int, symbol: str) -> float:
     """Convert integer ticks to display price.
 
-    If a float is passed, it is assumed to already be in display units and is
-    returned unchanged. This keeps staged migration behavior stable.
+    Ticks only. A float used to be returned unchanged, on the theory that it
+    was already display money; once every engine-inbound price became ticks
+    the only floats left were wrong ones, and passing them through printed a
+    float tick count as a price 10**tick_decimals too large.
+
+    Raises:
+        TypeError: if *ticks* is not an int (a bool is refused too).
     """
-    if isinstance(ticks, float):
-        return ticks
+    if type(ticks) is not int:
+        raise TypeError(f"ticks must be an int, not {ticks!r}")
     scale = _from_scale_cache.get(symbol)
     if scale is None:
         scale = float(10 ** get_tick_decimals(symbol))
@@ -196,6 +214,15 @@ def from_ticks_or_none(ticks: Optional[int], symbol: str) -> Optional[float]:
 
 
 def format_price_ticks(ticks: int, symbol: str) -> str:
-    """Format ticks as a decimal string using symbol tick precision."""
+    """Format ticks as a decimal string using symbol tick precision.
+
+    Built from the integer, not from ``from_ticks``: a float carries about 16
+    significant digits, so at 8 decimals a price from about 90 million up
+    would print with wrong trailing digits.
+    """
     decimals = get_tick_decimals(symbol)
-    return f"{from_ticks(ticks, symbol):.{decimals}f}"
+    whole, frac = divmod(abs(ticks), 10**decimals)
+    sign = "-" if ticks < 0 else ""
+    if not decimals:
+        return f"{sign}{whole}"
+    return f"{sign}{whole}.{frac:0{decimals}d}"

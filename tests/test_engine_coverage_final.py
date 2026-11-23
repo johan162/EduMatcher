@@ -111,7 +111,7 @@ def _connect(engine, gw="GW01"):
     engine._handle_gateway_connect({"gateway_id": gw})
 
 
-def _gtc_order(symbol="AAPL", side=Side.BUY, price=100.0):
+def _gtc_order(symbol="AAPL", side=Side.BUY, price=100):
     o = Order.create(
         symbol=symbol,
         side=side,
@@ -125,7 +125,7 @@ def _gtc_order(symbol="AAPL", side=Side.BUY, price=100.0):
     return o
 
 
-def _day_order(symbol="AAPL", side=Side.BUY, price=100.0, days_ago=0):
+def _day_order(symbol="AAPL", side=Side.BUY, price=100, days_ago=0):
     """A resting TIF=DAY order, as would be loaded from gtc_orders.json.
 
     days_ago controls the order's timestamp for the business-day check in
@@ -170,7 +170,7 @@ def _quote_leg(
         quantity=100,
         gateway_id=gateway_id,
         tif=tif,
-        price_ticks=100.0 if side == Side.BUY else 100.10,
+        price_ticks=100 if side == Side.BUY else 101,
     )
     o.id = order_id
     o.status = OrderStatus.NEW

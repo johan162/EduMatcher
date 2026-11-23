@@ -45,7 +45,7 @@ from edumatcher.models.generated.system import (
     topic_session_status,
     topic_symbols,
 )
-from edumatcher.models.message import make_fill_msg
+from tests.fill_frames import fill_frames
 from tests.alf_console_harness import console_harness  # noqa: F401
 from tests.test_alf_console_quote_ack import _make_gateway
 
@@ -53,7 +53,7 @@ _ORDER = {"symbol": "AAPL", "side": "BUY", "quantity": 100, "order_type": "LIMIT
 
 
 def _fill(gateway_id: str, order_id: str) -> list[bytes]:
-    return make_fill_msg(gateway_id, order_id, 100, 150.0, 0, "FILLED", order=_ORDER)
+    return fill_frames(gateway_id, order_id, 100, 150.0, 0, "FILLED", order=_ORDER)
 
 
 # ---------------------------------------------------------------------------

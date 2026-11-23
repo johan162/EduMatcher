@@ -46,7 +46,11 @@ wrapped `price.from_ticks` and logged every float argument during the full
 suite (15 366 tests). The other findings are by inspection, with line numbers
 given.
 
-Status: **Open.** Decisions Q1–Q4 are needed before WP-MOD01 to WP-MOD04.
+Status: **Done, uncommitted** (2026-11-23). All four WPs implemented in one
+go, in the suggested order, followed by a holistic review (§10) that found
+and fixed one more defect (HR1). Decisions Q1–Q4 were taken as recommended
+(not answered by the user; to confirm). Last full suite: 15 429 passed,
+1 skipped.
 
 ---
 
@@ -85,10 +89,10 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-MOD01 | The engine refuses an order or combo whose ticks or quantities are not integers, and `from_ticks` takes ticks only | H1, D8 | Q1, Q2 | 1 d | ☐ | |
-| 2 | WP-MOD02 | Every price on a 0–8 decimal grid is accepted, and a non-finite or overflowing price is a tick violation | C1, C2 | Q4 | 0.5 d | ☐ | |
-| 3 | WP-MOD03 | Prices format exactly, and no model API carries a wrong scale or vouches for code production does not run | C3, C4 | Q3 | 0.5 d | ☐ | |
-| 4 | WP-MOD04 | Docstrings, comments and the guides say what the models do | D1–D7, D9–D12 | all | 0.5 d | ☐ | |
+| 1 | WP-MOD01 | The engine refuses an order or combo whose ticks or quantities are not integers, and `from_ticks` takes ticks only | H1, D8 | Q1, Q2 | 1 d | ☑ | 2026-11-22 |
+| 2 | WP-MOD02 | Every price on a 0–8 decimal grid is accepted, and a non-finite or overflowing price is a tick violation | C1, C2 | Q4 | 0.5 d | ☑ | 2026-11-22 |
+| 3 | WP-MOD03 | Prices format exactly, and no model API carries a wrong scale or vouches for code production does not run | C3, C4 | Q3 | 0.5 d | ☑ | 2026-11-22 |
+| 4 | WP-MOD04 | Docstrings, comments and the guides say what the models do | D1–D7, D9–D12 | all | 0.5 d | ☑ | 2026-11-23 |
 
 Suggested order: **WP-MOD01 → 02 → 03 → 04**. WP-MOD01 first because it is
 the one finding that can put a wrong price on `trade.executed`. WP-MOD02
@@ -416,6 +420,9 @@ day.
 
 ## 7. Decisions
 
+All four taken as recommended on 2026-11-22 (the user asked to proceed with
+the recommendations; to confirm).
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | Where does the engine refuse non-integer ticks and quantities in `order.new`/`order.combo`? (a) in `Order.from_dict`/`ComboLeg.from_dict`, raising `ValueError`; (b) a new first step in `_validate_new_order`; (c) decode through the generated `OrderNew.from_dict` + `validate()`. | **(a)**: it is the decoder, so the engine's existing `except (KeyError, ValueError)` (`main.py:2103`) and the combo handler's catch turn it into a malformed-order reject, and the restore path gets it too. (b) is too late: `"10" <= 0` raises `TypeError` before any value check. (c) coerces `10000.5` to `10000` with `int()`, which hides the mistake instead of refusing it. Cost about +100–290 ns per order (§4). |
@@ -460,6 +467,33 @@ and after.
 `tests/test_persistence*.py` and the full suite green; `Order.from_dict` at
 most +150 ns (a guess, to be confirmed by the before/after numbers).
 
+**Outcome (2026-11-22).** `Order.from_dict` now refuses, with a `ValueError`
+naming the field, a `quantity`, `remaining_qty`, `ts_ns`, `tick_decimals`,
+`price_ticks`, `stop_price_ticks`, `visible_qty` or `trail_offset_ticks`
+that is not an `int` (a `bool` included). The check is one boolean
+expression on the path every order takes; only a failure walks
+`_INT_FIELDS` to name the culprit. The engine's existing
+`except (KeyError, ValueError)` turns it into a `MALFORMED_MESSAGE` reject.
+`ComboLeg.from_dict` refuses the same for `quantity`, `tick_decimals`,
+`price_ticks` and `stop_price_ticks`, and the combo handler's catch answers
+`combo.ack accepted: false`. `from_ticks` takes an `int` only and raises
+`TypeError` otherwise; its docstring says why (D8).
+Tests: `tests/test_models_inbound_types.py` (19). 15 failed first, each for
+the intended reason (accepted when it should be refused, the `TypeError`
+from `"10" <= 0`, `from_ticks` not raising). Two cases were first written
+wrongly (a stop price on a LIMIT, a trailing stop with no reference price)
+and failed on the type rule instead; they now use an order type that carries
+the field. The four "unchanged" cases passed before and after.
+The six test files from H1 now send integer ticks: whole-number float
+literals (`price=100.0`, `price_ticks=105.0`, `last_trade_price = 100.0`)
+became ints throughout those files, including book-level tests that never
+decode (same values, 161 lines); `100.10` in
+`test_engine_coverage_final.py` became `101`. The one non-whole value left
+(`price=100.5`, `test_auction.py:268`) is a book-level test and still runs.
+Measured `Order.from_dict`: 907 ns before, 1 016–1 039 ns after (+110–130 ns).
+Full suite: 15 385 passed, 1 skipped. (The first run showed 1 error that did
+not recur on the rerun.)
+
 ---
 
 ### WP-MOD02 — Every price on a 0–8 decimal grid is accepted, and a non-finite or overflowing price is a tick violation (C1, C2; after Q4)
@@ -487,6 +521,28 @@ Update the `_TICK_EPSILON` comment.
 `tests/test_cverifier*.py`, `tests/test_api_gateway_*.py`,
 `tests/test_alf_*.py` and the full suite green.
 
+**Outcome (2026-11-22).** `to_ticks_exact_at` raises `TickViolation` when the
+scaled price is not finite, and accepts within
+`max(_TICK_EPSILON, 2 * math.ulp(scaled))`; the `_TICK_EPSILON` comment
+records why and the measurement behind it. Every edge that maps
+`TickViolation` now answers a non-finite price correctly: REST gives 400
+`TICK_VIOLATION` instead of a 500, and the engine's amend gives a
+`TICK_VIOLATION` reject instead of an internal error.
+Tests: `tests/test_models_price.py` (sample of 2 100 typed prices per
+decimal count 0–8, half-tick offsets, the bot-arithmetic case, `100.005`,
+the review's `1234.56789012`, `inf`/`-inf`/`nan`/`1e308`, and an engine
+amend to `1e308`); `tests/test_config_price_units.py::TestEightDecimals`
+(loader and `S078`); `tests/test_api_gateway_writes.py` (`±1e308` → 400).
+14 failed first, for the intended reasons: on-grid prices refused at 4–8
+decimals (31–210 per sample), `OverflowError`/`ValueError` instead of
+`TickViolation`, the config refused, and REST raising. The amend test was
+added after the change and checked against the old `price.py` (it failed
+there with `OverflowError`). The half-tick and "unchanged" cases passed
+before and after. Not changed: the ALF gateway's own `except OverflowError`
+(`alf_gwy/gateway.py:2391`) and the console's `isfinite` check are now
+redundant but harmless; they are outside this WP.
+Full suite: 15 415 passed, 1 skipped.
+
 ---
 
 ### WP-MOD03 — Prices format exactly, and no model API carries a wrong scale or vouches for code production does not run (C3, C4; after Q3)
@@ -509,6 +565,30 @@ and to engine-published fills.
 **Exit criteria.** Tests 1–3 pass; `tests/test_alf_gwy_*.py`,
 `tests/test_clearing_*.py` and the full suite green.
 
+**Outcome (2026-11-22).** `format_price_ticks` builds the text from the
+integer (`divmod`, sign, zero-padded fraction). `Trade.tick_decimals` and
+`Trade.create(tick_decimals=…)` have no default any more; the book passes
+`get_tick_decimals(self.symbol)`, so an engine trade carries its real scale,
+and `to_wire`'s docstring now says why the registry and the field agree.
+`Trade.to_dict` is gone. `make_fill_msg` is gone from `models/message.py`;
+the four consumer test files (ALF console delivery and routing, API gateway
+private recovery and order index) build fills with the new test fixture
+`tests/fill_frames.py`, which wraps the generated
+`make_order_fill_unchecked` the engine uses. The four `test_messages.py`
+tests and the equality test in `test_msgen_order_events.py` that tested
+`make_fill_msg` itself were removed; the latter's liquidity-flag and
+MARKET-price tests now run on `fill_frames`. The guided tour no longer
+describes `make_fill_msg` as present (the architecture overview's
+before/after passage still shows it as the "before" and was left as history).
+Tests: `tests/test_models_price.py` (7 formatting cases, an engine trade on a
+4-decimal symbol). 3 failed first, for the intended reasons (two inexact
+formats at 8 decimals, `tick_decimals == 2`); the 5 other formatting cases
+passed before and after. Nine `Trade.create`/`Trade(...)` test sites gained
+`tick_decimals=2`; the `to_dict` round-trip test in
+`test_clearing_ticker_gateway.py` now round-trips through `to_wire()` and
+pm-clearing's `_trade_from_payload`, the production path.
+Full suite: 15 418 passed, 1 skipped.
+
 ---
 
 ### WP-MOD04 — Docstrings, comments and the guides say what the models do (D1–D7, D9–D12)
@@ -523,6 +603,28 @@ straight into `CONTINUOUS` from `PRE_OPEN`. Re-check the architecture book's
 quotes of `models/price.py` and `models/order.py` against WP-MOD01–03.
 
 **Exit criteria.** `make _check` green; `mkdocs build` clean; full suite green.
+
+**Outcome (2026-11-23).** D1: `message.py`'s module docstring names the
+trailer frame and says DAY orders expire at the close, ATO/ATC at the end of
+their auction. D2: `encode_with_envelope` says `messaging.bus` stamps
+envelopes and nothing in `src/` calls it (the doubled "The" is gone). D3:
+`make_quote_legs_msg` describes the `bid_leg`/`ask_leg` snapshots. D4:
+`instrument.py` says nothing in `src/` uses the enum and where the halt
+state really lives. D5: the `make_log_*` comment says no process sends these
+today. D6: `ids.py` names the engine instead of the AI trader. D7:
+`feed_schema.py` no longer claims a `session.state` payload. D9: "five
+positional fields". D10: `session.py` names operator transitions. D11: the
+guided tour says the table stops a jump out of `CLOSED`, that
+`PRE_OPEN → CONTINUOUS` is legal by hand, and that pm-scheduler (whose
+`_transitions_for_day_schedule` always includes the opening auction) is what
+runs the auction. D12: `Order`'s status line includes `EXPIRED`, the PERF
+note counts six maps, and the `orjson` `ImportError` fallback is removed
+(`orjson` is a required dependency); this is the one code change in the WP.
+The architecture overview's note on `from_dict` bypassing `__init__` now
+says `from_dict` does its own integer check (WP-MOD01); the other book quotes
+of `from_dict` elide the body and stay accurate.
+`make _check` green; `mkdocs build` clean; full suite: 15 418 passed,
+1 skipped.
 
 ---
 
@@ -542,3 +644,74 @@ quotes of `models/price.py` and `models/order.py` against WP-MOD01–03.
   (`clearing/main.py:183-185`) instead of reading `price_ticks`. It is exact
   below 2⁵³ ticks, so it is not a defect; after WP-MOD01 the two cannot
   disagree.
+
+---
+
+## 10. Holistic review after the WPs (2026-11-23)
+
+Done after WP-MOD04, over the four changes together and the paths they share:
+the engine's `order.new`, `order.combo` and `order.amend` handlers, the
+persistence restore, every `from_ticks` caller, and the config, verifier,
+REST and ALF edges that call the tick check.
+
+**Found and fixed.**
+
+- **HR1 (Med). A client's `order.new` could set the engine's own order
+  state** *(repro)*. `Order.from_dict` decodes two very different inputs: a
+  client's `order.new` and the engine's own `gtc_orders.json`. For the second
+  it must read `status`, `cum_notional_ticks`, `origin`, `quote_id`,
+  `combo_parent_id`, `leg_index`, `oco_group_id` and `is_seed`, so it read
+  them from the first too, and only `displayed_qty` was reset (K3). WP-MOD01
+  made the decoder strict about types, which made the trust gap visible.
+  Repro (real engine, a GW02 buy 10 at 99.00 with one field edited, then a
+  GW01 sell 4 at 99.00):
+
+  | Field sent | Before |
+  |---|---|
+  | `status: FILLED` / `CANCELLED` / `EXPIRED` | acked `accepted: true`, never rested, no fill, no cancel; a later cancel answers `ORDER_NOT_FOUND` |
+  | `cum_notional_ticks: 5000000` | the fill reports `cum_notional_ticks` 5 039 600 (true 39 600), so the client's average price is 12 599 a share |
+  | `quote_id` / `combo_parent_id` / `leg_index` / `oco_group_id` | carried on the fill, so a consumer attributes it to a quote, combo or OCO that does not exist |
+  | `origin: QUOTE`, `is_seed: true` | the resting order is marked a quote leg / seed |
+
+  Fix: `engine/main.py::_reset_engine_state`, called beside K3 in
+  `_handle_new_order`, puts those fields back to a new submission's values.
+  (`arrival_seq` needed nothing: the book assigns it.) It is a helper rather
+  than inline assignments because an inline `order.status = NEW` made pyright
+  narrow the status and flag the later `is not REJECTED` test as always true.
+  Tests: `tests/test_models_inbound_types.py::test_order_new_cannot_set_engine_owned_state`
+  (11 cases); 10 failed first for the intended reasons, the `arrival_seq` case
+  passed before and after. In-house producers build `order.new` with
+  `Order.create`, which always sends these fields at those values, so nothing
+  they send changes.
+
+**Checked, no defect.**
+
+- **`from_ticks` raising on a float (WP-MOD01) cannot fire in production.**
+  Every engine-internal tick value is an int: circuit-breaker reference and
+  corridor (`//` and `int()`, `circuit_breaker.py:201, 265-266`), collar
+  bands (`int()`, `collar.py:116-131`), last prices (`to_ticks`), auction and
+  amend prices (`to_ticks_exact`). The other callers cast (`balf_gwy/translate.py`)
+  or read wire ticks that the generated builders always write as ints. The
+  float-spy run over the full suite before WP-MOD01 found floats only in test
+  payloads.
+- **The stricter decoders and the restore.** `load_gtc_orders` and
+  `load_gtc_combos` wrap each entry in `except Exception`, so an entry that
+  `Order.from_dict`/`ComboLeg.from_dict` now refuses is skipped and logged
+  CRITICAL with the file kept, as any corrupt entry already was.
+  `persistence._checked_order`'s type checks on the price and quantity fields
+  are now partly redundant with `from_dict`; left as they are.
+- **One tick rule everywhere (WP-MOD02).** The engine loader, pm-cverifier
+  (`S078`), pm-config-gen, REST, the ALF console and the engine's amend all
+  call `to_ticks_exact[_at]`, so they now agree at every decimal count; the
+  ALF gateway's own `except OverflowError` and the console's `isfinite`
+  check are redundant but harmless.
+- **The trade scale (WP-MOD03).** `Trade.create` is called only by
+  `OrderBook._apply_fill`; pm-clearing still rebuilds trades from the wire
+  with the payload's `tick_decimals`, which is the same value.
+
+**Not changed, noted.** The spec's `OrderNew` still declares `status`,
+`origin`, `is_seed` and the group ids as client-settable fields; after HR1
+the engine ignores what a client puts there. Saying so in
+`spec/messages/order.yaml` (and the generated message reference) is left for
+the msgen review (CR16), with L043.
+

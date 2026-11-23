@@ -154,7 +154,7 @@ def _order(
     side=Side.BUY,
     order_type=OrderType.LIMIT,
     qty=100,
-    price=100.0,
+    price=100,
     gateway_id="GW01",
     tif=TIF.DAY,
     smp=SmpAction.NONE,
@@ -271,11 +271,11 @@ class TestSMPCancelBoth:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(
-            _order(side=Side.SELL, price=100.0, smp=SmpAction.CANCEL_BOTH)
+            _order(side=Side.SELL, price=100, smp=SmpAction.CANCEL_BOTH)
         )
         pub_sock.sent.clear()
         engine._handle_new_order(
-            _order(side=Side.BUY, price=100.0, smp=SmpAction.CANCEL_BOTH)
+            _order(side=Side.BUY, price=100, smp=SmpAction.CANCEL_BOTH)
         )
         topics = [decode(f)[0] for f in pub_sock.sent]
         assert any("cancelled" in t for t in topics)
@@ -520,7 +520,7 @@ class TestTrailingStopBuy:
     def test_buy_trailing_stop_with_prior_price(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
-        engine._book("AAPL").last_trade_price = 100.0
+        engine._book("AAPL").last_trade_price = 100
         o = Order.create(
             symbol="AAPL",
             side=Side.BUY,  # BUY trailing stop

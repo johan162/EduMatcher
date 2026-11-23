@@ -4,6 +4,11 @@ Message envelope helpers for ZeroMQ pub/sub and push/pull.
 All messages are multipart ZMQ frames:
   frame[0]: topic (bytes) — used for PUB/SUB filtering
   frame[1]: JSON payload  (bytes)
+  frame[2]: trailer, stamped by ``messaging.bus`` — ``seq|eseq|envelope`` on
+            PUB, the bare causal envelope on PUSH (see ``decode_envelope``)
+
+The ``make_*`` builders here return the first two; the publisher adds the
+third.
 
 Topic conventions
 -----------------
@@ -16,7 +21,8 @@ Topic conventions
   order.ack.{GW_ID}  — engine → gateway: accepted or rejected
   order.fill.{GW_ID} — engine → gateway: partial or full fill
   order.cancelled.{GW_ID} — engine → gateway: cancel confirmed
-  order.expired.{GW_ID}   — engine → gateway: DAY order expired at shutdown
+  order.expired.{GW_ID}   — engine → gateway: DAY order expired at the close,
+                            ATO/ATC at the end of its auction
   trade.executed     — engine → all subscribers
   book.{SYMBOL}      — engine → all subscribers
 """
@@ -61,25 +67,17 @@ from edumatcher.models.envelope import Envelope
 #
 # For decode (inbound messages from gateways), orjson.loads() is similarly
 # faster, but decode is not on the latency-critical path since the gateway
-# already parsed the user command before sending.
-try:
-    import orjson as _json_mod
+# already parsed the user command before sending. orjson is a required
+# dependency (pyproject.toml), so there is no stdlib fallback.
+import orjson as _json_mod
 
-    def _dumps(obj: dict[str, Any]) -> bytes:
-        return _json_mod.dumps(obj)
 
-    def _loads(data: bytes) -> dict[str, Any]:
-        return _json_mod.loads(data)  # type: ignore[no-any-return]
+def _dumps(obj: dict[str, Any]) -> bytes:
+    return _json_mod.dumps(obj)
 
-except ImportError:
-    # Fallback to stdlib json if orjson is not installed (e.g. minimal envs)
-    import json as _json_fallback
 
-    def _dumps(obj: dict[str, Any]) -> bytes:
-        return _json_fallback.dumps(obj).encode()
-
-    def _loads(data: bytes) -> dict[str, Any]:
-        return _json_fallback.loads(data)  # type: ignore[no-any-return]
+def _loads(data: bytes) -> dict[str, Any]:
+    return _json_mod.loads(data)  # type: ignore[no-any-return]
 
 
 def encode(topic: str, payload: dict[str, Any]) -> list[bytes]:
@@ -163,9 +161,9 @@ def encode_with_envelope(
 ) -> list[bytes]:
     """Frames for a message whose envelope the caller supplies.
 
-    For publishers that are not behind a ``CausalPublisher`` — notably the
-    gateways, which stamp a root envelope on the requests they PUSH to the
-    engine so the engine has an id to cite as the cause of its replies. The
+    For a sender that is not behind ``messaging.bus``'s wrappers, which stamp
+    the envelope themselves (the gateways' PUSH sockets included). No process
+    in ``src/`` calls this today; tests use it to hand-build a stamped frame.
     The PUSH path has no sequence, so the envelope is the whole trailer;
     ``decode_envelope`` reads it either way.
     """
@@ -486,50 +484,6 @@ def fill_status(remaining_qty: int) -> _gen_order.OrderFillStatus:
     return "PARTIAL" if remaining_qty else "FILLED"
 
 
-def make_fill_msg(
-    gateway_id: str,
-    order_id: str,
-    fill_qty: int,
-    fill_price: float,
-    remaining_qty: int,
-    status: _gen_order.OrderFillStatus,
-    order: dict[str, Any] | None = None,
-    trade_ids: list[str] | None = None,
-    *,
-    liquidity_flag: _gen_order.OrderFillLiquidityFlag | None = None,
-) -> list[bytes]:
-    """Generated from ``spec/messages/order.yaml``.
-
-    Same one wire change as ``make_ack_msg``: a MARKET order's fill no longer
-    carries ``"price": null``. ``trade_ids`` are the public trade.executed ids
-    that composed this fill (one, or several for a swept VWAP fill).
-    ``liquidity_flag`` is ``TAKER`` for the aggressor side and ``MAKER`` for
-    the resting side (G9) -- keyword-only, matching ``cancel_reason`` on
-    ``make_cancelled_msg``, so it cannot be confused with the positionals
-    above it. None only for a fill with no trade behind it.
-    """
-    detail = order or {}
-    return _gen_order.make_order_fill_unchecked(
-        gateway_id=gateway_id,
-        order_id=order_id,
-        fill_qty=fill_qty,
-        fill_price=fill_price,
-        remaining_qty=remaining_qty,
-        status=status,
-        symbol=detail.get("symbol"),
-        side=detail.get("side"),
-        order_type=detail.get("order_type"),
-        tif=detail.get("tif"),
-        qty=detail.get("quantity"),
-        price=detail.get("price"),
-        client_tag=detail.get("client_tag"),
-        trade_ids=list(trade_ids) if trade_ids else [],
-        liquidity_flag=liquidity_flag,
-        is_seed=bool(detail.get("is_seed", False)),
-        **group_ids(order),
-    )
-
-
 def make_cancelled_msg(
     gateway_id: str,
     order_id: str,
@@ -739,9 +693,10 @@ def make_quote_legs_msg(
     summaries (quote_id, symbol, leg order ids, final quote_status, removal
     *reason*, and *removed_at_ns*) drawn from the engine's in-memory,
     per-gateway inactivation history — populated when *show_requested* is
-    ``"RECENT"`` or ``"ALL"``. Unlike *legs*, recent rows do not carry live
-    qty/remaining/status: that detail is not retained once an order leaves
-    the book. This history does not survive an engine restart.
+    ``"RECENT"`` or ``"ALL"``. A recent row carries each leg's final
+    order_id/qty/remaining/status as ``bid_leg``/``ask_leg`` when the engine
+    captured them at removal (``QuoteIndex.attach_leg_snapshots``), and
+    ``None`` there otherwise. This history does not survive an engine restart.
 
     *complete* is ``True`` when the reply fully answers what was requested
     (always true for ``ACTIVE``; also true for ``RECENT``/``ALL`` now that
@@ -2223,9 +2178,9 @@ def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
 # own outbound messages inside edumatcher.log_srv.pubsub, which already holds
 # all the state (lease deadlines, cursors, counters) those payloads report;
 # duplicating them here as make_* helpers would mean passing a dozen unrelated
-# arguments through just to reach encode(). These helpers exist for the client
-# half — log viewers and CLIs — which is where a shared, typo-proof
-# constructor actually earns its keep.
+# arguments through just to reach encode(). These are the typo-proof
+# constructors for the client half. No process in src/ sends these requests
+# today; the log-server tests drive the server with them.
 
 
 def make_log_subscribe_msg(

@@ -1081,10 +1081,15 @@ The `VALID_TRANSITIONS` dict enforces that the engine cannot jump from, say,
 **Why enforce transitions explicitly?** Without this guard, a bug in the scheduler
 (or a test script that sends transitions in the wrong order) could put the engine
 in an impossible state — for example, jumping from `CLOSED` directly to
-`CONTINUOUS`, bypassing the opening auction entirely. Real exchange rules require
-that every trading day begins with an opening auction to establish a fair opening
-price. Encoding the valid transitions explicitly ensures the engine’s session logic
-can never be violated by external inputs.
+`CONTINUOUS`, skipping the pre-open in which orders are collected before the
+day trades. Encoding the valid transitions explicitly ensures the engine’s
+session logic can never be violated by external inputs.
+
+The table does not force an opening auction: `PRE_OPEN → CONTINUOUS` is a legal
+step, which an operator can take by hand to open straight into continuous
+trading. `pm-scheduler` always runs the opening auction, as most real exchanges
+do to establish a fair opening price; that is the scheduler's choice, not a
+rule this table enforces.
 
 ### The Scheduler: A Separate Process
 
@@ -2282,8 +2287,9 @@ of orders per second, pre-caching saves ~300-400ns per order.
 
 ### Inlined Message Dicts on Hot Paths
 
-The `make_fill_msg()` helper function builds a base dict then calls `.update()` to
-merge order fields. Two allocations plus a hash merge. For high-frequency paths,
+A generic fill builder that takes the whole order dict (the former
+`make_fill_msg()`, since removed) builds a base dict and then merges the order
+fields into it: two allocations plus a hash merge. For high-frequency paths,
 EduMatcher inlines the entire dict literal:
 
 ```python

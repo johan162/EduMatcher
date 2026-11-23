@@ -55,5 +55,5 @@ allows.
 | # | Status |
 |---|---|
 | CR01 | review written 2026-11-22: `reviews/EduMatcher-Audit-Replay-Review-2026-11.md`; WP-RPL01–10 open, Q1–Q4 pending |
-| CR02 | review written 2026-11-22: `reviews/EduMatcher-Models-Review-2026-11.md`; WP-MOD01–04 open, Q1–Q4 pending |
+| CR02 | review written 2026-11-22: `reviews/EduMatcher-Models-Review-2026-11.md`; WP-MOD01–04 and a holistic review done 2026-11-23, uncommitted; Q1–Q4 taken as recommended (to confirm) |
 | CR03–CR18 | open |

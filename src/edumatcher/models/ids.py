@@ -26,7 +26,8 @@ def new_order_id() -> str:
     The entropy is identical: 128 bits from the OS CSPRNG either way, so the
     collision argument that justified uuid4 still holds unchanged. That matters
     more than it looks, because order ids are minted independently by five
-    processes (ALF, BALF and REST gateways, the console, the AI trader) with no
+    processes (ALF, BALF and REST gateways, the console, and the engine for
+    seed orders and combo children) with no
     coordination between them, and they must not collide across a restart
     either — several stores outlive the process that wrote them.
 

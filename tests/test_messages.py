@@ -18,7 +18,6 @@ from edumatcher.models.message import (
     make_combo_status_msg,
     make_eod_msg,
     make_expired_msg,
-    make_fill_msg,
     make_gateway_auth_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
@@ -328,47 +327,6 @@ class TestOrderMessages:
         topic, payload = _rt(make_ack_msg("GW01", "ORD1", True, order=order))
         assert payload["symbol"] == "AAPL"
         assert payload["qty"] == 100
-
-    def test_make_fill_msg(self) -> None:
-        topic, payload = _rt(make_fill_msg("GW01", "ORD1", 50, 150.0, 50, "PARTIAL"))
-        assert topic == "order.fill.GW01"
-        assert payload["fill_qty"] == 50
-        assert payload["fill_price"] == 150.0
-
-    def test_make_fill_msg_with_order(self) -> None:
-        order = {
-            "symbol": "AAPL",
-            "side": "BUY",
-            "order_type": "LIMIT",
-            "tif": "DAY",
-            "tick_decimals": 2,
-            "quantity": 100,
-            "price_ticks": 150.0,
-        }
-        _, payload = _rt(
-            make_fill_msg("GW01", "ORD1", 100, 150.0, 0, "FILLED", order=order)
-        )
-        assert payload["symbol"] == "AAPL"
-
-    def test_make_fill_msg_carries_the_liquidity_flag(self) -> None:
-        """G9: maker/taker attribution, keyword-only like cancel_reason."""
-        _, taker_payload = _rt(
-            make_fill_msg(
-                "GW01", "ORD1", 50, 150.0, 50, "PARTIAL", liquidity_flag="TAKER"
-            )
-        )
-        assert taker_payload["liquidity_flag"] == "TAKER"
-
-        _, maker_payload = _rt(
-            make_fill_msg(
-                "GW02", "ORD2", 50, 150.0, 0, "FILLED", liquidity_flag="MAKER"
-            )
-        )
-        assert maker_payload["liquidity_flag"] == "MAKER"
-
-    def test_make_fill_msg_omits_liquidity_flag_by_default(self) -> None:
-        _, payload = _rt(make_fill_msg("GW01", "ORD1", 50, 150.0, 50, "PARTIAL"))
-        assert "liquidity_flag" not in payload
 
     def test_make_cancelled_msg(self) -> None:
         topic, payload = _rt(make_cancelled_msg("GW01", "ORD1"))

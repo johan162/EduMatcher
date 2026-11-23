@@ -430,6 +430,7 @@ class TestCircuitBreakerEngineIntegration:
                     price=10600,
                     quantity=1,
                     aggressor_side="AUCTION",
+                    tick_decimals=2,
                     ts_ns=1_000_000_010,
                     run_seq=1,
                     match_type=match_type,

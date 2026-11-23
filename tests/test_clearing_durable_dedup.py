@@ -50,6 +50,7 @@ def _trade(trade_id: str, qty: int = 10, price: int = 1000, ts_ns: int = 0) -> T
         price=price,
         quantity=qty,
         aggressor_side="BUY",
+        tick_decimals=2,
     )
     return replace(t, id=trade_id, ts_ns=ts_ns or t.ts_ns)
 
