@@ -149,6 +149,7 @@ way.
 | L041 | 2026-11-17 | pm-engine (collars) | A symbol that starts without a reference price gets no static collar until the next engine start, however long it trades (decided in WP-FL20 / Q11 for 1.x) | Low | Open |
 | L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Fixed 2026-11-19 (`state_since` on `system.session_status`) |
 | L043 | 2026-11-22 | pm-engine / msgen (inbound coercion) | The price-level orders filter rounds an off-grid price to the nearest tick, an amend's `qty` is truncated with `int()` (10.7 → 10), and the generated `from_dict` truncates float ticks (`int(10000.5)` → 10000) instead of refusing them (Models review 2026-11 §9) | Low | Open |
+| L044 | 2026-11-23 | pm-engine (target-only commands) | `risk.kill_switch`, `quote.cancel` and `system.gateway_disconnect` name only the gateway they act on, so any PUSH client can cancel or disconnect any participant, and pm-admin's `KICK` reaches the audit trail as the target's own logout, unattributed and without an ack (Admin commands review 2026-11 §9) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -912,6 +913,30 @@ one instead of refusing it:
 with `INVALID_VALUE`; the msgen coercion for `int` fields refuses a float
 with a fractional part (`MessageValidationError`). Tests: one per path,
 sending the off-grid or fractional value and expecting a refusal.
+
+
+## L044 — Target-only commands carry no requester; KICK is unattributed
+
+**Found:** 2026-11-23, pm-admin/pm-admin-cli review
+(`reviews/EduMatcher-Admin-Commands-Review-2026-11.md` §9).
+
+**Finding.** `risk.kill_switch`, `quote.cancel` and
+`system.gateway_disconnect` carry one id: the gateway they act on, which is
+also the reply topic. The engine cannot tell the participant from any other
+client on the PUSH socket (port 5555), so anyone who reaches it can cancel
+another participant's orders and quotes or end its session. pm-admin's `KICK`
+uses `system.gateway_disconnect` with the target's id
+(`commands/client.py:604-612`): the audit trail records the target logging
+out with the operator's free-text reason, the operator's id appears nowhere,
+no `admin.action` is published, and nothing is acknowledged (an unknown id is
+silently ignored, `engine/main.py:4703-4710`). pm-api-gwy's
+`POST /admin/gateways/{id}/disconnect` sends the same message.
+
+**Recommendation.** An ADMIN `risk.gateway_kick` message with a requester,
+a `command_id`, an ack (`Gateway not configured` / `not connected` refusals)
+and an `admin.action` record, used by pm-admin and pm-api-gwy; the
+self-service messages stay for their own gateway, and the PUSH socket's reach
+(internal network) is the other half of the answer, as for L039.
 
 ---
 
