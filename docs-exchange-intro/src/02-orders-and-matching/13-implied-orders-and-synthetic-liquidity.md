@@ -598,9 +598,38 @@ function implied_quotes():                      # recomputed after EVERY event i
       SPR_ASK: pair(jan.asks, feb.bids, price = a.price - b.price),   # Jan_ask - Feb_bid
       SPR_BID: pair(jan.bids, feb.asks, price = a.price - b.price),   # Jan_bid - Feb_ask
     }
-    # pair() walks both ladders best-first (the merge of Level 6), emitting
-    # (implied_price, qty, [ingredient orders]) and never using an order's quantity twice.
-    # Round each implied price outwards to its book's grid (Level 9).
+
+function pair(a_side, b_side, price, max_levels = 2):
+    # a_side, b_side: real orders, best price first, in queue order.
+    # Returns the implied ladder: [(price, qty, ingredients), ...], best first.
+    ladder = []
+    if a_side is empty or b_side is empty: return ladder
+
+    i, j = 0, 0
+    a_left, b_left = a_side[0].qty, b_side[0].qty   # working copies only
+
+    while i < len(a_side) and j < len(b_side):
+        a, b = a_side[i], b_side[j]
+        p = round_outwards(price(a, b))             # to the target's grid (Level 9)
+        q = min(a_left, b_left)                     # the most this pair can trade
+
+        if ladder is not empty and ladder.last.price == p:
+            ladder.last.qty += q                    # same price: same level
+        elif len(ladder) == max_levels:
+            break                                   # published depth reached
+        else:
+            ladder.append(level(price = p, qty = q, ingredients = []))
+        ladder.last.ingredients.append((a, b, q))
+
+        a_left -= q                                 # consume from both sides, so
+        b_left -= q                                 # no lot can be used twice
+        if a_left == 0:
+            i += 1
+            a_left = a_side[i].qty if i < len(a_side) else 0
+        if b_left == 0:
+            j += 1
+            b_left = b_side[j].qty if j < len(b_side) else 0
+    return ladder
 
 function on_incoming(order):                    # order is always REAL: implied never aggresses
     while order.qty > 0:
@@ -619,9 +648,11 @@ function on_incoming(order):                    # order is always REAL: implied 
     publish_real_and_implied_market_data()
 ```
 
+`pair()` is the merge from Level 6 written out. Run it on that section's ladders and it produces exactly the table shown there: $77.00 × 10, $77.01 × 5, $77.03 × 10. Three details carry the correctness. Because each side is sorted best first, every step yields a price no better than the one before, so the ladder comes out sorted without a separate sort. Because `q` is subtracted from *both* working quantities, no lot is counted twice, which is the bug in the naive ladder. And because the function only changes its working copies, computing a quote never alters a real order: only `commit_atomically` does that.
+
 Everything else in this section explains why each line of that pseudocode is the way it is.
 
-**Recalculation triggers and fan-out.** Every order event on any instrument in a related group (new order, cancel, amendment, partial fill) can change implied quotes in every *other* book of the group. One cancelled spread order can move implied prices in two outright books at once, each change generating market data. Implied-enabled products therefore have a structurally higher ratio of market-data messages to order messages, which must be budgeted in the publishing path, not discovered in production.
+**Recalculation triggers and fan-out.** Every order event on any instrument in a related group (new order, cancel, amendment, partial fill) can change implied quotes in every *other* book of the group. One cancelled spread order can move implied prices in two outright books at once, each change generating market data. Implied-enabled products therefore have a structurally higher ratio of market-data messages to order messages, which must be budgeted in the publishing path, not discovered in production. The sections *From one triangle to the whole strip* and *What one book change costs* below put numbers on this.
 
 **Atomicity.** All legs of an implied match commit together or not at all. The single-threaded-per-book design from *The Matching Engine* chapter now shows its limits: an implied match spans several books. Either the whole related group of instruments is assigned to one sequencing thread (the common production choice: "partition by symbol" becomes "partition by *related instrument group*"), or a cross-book commit protocol is required, with all the latency and complexity that implies.
 
@@ -639,6 +670,129 @@ Everything else in this section explains why each line of that pseudocode is the
 6. *Limits respected:* every party to every implied execution trades at or better than its own limit price.
 
 A fuzzer that generates random order flow across three related books and asserts these six properties after every event will find more implied-matching bugs than any hand-written example suite.
+
+### From one triangle to the whole strip
+
+The pseudocode above handles one triangle: January, February and their spread. A 12-month strip with every calendar spread listed has 66 such triangles, one per spread, and each contributes the same six formulas:
+
+**66 triangles × 6 formulas = 396 `pair()` computations**
+
+The formulas are identical for every triangle. Only the names change. With `N` the near month, `F` the far month and `S` their spread:
+
+| Target | Formula | Type |
+|---|---|---|
+| `F` ask | `N` ask − `S` bid | OUT |
+| `F` bid | `N` bid − `S` ask | OUT |
+| `N` ask | `F` ask + `S` ask | OUT |
+| `N` bid | `F` bid + `S` bid | OUT |
+| `S` ask | `N` ask − `F` bid | IN |
+| `S` bid | `N` bid − `F` ask | IN |
+
+A new complication appears at strip scale: **one target now has several routes**. February's implied ask can come from January plus the Jan/Feb spread, from March plus the Feb/Mar spread, and so on through all 11 other months. The engine must merge those 11 ladders into one. Written by hand, the code for just one book side looks like this:
+
+```
+function recalc_FEB_ASK():
+    return merge_best(
+        pair(jan.asks, jan_feb.bids, price = a.price - b.price),   # Feb is far
+        pair(mar.asks, feb_mar.asks, price = a.price + b.price),   # Feb is near
+        pair(apr.asks, feb_apr.asks, price = a.price + b.price),
+        pair(may.asks, feb_may.asks, price = a.price + b.price),
+        # ... Jun, Jul, Aug, Sep, Oct, Nov ...
+        pair(dec.asks, feb_dec.asks, price = a.price + b.price),
+    )
+
+function recalc_JAN_FEB_ASK():                     # a spread has one IN route
+    return pair(jan.asks, feb.bids, price = a.price - b.price)
+
+# ... and so on: 24 outright functions with 11 routes each (264 pairs)
+# plus 132 spread functions with 1 route each (132 pairs): 396 in total.
+```
+
+`merge_best()` can safely add quantities at equal prices, because the routes into one target go through different months and therefore never share an order. Quotes in *different* target books can share an order, as Level 6 showed. Each is firm on its own, but they cannot all be traded at once, which is why every fill triggers a recomputation.
+
+Nobody should type this by hand. A single wrong sign among 396 lines produces a plausible-looking price that is wrong, and the list changes whenever a contract expires and a new month is listed. The code is a mechanical function of the product definition, so it should be **generated** from it, together with the table that records which quotes depend on which book side:
+
+```
+function generate(months):
+    RECALC, ON_CHANGE = {}, {}
+
+    function rule(target, a, b, op):
+        RECALC[target].append((a, b, op))
+        ON_CHANGE[a].add(target)
+        ON_CHANGE[b].add(target)
+
+    for each pair (N, F) in months with N earlier than F:
+        S = spread(N, F)
+        rule(F.ask, N.ask, S.bid, MINUS)
+        rule(F.bid, N.bid, S.ask, MINUS)
+        rule(N.ask, F.ask, S.ask, PLUS)
+        rule(N.bid, F.bid, S.bid, PLUS)
+        rule(S.ask, N.ask, F.bid, MINUS)
+        rule(S.bid, N.bid, F.ask, MINUS)
+
+    emit_code_or_tables(RECALC, ON_CHANGE)
+```
+
+The generator's output can be source code compiled into the engine or compact tables loaded at the start of the session. Tables are usually the better choice, because a new listing then needs no new engine build. Either way, the six rules exist in one place and can be tested once.
+
+The `ON_CHANGE` table is what makes the fan-out manageable. It lets the engine recalculate only the quotes that a change can affect:
+
+```
+ON_CHANGE[JUN_ASK] = [
+    JAN_ASK, FEB_ASK, MAR_ASK, APR_ASK, MAY_ASK,                 # OUT
+    JUL_ASK, AUG_ASK, SEP_ASK, OCT_ASK, NOV_ASK, DEC_ASK,        # OUT
+    JAN_JUN_BID, FEB_JUN_BID, MAR_JUN_BID, APR_JUN_BID, MAY_JUN_BID,  # IN
+    JUN_JUL_ASK, JUN_AUG_ASK, JUN_SEP_ASK, JUN_OCT_ASK,
+    JUN_NOV_ASK, JUN_DEC_ASK,                                    # IN
+]
+ON_CHANGE[JUN_SEP_BID] = [ SEP_ASK, JUN_BID ]                    # OUT, OUT
+
+function on_book_side_changed(side):
+    for target in ON_CHANGE[side]:
+        new = RECALC[target]()                      # merge all of its routes
+        if new != published[target]:
+            published[target] = new
+            queue_market_data(target, new)
+```
+
+Note the mixed sides in the June list. A June ask is the *near* leg of June/July, so it feeds that spread's ask. It is the *far* leg of Jan/Jun, so it feeds that spread's bid. The figure shows both cases:
+
+![The fan-out of one change in a 12-month strip. Left: a June ask feeds the ask of all 11 other months (implied OUT) and one side of all 11 spreads containing June (implied IN). Right: a Jun/Sep spread bid feeds only two quotes, the September ask and the June bid.](assets/implied-fanout-matrix-small.png)
+
+The asymmetry matters. An outright sits in 11 triangles, so one changed side dirties **22 quotes**. A spread sits in only one triangle, so it dirties **2**. But each of those 2 outright quotes has 11 routes to merge, so the work is larger than the count of quotes suggests:
+
+| One side of this book changes | Dirty quotes | pair() computations |
+|---|---|---|
+| A spread | 2 outright | 2 × 11 = **22** |
+| An outright | 11 outright + 11 spread | 11 × 11 + 11 × 1 = **132** |
+| Recompute everything instead | all 156 | **396** |
+
+Enabling the spread-from-spread implication of the next chapter (Jan/Feb + Feb/Mar implies Jan/Mar) raises the total from 396 to **1,716**, and every book side, spread or outright, then dirties 22 quotes with 242 pair computations.
+
+### What one book change costs
+
+To give these counts a time, the recalculation was implemented in C and measured on a single core of an Intel Xeon W-2295 (Cascade Lake, 18 cores, 3.0 GHz base clock, running in turbo). The model holds five aggregated price levels per book side, computes the top two implied levels per quote, and applies random quantity and best-price changes. "Warm" means the books are already in the CPU cache. "Cold" means the L1 and L2 caches were evicted before each event, as they would be after the core has done other work.
+
+| Scenario | Quotes | pair() | Median, warm | Median, cold | p99, cold |
+|---|---|---|---|---|---|
+| Spread changes, dirty quotes only | 2 | 22 | 0.21 µs | 0.43 µs | 0.57 µs |
+| Outright changes, dirty quotes only | 22 | 132 | 1.15 µs | 1.47 µs | 2.16 µs |
+| Outright changes, recompute all | 156 | 396 | 3.41 µs | 3.65 µs | 4.65 µs |
+| With spread-from-spread: spread changes, dirty only | 22 | 242 | 2.50 µs | 3.01 µs | 5.19 µs |
+| With spread-from-spread: spread changes, recompute all | 156 | 1,716 | 13.44 µs | 14.27 µs | 28.48 µs |
+
+![Measured recalculation time for one book change. Recalculating only the dirty quotes takes between 0.21 and 3.01 µs. Recomputing every quote takes about 3.4 to 14 µs.](assets/implied-fanout-latency-small.png)
+
+Four conclusions follow:
+
+1. **The dependency table is worth about a factor of 3 to 16.** An outright change costs 1.15 µs instead of 3.41 µs. A spread change costs 0.21 µs instead of about 3.3 µs.
+2. **One outright event adds roughly 1 to 1.5 µs.** On an engine whose ordinary matching path takes a microsecond or two, that is a large increase on every event in the product group, including events that never trade.
+3. **Aggressive orders pay repeatedly.** The loop in `on_incoming` recomputes after each fill. An implied fill changes at least two book sides, such as a January ask (22 quotes) and a spread bid (2 quotes), or about 1.4 to 1.9 µs per fill. An order that sweeps three implied levels spends roughly 4 to 6 µs on recalculation alone.
+4. **Throughput is consumed before latency looks bad.** At 1.47 µs per event, a burst of 200,000 outright events per second uses about 29% of the core for implied recalculation alone. Because the group is serialised on one thread (see *Atomicity* above), that capacity cannot be recovered by adding cores, and queueing delay rises sharply as the core approaches saturation.
+
+Treat these as indicative figures, not a specification. They exclude order validation, matching, persistence, order-level ingredient lists, tick rounding and message encoding. Market data is a real addition: an outright event can change up to 22 quotes, so at an *assumed* 50 to 100 ns to encode each one, publication could add another 1.1 to 2.2 µs, as much as the calculation itself. A server Xeon with a lower all-core clock will be proportionally slower. The measurement core was also not isolated from the operating system, and interrupts pushed the slowest 0.1% of outright events to between 11 and 17 µs when cold, which is why production engines pin and isolate their matching cores. Across two runs the medians agreed within 4%, while the p99 values differed by up to about 65%, so read the p99 column as a rough guide. The benchmark source, with build instructions, is `scripts/implied_fanout_benchmark.c` in the book's source directory.
+
+The practical optimisations follow directly from the table: use `ON_CHANGE` rather than recomputing everything, stop each `pair()` at the published depth, keep the top of each book in compact arrays that fit in the cache, and publish only quotes that actually changed. The next chapter shows why this comfortable microsecond budget disappears once implied quotes may themselves be used as ingredients.
 
 > **Key idea:** Implied orders are not free liquidity. They are the engine expressing, in one book, commitments already resting in others, so that related markets stay consistent, empty months stay tradeable, and cross-book price gaps are closed by the exchange rather than harvested by the fastest participant. When an implied order matches, real orders in real books are consumed, exactly once, atomically. Everything difficult about implementing implied orders (shared-leg quantities, depth, priority, tick rounding, fan-out, double-execution races) follows from taking that atomic, exactly-once consumption seriously.
 
