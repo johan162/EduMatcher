@@ -586,7 +586,7 @@ With the mechanics established, the engineering can be stated precisely.
 
 For one pair of months (January, February) and their spread, the whole of implied matching fits in a page of pseudocode. Prices are signed integer ticks throughout.
 
-```
+```python
 # Real books: jan, feb, spr. Each side is a price-time-ordered queue of real orders.
 
 function implied_quotes():                      # recomputed after EVERY event in the group
@@ -630,7 +630,11 @@ function pair(a_side, b_side, price, max_levels = 2):
             j += 1
             b_left = b_side[j].qty if j < len(b_side) else 0
     return ladder
+```
 
+cont.
+
+```python
 function on_incoming(order):                    # order is always REAL: implied never aggresses
     while order.qty > 0:
         real = best_real_opposite(order.book)

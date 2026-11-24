@@ -171,7 +171,7 @@ The intermediate nodes cancel, exactly as the October legs cancelled above. Some
 
 Figure: the ICE example as a graph. Each arrow is one real order, and together the three arrows form the path of the generation-2 Sep/Nov bid.
 
-```{.mermaid width=600}
+```{.mermaid width=560}
 flowchart LR
     SEP((Sep))
     CASH(("$"))
