@@ -9828,6 +9828,12 @@ the OpenAPI document lists all of them per operation.</p>
 <td>The engine refused a symbol reopen (force-uncross), for example the symbol is not halted</td>
 </tr>
 <tr>
+<td><code>DISCONNECT_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused to disconnect a gateway: not configured, not connected, or the caller's own</td>
+</tr>
+<tr>
 <td><code>QUERY_REJECTED</code></td>
 <td style="text-align: right;"><code>409</code></td>
 <td><code>UNKNOWN</code></td>
@@ -9955,7 +9961,7 @@ not exposed.</p>
   whose verdict arrived in time).</li>
 <li><code>202 Accepted</code> means the request was handed on and the outcome follows on a
   WebSocket: those writes without <code>?wait=ack</code> (or with it, when the verdict was
-  late: <code>ack_timeout: true</code>), and <code>POST /admin/gateways/{gateway_id}/disconnect</code>.</li>
+  late: <code>ack_timeout: true</code>).</li>
 <li>Pagination endpoints return <code>count</code>, <code>has_more</code>, and <code>next_cursor</code> where
   applicable; <code>after</code> is the opaque cursor input.</li>
 </ul>
@@ -15606,7 +15612,9 @@ offline.</p>
 </tbody>
 </table>
 <h3 id="post-apiv1admingatewaysgateway_iddisconnect"><code>POST /api/v1/admin/gateways/{gateway_id}/disconnect</code><a class="headerlink" href="#post-apiv1admingatewaysgateway_iddisconnect" title="Permanent link">&para;</a></h3>
-<p>Purpose: forcibly disconnect one gateway.</p>
+<p>Purpose: forcibly disconnect one gateway. Sends the ADMIN message
+<code>risk.gateway_kick</code> and waits for the engine's answer; the target's
+<code>disconnect_behaviour</code> runs, and the disconnect names the caller.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -15628,7 +15636,7 @@ offline.</p>
 <td><code>reason</code></td>
 <td><code>Str</code></td>
 <td>no</td>
-<td>Body, optional: note recorded in the engine log (default <code>admin disconnect</code>)</td>
+<td>Body, optional: note recorded on the admin monitor and in the disconnect (<code>kicked by &lt;ADMIN&gt;: &lt;reason&gt;</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -15643,9 +15651,9 @@ offline.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
-<td><code>{ "gateway_id": "...", "status": "PENDING_DISCONNECT" }</code></td>
-<td>Disconnect sent; not awaited — the roster in <code>GET /admin/gateways</code> shows the result</td>
+<td><code>200 OK</code></td>
+<td><code>{ "accepted": true, "target_gateway_id": "...", "reason": "", "command_id": "..." }</code></td>
+<td>The engine ended the session; <code>GET /admin/gateways</code> already shows it offline</td>
 </tr>
 </tbody>
 </table>
@@ -15675,9 +15683,19 @@ offline.</p>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
+<td><code>DISCONNECT_REJECTED</code></td>
+<td><code>409</code></td>
+<td>The engine refused: the gateway is not configured, not connected, or the caller's own; <code>message</code> is its reason</td>
+</tr>
+<tr>
 <td><code>RATE_LIMIT</code></td>
 <td><code>429</code></td>
 <td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>

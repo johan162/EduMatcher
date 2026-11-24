@@ -8858,7 +8858,8 @@ checkpoint intact. Then the PULL, PUB and drop-copy sockets close and the
 health reporter sends its final beacon.</p>
 <h3 id="the-stop-order">The stop order<a class="headerlink" href="#the-stop-order" title="Permanent link">&para;</a></h3>
 <p><code>pm-opctl-cli stop</code> signals in waves and waits for each wave to exit (up to
-15 s) before signalling the next:</p>
+15 s, or with <code>--timeout</code> an even share of the time left, as the container's
+entrypoint asks so the stop fits its grace period) before signalling the next:</p>
 <ol>
 <li><strong>Everything else</strong> — gateways, bots, GUIs, scheduler, viewers. A gateway
    first delivers the engine events already published, so fills reach their

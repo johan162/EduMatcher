@@ -8976,10 +8976,14 @@ configuration every process reads.</p>
 <h3 id="step-4-stopping-cleanly">Step 4: stopping cleanly<a class="headerlink" href="#step-4-stopping-cleanly" title="Permanent link">&para;</a></h3>
 <p><code>podman stop</code>, <code>docker stop</code> and <code>compose down</code> send the container <code>SIGTERM</code>,
 then wait for a grace period before killing it. <code>tini</code> forwards the signal to
-<code>entrypoint.sh</code>, whose handler runs <code>pm-opctl-cli stop</code>. That stops every
-process of the profile in order, so each one can flush its files.
-<code>stop_grace_period</code> in the compose files (30 seconds, 60 for the simulation)
-gives that walk enough time before the engine resorts to <code>SIGKILL</code>.</p>
+<code>entrypoint.sh</code>, whose handler runs <code>pm-opctl-cli stop --timeout 60</code>. That
+stops every process of the profile in order, so each one can flush its files,
+and finishes within 60 seconds in total (<code>EM_STOP_TIMEOUT</code>): each of its up to
+four waves waits at most an even share of the time left, so a slow engine stop
+cannot use up the time the recorders and the log server need after it.
+<code>stop_grace_period: 70s</code> in the compose files gives that walk its 60 seconds,
+plus room for the entrypoint to exit, before the container engine resorts to
+<code>SIGKILL</code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">The container log is the entrypoint's log</p>
 <p><code>make logs</code>, <code>podman logs edumatcher</code> or <code>./edumatcher.sh logs edumatcher</code>
@@ -9104,8 +9108,8 @@ below say which is which.</p>
 </tr>
 <tr>
 <td><code>stop_grace_period</code></td>
-<td><code>30s</code></td>
-<td>Time for <code>pm-opctl-cli stop</code> to stop every process cleanly</td>
+<td><code>70s</code></td>
+<td>Time for <code>pm-opctl-cli stop</code> (60 s in total, <code>EM_STOP_TIMEOUT</code>) to stop every process cleanly, plus a margin</td>
 </tr>
 <tr>
 <td><code>environment</code></td>
@@ -9167,8 +9171,10 @@ below say which is which.</p>
 </tr>
 </tbody>
 </table>
-<p><code>entrypoint.sh</code> also reads <code>EM_SSH</code>, <code>EM_SPEED</code>, <code>EM_START</code> and
-<code>EM_RESTART_DEAD</code>, which the overlays and the AI-sim stack set.</p>
+<p><code>entrypoint.sh</code> also reads <code>EM_SSH</code>, <code>EM_SPEED</code>, <code>EM_START</code>,
+<code>EM_RESTART_DEAD</code> and <code>EM_STOP_TIMEOUT</code>, which the overlays and the AI-sim
+stack set (the last one nothing sets: see
+<a href="#variables-only-entrypointsh-reads">the table below</a>).</p>
 <h3 id="composezmqyaml-the-raw-message-bus"><code>compose.zmq.yaml</code> — the raw message bus<a class="headerlink" href="#composezmqyaml-the-raw-message-bus" title="Permanent link">&para;</a></h3>
 <p>Adds eight ports and two environment variables to the <code>edumatcher</code> service, so
 tools on your machine (<code>pm-calf-spy</code>, <code>pm-dc-spy</code>, <code>pm-index-cli</code>, your own
@@ -9378,11 +9384,6 @@ default. It needs no <code>.env</code> and no build.</p>
 <td>data</td>
 <td><code>./data-sim</code></td>
 <td>Its own data directory, so it never touches the exchange's <code>./data</code></td>
-</tr>
-<tr>
-<td><code>stop_grace_period</code></td>
-<td><code>60s</code></td>
-<td>100 AI traders and the market model take longer to stop</td>
 </tr>
 <tr>
 <td>read-only key</td>
@@ -10059,6 +10060,11 @@ GUI ports.</p>
 <td><code>EM_RESTART_DEAD</code></td>
 <td>AI-sim image</td>
 <td><code>1</code>: every minute, restart any process of the profile that has died</td>
+</tr>
+<tr>
+<td><code>EM_STOP_TIMEOUT</code></td>
+<td>nothing (default <code>60</code>)</td>
+<td>Seconds <code>pm-opctl-cli stop --timeout</code> may take in total when the container stops. Keep it at least 10 below <code>stop_grace_period</code>; a value that is not a positive number is replaced by <code>60</code>, with a warning in the container log</td>
 </tr>
 <tr>
 <td><code>EDUMATCHER_DATA_DIR</code></td>

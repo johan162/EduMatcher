@@ -2578,6 +2578,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Level 4: Implied IN, Two Outrights Produce a Spread Quote">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-wider-spread-marchjune" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A wider spread: March/June
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2663,6 +2680,28 @@
     <span class="md-ellipsis">
       
         A minimal first-generation algorithm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-one-triangle-to-the-whole-strip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From one triangle to the whole strip
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-one-book-change-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What one book change costs
       
     </span>
   </a>
@@ -14126,7 +14165,7 @@ stateDiagram-v2
 <li><strong>Level 1</strong> – the spread instrument, its sign convention, and the four things that confuse every beginner.</li>
 <li><strong>Why implied orders exist</strong> – too many books, too little liquidity, and the seller who is in the wrong book.</li>
 <li><strong>Level 2</strong> – the developer's model: every order as a vector, and the one rule (add the vectors) from which all implied prices follow.</li>
-<li><strong>Levels 3 and 4</strong> – the two basic kinds of implied order, worked through trade by trade.</li>
+<li><strong>Levels 3 and 4</strong> – the two basic kinds of implied order, worked through trade by trade, and then both again for a wider March/June spread.</li>
 <li><strong>Level 5</strong> – the promise kept: why implied orders never create liquidity.</li>
 <li><strong>Levels 6 to 10</strong> – the engineering details: quantities, priority, price improvement, tick rounding and market data.</li>
 <li><strong>Engineering deep-dive, history, real-world venues and exercises.</strong></li>
@@ -14696,6 +14735,132 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p>Look at what F holds now. Its 10 long January contracts are gone (sold to D), and it is long 10 February (bought from E). The roll is complete, in one atomic step, with no moment in which F held neither month or both. Without implied functionality F would have had to sell January and buy February as two separate trades, and the price of the second could have moved after the first had filled: the leg risk from Level 0.</p>
 <p>D and E each received an entirely ordinary outright fill at their own limit price. Afterwards the January bid has 15 lots left, the February ask has 30, and the implied spread bid is recomputed as 15 lots (min(15, 30)) at −$2.20.</p>
 <p>The <em>opposite</em> implied quote needs the opposite ingredients. An implied spread <strong>ask</strong> requires a January <em>ask</em> and a February <em>bid</em> (Jan_ask − Feb_bid). With only D and E in the books, no implied spread ask exists: add the vectors of D and E any other way and nothing cancels.</p>
+<h4 id="a-wider-spread-marchjune">A wider spread: March/June<a class="headerlink" href="#a-wider-spread-marchjune" title="Permanent link">&para;</a></h4>
+<p>Every example so far has used neighbouring months. Venues also list spreads between months further apart, such as March/June: buy March and sell June in one order (a quarter's worth of storage for a tank owner, or a three-month roll for a fund). The convention does not change: S = March − June, and buying the spread buys the first-named month.</p>
+<p><strong>Which outright books does the engine need to look at?</strong> Write down the spread's vector: (Mar +1, Jun −1). It has entries only for March and June. To cancel one of those legs, an ingredient needs an opposite entry in March or June, which only a March order or a June order has. An April order is (Apr ±1) and a May order is (May ±1). Adding either one cancels nothing, so <strong>April and May play no part in first-generation implication for Mar/Jun</strong>, even though they lie between the two legs in time. A spread book forms a triangle with its two leg months and nothing else, however far apart they are, and the six formulas of Level 2 apply unchanged, with March in January's place and June in February's.</p>
+<p>Here is a strip with orders in all four months and on both sides of the Mar/Jun spread. Trader N is a tank-farm owner who will store March oil until June for <span class="arithmatex">\(6.00 a barrel (\)</span>2.00 a month, as in Level 0). Trader Z is a fund rolling a long position from March to June, willing to pay up to $5.70 more for June than it receives for March.</p>
+<table>
+<thead>
+<tr>
+<th>Book</th>
+<th>Bid</th>
+<th>Ask</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>March</td>
+<td>$75.90 × 25</td>
+<td>$76.00 × 30</td>
+</tr>
+<tr>
+<td>April</td>
+<td>$77.85 × 8</td>
+<td>$78.05 × 12</td>
+</tr>
+<tr>
+<td>May</td>
+<td>$79.90 × 6</td>
+<td>$80.10 × 9</td>
+</tr>
+<tr>
+<td>June</td>
+<td>$81.80 × 25</td>
+<td>$82.10 × 15</td>
+</tr>
+<tr>
+<td>Mar/Jun spread</td>
+<td>−$6.00 × 20 (N)</td>
+<td>−$5.70 × 10 (Z)</td>
+</tr>
+</tbody>
+</table>
+<p>The six implied quotes, four OUT and two IN:</p>
+<table>
+<thead>
+<tr>
+<th>Implied quote</th>
+<th>Type</th>
+<th>Ingredients</th>
+<th>Price</th>
+<th>Lots</th>
+<th>Compared with the real book</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>June ask</td>
+<td>OUT</td>
+<td>March ask + spread bid</td>
+<td>76.00 − (−6.00) = <strong>82.00</strong></td>
+<td>min(30, 20) = 20</td>
+<td><strong>better</strong> than the real 82.10</td>
+</tr>
+<tr>
+<td>June bid</td>
+<td>OUT</td>
+<td>March bid + spread ask</td>
+<td>75.90 − (−5.70) = 81.60</td>
+<td>min(25, 10) = 10</td>
+<td>worse than the real 81.80</td>
+</tr>
+<tr>
+<td>March ask</td>
+<td>OUT</td>
+<td>June ask + spread ask</td>
+<td>82.10 + (−5.70) = 76.40</td>
+<td>min(15, 10) = 10</td>
+<td>worse than the real 76.00</td>
+</tr>
+<tr>
+<td>March bid</td>
+<td>OUT</td>
+<td>June bid + spread bid</td>
+<td>81.80 + (−6.00) = 75.80</td>
+<td>min(25, 20) = 20</td>
+<td>worse than the real 75.90</td>
+</tr>
+<tr>
+<td>Spread ask</td>
+<td>IN</td>
+<td>March ask + June bid</td>
+<td>76.00 − 81.80 = <strong>−5.80</strong></td>
+<td>min(30, 25) = 25</td>
+<td><strong>better</strong> than the real −5.70</td>
+</tr>
+<tr>
+<td>Spread bid</td>
+<td>IN</td>
+<td>March bid + June ask</td>
+<td>75.90 − 82.10 = −6.20</td>
+<td>min(25, 15) = 15</td>
+<td>worse than the real −6.00</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="The Mar/Jun example. The spread book connects to March and June only; the April and May books are not ingredients of any first-generation implied quote. Two of the six implied quotes beat the real book." src="../assets/how-exchange-works/implied-wide-spread-small.png" /></p>
+<p>An implied quote that is worse than the real book still exists and is still published. It simply trades only after the better real orders have gone. Two of these quotes are the best prices in their books, so trade them one after the other.</p>
+<p><strong>An OUT trade.</strong> A refinery sends an order to buy 15 June at up to $82.05. The best June ask is the implied $82.00 (the real $82.10 is above the refinery's limit), so 15 lots trade atomically:</p>
+<ol>
+<li>The March seller sells 15 March to N at $76.00.</li>
+<li>N buys 15 Mar/Jun spreads at −$6.00.</li>
+<li>The refinery buys 15 June from N at $82.00, $0.05 better than its limit.</li>
+</ol>
+<p>Cash per barrel: the March seller pays −1,140.00, N pays 15 × (−6.00) = −90.00 and the refinery pays +1,230.00, which sums to zero. Afterwards the March ask has 15 lots left and N has 5 spreads left, so the engine recomputes. The implied June ask shrinks to min(15, 5) = <strong>5</strong> lots. So does a quote in another book: the implied spread ask also used the March ask, and it shrinks from 25 to min(15, 25) = <strong>15</strong> lots.</p>
+<p><strong>An IN trade.</strong> A second tank-farm owner sends an order to buy 10 Mar/Jun spreads at −<span class="arithmatex">\(5.75 or lower. The best spread ask is the implied −\)</span>5.80 (the real −$5.70 is above the limit), so 10 lots trade atomically:</p>
+<ol>
+<li>The tank-farm owner buys 10 March from the March seller at $76.00.</li>
+<li>The tank-farm owner sells 10 June to the June bidder at $81.80.</li>
+<li>The spread fill prints at 76.00 − 81.80 = <strong>−$5.80</strong>, 0.05 better than the limit, or $50 per lot.</li>
+</ol>
+<p>Cash per barrel: −58.00 for the tank-farm owner, −760.00 for the March seller and +818.00 for the June bidder, which sums to zero. The March ask now has 5 lots left, so both quotes built on it shrink again: the implied spread ask to min(5, 15) = 5 lots, and the implied June ask to min(5, 5) = 5 lots.</p>
+<p>Four points carry over to every wider spread:</p>
+<ol>
+<li><strong>Only the two leg months count.</strong> At generation 1, every spread book has exactly two relevant outright books, however wide it is. The reverse direction is where the work grows: the June book is a leg of <em>every</em> spread that contains June, up to 11 of them in a 12-month strip, so one June order can change quotes in all of them. <em>Engineering Deep-Dive</em> below counts this fan-out.</li>
+<li><strong>The formulas do not care about distance.</strong> Only the names change.</li>
+<li><strong>Wider spreads have larger prices.</strong> Three months of carry makes the spread about three times as wide as a one-month spread (−6.00 rather than −2.00). The tick size and the arithmetic are unchanged.</li>
+<li><strong>A route through the middle months is a different, deeper construction.</strong> Mar/Apr, Apr/May and May/Jun spread orders together <em>do</em> add up to a Mar/Jun spread, because the April and May legs cancel. But that combination uses three real orders, which makes it a second-generation implied quote, and building implied quotes from spreads alone is a subject of the next chapter.</li>
+</ol>
 <h3 id="level-5-the-promise-kept-implied-orders-create-no-liquidity">Level 5: The Promise Kept, Implied Orders Create No Liquidity<a class="headerlink" href="#level-5-the-promise-kept-implied-orders-create-no-liquidity" title="Permanent link">&para;</a></h3>
 <p>It is time to make the introduction's promise precise, because it is the single most important idea in the chapter, and because misunderstanding it leads directly to the most dangerous bugs.</p>
 <p><strong>Argument 1: an implied trade is a trade anyone could have done by hand.</strong> Go back to Level 3. Trader C wanted February and could have assembled it manually, without any implied functionality:</p>
@@ -15008,39 +15173,70 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p>With the mechanics established, the engineering can be stated precisely.</p>
 <h4 id="a-minimal-first-generation-algorithm">A minimal first-generation algorithm<a class="headerlink" href="#a-minimal-first-generation-algorithm" title="Permanent link">&para;</a></h4>
 <p>For one pair of months (January, February) and their spread, the whole of implied matching fits in a page of pseudocode. Prices are signed integer ticks throughout.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>## Real books: jan, feb, spr. Each side is a price-time-ordered queue of real orders.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">## Real books: jan, feb, spr. Each side is a price-time-ordered queue of real orders.</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>function implied_quotes():                      # recomputed after EVERY event in the group
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    return {
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>      FEB_ASK: pair(jan.asks, spr.bids, price = a.price - b.price),   # Jan_ask - S_bid
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>      FEB_BID: pair(jan.bids, spr.asks, price = a.price - b.price),   # Jan_bid - S_ask
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>      JAN_ASK: pair(feb.asks, spr.asks, price = a.price + b.price),   # Feb_ask + S_ask
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>      JAN_BID: pair(feb.bids, spr.bids, price = a.price + b.price),   # Feb_bid + S_bid
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>      SPR_ASK: pair(jan.asks, feb.bids, price = a.price - b.price),   # Jan_ask - Feb_bid
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>      SPR_BID: pair(jan.bids, feb.asks, price = a.price - b.price),   # Jan_bid - Feb_ask
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    }
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>    # pair() walks both ladders best-first (the merge of Level 6), emitting
-<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>    # (implied_price, qty, [ingredient orders]) and never using an order's quantity twice.
-<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>    # Round each implied price outwards to its book's grid (Level 9).
-<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
-<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>function on_incoming(order):                    # order is always REAL: implied never aggresses
-<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>    while order.qty &gt; 0:
-<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>        real = best_real_opposite(order.book)
-<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>        impl = best_implied_opposite(order.book, implied_quotes())
-<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>        best = better_price(real, impl, tie -&gt; real)   # real before implied (Level 7)
-<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>        if best is none or not marketable(order, best): break
-<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>        if best is real:
-<a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>            fill_two_party(order, best)
-<a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>        else:
-<a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>            q = min(order.qty, impl.qty)
-<a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>            validate_all_legs(impl.ingredients, q)      # ticks, limits, risk: all or nothing
-<a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a>            commit_atomically(order, impl.ingredients, q)  # N fills, one sequence number
-<a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a>        # loop re-reads books and recomputes implied quotes: never decrements them
-<a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a>    rest_or_cancel_remainder(order)
-<a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a>    publish_real_and_implied_market_data()
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">function</span> <span class="n">implied_quotes</span><span class="p">():</span>                      <span class="c1"># recomputed after EVERY event in the group</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="k">return</span> <span class="p">{</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>      <span class="n">FEB_ASK</span><span class="p">:</span> <span class="n">pair</span><span class="p">(</span><span class="n">jan</span><span class="o">.</span><span class="n">asks</span><span class="p">,</span> <span class="n">spr</span><span class="o">.</span><span class="n">bids</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">price</span> <span class="o">-</span> <span class="n">b</span><span class="o">.</span><span class="n">price</span><span class="p">),</span>   <span class="c1"># Jan_ask - S_bid</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>      <span class="n">FEB_BID</span><span class="p">:</span> <span class="n">pair</span><span class="p">(</span><span class="n">jan</span><span class="o">.</span><span class="n">bids</span><span class="p">,</span> <span class="n">spr</span><span class="o">.</span><span class="n">asks</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">price</span> <span class="o">-</span> <span class="n">b</span><span class="o">.</span><span class="n">price</span><span class="p">),</span>   <span class="c1"># Jan_bid - S_ask</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>      <span class="n">JAN_ASK</span><span class="p">:</span> <span class="n">pair</span><span class="p">(</span><span class="n">feb</span><span class="o">.</span><span class="n">asks</span><span class="p">,</span> <span class="n">spr</span><span class="o">.</span><span class="n">asks</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">price</span> <span class="o">+</span> <span class="n">b</span><span class="o">.</span><span class="n">price</span><span class="p">),</span>   <span class="c1"># Feb_ask + S_ask</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>      <span class="n">JAN_BID</span><span class="p">:</span> <span class="n">pair</span><span class="p">(</span><span class="n">feb</span><span class="o">.</span><span class="n">bids</span><span class="p">,</span> <span class="n">spr</span><span class="o">.</span><span class="n">bids</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">price</span> <span class="o">+</span> <span class="n">b</span><span class="o">.</span><span class="n">price</span><span class="p">),</span>   <span class="c1"># Feb_bid + S_bid</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>      <span class="n">SPR_ASK</span><span class="p">:</span> <span class="n">pair</span><span class="p">(</span><span class="n">jan</span><span class="o">.</span><span class="n">asks</span><span class="p">,</span> <span class="n">feb</span><span class="o">.</span><span class="n">bids</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">price</span> <span class="o">-</span> <span class="n">b</span><span class="o">.</span><span class="n">price</span><span class="p">),</span>   <span class="c1"># Jan_ask - Feb_bid</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>      <span class="n">SPR_BID</span><span class="p">:</span> <span class="n">pair</span><span class="p">(</span><span class="n">jan</span><span class="o">.</span><span class="n">bids</span><span class="p">,</span> <span class="n">feb</span><span class="o">.</span><span class="n">asks</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">price</span> <span class="o">-</span> <span class="n">b</span><span class="o">.</span><span class="n">price</span><span class="p">),</span>   <span class="c1"># Jan_bid - Feb_ask</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    <span class="p">}</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="n">function</span> <span class="n">pair</span><span class="p">(</span><span class="n">a_side</span><span class="p">,</span> <span class="n">b_side</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">max_levels</span> <span class="o">=</span> <span class="mi">2</span><span class="p">):</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>    <span class="c1"># a_side, b_side: real orders, best price first, in queue order.</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>    <span class="c1"># Returns the implied ladder: [(price, qty, ingredients), ...], best first.</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>    <span class="n">ladder</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>    <span class="k">if</span> <span class="n">a_side</span> <span class="ow">is</span> <span class="n">empty</span> <span class="ow">or</span> <span class="n">b_side</span> <span class="ow">is</span> <span class="n">empty</span><span class="p">:</span> <span class="k">return</span> <span class="n">ladder</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>
+<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>    <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>    <span class="n">a_left</span><span class="p">,</span> <span class="n">b_left</span> <span class="o">=</span> <span class="n">a_side</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">qty</span><span class="p">,</span> <span class="n">b_side</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">qty</span>   <span class="c1"># working copies only</span>
+<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>
+<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">a_side</span><span class="p">)</span> <span class="ow">and</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">b_side</span><span class="p">):</span>
+<a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">a_side</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">b_side</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+<a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>        <span class="n">p</span> <span class="o">=</span> <span class="n">round_outwards</span><span class="p">(</span><span class="n">price</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">))</span>             <span class="c1"># to the target's grid (Level 9)</span>
+<a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>        <span class="n">q</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">a_left</span><span class="p">,</span> <span class="n">b_left</span><span class="p">)</span>                     <span class="c1"># the most this pair can trade</span>
+<a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>
+<a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a>        <span class="k">if</span> <span class="n">ladder</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">empty</span> <span class="ow">and</span> <span class="n">ladder</span><span class="o">.</span><span class="n">last</span><span class="o">.</span><span class="n">price</span> <span class="o">==</span> <span class="n">p</span><span class="p">:</span>
+<a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a>            <span class="n">ladder</span><span class="o">.</span><span class="n">last</span><span class="o">.</span><span class="n">qty</span> <span class="o">+=</span> <span class="n">q</span>                    <span class="c1"># same price: same level</span>
+<a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a>        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">ladder</span><span class="p">)</span> <span class="o">==</span> <span class="n">max_levels</span><span class="p">:</span>
+<a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a>            <span class="k">break</span>                                   <span class="c1"># published depth reached</span>
+<a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a>            <span class="n">ladder</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">(</span><span class="n">price</span> <span class="o">=</span> <span class="n">p</span><span class="p">,</span> <span class="n">qty</span> <span class="o">=</span> <span class="n">q</span><span class="p">,</span> <span class="n">ingredients</span> <span class="o">=</span> <span class="p">[]))</span>
+<a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a>        <span class="n">ladder</span><span class="o">.</span><span class="n">last</span><span class="o">.</span><span class="n">ingredients</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">q</span><span class="p">))</span>
+<a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a>
+<a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a>        <span class="n">a_left</span> <span class="o">-=</span> <span class="n">q</span>                                 <span class="c1"># consume from both sides, so</span>
+<a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a>        <span class="n">b_left</span> <span class="o">-=</span> <span class="n">q</span>                                 <span class="c1"># no lot can be used twice</span>
+<a id="__codelineno-12-37" name="__codelineno-12-37" href="#__codelineno-12-37"></a>        <span class="k">if</span> <span class="n">a_left</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-12-38" name="__codelineno-12-38" href="#__codelineno-12-38"></a>            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-12-39" name="__codelineno-12-39" href="#__codelineno-12-39"></a>            <span class="n">a_left</span> <span class="o">=</span> <span class="n">a_side</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">qty</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">a_side</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+<a id="__codelineno-12-40" name="__codelineno-12-40" href="#__codelineno-12-40"></a>        <span class="k">if</span> <span class="n">b_left</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-12-41" name="__codelineno-12-41" href="#__codelineno-12-41"></a>            <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-12-42" name="__codelineno-12-42" href="#__codelineno-12-42"></a>            <span class="n">b_left</span> <span class="o">=</span> <span class="n">b_side</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">qty</span> <span class="k">if</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">b_side</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+<a id="__codelineno-12-43" name="__codelineno-12-43" href="#__codelineno-12-43"></a>    <span class="k">return</span> <span class="n">ladder</span>
 </code></pre></div>
+<p>cont.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">function</span> <span class="n">on_incoming</span><span class="p">(</span><span class="n">order</span><span class="p">):</span>                    <span class="c1"># order is always REAL: implied never aggresses</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="k">while</span> <span class="n">order</span><span class="o">.</span><span class="n">qty</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>        <span class="n">real</span> <span class="o">=</span> <span class="n">best_real_opposite</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">book</span><span class="p">)</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>        <span class="n">impl</span> <span class="o">=</span> <span class="n">best_implied_opposite</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">book</span><span class="p">,</span> <span class="n">implied_quotes</span><span class="p">())</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>        <span class="n">best</span> <span class="o">=</span> <span class="n">better_price</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="n">impl</span><span class="p">,</span> <span class="n">tie</span> <span class="o">-&gt;</span> <span class="n">real</span><span class="p">)</span>   <span class="c1"># real before implied (Level 7)</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>        <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="n">none</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">marketable</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">best</span><span class="p">):</span> <span class="k">break</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="n">real</span><span class="p">:</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>            <span class="n">fill_two_party</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">best</span><span class="p">)</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>            <span class="n">q</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">qty</span><span class="p">,</span> <span class="n">impl</span><span class="o">.</span><span class="n">qty</span><span class="p">)</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>            <span class="n">validate_all_legs</span><span class="p">(</span><span class="n">impl</span><span class="o">.</span><span class="n">ingredients</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>      <span class="c1"># ticks, limits, risk: all or nothing</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>            <span class="n">commit_atomically</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">impl</span><span class="o">.</span><span class="n">ingredients</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>  <span class="c1"># N fills, one sequence number</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>        <span class="c1"># loop re-reads books and recomputes implied quotes: never decrements them</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>    <span class="n">rest_or_cancel_remainder</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>    <span class="n">publish_real_and_implied_market_data</span><span class="p">()</span>
+</code></pre></div>
+<p><code>pair()</code> is the merge from Level 6 written out. Run it on that section's ladders and it produces exactly the table shown there: $77.00 × 10, $77.01 × 5, $77.03 × 10. Three details carry the correctness. Because each side is sorted best first, every step yields a price no better than the one before, so the ladder comes out sorted without a separate sort. Because <code>q</code> is subtracted from <em>both</em> working quantities, no lot is counted twice, which is the bug in the naive ladder. And because the function only changes its working copies, computing a quote never alters a real order: only <code>commit_atomically</code> does that.</p>
 <p>Everything else in this section explains why each line of that pseudocode is the way it is.</p>
-<p><strong>Recalculation triggers and fan-out.</strong> Every order event on any instrument in a related group (new order, cancel, amendment, partial fill) can change implied quotes in every <em>other</em> book of the group. One cancelled spread order can move implied prices in two outright books at once, each change generating market data. Implied-enabled products therefore have a structurally higher ratio of market-data messages to order messages, which must be budgeted in the publishing path, not discovered in production.</p>
+<p><strong>Recalculation triggers and fan-out.</strong> Every order event on any instrument in a related group (new order, cancel, amendment, partial fill) can change implied quotes in every <em>other</em> book of the group. One cancelled spread order can move implied prices in two outright books at once, each change generating market data. Implied-enabled products therefore have a structurally higher ratio of market-data messages to order messages, which must be budgeted in the publishing path, not discovered in production. The sections <em>From one triangle to the whole strip</em> and <em>What one book change costs</em> below put numbers on this.</p>
 <p><strong>Atomicity.</strong> All legs of an implied match commit together or not at all. The single-threaded-per-book design from <em>The Matching Engine</em> chapter now shows its limits: an implied match spans several books. Either the whole related group of instruments is assigned to one sequencing thread (the common production choice: "partition by symbol" becomes "partition by <em>related instrument group</em>"), or a cross-book commit protocol is required, with all the latency and complexity that implies.</p>
 <p><strong>Double-execution prevention.</strong> Trader A's January order participates in the January book <em>and</em>, simultaneously, in the implied February ask. If a January buyer and a February buyer arrive in adjacent events, both paths claim A's lots, and only one may win. Serialised processing within the instrument group resolves this naturally: whichever event is sequenced first consumes the lots, and recomputation (Level 6) shrinks or removes the implied quote before the second event is processed. Any design that evaluates implied quotes against a stale copy of the contributing books reintroduces the race.</p>
 <p><strong>Determinism.</strong> Implied recomputation must itself be deterministic: given the same event sequence, the same implied quotes must appear, in the same order, with the same rounding. Iterating over candidate combinations in hash-map order, or letting floating-point arithmetic creep into spread prices, breaks the replay guarantees of the <em>Determinism, Replay, and Persistence</em> chapter.</p>
@@ -15054,6 +15250,203 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <li><em>Limits respected:</em> every party to every implied execution trades at or better than its own limit price.</li>
 </ol>
 <p>A fuzzer that generates random order flow across three related books and asserts these six properties after every event will find more implied-matching bugs than any hand-written example suite.</p>
+<h4 id="from-one-triangle-to-the-whole-strip">From one triangle to the whole strip<a class="headerlink" href="#from-one-triangle-to-the-whole-strip" title="Permanent link">&para;</a></h4>
+<p>The pseudocode above handles one triangle: January, February and their spread. A 12-month strip with every calendar spread listed has 66 such triangles, one per spread, and each contributes the same six formulas:</p>
+<p><strong>66 triangles × 6 formulas = 396 <code>pair()</code> computations</strong></p>
+<p>The formulas are identical for every triangle. Only the names change. With <code>N</code> the near month, <code>F</code> the far month and <code>S</code> their spread:</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Formula</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>F</code> ask</td>
+<td><code>N</code> ask − <code>S</code> bid</td>
+<td>OUT</td>
+</tr>
+<tr>
+<td><code>F</code> bid</td>
+<td><code>N</code> bid − <code>S</code> ask</td>
+<td>OUT</td>
+</tr>
+<tr>
+<td><code>N</code> ask</td>
+<td><code>F</code> ask + <code>S</code> ask</td>
+<td>OUT</td>
+</tr>
+<tr>
+<td><code>N</code> bid</td>
+<td><code>F</code> bid + <code>S</code> bid</td>
+<td>OUT</td>
+</tr>
+<tr>
+<td><code>S</code> ask</td>
+<td><code>N</code> ask − <code>F</code> bid</td>
+<td>IN</td>
+</tr>
+<tr>
+<td><code>S</code> bid</td>
+<td><code>N</code> bid − <code>F</code> ask</td>
+<td>IN</td>
+</tr>
+</tbody>
+</table>
+<p>A new complication appears at strip scale: <strong>one target now has several routes</strong>. February's implied ask can come from January plus the Jan/Feb spread, from March plus the Feb/Mar spread, and so on through all 11 other months. The engine must merge those 11 ladders into one. Written by hand, the code for just one book side looks like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>function recalc_FEB_ASK():
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    return merge_best(
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>        pair(jan.asks, jan_feb.bids, price = a.price - b.price),   # Feb is far
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>        pair(mar.asks, feb_mar.asks, price = a.price + b.price),   # Feb is near
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>        pair(apr.asks, feb_apr.asks, price = a.price + b.price),
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        pair(may.asks, feb_may.asks, price = a.price + b.price),
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>        # ... Jun, Jul, Aug, Sep, Oct, Nov ...
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>        pair(dec.asks, feb_dec.asks, price = a.price + b.price),
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    )
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>function recalc_JAN_FEB_ASK():                     # a spread has one IN route
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    return pair(jan.asks, feb.bids, price = a.price - b.price)
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>## ... and so on: 24 outright functions with 11 routes each (264 pairs)
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>## plus 132 spread functions with 1 route each (132 pairs): 396 in total.
+</code></pre></div>
+<p><code>merge_best()</code> can safely add quantities at equal prices, because the routes into one target go through different months and therefore never share an order. Quotes in <em>different</em> target books can share an order, as Level 6 showed. Each is firm on its own, but they cannot all be traded at once, which is why every fill triggers a recomputation.</p>
+<p>Nobody should type this by hand. A single wrong sign among 396 lines produces a plausible-looking price that is wrong, and the list changes whenever a contract expires and a new month is listed. The code is a mechanical function of the product definition, so it should be <strong>generated</strong> from it, together with the table that records which quotes depend on which book side:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>function generate(months):
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    RECALC, ON_CHANGE = {}, {}
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    function rule(target, a, b, op):
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>        RECALC[target].append((a, b, op))
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>        ON_CHANGE[a].add(target)
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>        ON_CHANGE[b].add(target)
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    for each pair (N, F) in months with N earlier than F:
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>        S = spread(N, F)
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>        rule(F.ask, N.ask, S.bid, MINUS)
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>        rule(F.bid, N.bid, S.ask, MINUS)
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>        rule(N.ask, F.ask, S.ask, PLUS)
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>        rule(N.bid, F.bid, S.bid, PLUS)
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>        rule(S.ask, N.ask, F.bid, MINUS)
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>        rule(S.bid, N.bid, F.ask, MINUS)
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>    emit_code_or_tables(RECALC, ON_CHANGE)
+</code></pre></div>
+<p>The generator's output can be source code compiled into the engine or compact tables loaded at the start of the session. Tables are usually the better choice, because a new listing then needs no new engine build. Either way, the six rules exist in one place and can be tested once.</p>
+<p>The <code>ON_CHANGE</code> table is what makes the fan-out manageable. It lets the engine recalculate only the quotes that a change can affect:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>ON_CHANGE[JUN_ASK] = [
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    JAN_ASK, FEB_ASK, MAR_ASK, APR_ASK, MAY_ASK,                 # OUT
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    JUL_ASK, AUG_ASK, SEP_ASK, OCT_ASK, NOV_ASK, DEC_ASK,        # OUT
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    JAN_JUN_BID, FEB_JUN_BID, MAR_JUN_BID, APR_JUN_BID, MAY_JUN_BID,  # IN
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    JUN_JUL_ASK, JUN_AUG_ASK, JUN_SEP_ASK, JUN_OCT_ASK,
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    JUN_NOV_ASK, JUN_DEC_ASK,                                    # IN
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>]
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>ON_CHANGE[JUN_SEP_BID] = [ SEP_ASK, JUN_BID ]                    # OUT, OUT
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>function on_book_side_changed(side):
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>    for target in ON_CHANGE[side]:
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>        new = RECALC[target]()                      # merge all of its routes
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>        if new != published[target]:
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>            published[target] = new
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>            queue_market_data(target, new)
+</code></pre></div>
+<p>Note the mixed sides in the June list. A June ask is the <em>near</em> leg of June/July, so it feeds that spread's ask. It is the <em>far</em> leg of Jan/Jun, so it feeds that spread's bid. The figure shows both cases:</p>
+<p><img alt="The fan-out of one change in a 12-month strip. Left: a June ask feeds the ask of all 11 other months (implied OUT) and one side of all 11 spreads containing June (implied IN). Right: a Jun/Sep spread bid feeds only two quotes, the September ask and the June bid." src="../assets/how-exchange-works/implied-fanout-matrix-small.png" /></p>
+<p>The asymmetry matters. An outright sits in 11 triangles, so one changed side dirties <strong>22 quotes</strong>. A spread sits in only one triangle, so it dirties <strong>2</strong>. But each of those 2 outright quotes has 11 routes to merge, so the work is larger than the count of quotes suggests:</p>
+<table>
+<thead>
+<tr>
+<th>One side of this book changes</th>
+<th>Dirty quotes</th>
+<th>pair() computations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A spread</td>
+<td>2 outright</td>
+<td>2 × 11 = <strong>22</strong></td>
+</tr>
+<tr>
+<td>An outright</td>
+<td>11 outright + 11 spread</td>
+<td>11 × 11 + 11 × 1 = <strong>132</strong></td>
+</tr>
+<tr>
+<td>Recompute everything instead</td>
+<td>all 156</td>
+<td><strong>396</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Enabling the spread-from-spread implication of the next chapter (Jan/Feb + Feb/Mar implies Jan/Mar) raises the total from 396 to <strong>1,716</strong>, and every book side, spread or outright, then dirties 22 quotes with 242 pair computations.</p>
+<h4 id="what-one-book-change-costs">What one book change costs<a class="headerlink" href="#what-one-book-change-costs" title="Permanent link">&para;</a></h4>
+<p>To give these counts a time, the recalculation was implemented in C and measured on a single core of an Intel Xeon W-2295 (Cascade Lake, 18 cores, 3.0 GHz base clock, running in turbo). The model holds five aggregated price levels per book side, computes the top two implied levels per quote, and applies random quantity and best-price changes. "Warm" means the books are already in the CPU cache. "Cold" means the L1 and L2 caches were evicted before each event, as they would be after the core has done other work.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Quotes</th>
+<th>pair()</th>
+<th>Median, warm</th>
+<th>Median, cold</th>
+<th>p99, cold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spread changes, dirty quotes only</td>
+<td>2</td>
+<td>22</td>
+<td>0.21 µs</td>
+<td>0.43 µs</td>
+<td>0.57 µs</td>
+</tr>
+<tr>
+<td>Outright changes, dirty quotes only</td>
+<td>22</td>
+<td>132</td>
+<td>1.15 µs</td>
+<td>1.47 µs</td>
+<td>2.16 µs</td>
+</tr>
+<tr>
+<td>Outright changes, recompute all</td>
+<td>156</td>
+<td>396</td>
+<td>3.41 µs</td>
+<td>3.65 µs</td>
+<td>4.65 µs</td>
+</tr>
+<tr>
+<td>With spread-from-spread: spread changes, dirty only</td>
+<td>22</td>
+<td>242</td>
+<td>2.50 µs</td>
+<td>3.01 µs</td>
+<td>5.19 µs</td>
+</tr>
+<tr>
+<td>With spread-from-spread: spread changes, recompute all</td>
+<td>156</td>
+<td>1,716</td>
+<td>13.44 µs</td>
+<td>14.27 µs</td>
+<td>28.48 µs</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Measured recalculation time for one book change. Recalculating only the dirty quotes takes between 0.21 and 3.01 µs. Recomputing every quote takes about 3.4 to 14 µs." src="../assets/how-exchange-works/implied-fanout-latency-small.png" /></p>
+<p>Four conclusions follow:</p>
+<ol>
+<li><strong>The dependency table is worth about a factor of 3 to 16.</strong> An outright change costs 1.15 µs instead of 3.41 µs. A spread change costs 0.21 µs instead of about 3.3 µs.</li>
+<li><strong>One outright event adds roughly 1 to 1.5 µs.</strong> On an engine whose ordinary matching path takes a microsecond or two, that is a large increase on every event in the product group, including events that never trade.</li>
+<li><strong>Aggressive orders pay repeatedly.</strong> The loop in <code>on_incoming</code> recomputes after each fill. An implied fill changes at least two book sides, such as a January ask (22 quotes) and a spread bid (2 quotes), or about 1.4 to 1.9 µs per fill. An order that sweeps three implied levels spends roughly 4 to 6 µs on recalculation alone.</li>
+<li><strong>Throughput is consumed before latency looks bad.</strong> At 1.47 µs per event, a burst of 200,000 outright events per second uses about 29% of the core for implied recalculation alone. Because the group is serialised on one thread (see <em>Atomicity</em> above), that capacity cannot be recovered by adding cores, and queueing delay rises sharply as the core approaches saturation.</li>
+</ol>
+<p>Treat these as indicative figures, not a specification. They exclude order validation, matching, persistence, order-level ingredient lists, tick rounding and message encoding. Market data is a real addition: an outright event can change up to 22 quotes, so at an <em>assumed</em> 50 to 100 ns to encode each one, publication could add another 1.1 to 2.2 µs, as much as the calculation itself. A server Xeon with a lower all-core clock will be proportionally slower. The measurement core was also not isolated from the operating system, and interrupts pushed the slowest 0.1% of outright events to between 11 and 17 µs when cold, which is why production engines pin and isolate their matching cores. Across two runs the medians agreed within 4%, while the p99 values differed by up to about 65%, so read the p99 column as a rough guide. The benchmark source, with build instructions, is <code>scripts/implied_fanout_benchmark.c</code> in the book's source directory.</p>
+<p>The practical optimisations follow directly from the table: use <code>ON_CHANGE</code> rather than recomputing everything, stop each <code>pair()</code> at the published depth, keep the top of each book in compact arrays that fit in the cache, and publish only quotes that actually changed. The next chapter shows why this comfortable microsecond budget disappears once implied quotes may themselves be used as ingredients.</p>
 <blockquote>
 <p><strong>Key idea:</strong> Implied orders are not free liquidity. They are the engine expressing, in one book, commitments already resting in others, so that related markets stay consistent, empty months stay tradeable, and cross-book price gaps are closed by the exchange rather than harvested by the fastest participant. When an implied order matches, real orders in real books are consumed, exactly once, atomically. Everything difficult about implementing implied orders (shared-leg quantities, depth, priority, tick rounding, fan-out, double-execution races) follows from taking that atomic, exactly-once consumption seriously.</p>
 </blockquote>
@@ -15076,6 +15469,8 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <li>Walk through an implied trade fill by fill, and check that every party traded within its limit and that positions and cash sum to zero.</li>
 <li>Explain why implied orders never create liquidity, and why recomputation (not decrementing) and shared-leg quantities follow from that.</li>
 <li>Apply the priority, price-improvement, tick-rounding and market-data rules, and state the invariants a test suite must check.</li>
+<li>Explain why a wide spread such as March/June is implied from its two leg months only, and what that means when a June order changes.</li>
+<li>Count how many implied quotes one book change makes dirty across a strip, and estimate what recalculating them costs.</li>
 </ul>
 <p>The exercises below test each of these.</p>
 <h3 id="self-check-exercises">Self-Check Exercises<a class="headerlink" href="#self-check-exercises" title="Permanent link">&para;</a></h3>
@@ -15094,6 +15489,9 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><strong>E12.</strong> January bid $75.20 × 10 (Trader W); February ask <span class="arithmatex">\(77.10 × 10 (Trader X); the spread book is empty. Trader Y sends an order to sell 5 spreads at −\)</span>2.00. Does Y trade? If so, at what price, and how much better or worse than Y's limit, in dollars?</p>
 <p><strong>E13.</strong> A hypothetical product has an outright tick of 0.25 and a spread tick of 0.05. Resting: January bid 99.75 × 10 (Trader J); spread ask +0.10 × 10 (Trader L). (a) Compute the exact and the published implied February quote. (b) Trader M sends an order to sell 5 February at 99.50. Show every fill. (c) Show why rounding the other way would have broken a rule.</p>
 <p><strong>E14.</strong> A developer stores spread prices as an absolute value plus a "negative" flag and sorts the bid side by absolute value, largest first ("the bigger the number, the better the bid"). Two spread bids arrive: −<span class="arithmatex">\(2.00 at 09:00:01 and −\)</span>1.95 at 09:00:02. Explain what goes wrong when a spread seller arrives, and what the correct design is.</p>
+<p><strong>E15.</strong> Resting orders: April ask $78.00 × 10; May ask $80.10 × 5; July bid <span class="arithmatex">\(83.95 × 6; Apr/Jul spread bid −\)</span>6.20 × 8. No other orders rest. (a) List every first-generation implied quote, with type (IN or OUT), price and quantity. (b) Which resting order plays no part, and why?</p>
+<p><strong>E16.</strong> March asks: $76.00 × 5, then <span class="arithmatex">\(76.02 × 10. Mar/Jun spread bids: −\)</span>6.00 × 8, then −$6.03 × 10. Run <code>pair()</code> from the <em>Engineering Deep-Dive</em> by hand, with <code>max_levels = 2</code>, to build the implied June ask ladder. Show each step and the ingredients of each level.</p>
+<p><strong>E17.</strong> An exchange lists six consecutive months and every calendar spread between them, with implied IN and OUT only. (a) How many order books are there, and how many <code>pair()</code> computations does recomputing every implied quote take? (b) One side of an outright book changes. How many implied quotes become dirty, and how many <code>pair()</code> computations does recalculating them take? (c) The same for one side of a spread book.</p>
 <p>&nbsp;</p>
 <div style="page-break-after: always;"></div>
 
@@ -15195,6 +15593,56 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p>The correct bid priority is <strong>−1.95 first</strong>: it is the higher signed price, so it is the more generous bid (that bidder accepts a smaller February premium). Sorting by absolute value puts −2.00 first because 2.00 &gt; 1.95.</p>
 <p>Now a spread seller arrives: sell 1 spread at −$2.00. The buggy book matches it against the −2.00 bid at −2.00. The correct book matches it against the −1.95 bid at −1.95. The bug therefore (1) violates price priority, because the better −1.95 bid was skipped, and (2) gives the seller a worse price than the market offered: −2.00 instead of −1.95, 0.05 × 1,000 = $50 per lot. On the ask side the same bug sorts −1.95 ahead of −2.00, so buyers pay more than the best available offer. Note that the bug is invisible while all spread prices are positive, which is exactly why it survives testing in backwardated markets and appears in production on the first day of contango.</p>
 <p>The correct design is the one from Confusion 2: store prices as <strong>signed integer ticks</strong> (−200 and −195) and use ordinary numeric comparison. Bids sort descending (−195 before −200), asks sort ascending, with no special cases for sign.</p>
+<p><strong>E15.</strong></p>
+<p><em>(a)</em> The spread's vector is (Apr +1, Jul −1), so only April and July orders can cancel its legs. Three quotes exist:</p>
+<table>
+<thead>
+<tr>
+<th>Implied quote</th>
+<th>Type</th>
+<th>Ingredients</th>
+<th>Price</th>
+<th>Lots</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>July ask</td>
+<td>OUT</td>
+<td>April ask + spread bid</td>
+<td>78.00 − (−6.20) = <strong>$84.20</strong></td>
+<td>min(10, 8) = 8</td>
+</tr>
+<tr>
+<td>April bid</td>
+<td>OUT</td>
+<td>July bid + spread bid</td>
+<td>83.95 + (−6.20) = <strong>$77.75</strong></td>
+<td>min(6, 8) = 6</td>
+</tr>
+<tr>
+<td>Spread ask</td>
+<td>IN</td>
+<td>April ask + July bid</td>
+<td>78.00 − 83.95 = <strong>−$5.95</strong></td>
+<td>min(10, 6) = 6</td>
+</tr>
+</tbody>
+</table>
+<p>The other three formulas each need an order that does not exist (a July ask, an April bid or a spread ask). Nothing is crossed: the implied July ask is above the real July bid, the implied April bid is below the real April ask, and the implied spread ask is above the real spread bid.</p>
+<p><em>(b)</em> The May ask. Its vector (May −1) has no April or July entry, so adding it to any of the other orders cancels nothing. That May lies between April and July in time is irrelevant. A May order could only take part through spreads that contain May, such as Apr/May and May/Jul, and combining those is a construction for the next chapter.</p>
+<p><strong>E16.</strong> Follow the loop, keeping working copies of the remaining quantities:</p>
+<ol>
+<li>Best against best: 76.00 − (−6.00) = 82.00, quantity min(5, 8) = 5. New level <strong>$82.00 × 5</strong>, built from (March 76.00 × 5, spread −6.00 × 5). The March level is used up; 3 spreads at −6.00 remain.</li>
+<li>Next March level against the remaining spreads: 76.02 − (−6.00) = 82.02, quantity min(10, 3) = 3. A new price, and the ladder has room, so new level <strong>$82.02 × 3</strong>. The −6.00 spreads are used up; 7 March lots at 76.02 remain.</li>
+<li>Next pair: 76.02 − (−6.03) = 82.05. A new price, but the ladder already holds 2 levels, so the loop stops.</li>
+</ol>
+<p>Result: $82.00 × 5, $82.02 × 3. Without the depth limit, the next level would be $82.05 × 7. No order is used beyond its size: 5 + 3 = 8 spreads at −6.00, and March lots 5 at 76.00 plus 3 at 76.02.</p>
+<p><strong>E17.</strong></p>
+<p><em>(a)</em> 6 outright books and 6 × 5 / 2 = <strong>15</strong> spread books, <strong>21</strong> in all. Each spread forms one triangle with its two legs, and each triangle has 6 formulas: 15 × 6 = <strong>90</strong> <code>pair()</code> computations.</p>
+<p><em>(b)</em> An outright month is a leg of 5 spreads, so one changed side dirties 5 outright quotes (OUT) and 5 spread quotes (IN): <strong>10</strong> quotes. Each outright quote has 5 routes, one through each other month, and each spread quote has 1: 5 × 5 + 5 × 1 = <strong>30</strong> <code>pair()</code> computations.</p>
+<p><em>(c)</em> A spread sits in one triangle, so one changed side dirties <strong>2</strong> outright quotes, each with 5 routes: <strong>10</strong> <code>pair()</code> computations.</p>
+<p>In general, with M months an outright side dirties 2(M − 1) quotes costing M(M − 1) computations, and a spread side dirties 2 quotes costing 2(M − 1). For M = 12 that gives the chapter's 22 quotes and 132 computations, and 2 quotes and 22 computations. The outright cost grows with the square of the strip length.</p>
 <h2 id="multi-layer-implied-orders-and-the-combinatorial-wall">Multi-Layer Implied Orders and the Combinatorial Wall<a class="headerlink" href="#multi-layer-implied-orders-and-the-combinatorial-wall" title="Permanent link">&para;</a></h2>
 <p>The previous chapter combined exactly two real orders at a time. A January ask plus a spread bid implied a February ask; a January bid plus a February ask implied a spread bid. A curious developer immediately asks the next question: <em>if an implied February ask can be traded against, can it also be used as an ingredient?</em> Combine it with a Feb/Mar spread and you get an implied March ask. Combine that with a Mar/Apr spread and you get an implied April ask. Why stop?</p>
 <p>This chapter answers that question. It extends the vector model of the previous chapter to chains of any length, shows a real multi-generation example published by ICE, re-derives the "no liquidity from nothing" promise for chains, and then walks into what this chapter calls <strong>the combinatorial wall</strong>: the reason every exchange that offers implied matching restricts it, whether by the number of steps, by the set of instruments, by the depth it publishes, or by the time it is switched on.</p>
@@ -15239,22 +15687,22 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p>(As in the previous chapter, spread price = near month − far month, and a spread bid buys the near month and sells the far month. The months and prices are new, because they are ICE's rather than ours, but every rule from the previous chapter applies unchanged.)</p>
 <p>ICE derives, and we can check with the vector rule:</p>
 <p><strong>Generation 1, implied IN: a Sep/Oct spread bid at −0.93.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>  Buy Sep at 75.90           v = (Sep +1)              c = +75.90
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>+ Sell Oct at 76.83          v = (Oct −1)              c = −76.83
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>  ------------------------------------------------------------------
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>                             v = (Sep +1, Oct −1)      c =  −0.93   → Sep/Oct spread BID at −0.93
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>  Buy Sep at 75.90           v = (Sep +1)              c = +75.90
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>+ Sell Oct at 76.83          v = (Oct −1)              c = −76.83
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>  ------------------------------------------------------------------
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>                             v = (Sep +1, Oct −1)      c =  −0.93   → Sep/Oct spread BID at −0.93
 </code></pre></div>
 <p><strong>Generation 1, implied OUT: a November ask at 77.35.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>  Sell Oct at 76.83          v = (Oct −1)              c = −76.83
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>+ Buy Oct/Nov at −0.52       v = (Oct +1, Nov −1)      c =  −0.52
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>  ------------------------------------------------------------------
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>                             v = (Nov −1)              c = −77.35   → November ASK at 77.35
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>  Sell Oct at 76.83          v = (Oct −1)              c = −76.83
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>+ Buy Oct/Nov at −0.52       v = (Oct +1, Nov −1)      c =  −0.52
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  ------------------------------------------------------------------
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>                             v = (Nov −1)              c = −77.35   → November ASK at 77.35
 </code></pre></div>
 <p><strong>Generation 2: a Sep/Nov spread bid at −1.45</strong>, built from the real September bid and the <em>implied</em> November ask:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>  Buy Sep at 75.90           v = (Sep +1)              c = +75.90
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>+ implied Sell Nov at 77.35  v = (Nov −1)              c = −77.35
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>  ------------------------------------------------------------------
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>                             v = (Sep +1, Nov −1)      c =  −1.45   → Sep/Nov spread BID at −1.45
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>  Buy Sep at 75.90           v = (Sep +1)              c = +75.90
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>+ implied Sell Nov at 77.35  v = (Nov −1)              c = −77.35
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>  ------------------------------------------------------------------
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>                             v = (Sep +1, Nov −1)      c =  −1.45   → Sep/Nov spread BID at −1.45
 </code></pre></div>
 <p>Unpack the implied November ask and the generation-2 quote is simply the sum of all <strong>three</strong> real orders: 75.90 − 76.83 − 0.52 = −1.45, with the October legs cancelling. The same number appears if you chain the other generation-1 quote instead: implied Sep/Oct bid (−0.93) plus real Oct/Nov bid (−0.52) = −1.45. That is not a coincidence. <strong>An implied quote is a property of the set of real orders it uses, not of the order in which you combine them.</strong> The "generation" is just a count of how many real orders are in the set, minus one.</p>
 <h4 id="executing-a-generation-2-trade">Executing a generation-2 trade<a class="headerlink" href="#executing-a-generation-2-trade" title="Permanent link">&para;</a></h4>
@@ -15487,7 +15935,7 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <li>Path Sep → $ → Oct → Nov (Sep bid +75.90, Oct ask −76.83, Oct/Nov bid −0.52): long Sep, short Nov, paying −1.45. The ICE generation-2 <strong>Sep/Nov bid at −1.45</strong> ✓.</li>
 </ul>
 <p>Figure: the ICE example as a graph. Each arrow is one real order, and together the three arrows form the path of the generation-2 Sep/Nov bid.</p>
-<pre class="mermaid" width="600"><code>flowchart LR
+<pre class="mermaid" width="560"><code>flowchart LR
     SEP((Sep))
     CASH(("$"))
     OCT((Oct))
@@ -15686,7 +16134,7 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><strong>Negative cycles are crossed markets.</strong> If the costs around a cycle sum to less than zero, every extra lap makes the route cheaper, so the costs never settle. Bellman–Ford detects this with one extra round: if anything still improves in round V, such a cycle exists. In this chapter's terms that is a cycle of positive weight, a crossed family of books. The classic textbook use is the same problem in another market: finding a currency arbitrage, a loop of exchange rates that ends with more money than it started with.</p>
 <p><strong>Generation limits come almost free.</strong> The textbook version updates costs in place, so a single round can chain several improvements and finish early. To enforce a generation limit, each round must read only the <em>previous</em> round's costs, as in the table above. Then round <em>k</em> really means "at most <em>k</em> real orders", and an engine with maximum generation <em>g</em> simply stops after <em>g</em> + 1 rounds. Because the engine never leaves a crossed cycle within its own depth at rest, the best route within the limit never needs to visit a month twice, so what the search finds is always a valid construction.</p>
 <p><strong>One search per starting node.</strong> A search from $ prices the best ask in every outright book at once: a route $ → x means "short x". Bids and spreads need routes that <em>start</em> at a month (x → $ is a bid for x; x → y is a bid for the x/y spread), so the engine also searches once from each month: 13 searches in all, which together price both sides of all 78 books.</p>
-<p><strong>Cost.</strong> Only the best order on each side of each book can lie on a best route, so the full 12-month strip has at most 2 × 78 = 156 edges. One search is at most 12 × 156 = 1,872 additions and comparisons, and all 13 together fewer than 25,000. That is very little work for a modern processor, which is why the best price is not where the wall stands.</p>
+<p><strong>Cost.</strong> Only the best order on each side of each book can lie on a best route, so the full 12-month strip has at most 2 × 78 = 156 edges. One search is at most 12 × 156 = 1,872 additions and comparisons, and all 13 together fewer than 25,000. That is very little work for a modern processor, which is why the best price is not where the wall stands. It is not free, though. The previous chapter's benchmark spent about 9 ns on each first-generation <code>pair()</code> computation. Even at a few nanoseconds per step, running all 13 searches from scratch after every event would take tens of microseconds, roughly ten times what first-generation recalculation costs. That is still affordable, and it grows only polynomially with the strip. The explosive costs are elsewhere.</p>
 </div>
 <p>This is a genuinely useful result, and it matches what at least one exchange advertises: ICE states that its engine "will determine the best bid and offer price in each market regardless of the number of generations required", within a given strip type [ICE, <em>ICE Futures Implied Prices</em> FAQ]. For the <em>best price</em> in a world of simple two-legged calendar spreads, the number of generations is not the problem.</p>
 <p>So where is the wall?</p>
@@ -15796,7 +16244,7 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 </tr>
 </tbody>
 </table>
-<p>One cancel, four market-data updates. A generation-1 engine would have had three (it never published the Sep/Nov quote). Now scale up: in a 12-month strip with generation 2 enabled, an order in a middle month can sit inside routes to dozens of books, and every one of them must be recomputed and republished before the engine processes the next event. That recomputation sits on the critical path of every order, cancel and fill in the group.</p>
+<p>One cancel, four market-data updates. A generation-1 engine would have had three (it never published the Sep/Nov quote). Now scale up: in a 12-month strip with generation 2 enabled, an order in a middle month can sit inside routes to dozens of books, and every one of them must be recomputed and republished before the engine processes the next event. That recomputation sits on the critical path of every order, cancel and fill in the group. The previous chapter measured the starting point: at generation 1, one outright change dirties 22 quotes with 11 routes each, and recalculating them took about 1.2 µs. At generation 2 the dirty set can reach all 156 book sides, and an outright book side has 121 implied routes instead of 11.</p>
 <p>In the fully connected 12-month strip, the ripple goes further than "dozens". Take a single June ask and ask which books <em>could</em> have a quote that depends on it:</p>
 <p><img alt="Books whose implied quotes can depend on one June ask, by maximum generation. Each line is one book, as in the strip graph earlier in the chapter." src="../assets/how-exchange-works/implied-cancel-ripple-small.png" /></p>
 <ul>
@@ -15843,6 +16291,7 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><strong>E8.</strong> Three spread orders rest: Jan/Feb bid −0.60, Feb/Mar bid −0.45, and Jan/Mar ask −1.00 (all 5 lots). (a) Draw the three edges with weights and evaluate the cycle. Are the books crossed? (b) A new Jan/Mar ask arrives at −1.08 × 5. What happens?</p>
 <p><strong>E9.</strong> A small, fully connected strip has M = 4 months (Jan, Feb, Mar, Apr): 4 outright books and all 6 calendar spreads, each with one resting order on each side. (a) Count the routes from $ to April for each generation by listing them. (b) How many remain if implication is limited to generation 1?</p>
 <p><strong>E10.</strong> Use this convention for a Jan/Feb/Mar <strong>butterfly</strong>: price B = Jan − 2 × Feb + Mar, and buying one butterfly means buying 1 January, selling 2 February and buying 1 March. Resting: Jan/Feb spread bid −0.60 × 8 and Feb/Mar spread ask −0.40 × 5. (a) Which implied butterfly quote do they create, at what price and quantity? (b) Why can a resting butterfly order not be drawn as an edge in the graph view? (c) Does a resting butterfly bid plus a January ask imply anything?</p>
+<p><strong>E11.</strong> Only three spread orders rest, all 10 lots: Mar/Apr bid −2.00, Apr/May bid −2.00, May/Jun bid −1.90. No outright orders rest. (a) What does a first-generation engine with implied IN and OUT only (the previous chapter) publish in the Mar/Jun book? (b) What does an engine that also builds spreads from spreads publish, at generation 1 and at generation 2? (c) If the generation-2 quote trades, which leg prices must be manufactured?</p>
 <p>&nbsp;</p>
 <div style="page-break-after: always;"></div>
 
@@ -15854,11 +16303,11 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><strong>E4.</strong> From the table: 1 + 11 + 110 = <strong>122</strong> routes. With adjacent-month spreads only, the graph from $ is: $ to every month (the outright books), plus a line Jan – Feb – … – Dec. A simple path from $ to December leaves $ once, enters the line at some month, and walks along the line to December without revisiting a node. It can enter at any of the 12 months, so there are exactly <strong>12</strong> routes: one direct (generation 0) and one for each possible entry month from January to November. Restricting which spreads participate turned a factorial explosion into a straight line, which is exactly why venues restrict the instrument set.</p>
 <p><strong>E5.</strong></p>
 <p><em>(a)</em> Add the vectors, or follow the graph path $ → Jan → Feb → Mar:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>  Sell Jan at 70.00          v = (Jan −1)              c = −70.00
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>+ Buy Jan/Feb at −0.60       v = (Jan +1, Feb −1)      c =  −0.60
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>+ Buy Feb/Mar at −0.45       v = (Feb +1, Mar −1)      c =  −0.45
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>  ------------------------------------------------------------------
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>                             v = (Mar −1)              c = −71.05   → March ASK at 71.05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>  Sell Jan at 70.00          v = (Jan −1)              c = −70.00
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>+ Buy Jan/Feb at −0.60       v = (Jan +1, Feb −1)      c =  −0.60
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>+ Buy Feb/Mar at −0.45       v = (Feb +1, Mar −1)      c =  −0.45
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>  ------------------------------------------------------------------
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>                             v = (Mar −1)              c = −71.05   → March ASK at 71.05
 </code></pre></div>
 <p>January and February cancel, leaving "sell one March, receive 71.05". It uses three real orders, so it is <strong>generation 2</strong>, with quantity min(10, 8, 6) = <strong>6</strong> lots, bottlenecked by C. In words: A sells January at 70.00; B will sell February 0.60 above the January it buys, so at 70.60; C will sell March 0.45 above the February it buys, so at 71.05.</p>
 <p><em>(b)</em> All four fills commit atomically:</p>
@@ -15961,6 +16410,10 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><em>(a)</em> Jan/Feb bid: (Jan +1, Feb −1), c = −0.60. Feb/Mar ask is a spread <em>seller</em>: (Feb −1, Mar +1), c = −(−0.40) = +0.40. Sum: (Jan +1, Feb −2, Mar +1), c = −0.20. That vector is exactly one butterfly <em>purchase</em>, so the two orders imply a <strong>butterfly bid at −0.20</strong>, quantity min(8, 5) = <strong>5</strong>. Check with leg prices: anchor February at 70.60; then January = 70.60 − 0.60 = 70.00 and March = 70.60 + 0.40 = 71.00 (from Feb − Mar = −0.40). B = 70.00 − 2 × 70.60 + 71.00 = −0.20 ✓. In words: the butterfly is "Jan/Feb spread minus Feb/Mar spread", so buying it means buying the first spread and selling the second, and its price is S(Jan/Feb) − S(Feb/Mar) = −0.60 − (−0.40) = −0.20.</p>
 <p><em>(b)</em> An edge records "long one month, short one month, one lot each". The butterfly is long January, long March, and short <em>two</em> February at once: three months, with a 2 in the middle. No single arrow from one node to another can express that. Implying <em>into</em> the butterfly from two ordinary spreads (part a) still works, because each ingredient is an ordinary edge. Using a resting butterfly as an <em>ingredient</em> is the hard direction: the engine must find other orders whose vectors cancel the right entries in the right multiples, which is the integer-programming search described in point 6.</p>
 <p><em>(c)</em> Add the vectors: (Jan +1, Feb −2, Mar +1) + (Jan −1) = (Feb −2, Mar +1). That is "sell two February, buy one March", a 2:1 ratio that matches no listed book, so <strong>nothing</strong> is implied. Compare: butterfly bid + Feb/Mar spread <em>bid</em> (Feb +1, Mar −1) gives (Jan +1, Feb −1), a valid Jan/Feb spread. Finding which combinations work requires trying them, and with multi-legged instruments the number of combinations to try is what explodes. That is why point 4 of <em>What This Means When You Build One</em> recommends a small set of explicitly listed templates instead of a general search.</p>
+<p><strong>E11.</strong></p>
+<p><em>(a)</em> <strong>Nothing.</strong> Implied IN needs a March order and a June order, and implied OUT needs an outright order plus a spread. No outright orders rest, so none of the previous chapter's six formulas has its ingredients. In particular, the April and May legs of these spreads cannot help: as the previous chapter's March/June example showed, at generation 1 a Mar/Jun quote depends on the March and June books only.</p>
+<p><em>(b)</em> Spreads that share a month combine, because that month's legs cancel. At generation 1 (two real orders): Mar/Apr + Apr/May gives a <strong>Mar/May bid at −4.00</strong>, and Apr/May + May/Jun gives an <strong>Apr/Jun bid at −3.90</strong>, each 10 lots. Still nothing in Mar/Jun, which needs all three. At generation 2 (three real orders): (Mar +1, Apr −1) + (Apr +1, May −1) + (May +1, Jun −1) = (Mar +1, Jun −1), paying −2.00 − 2.00 − 1.90 = −5.90: a <strong>Mar/Jun bid at −5.90</strong>, quantity min(10, 10, 10) = 10. The same −5.90 comes from Mar/May (−4.00) plus May/Jun (−1.90), or Mar/Apr (−2.00) plus Apr/Jun (−3.90): the quote belongs to the set of three real orders, not to the order in which they are combined.</p>
+<p><em>(c)</em> All four. The seller of Mar/Jun trades March and June, and the April and May legs trade between the spread bidders, but no order states an outright price for any month. The engine anchors one month to a reference price and derives the rest from the spread prices. For example, with March anchored at 76.00: April = 78.00, May = 80.00 and June = 81.90. Each spread's legs then differ by its price, and every derived price must still be on-tick and inside its month's price limits.</p>
 <h2 id="indexes-the-markets-single-number">Indexes, The Market's Single Number<a class="headerlink" href="#indexes-the-markets-single-number" title="Permanent link">&para;</a></h2>
 <p>Every concept so far has been about a single instrument: one order, one book, one matching engine, one symbol's price. But participants, journalists, regulators, and pension trustees all ask a broader question every day: <em>how did the market do?</em> Answering that question with one number is the job of a <strong>market index</strong>.</p>
 <blockquote>
@@ -15983,14 +16436,14 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><strong>Market-capitalisation-weighted.</strong> Each constituent contributes in proportion to its <strong>market capitalisation</strong>, the total value of its shares. This is how the S&amp;P 500, FTSE 100, DAX, and almost every modern serious index works, and it is the method worth understanding in depth.</p>
 <h4 id="market-capitalisation-and-normalisation">Market Capitalisation and Normalisation<a class="headerlink" href="#market-capitalisation-and-normalisation" title="Permanent link">&para;</a></h4>
 <p>A company's <strong>market capitalisation</strong> ("market cap") is simply:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>market cap = share price × shares outstanding
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>market cap = share price × shares outstanding
 </code></pre></div>
 <p>A company trading at $200 with one billion shares is worth $200 billion. In a cap-weighted index, that company's influence is its market cap as a fraction of the <em>total</em> market cap of all constituents. A $400 billion company in an index whose constituents total $4 trillion drives 10% of the index's movement; a $40 billion company drives 1%. Large companies dominate, which is usually what we want, the index reflects where the market's money actually sits.</p>
 <p>But there is a problem. If you just add up the market caps of 500 companies, you get a number in the tens of trillions, an unwieldy figure that means nothing to a human and that jumps every time a company issues shares or is swapped out of the index. The solution is <strong>normalisation against a divisor</strong>.</p>
 <blockquote>
 <p><strong>Key idea:</strong> An index level is the aggregate market cap of its constituents divided by a <strong>divisor</strong>, a scaling number chosen so the index reads as a friendly figure (say, 1000 at launch) and, crucially, so the level stays continuous when the basket itself changes.</p>
 </blockquote>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>index level = aggregate market cap / divisor
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>index level = aggregate market cap / divisor
 </code></pre></div>
 <p>At launch, the divisor is set so the index equals its chosen <strong>base value</strong>. If the constituents total $7 trillion and you want the index to start at 1000, you set the divisor to $7 trillion ÷ 1000 = $7 billion. From then on, as prices move, the aggregate cap moves, and dividing by the (mostly fixed) divisor produces the published level.</p>
 <p><strong>A worked example.</strong> Suppose a small index has three constituents:</p>
@@ -16031,8 +16484,8 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 </tbody>
 </table>
 <p>To launch at a base value of 1000:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>divisor = 7,007,100,000,000 / 1000 = 7,007,100,000
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>index level = 7,007,100,000,000 / 7,007,100,000 = 1000.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>divisor = 7,007,100,000,000 / 1000 = 7,007,100,000
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>index level = 7,007,100,000,000 / 7,007,100,000 = 1000.00
 </code></pre></div>
 <p>Now if Alpha rises from $209.50 to $230 (up 9.8%), its market cap grows by $20.50 × 15 billion = $307.5 billion, the aggregate cap rises to $7,314,600,000,000, and the index reads 7,314,600,000,000 / 7,007,100,000 ≈ 1043.9, up about 4.4%. Notice that Alpha, the largest constituent, moved the index more than an identical percentage move in tiny Gamma would have. That is cap weighting doing its job.</p>
 <p>Most serious indexes refine this further with <strong>free-float adjustment</strong>: instead of <em>all</em> shares outstanding, they count only the shares actually available to public trading, excluding blocks held by founders, governments, or strategic owners that never trade. A company that is 60% owned by its founding family has only 40% of its shares influencing supply and demand, so only that 40% should influence the index. The principle is identical; only the share count used in the market-cap formula changes.</p>
@@ -16045,13 +16498,13 @@ If S went up, the buyer gained. If S went down, the buyer lost. The sign of S, a
 <p><strong>Key idea:</strong> Whenever a corporate action changes the <em>aggregate market cap</em> of the basket for a reason unrelated to genuine price movement, the divisor is adjusted to absorb the change, so the index level does not jump at that instant. Only <em>future</em> price movements then change the level.</p>
 </blockquote>
 <p>The mechanism is a simple ratio. If a corporate action changes the aggregate cap from an old value to a new value, the divisor is rescaled by the same ratio:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>new divisor = old divisor × (new aggregate cap / old aggregate cap)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>new divisor = old divisor × (new aggregate cap / old aggregate cap)
 </code></pre></div>
 <p>Because the level is <code>aggregate cap ÷ divisor</code>, multiplying both the cap <em>and</em> the divisor by the same factor leaves the level unchanged at the moment of adjustment. The index glides through the event seamlessly. This is precisely the technique the S&amp;P 500 has used for decades: its divisor is a closely tracked number that changes whenever constituents are added or removed, issue or buy back shares, or pay special dividends [S&amp;P Dow Jones Indices, <em>Index Mathematics Methodology</em>].</p>
 <p><img alt="The five steps of a divisor adjustment. Whenever the basket's aggregate market cap changes for a reason that is not a price move, the divisor is rescaled by the same ratio, so the index level does not move at that instant; only later price moves change it." src="../assets/how-exchange-works/index-divisor-steps-small.png" /></p>
 <p><strong>A worked example.</strong> Continue with the three-company index from above, now standing at 1043.9 after Alpha's rise (aggregate cap $7,314.6 billion, divisor 7,007,100,000). The index committee replaces Gamma (market cap $793.6 billion) with a new company, Delta, worth $1,200 billion. Nothing has happened to any price, but the basket's aggregate cap jumps to 7,314.6 − 793.6 + 1,200 = $7,721.0 billion. Divided by the old divisor that would read 1101.9, a fake 5.6% rise. So the divisor is rescaled:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>new divisor = 7,007,100,000 × (7,721.0 / 7,314.6) ≈ 7,396,415,265
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>index level = 7,721,000,000,000 / 7,396,415,265 ≈ 1043.9   (unchanged)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>new divisor = 7,007,100,000 × (7,721.0 / 7,314.6) ≈ 7,396,415,265
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>index level = 7,721,000,000,000 / 7,396,415,265 ≈ 1043.9   (unchanged)
 </code></pre></div>
 <p>From then on, Delta's price moves feed into the index just as Gamma's used to.</p>
 <p><img alt="The worked example over a few hours of trading. At the moment Gamma is replaced by Delta, the naive calculation (old divisor) jumps by 5.6% although no price moved; with the rescaled divisor the index carries on from exactly where it was." src="../assets/how-exchange-works/index-divisor-continuity-small.png" /></p>
@@ -16993,7 +17446,7 @@ Exchanges can identify these traders using one or several of the following mecha
 </ul>
 <p>In many architectures, the gateway performs only structural and session checks, while instrument-specific validation (tick alignment, price collars, and auction/session constraints) is enforced in the matching engine or in a dedicated risk layer fed by reference data. Some venues do cache reference data in gateways and validate there too; the key requirement is consistent enforcement in exactly one authoritative path.</p>
 <p><strong>FIX Protocol:</strong> The industry-standard format for order submission is FIX (Financial Information eXchange), a text-based protocol developed in the early 1990s. A FIX order message looks something like:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>8=FIX.4.2|35=D|49=CLIENT1|56=EXCHANGE|11=ORDER001|55=AAPL|54=1|38=100|44=150.30|40=2|59=0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>8=FIX.4.2|35=D|49=CLIENT1|56=EXCHANGE|11=ORDER001|55=AAPL|54=1|38=100|44=150.30|40=2|59=0
 </code></pre></div>
 (Note: the <code>|</code> separator here is a display convention. On the wire, FIX uses the SOH character, ASCII value 1, a non-printable control character, as the field delimiter. Tools and documentation almost always substitute <code>|</code> or <code>^A</code> for readability.)</p>
 <p>All eleven fields in this message have meaning. (A complete message on the wire also carries a few mandatory housekeeping fields, such as BodyLength (tag 9), MsgSeqNum (34), SendingTime (52), and a CheckSum (10) at the end, and FIX 4.2 also requires HandlInst (21) and TransactTime (60) on a new order; all omitted here for readability.)</p>

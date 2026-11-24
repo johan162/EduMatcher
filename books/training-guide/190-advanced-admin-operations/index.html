@@ -7975,6 +7975,9 @@ with the same participant ID is refused.</p>
 </code></pre></div>
 <p>Verification:</p>
 <ol>
+<li>The admin console answers <code>KICK OK  TRADER02</code>. Kicking it a second time
+   is refused (<code>REJECTED  Gateway not connected: TRADER02</code>), as is a mistyped
+   id (<code>REJECTED  Gateway not configured: …</code>): the engine answers every kick.</li>
 <li>The <code>TRADER02</code> console is <strong>not told</strong> it was kicked; its prompt looks
    unchanged. Confirm the disconnect from the operator side with <code>GATEWAYS</code>
    (<code>TRADER02</code> now shows <code>no</code> under <em>Connected</em>), and from the trader side by
@@ -8023,7 +8026,7 @@ intervention without relying on the MM terminal.</p>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>AAPL
 <a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session-status
 </code></pre></div>
-<p>Each prints one line (<code>KICK  sent disconnect for TRADER02</code>,
+<p>Each prints one line (<code>KICK OK  TRADER02</code>,
 <code>QCANCEL OK  MM_AAPL_01  AAPL</code>, <code>CANCEL_SYM OK  AAPL  orders=&lt;n&gt;  quotes=&lt;n&gt;</code>),
 then the empty AAPL book and the session state.</p>
 <p><code>TRADER02</code> is now disconnected: leave its console and start a new one before

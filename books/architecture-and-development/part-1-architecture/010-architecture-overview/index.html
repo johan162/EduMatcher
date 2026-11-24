@@ -9234,6 +9234,16 @@ gives every field.</p>
 <td>What the market-wide kill switch cancelled.</td>
 </tr>
 <tr>
+<td><code>risk.gateway_kick</code></td>
+<td>ADMIN tools, pm-api-gwy</td>
+<td>End one named participant's session; its <code>disconnect_behaviour</code> runs.</td>
+</tr>
+<tr>
+<td><code>risk.gateway_kick_ack.{gateway_id}</code></td>
+<td>pm-engine</td>
+<td>Whether the named session was ended, or why not.</td>
+</tr>
+<tr>
 <td><code>risk.band.{symbol}</code></td>
 <td>pm-engine</td>
 <td>Published once per collared symbol at startup (a reference reload leaves collars as they are).</td>

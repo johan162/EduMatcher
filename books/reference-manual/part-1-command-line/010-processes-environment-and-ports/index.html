@@ -15779,12 +15779,8 @@ connection was lost.</p>
 <td><code>QCANCEL</code> on the console's own gateway</td>
 </tr>
 <tr>
-<td><code>system.gateways_request</code></td>
-<td><code>KICK</code> — checks first that the target is configured and connected</td>
-</tr>
-<tr>
-<td><code>system.gateway_disconnect</code></td>
-<td><code>KICK</code> — forcefully disconnect a gateway (no ack published)</td>
+<td><code>risk.gateway_kick</code></td>
+<td><code>KICK</code> — the ADMIN disconnect of another gateway (refused for an unknown, a disconnected or the console's own id)</td>
 </tr>
 <tr>
 <td><code>book.snapshot_request</code></td>
@@ -15880,6 +15876,10 @@ connection was lost.</p>
 <tr>
 <td><code>risk.kill_switch_ack.{GW_ID}</code></td>
 <td><code>KILL</code> acknowledgement for the console's own gateway</td>
+</tr>
+<tr>
+<td><code>risk.gateway_kick_ack.{GW_ID}</code></td>
+<td><code>KICK</code> acknowledgement</td>
 </tr>
 <tr>
 <td><code>quote.cancel_ack.{GW_ID}</code></td>
@@ -17280,8 +17280,8 @@ once that file exists its profiles replace the built-ins entirely (a missing
 <tr>
 <td><code>stop</code></td>
 <td><code>down</code></td>
-<td>—</td>
-<td><code>SIGTERM</code>, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running 15 s later keeps its PID file and makes <code>stop</code> exit <code>1</code></td>
+<td><code>--timeout SEC</code> (finish within <code>SEC</code> seconds in total: each wave waits at most an even share of the time left)</td>
+<td><code>SIGTERM</code>, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running when its wave's wait ends (15 s, or its share of <code>--timeout</code>) keeps its PID file and makes <code>stop</code> exit <code>1</code></td>
 </tr>
 <tr>
 <td><code>kill</code></td>

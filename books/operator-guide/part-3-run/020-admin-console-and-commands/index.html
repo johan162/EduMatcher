@@ -9178,14 +9178,16 @@ with nothing cancelled. On your own gateway it is the self-service
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER01
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER01<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Compliance hold"</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>KICK  sent disconnect for TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>KICK OK  TRADER01
 </code></pre></div>
-<p>The engine publishes no ack for a disconnect, so <code>kick</code> first asks for the
-gateway list: an id that is not configured (<code>REJECTED  Gateway not
-configured: X</code>) or not connected (<code>REJECTED  Gateway not connected: X</code>) is
-refused with exit code 1 and nothing is sent. Otherwise the line confirms
-that the disconnect was sent; verify it with <code>gateways</code> (the gateway shows
-<code>no</code> under <em>Connected</em>). What happens to its orders depends on its
+<p><code>kick</code> sends the ADMIN message <code>risk.gateway_kick</code> and waits for the engine's
+answer. The engine ends the session, names you in the disconnect's reason
+(<code>kicked by ADMIN_CLI: Compliance hold</code>, which clearing keeps as the
+session's disconnect reason) and records the action on the admin monitor.
+It refuses an id that is not configured (<code>REJECTED  Gateway not configured:
+X</code>), one that is not connected (<code>REJECTED  Gateway not connected: X</code>), your
+own id, and a caller without the ADMIN role; each exits with code 1 and
+disconnects nothing. What happens to the target's orders depends on its
 <code>disconnect_behaviour</code>; use <code>kill</code> to clear them.</p>
 <table>
 <thead>
@@ -9204,7 +9206,7 @@ that the disconnect was sent; verify it with <code>gateways</code> (the gateway 
 <tr>
 <td><code>--reason TEXT</code></td>
 <td>no</td>
-<td>Reason string recorded in the engine log</td>
+<td>Reason recorded on the admin monitor and in the disconnect</td>
 </tr>
 </tbody>
 </table>
@@ -10109,9 +10111,9 @@ sockets are closed on exit.</p>
 <tr>
 <td><code>gateway_kick(target, reason?)</code></td>
 <td>target GW ID, optional reason</td>
-<td>none checked (L044)</td>
-<td><code>system.gateway_disconnect</code></td>
-<td><em>(none)</em></td>
+<td><strong>ADMIN</strong></td>
+<td><code>risk.gateway_kick</code></td>
+<td><code>risk.gateway_kick_ack.{GW}</code></td>
 </tr>
 <tr>
 <td><code>book_depth(symbol)</code></td>
@@ -10384,10 +10386,13 @@ for <code>TRADER01</code> on <code>AAPL</code> are affected.</p>
 submitted outside the quote mechanism are unaffected.  Use <code>mass_cancel</code> to
 also remove non-quote limit orders.</p>
 <h3 id="gateway_kick-forcefully-disconnect-a-gateway"><code>gateway_kick</code> — Forcefully disconnect a gateway<a class="headerlink" href="#gateway_kick-forcefully-disconnect-a-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a>Frame 0:  b"system.gateway_disconnect"
-<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a>Frame 1:  {"gateway_id": "TRADER01", "reason": "Compliance hold"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a>Frame 0:  b"risk.gateway_kick"
+<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a>Frame 1:  {"gateway_id": "GW_ADMIN", "target_gateway_id": "TRADER01",
+<a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a>           "note": "Compliance hold", "command_id": "cmd-..."}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">"Compliance hold"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">"Compliance hold"</span><span class="p">)</span>
+<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a><span class="c1"># result = {"accepted": True, "target_gateway_id": "TRADER01",</span>
+<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a><span class="c1">#           "reason": "", "command_id": "cmd-..."}</span>
 </code></pre></div>
 <p>The engine applies the gateway's configured <code>disconnect_behaviour</code>:</p>
 <table>
@@ -10412,9 +10417,14 @@ also remove non-quote limit orders.</p>
 </tr>
 </tbody>
 </table>
-<p>No ack is published, and the engine ignores an id that is not a participant.
-Check the target with <code>gateway_list()</code> before, and verify the effect there
-after: the entry's <code>connected</code> turns <code>False</code>.</p>
+<p>The ack follows the disconnect's effects, so <code>gateway_list()</code> called after it
+shows the target with <code>connected: False</code>. The disconnect broadcast
+(<code>system.gateway_bye.TRADER01</code>) carries <code>kicked by GW_ADMIN: Compliance hold</code>
+as its reason, and an <code>admin.action</code> record (<code>gateway.kick</code>) names the caller.
+<code>accepted</code> is <code>False</code>, with nothing disconnected, for an id that is not
+configured (<code>Gateway not configured: X</code>), one that is not connected
+(<code>Gateway not connected: X</code>), the caller's own id, or a caller that is not an
+ADMIN.</p>
 <h3 id="book_depth-l1-l2-order-book-snapshot"><code>book_depth</code> — L1 / L2 order-book snapshot<a class="headerlink" href="#book_depth-l1-l2-order-book-snapshot" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a>Frame 0:  b"book.snapshot_request"
 <a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a>Frame 1:  {"symbol": "AAPL"}
@@ -10579,16 +10589,17 @@ the command client:</p>
 <a id="__codelineno-95-28" name="__codelineno-95-28" href="#__codelineno-95-28"></a><span class="k">assert</span> <span class="n">result</span><span class="p">[</span><span class="s2">"accepted"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"reason"</span><span class="p">]</span>
 <a id="__codelineno-95-29" name="__codelineno-95-29" href="#__codelineno-95-29"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Kill switch TRADER01: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'cancelled_orders'</span><span class="p">]</span><span class="si">}</span><span class="s2"> orders cancelled"</span><span class="p">)</span>
 <a id="__codelineno-95-30" name="__codelineno-95-30" href="#__codelineno-95-30"></a>
-<a id="__codelineno-95-31" name="__codelineno-95-31" href="#__codelineno-95-31"></a><span class="c1"># 5. Kick the affected gateway</span>
-<a id="__codelineno-95-32" name="__codelineno-95-32" href="#__codelineno-95-32"></a><span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">"Compliance review"</span><span class="p">)</span>
-<a id="__codelineno-95-33" name="__codelineno-95-33" href="#__codelineno-95-33"></a>
-<a id="__codelineno-95-34" name="__codelineno-95-34" href="#__codelineno-95-34"></a><span class="c1"># 6. Verify TRADER01 has no remaining orders</span>
-<a id="__codelineno-95-35" name="__codelineno-95-35" href="#__codelineno-95-35"></a><span class="n">remaining</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">)</span>
-<a id="__codelineno-95-36" name="__codelineno-95-36" href="#__codelineno-95-36"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">remaining</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Unexpected orders: </span><span class="si">{</span><span class="n">remaining</span><span class="si">}</span><span class="s2">"</span>
-<a id="__codelineno-95-37" name="__codelineno-95-37" href="#__codelineno-95-37"></a>
-<a id="__codelineno-95-38" name="__codelineno-95-38" href="#__codelineno-95-38"></a><span class="c1"># 7. Resume when the all-clear is given</span>
-<a id="__codelineno-95-39" name="__codelineno-95-39" href="#__codelineno-95-39"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
-<a id="__codelineno-95-40" name="__codelineno-95-40" href="#__codelineno-95-40"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"RESUME: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'resumed_symbols'</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols resumed"</span><span class="p">)</span>
+<a id="__codelineno-95-31" name="__codelineno-95-31" href="#__codelineno-95-31"></a><span class="c1"># 5. Kick the affected gateway (refused, with a reason, if it is not connected)</span>
+<a id="__codelineno-95-32" name="__codelineno-95-32" href="#__codelineno-95-32"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">"Compliance review"</span><span class="p">)</span>
+<a id="__codelineno-95-33" name="__codelineno-95-33" href="#__codelineno-95-33"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Kick TRADER01: </span><span class="si">{</span><span class="s1">'done'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">result</span><span class="p">[</span><span class="s1">'accepted'</span><span class="p">]</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">result</span><span class="p">[</span><span class="s1">'reason'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-95-34" name="__codelineno-95-34" href="#__codelineno-95-34"></a>
+<a id="__codelineno-95-35" name="__codelineno-95-35" href="#__codelineno-95-35"></a><span class="c1"># 6. Verify TRADER01 has no remaining orders</span>
+<a id="__codelineno-95-36" name="__codelineno-95-36" href="#__codelineno-95-36"></a><span class="n">remaining</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">)</span>
+<a id="__codelineno-95-37" name="__codelineno-95-37" href="#__codelineno-95-37"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">remaining</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Unexpected orders: </span><span class="si">{</span><span class="n">remaining</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-95-38" name="__codelineno-95-38" href="#__codelineno-95-38"></a>
+<a id="__codelineno-95-39" name="__codelineno-95-39" href="#__codelineno-95-39"></a><span class="c1"># 7. Resume when the all-clear is given</span>
+<a id="__codelineno-95-40" name="__codelineno-95-40" href="#__codelineno-95-40"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
+<a id="__codelineno-95-41" name="__codelineno-95-41" href="#__codelineno-95-41"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"RESUME: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'resumed_symbols'</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols resumed"</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="extending-the-framework">Extending the framework<a class="headerlink" href="#extending-the-framework" title="Permanent link">&para;</a></h2>
 <p>To add a new command:</p>
