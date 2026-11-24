@@ -1092,8 +1092,9 @@ def test_interactive_clear_respects_operator_decision(
         (["init"], "create_config", ()),
         (["start", "micro", "--debug"], "start_profile", ("micro",)),
         (["up"], "start_profile", ("default",)),
-        (["stop"], "stop_profile", ()),
-        (["down"], "stop_profile", ()),
+        (["stop"], "stop_profile", (None,)),
+        (["down"], "stop_profile", (None,)),
+        (["stop", "--timeout", "55"], "stop_profile", (55.0,)),
         (["kill"], "kill_all_processes", ()),
         (["list", "--no-restart"], "list_profile", ("never", True)),
         (["list", "--restart", "--no-tcp-probe"], "list_profile", ("always", False)),
@@ -1118,6 +1119,19 @@ def test_main_dispatches_each_operator_command(
         function.assert_called_once_with(json_output=True)
     else:
         function.assert_called_once_with(*expected_call)
+
+
+@pytest.mark.parametrize("value", ["0", "-5", "soon"])
+def test_stop_refuses_a_budget_that_is_not_a_positive_number(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stop = Mock(return_value=0)
+    monkeypatch.setattr(emo_cli, "stop_profile", stop)
+    monkeypatch.setattr(sys, "argv", ["pm-opctl-cli", "stop", "--timeout", value])
+    with pytest.raises(SystemExit) as exc:
+        emo_cli.main()
+    assert exc.value.code == 2
+    stop.assert_not_called()
 
 
 @pytest.mark.parametrize(

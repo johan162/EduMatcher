@@ -7,6 +7,7 @@ Writes to assets/:
   implied-triangle.png        any two of Jan / Feb / spread imply the third (six formulas)
   implied-shared-leg.png      one January ask shared by two spread bids: naive vs correct depth
   implied-sign-convention.png S = Near − Far on price ladders and the signed number line
+  implied-wide-spread.png     a Mar/Jun spread: only the two leg months imply, April and May do not
 
 Used in src/02-orders-and-matching/13-implied-orders-and-synthetic-liquidity.md.
 Builds SVGs and renders them to PNG with headless Google Chrome.
@@ -293,6 +294,55 @@ def sign_convention() -> tuple[str, int, int]:
     return svg(w, h, body), w, h
 
 
+def wide_spread() -> tuple[str, int, int]:
+    w, h = 1200, 990
+    body = [text(600, 42, "A Mar/Jun spread: only the March and June books take part", 28, "bold"),
+            text(600, 76, "Generation 1, implied IN and OUT. April and May are in between, but play no part.", 20, fill=MUTED)]
+    xs = {"Mar": 170, "Apr": 450, "May": 750, "Jun": 1030}
+    books = {"Mar": ("bid 75.90 × 25", "ask 76.00 × 30"), "Apr": ("bid 77.85 × 8", "ask 78.05 × 12"),
+             "May": ("bid 79.90 × 6", "ask 80.10 × 9"), "Jun": ("bid 81.80 × 25", "ask 82.10 × 15")}
+    top = 300
+    body.append(f'<path d="M {xs["Mar"]} {top} C {xs["Mar"]} 150, 360 150, 400 150" fill="none" stroke="{ORANGE}" stroke-width="5"/>')
+    body.append(f'<path d="M {xs["Jun"]} {top} C {xs["Jun"]} 150, 840 150, 800 150" fill="none" stroke="{ORANGE}" stroke-width="5"/>')
+    body.append(rect(400, 105, 400, 100, "#fffaf0", ORANGE))
+    body.append(text(600, 138, "Mar/Jun spread book", 23, "bold", ORANGE))
+    body.append(text(600, 168, "bid −6.00 × 20 (N)", 20))
+    body.append(text(600, 194, "ask −5.70 × 10 (Z)", 20))
+    for m, x in xs.items():
+        used = m in ("Mar", "Jun")
+        body.append(rect(x - 115, top, 230, 150, LIGHT if used else "#f1f3f5", BLUE if used else GREY, sw=3 if used else 2))
+        body.append(text(x, top + 40, {"Mar": "March", "Apr": "April", "May": "May", "Jun": "June"}[m], 25, "bold",
+                         BLUE if used else "#a0aec0"))
+        body.append(text(x, top + 80, books[m][0], 20, fill=DARK if used else "#a0aec0"))
+        body.append(text(x, top + 110, books[m][1], 20, fill=DARK if used else "#a0aec0"))
+        if not used:
+            body.append(text(x, top + 138, "not an ingredient", 17, fill="#a0aec0", style="italic"))
+    body.append(text(600, 500, "An April or May order has no March or June leg, so it cannot cancel one.", 23, fill=MUTED))
+
+    def panel(x: float, title: str, colour: str, rows: list[tuple[str, str, bool]]) -> None:
+        body.append(rect(x, 535, 545, 330, LIGHT, colour))
+        body.append(text(x + 272, 572, title, 23, "bold", colour))
+        for k, (formula, note, better) in enumerate(rows):
+            y = 618 + k * 64
+            body.append(text(x + 25, y, formula, 20, "bold", anchor="start"))
+            body.append(text(x + 25, y + 26, note, 18, "bold" if better else "normal", GREEN if better else MUTED,
+                             anchor="start"))
+
+    panel(40, "Implied OUT: spread + one outright", BLUE, [
+        ("June ask = 76.00 − (−6.00) = 82.00 × 20", "beats the real June ask of 82.10", True),
+        ("June bid = 75.90 − (−5.70) = 81.60 × 10", "behind the real June bid of 81.80", False),
+        ("March ask = 82.10 + (−5.70) = 76.40 × 10", "behind the real March ask of 76.00", False),
+        ("March bid = 81.80 + (−6.00) = 75.80 × 20", "behind the real March bid of 75.90", False)])
+    panel(615, "Implied IN: two outrights", ORANGE, [
+        ("Spread ask = 76.00 − 81.80 = −5.80 × 25", "beats the real spread ask of −5.70", True),
+        ("Spread bid = 75.90 − 82.10 = −6.20 × 15", "behind the real spread bid of −6.00", False)])
+    body.append(text(887, 768, "Same six formulas as Jan/Feb:", 18, fill=MUTED))
+    body.append(text(887, 794, "Mar takes Jan's place, Jun takes Feb's.", 18, fill=MUTED))
+    body.append(text(600, 915, "A route through April and May (Mar/Apr + Apr/May + May/Jun spreads) needs three real orders:", 22, fill=MUTED))
+    body.append(text(600, 948, "generation 2, the subject of the next chapter.", 22, fill=MUTED))
+    return svg(w, h, body), w, h
+
+
 def render(chrome: str, name: str, built: tuple[str, int, int], tmp: Path) -> None:
     content, w, h = built
     src = tmp / f"{name}.svg"
@@ -312,7 +362,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         for name, fn in [("implied-wrong-book", wrong_book), ("implied-vector-sum", vector_sum),
                          ("implied-triangle", triangle), ("implied-shared-leg", shared_leg),
-                         ("implied-sign-convention", sign_convention)]:
+                         ("implied-sign-convention", sign_convention), ("implied-wide-spread", wide_spread)]:
             render(args.chrome, name, fn(), Path(tmp))
 
 

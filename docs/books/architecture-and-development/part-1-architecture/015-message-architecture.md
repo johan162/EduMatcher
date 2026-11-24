@@ -597,7 +597,8 @@ health reporter sends its final beacon.
 ### The stop order
 
 `pm-opctl-cli stop` signals in waves and waits for each wave to exit (up to
-15 s) before signalling the next:
+15 s, or with `--timeout` an even share of the time left, as the container's
+entrypoint asks so the stop fits its grace period) before signalling the next:
 
 1. **Everything else** — gateways, bots, GUIs, scheduler, viewers. A gateway
    first delivers the engine events already published, so fills reach their

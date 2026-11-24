@@ -13,6 +13,7 @@ import queue
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -245,20 +246,22 @@ def test_no_engine_still_times_out() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_connect_waits_until_replies_can_arrive(tmp_path: Path) -> None:
+def test_connect_waits_until_replies_can_arrive() -> None:
     """The engine answers the connect before this client's SUB socket is
     connected: the auth reply is lost, the engine holds the ID, and the real
     engine refused every later connect for three minutes."""
     # An ipc endpoint, not a free TCP port: the port would be unreserved for
     # the 0.3 s before the late bind, long enough for another xdist worker
-    # to take it in a full run.
-    eng = _StandInEngine(pub_delay=0.3, pub_addr=f"ipc://{tmp_path / 'pub'}")
-    c = _client(eng)
-    try:
-        assert c.connect()["accepted"] is True
-    finally:
-        c.close()
-        eng.stop()
+    # to take it in a full run. Under /tmp, not tmp_path: a socket path is
+    # limited to 103 bytes on macOS, and its tmp_path alone is longer.
+    with tempfile.TemporaryDirectory(dir="/tmp", prefix="em-") as short_dir:
+        eng = _StandInEngine(pub_delay=0.3, pub_addr=f"ipc://{short_dir}/pub")
+        c = _client(eng)
+        try:
+            assert c.connect()["accepted"] is True
+        finally:
+            c.close()
+            eng.stop()
     assert eng.received.count("system.gateway_connect") == 1
 
 

@@ -14034,7 +14034,7 @@
           "admin"
         ],
         "summary": "Disconnect a gateway",
-        "description": "Ask the engine to drop the gateway's session. Its resting orders are handled according to that participant's configured disconnect policy. The optional `reason` is recorded in the engine log. Not awaited: the roster in `GET /admin/gateways` shows the result.",
+        "description": "End the gateway's session at the engine (`risk.gateway_kick`). Its resting orders are handled according to that participant's configured disconnect policy. The optional `reason` is recorded on the admin monitor and in the disconnect, which names the calling ADMIN. The engine refuses an unknown gateway, one that is not connected, and the caller's own.",
         "operationId": "disconnect_gateway",
         "security": [
           {
@@ -14074,16 +14074,18 @@
           }
         },
         "responses": {
-          "202": {
-            "description": "Disconnect sent to the engine.",
+          "200": {
+            "description": "The engine ended the session.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DisconnectPending"
+                  "$ref": "#/components/schemas/GatewayKickAck"
                 },
                 "example": {
-                  "gateway_id": "TRADER01",
-                  "status": "PENDING_DISCONNECT"
+                  "accepted": true,
+                  "target_gateway_id": "TRADER01",
+                  "reason": "",
+                  "command_id": "cmd-5d0e8a3f7c1b4926a8e4f0b3c6d92e17"
                 }
               }
             }
@@ -14196,6 +14198,28 @@
               }
             }
           },
+          "409": {
+            "description": "`DISCONNECT_REJECTED`: The engine refused to disconnect the gateway; `message` is its reason.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "DISCONNECT_REJECTED": {
+                    "summary": "DISCONNECT_REJECTED",
+                    "value": {
+                      "error": {
+                        "code": "DISCONNECT_REJECTED",
+                        "message": "Gateway not connected: TRADER01",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "429": {
             "description": "`RATE_LIMIT`: Per-key write limit exceeded; retry after a short pause.",
             "content": {
@@ -14219,10 +14243,20 @@
             }
           },
           "503": {
-            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
             "content": {
               "application/json": {
                 "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
                   "ENGINE_UNAVAILABLE": {
                     "summary": "ENGINE_UNAVAILABLE",
                     "value": {
@@ -23023,25 +23057,6 @@
         ],
         "title": "DatabaseHealth"
       },
-      "DisconnectPending": {
-        "properties": {
-          "gateway_id": {
-            "type": "string",
-            "title": "Gateway Id"
-          },
-          "status": {
-            "type": "string",
-            "const": "PENDING_DISCONNECT",
-            "title": "Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "gateway_id",
-          "status"
-        ],
-        "title": "DisconnectPending"
-      },
       "EodPayload": {
         "properties": {
           "symbols_count": {
@@ -23679,6 +23694,44 @@
         ],
         "title": "GatewayInfo",
         "description": "One configured participant, and whether it is connected right now."
+      },
+      "GatewayKickAck": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "target_gateway_id": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Target Gateway Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Reason"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "target_gateway_id",
+          "reason"
+        ],
+        "title": "GatewayKickAck",
+        "description": "Engine to ADMIN: whether the named session was ended."
       },
       "GatewayList": {
         "properties": {

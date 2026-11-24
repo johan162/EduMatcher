@@ -644,6 +644,17 @@ def _free_tcp_addr() -> str:
         return f"tcp://127.0.0.1:{s.getsockname()[1]}"
 
 
+def _see_only_pid(monkeypatch: pytest.MonkeyPatch, pid: int) -> None:
+    """Hide every other process: the host may be running a real exchange."""
+    from edumatcher.emo.cli import pm_processes
+
+    monkeypatch.setattr(
+        guards,
+        "pm_processes",
+        lambda: [entry for entry in pm_processes() if entry[0].pid == pid],
+    )
+
+
 def test_a_command_that_only_mentions_pm_engine_is_not_an_engine(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -655,6 +666,7 @@ def test_a_command_that_only_mentions_pm_engine_is_not_an_engine(
     shell = subprocess.Popen(
         ["bash", "-c", "sleep 30; echo /venv/bin/pm-engine --verbose"]
     )
+    _see_only_pid(monkeypatch, shell.pid)
     try:
         assert guards.engine_running() is None
     finally:
@@ -674,6 +686,7 @@ def test_a_running_pm_engine_program_is_found(
     script.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
     script.chmod(0o755)
     engine = subprocess.Popen([str(script), "--verbose"])
+    _see_only_pid(monkeypatch, engine.pid)
     try:
         deadline = time.monotonic() + 5
         found = guards.engine_running()

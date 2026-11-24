@@ -113,6 +113,34 @@ class KillSwitchGatewayAck(BaseModel):
     command_id: str | None = Field(default=None, max_length=64)
 
 
+class GatewayKick(BaseModel):
+    """ADMIN to engine: end one named participant's session. The engine applies that
+    participant's configured `disconnect_behaviour`, exactly as for its own
+    logout.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    gateway_id: str = Field(max_length=32)
+    """The ADMIN caller; the ack is addressed to this id."""
+    target_gateway_id: str = Field(max_length=32)
+    """Whose session is ended. Must be configured, connected, and not the caller."""
+    note: str | None = Field(default=None, max_length=256)
+    """Free-text reason, recorded on the admin monitor and in the bye's reason."""
+    command_id: str | None = Field(default=None, max_length=64)
+
+
+class GatewayKickAck(BaseModel):
+    """Engine to ADMIN: whether the named session was ended."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    accepted: bool
+    target_gateway_id: str = Field(max_length=32)
+    reason: str = Field(max_length=512)
+    command_id: str | None = Field(default=None, max_length=64)
+
+
 class KillSwitchGlobal(BaseModel):
     """ADMIN to engine: cancel every resting order and quote, for every gateway. The
     full-market emergency stop.

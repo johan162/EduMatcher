@@ -47,6 +47,7 @@ FEATURES = (
     "risk.kill_switch",
     "risk.kill_switch_gateway",
     "risk.kill_switch_global",
+    "risk.gateway_kick",
     "risk.circuit_breaker_halt_all",
     "risk.circuit_breaker_resume_all",
     "system.reference_reload",

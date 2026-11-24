@@ -86,7 +86,7 @@ _shtab_pm_admin_cli_commands() {
     gateways:'List all configured gateways and their connection status'
     halt:'Exchange-wide circuit-breaker halt (ADMIN role required)'
     halt-sym:'Halt trading on a single symbol (ADMIN role required)'
-    kick:'Forcefully disconnect a connected gateway (no ack; refused for an unknown or disconnected one)'
+    kick:'Forcefully disconnect a connected gateway (ADMIN role required; refused for an unknown, a disconnected or your own gateway)'
     kill:'Cancel all resting orders and quotes for a gateway, connected or not (another gateway: ADMIN role required)'
     level:'Show every resting order making up a symbol (or one price level), across all gateways (ADMIN role required)'
     orders:'List all resting orders for a gateway, connected or not'
@@ -158,7 +158,7 @@ _shtab_pm_admin_cli_halt_sym_defaults_added=0
 _shtab_pm_admin_cli_kick_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--gw[Target gateway ID]:GW_ID:"
-  "--reason[Reason string recorded in the engine log]:TEXT:"
+  "--reason[Reason recorded on the admin monitor and in the disconnect]:TEXT:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -4462,6 +4462,7 @@ _shtab_pm_opctl_cli_clear_defaults_added=0
 
 _shtab_pm_opctl_cli_down_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--timeout[finish within SEC seconds in total\: each wave waits at most an even share of the time left (default\: up to 15s per wave, no total)]:SEC:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -4518,6 +4519,7 @@ _shtab_pm_opctl_cli_start_defaults_added=0
 
 _shtab_pm_opctl_cli_stop_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--timeout[finish within SEC seconds in total\: each wave waits at most an even share of the time left (default\: up to 15s per wave, no total)]:SEC:"
 )
 
 # guard to ensure default positional specs are added only once per session

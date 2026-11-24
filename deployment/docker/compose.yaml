@@ -26,8 +26,9 @@ services:
     container_name: ${CONTAINER_NAME:-edumatcher}
     hostname: edumatcher
     restart: unless-stopped
-    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
-    stop_grace_period: 30s
+    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits. The
+    # entrypoint gives it 60 s in total (EM_STOP_TIMEOUT); the rest is margin.
+    stop_grace_period: 70s
     environment:
       EM_CONFIG: ${EM_CONFIG:-s10-basic}
       # Set to a path inside the container to deploy an engine configuration

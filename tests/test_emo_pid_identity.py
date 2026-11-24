@@ -279,9 +279,11 @@ def test_a_stopped_survivor_found_by_re_adoption_keeps_a_pid_file(
     """Holistic review HR1: ``stop`` said "PID file kept" for a survivor it
     had re-adopted, which had no PID file."""
     script = tmp_path / "pm-opctest-stubborn"
+    ready = tmp_path / "stubborn.ready"
     script.write_text(
-        f"#!{sys.executable}\nimport signal, time\n"
-        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(60)\n"
+        f"#!{sys.executable}\nimport pathlib, signal, time\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        f"pathlib.Path({str(ready)!r}).touch()\ntime.sleep(60)\n"
     )
     script.chmod(0o755)
     command = [str(script), "--tag", uuid.uuid4().hex]
@@ -290,11 +292,22 @@ def test_a_stopped_survivor_found_by_re_adoption_keeps_a_pid_file(
     assert emo_cli.start_profile("default") == 0
     pid = emo_cli.read_pid("s")
     assert pid is not None
-    time.sleep(0.5)  # exec'd, handler installed
+    deadline = time.monotonic() + 15
+    while not ready.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert ready.exists(), "the stubborn script never installed its handler"
     emo_cli.pid_path("s").unlink()
 
     assert emo_cli.stop_profile() == 1
     assert emo_cli.read_pid("s") == pid
+
+
+def test_a_framework_python_matches_the_interpreter_it_was_launched_as() -> None:
+    """A macOS framework Python re-executes itself as ``Python.app/.../Python``."""
+    running = ["/f/Python.app/Contents/MacOS/Python", "-c", "code", "tag"]
+    assert emo_cli.matches_command(running, ["/v/bin/python", "-c", "code", "tag"])
+    assert not emo_cli.matches_command(running, ["/v/bin/python", "-c", "other"])
+    assert not emo_cli.matches_command(running, ["/v/bin/python-tool", "-c", "code"])
 
 
 def test_a_reused_pid_running_another_command_is_stale_even_with_an_argv(

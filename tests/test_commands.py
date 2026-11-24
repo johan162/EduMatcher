@@ -39,6 +39,7 @@ from edumatcher.models.message import (
     make_circuit_breaker_resume_all_ack_msg,
     make_force_uncross_ack_msg,
     make_gateway_auth_msg,
+    make_gateway_kick_ack_msg,
     make_gateways_msg,
     make_kill_switch_ack_msg,
     make_kill_switch_gateway_ack_msg,
@@ -277,6 +278,33 @@ class TestAdminRiskControls:
         assert result["accepted"] is True
         assert result["cancelled_orders"] == 4
 
+    def test_gateway_kick_names_the_admin_and_returns_the_ack(self) -> None:
+        """L044: not the target's own system.gateway_disconnect, which put
+        the target's name on the audit trail and was never answered."""
+        client, push = _client(
+            recv_queue=_q(make_gateway_kick_ack_msg("GW_ADMIN", "TRADER01", True))
+        )
+        result = client.gateway_kick("trader01", reason="Compliance hold")
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.gateway_kick"
+        assert (payload["gateway_id"], payload["target_gateway_id"]) == ("GW_ADMIN", "TRADER01")  # fmt: skip
+        assert payload["note"] == "Compliance hold" and payload["command_id"]
+        assert result["accepted"] is True
+        assert result["target_gateway_id"] == "TRADER01"
+
+    def test_gateway_kick_returns_the_engines_refusal(self) -> None:
+        refusal = make_gateway_kick_ack_msg(
+            "GW_ADMIN", "NOSUCH01", False, reason="Gateway not configured: NOSUCH01"
+        )
+        client, push = _client(recv_queue=_q(refusal))
+        result = client.gateway_kick("NOSUCH01")
+
+        _, payload = _last_sent(push)
+        assert "note" not in payload
+        assert result["accepted"] is False
+        assert result["reason"] == "Gateway not configured: NOSUCH01"
+
     def test_kill_switch_global_sends_correct_frames(self) -> None:
         client, push = _client(
             recv_queue=_q(
@@ -371,22 +399,6 @@ class TestRiskControls:
         assert payload["symbol"] == "AAPL"  # uppercased
 
         assert result["accepted"] is True
-
-    def test_gateway_kick_sends_disconnect_for_target(self) -> None:
-        client, push = _client()
-        client.gateway_kick("TRADER01", reason="Compliance hold")
-
-        topic, payload = _last_sent(push)
-        assert topic == "system.gateway_disconnect"
-        assert payload["gateway_id"] == "TRADER01"
-        assert payload["reason"] == "Compliance hold"
-
-    def test_gateway_kick_no_reason(self) -> None:
-        client, push = _client()
-        client.gateway_kick("TRADER01")
-
-        _, payload = _last_sent(push)
-        assert payload["reason"] == ""
 
 
 # ---------------------------------------------------------------------------

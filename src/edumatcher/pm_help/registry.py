@@ -2304,7 +2304,8 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand(
                 "stop",
                 aliases=("down",),
-                purpose="SIGTERM, in waves, to the processes this tool started or re-adopted",
+                args="[--timeout SEC]",
+                purpose="SIGTERM, in waves, to the processes this tool started or re-adopted; --timeout bounds the whole stop",
             ),
             Subcommand(
                 "kill",

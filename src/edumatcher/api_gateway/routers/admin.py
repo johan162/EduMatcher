@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.responses import (
     AdminOrders,
-    DisconnectPending,
     GatewayList,
     GatewayPositions,
     OrderAudit,
@@ -51,6 +50,7 @@ from edumatcher.models.generated.rest.risk import (
     CircuitBreakerHaltAllAck,
     CircuitBreakerResumeAllAck,
     ForceUncrossAck,
+    GatewayKickAck,
     KillSwitchGatewayAck,
     KillSwitchGlobalAck,
     SymbolHaltAck,
@@ -71,6 +71,7 @@ from edumatcher.models.generated.risk import (
     topic_circuit_breaker_halt_all_ack,
     topic_circuit_breaker_resume_all_ack,
     topic_force_uncross_ack,
+    topic_gateway_kick_ack,
     topic_kill_switch_gateway_ack,
     topic_kill_switch_global_ack,
     topic_symbol_halt_ack,
@@ -337,18 +338,26 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/gateways/{gateway_id}/disconnect",
-    response_model=DisconnectPending,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=GatewayKickAck,
     summary="Disconnect a gateway",
     description=(
-        "Ask the engine to drop the gateway's session. Its resting orders are "
-        "handled according to that participant's configured disconnect policy. "
-        "The optional `reason` is recorded in the engine log. Not awaited: the "
-        "roster in `GET /admin/gateways` shows the result."
+        "End the gateway's session at the engine (`risk.gateway_kick`). Its "
+        "resting orders are handled according to that participant's configured "
+        "disconnect policy. The optional `reason` is recorded on the admin "
+        "monitor and in the disconnect, which names the calling ADMIN. The "
+        "engine refuses an unknown gateway, one that is not connected, and the "
+        "caller's own."
     ),
     responses=docs.merge(
-        docs.ok(docs.ADMIN_DISCONNECT, "Disconnect sent to the engine.", 202),
-        docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "ROLE_DENIED", "VALIDATION"),
+        docs.ok(docs.ADMIN_KICK_REPLY, "The engine ended the session."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "DISCONNECT_REJECTED",
+            "ENGINE_TIMEOUT",
+            "RATE_LIMIT",
+            "ROLE_DENIED",
+            "VALIDATION",
+        ),
     ),
 )
 async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
@@ -356,13 +365,20 @@ async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
     request: Request,
     session: Annotated[Session, Depends(auth)],
     body: AdminNoteRequest | None = None,
-) -> dict[str, str]:
-    await require_admin(request, session)
+) -> dict[str, Any]:
+    caller = await require_admin(request, session)
     _check_rate_limit(request, session)
-    target = gateway_id.upper()
-    note = body.reason if body is not None and body.reason else "admin disconnect"
-    request.app.state.engine.send_disconnect(target, note)
-    return {"gateway_id": target, "status": "PENDING_DISCONNECT"}
+    note = body.reason if body is not None and body.reason else ""
+    command_id = new_command_id()
+    request.app.state.engine.send_gateway_kick(
+        caller, gateway_id.upper(), note=note, command_id=command_id
+    )
+    ack = await _await_ack(
+        request,
+        topic_gateway_kick_ack(caller),
+        match={"command_id": command_id},
+    )
+    return _require_accepted(ack, "DISCONNECT_REJECTED")
 
 
 @router.post(

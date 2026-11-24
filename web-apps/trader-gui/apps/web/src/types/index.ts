@@ -812,6 +812,19 @@ export interface AdminGatewayKillSwitchResponse {
 }
 
 /**
+ * `POST /api/v1/admin/gateways/{gateway_id}/disconnect` response (engine `GatewayKickAck`).
+ * The engine ended the participant's session (`risk.gateway_kick`, naming the
+ * calling ADMIN). An unknown, a disconnected or the caller's own gateway →
+ * `409 DISCONNECT_REJECTED`, so a success body always has `accepted: true`.
+ */
+export interface AdminGatewayDisconnectResponse {
+  accepted: boolean;
+  target_gateway_id: string;
+  reason: string;
+  command_id?: string;
+}
+
+/**
  * `POST /api/v1/admin/market/kill-switch` response (engine `KillSwitchGlobalAck`).
  * Full-market emergency stop: cancels every resting order/quote for every
  * gateway. Adds `affected_gateways` to the usual counters.

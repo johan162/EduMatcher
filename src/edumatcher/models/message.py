@@ -1664,6 +1664,40 @@ def make_kill_switch_gateway_ack_msg(
     )
 
 
+def make_gateway_kick_msg(
+    gateway_id: str, target_gateway_id: str, note: str = "", command_id: str = ""
+) -> list[bytes]:
+    """ADMIN → engine: end *target_gateway_id*'s session (L044).
+
+    ``gateway_id`` is the ADMIN caller, which the engine checks and the ack
+    is addressed to; the participant's own logout is
+    ``system.gateway_disconnect``, which cannot say who asked.
+    """
+    return _gen_risk.make_gateway_kick(
+        gateway_id=gateway_id,
+        target_gateway_id=target_gateway_id.upper(),
+        note=note,
+        command_id=command_id,
+    )
+
+
+def make_gateway_kick_ack_msg(
+    gateway_id: str,
+    target_gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    command_id: str = "",
+) -> list[bytes]:
+    """Engine → ADMIN: whether the gateway kick ended the session."""
+    return _gen_risk.make_gateway_kick_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        target_gateway_id=target_gateway_id,
+        reason=reason,
+        command_id=command_id,
+    )
+
+
 def make_kill_switch_global_msg(
     gateway_id: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:

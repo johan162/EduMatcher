@@ -733,11 +733,26 @@ def command_line(pid: int) -> list[str]:
         return []
 
 
+#: A Python interpreter's program name. Case-insensitive because a macOS
+#: framework build re-executes itself as ``.../Python.app/Contents/MacOS/Python``,
+#: so a running process's argv[0] is not the ``python`` it was launched as.
+_PYTHON_PROGRAM = re.compile(r"python[0-9.]*w?", re.IGNORECASE)
+
+
+def _is_python(program: str) -> bool:
+    return _PYTHON_PROGRAM.fullmatch(os.path.basename(program)) is not None
+
+
 def matches_command(tokens: list[str], command: list[str]) -> bool:
-    """Match ignoring argv[0]; console scripts run as `python /path/pm-foo ...`."""
+    """Match ignoring argv[0]; console scripts run as `python /path/pm-foo ...`.
+
+    Any interpreter name matches a command launched through an interpreter
+    (see ``_PYTHON_PROGRAM``); the arguments must still be identical.
+    """
     program = os.path.basename(command[0])
+    interpreter = _is_python(program)
     for index, token in enumerate(tokens):
-        if os.path.basename(token) == program:
+        if os.path.basename(token) == program or (interpreter and _is_python(token)):
             return tokens[index + 1 :] == list(command[1:])
     return False
 
@@ -755,7 +770,10 @@ def discover_pid(process: dict[str, Any], claimed: set[int]) -> int | None:
     """Find a running process of this user matching this entry's command line."""
     command = process["command"]
     own_pid = os.getpid()
-    for pid in pgrep_pids(os.path.basename(command[0])):
+    program = os.path.basename(command[0])
+    # pgrep is case-sensitive, and a framework build runs as ``Python``.
+    pattern = "[Pp]ython" if _is_python(program) else program
+    for pid in pgrep_pids(pattern):
         if pid == own_pid or pid in claimed or not owned_by_me(pid):
             continue
         if matches_command(command_line(pid), command):
@@ -1158,7 +1176,17 @@ def is_alive(pid: int) -> bool:
         return False
 
 
-def stop_profile() -> int:
+def stop_profile(budget_sec: float | None = None) -> int:
+    """Stop the active profile's processes, wave by wave.
+
+    Each wave waits up to ``STOP_WAIT_SEC``. With *budget_sec* the whole stop
+    also ends within that total: a wave waits at most an even share of the
+    time still left, so a slow early wave cannot use the time the later
+    waves (the recorders, the log server) need, and a wave that is quick
+    leaves its share to them. The container's entrypoint passes one that
+    fits inside the compose ``stop_grace_period`` (L045).
+    """
+    stop_by = None if budget_sec is None else time.monotonic() + budget_sec
     active = read_active_profile()
     profile = load_profiles().get(active or "", [])
     programs = {
@@ -1193,7 +1221,8 @@ def stop_profile() -> int:
         return 0
 
     failed = False
-    for _, members in sorted(waves.items()):
+    ordered = sorted(waves.items())
+    for index, (_, members) in enumerate(ordered):
         for name, pid in members.items():
             try:
                 os.kill(pid, signal.SIGTERM)
@@ -1205,7 +1234,11 @@ def stop_profile() -> int:
                     f"  error: cannot signal {name} (pid {pid}): {exc}",
                     file=sys.stderr,
                 )
-        deadline = time.monotonic() + STOP_WAIT_SEC
+        wait = STOP_WAIT_SEC
+        if stop_by is not None:
+            left = max(0.0, stop_by - time.monotonic())
+            wait = min(wait, left / (len(ordered) - index))
+        deadline = time.monotonic() + wait
         while any(is_alive(pid) for pid in members.values()):
             if time.monotonic() >= deadline:
                 break
@@ -1216,7 +1249,7 @@ def stop_profile() -> int:
             if is_alive(pid):
                 print(
                     f"  error: {name} (pid {pid}) still running "
-                    f"{STOP_WAIT_SEC:g}s after SIGTERM; PID file kept",
+                    f"{wait:.3g}s after SIGTERM; PID file kept",
                     file=sys.stderr,
                 )
                 failed = True
@@ -1407,7 +1440,7 @@ def _is_pm_program(cmdline: list[str]) -> bool:
     if not cmdline:
         return False
     programs = [cmdline[0]]
-    if os.path.basename(cmdline[0]).startswith("python") and len(cmdline) > 1:
+    if _is_python(cmdline[0]) and len(cmdline) > 1:
         programs.append(cmdline[1])
     return any(_PM_PROGRAM.fullmatch(os.path.basename(p)) for p in programs)
 
@@ -1506,6 +1539,16 @@ def clear_data(*, scope: str, assume_yes: bool, force: bool = False) -> int:
     return 0
 
 
+def _positive_seconds(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number of seconds: {text!r}")
+    if not value > 0:
+        raise argparse.ArgumentTypeError(f"must be more than 0, got {text}")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-opctl-cli", description="Manage EduMatcher operational process control"
@@ -1530,8 +1573,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "init", help="create the built-in process profile configuration"
     )
-    subparsers.add_parser(
+    stop = subparsers.add_parser(
         "stop", aliases=["down"], help="stop processes started by pm-opctl"
+    )
+    stop.add_argument(
+        "--timeout",
+        type=_positive_seconds,
+        default=None,
+        metavar="SEC",
+        help=(
+            "finish within SEC seconds in total: each wave waits at most an "
+            "even share of the time left (default: up to "
+            f"{STOP_WAIT_SEC:g}s per wave, no total)"
+        ),
     )
     subparsers.add_parser(
         "kill",
@@ -1628,7 +1682,7 @@ def main() -> int:
         if args.command in ("start", "up"):
             return start_profile(args.config_name or "default", debug=args.debug)
         if args.command in ("stop", "down"):
-            return stop_profile()
+            return stop_profile(args.timeout)
         if args.command == "kill":
             return kill_all_processes()
         if args.command == "list":

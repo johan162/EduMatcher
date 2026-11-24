@@ -21,6 +21,7 @@ AdminActionAction = Literal[
     "circuit_breaker.trigger",
     "circuit_breaker.resume",
     "auction.reopen",
+    "gateway.kick",
 ]
 
 
@@ -42,7 +43,7 @@ class AdminActionScope(BaseModel):
     two spellings of one absence, and this is now the second.
     """
     target_gateway_id: str | None = Field(default=None, max_length=32)
-    """The participant acted upon, for `kill_switch.gateway`."""
+    """The participant acted upon, for `kill_switch.gateway` and `gateway.kick`."""
     quotes_only: bool | None = Field(default=None)
     """For `kill_switch.gateway`: only the target's quotes were cancelled."""
     level: str | None = Field(default=None, max_length=32)
@@ -84,13 +85,14 @@ class AdminAction(BaseModel):
     command_id: str = Field(max_length=64)
     initiator_gateway_id: str = Field(max_length=32)
     action: AdminActionAction
-    """Which command ran. The seven the engine publishes, enumerated rather than left
-    a free string: an eighth admin command that forgets to declare itself here
-    fails loudly at its first invocation, which is better than appearing in the
-    monitor as a value no client renders. The values look like topics and are not:
+    """Which command ran. The eight the engine publishes, enumerated rather than left
+    a free string: a ninth admin command that forgets to declare itself here fails
+    loudly at its first invocation, which is better than appearing in the monitor
+    as a value no client renders. The values look like topics and are not:
     `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there
     is no `circuit_breaker.trigger` topic anywhere. `auction.reopen` is the action
-    behind `risk.force_uncross`.
+    behind `risk.force_uncross`, `gateway.kick` the one behind
+    `risk.gateway_kick`.
     """
     scope: AdminActionScope
     accepted: bool

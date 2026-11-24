@@ -1084,6 +1084,14 @@ again, or find out why it hangs (`<DATA_DIR>/emo/<name>.log`) before you
 `pm-opctl-cli kill` it. `clear` refuses to run while such a process is left
 (see the reference manual), so `stop && clear --state --yes` is safe to script.
 
+When something else kills the stack after a fixed time (a container's stop
+grace period, a systemd `TimeoutStopSec`), give `stop` that budget:
+`pm-opctl-cli stop --timeout 60` finishes within 60 seconds in total, each
+wave waiting at most an even share of the time left, so a slow engine stop
+does not use up the time the recorders and `pm-log-srv` need after it. The
+container image does this (`EM_STOP_TIMEOUT`, default 60, inside a 70 s grace
+period).
+
 For a container:
 
 ```bash

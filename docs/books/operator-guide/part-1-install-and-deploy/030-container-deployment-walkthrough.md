@@ -396,10 +396,14 @@ configuration every process reads.
 
 `podman stop`, `docker stop` and `compose down` send the container `SIGTERM`,
 then wait for a grace period before killing it. `tini` forwards the signal to
-`entrypoint.sh`, whose handler runs `pm-opctl-cli stop`. That stops every
-process of the profile in order, so each one can flush its files.
-`stop_grace_period` in the compose files (30 seconds, 60 for the simulation)
-gives that walk enough time before the engine resorts to `SIGKILL`.
+`entrypoint.sh`, whose handler runs `pm-opctl-cli stop --timeout 60`. That
+stops every process of the profile in order, so each one can flush its files,
+and finishes within 60 seconds in total (`EM_STOP_TIMEOUT`): each of its up to
+four waves waits at most an even share of the time left, so a slow engine stop
+cannot use up the time the recorders and the log server need after it.
+`stop_grace_period: 70s` in the compose files gives that walk its 60 seconds,
+plus room for the entrypoint to exit, before the container engine resorts to
+`SIGKILL`.
 
 !!! tip "The container log is the entrypoint's log"
     `make logs`, `podman logs edumatcher` or `./edumatcher.sh logs edumatcher`
@@ -497,7 +501,7 @@ flowchart LR
 | `image` | `${IMAGE_NAME:-edumatcher}:${IMAGE_TAG:-local}` | The name the built image is tagged with |
 | `container_name` / `hostname` | `edumatcher` | A fixed name, so `podman exec edumatcher ...` works and the GUIs can find it |
 | `restart` | `unless-stopped` | Restart after a crash, but not after you stopped it deliberately |
-| `stop_grace_period` | `30s` | Time for `pm-opctl-cli stop` to stop every process cleanly |
+| `stop_grace_period` | `70s` | Time for `pm-opctl-cli stop` (60 s in total, `EM_STOP_TIMEOUT`) to stop every process cleanly, plus a margin |
 | `environment` | see below | What `entrypoint.sh` and the processes read |
 | `volumes` | `./data:/data`, `./config:/config:ro` | See [Volumes and mounts](#volumes-and-mounts) |
 | `ports` | eight client-facing ports | See [Ports](#ports-and-why-each-one-exists) |
@@ -512,8 +516,10 @@ Environment passed into the container:
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | every gateway, `pm-log-srv`, `pm-api-gwy` | The interface the client-facing listeners bind inside the container. `0.0.0.0` is what lets the GUI containers reach them |
 | `TZ` | `Europe/Stockholm` | everything | The container's time zone. Match it to your trading calendar |
 
-`entrypoint.sh` also reads `EM_SSH`, `EM_SPEED`, `EM_START` and
-`EM_RESTART_DEAD`, which the overlays and the AI-sim stack set.
+`entrypoint.sh` also reads `EM_SSH`, `EM_SPEED`, `EM_START`,
+`EM_RESTART_DEAD` and `EM_STOP_TIMEOUT`, which the overlays and the AI-sim
+stack set (the last one nothing sets: see
+[the table below](#variables-only-entrypointsh-reads)).
 
 ### `compose.zmq.yaml` — the raw message bus
 
@@ -645,7 +651,6 @@ Its differences from the plain exchange:
 | backend image | `${AISIM_IMAGE:-ghcr.io/.../edumatcher-ai-sim:${EM_VERSION:-latest}}` | `make up-sim LOCAL=1` swaps in a locally built `edumatcher-ai-sim:local` |
 | `EM_SPEED` / `EM_START` | `1` / *(empty)* | Run the trading calendar faster than real time, from a chosen start |
 | data | `./data-sim` | Its own data directory, so it never touches the exchange's `./data` |
-| `stop_grace_period` | `60s` | 100 AI traders and the market model take longer to stop |
 | read-only key | `PM_READONLY_API_KEY`, default `key-readonly-9vaho7` | Fixed, because the configuration is fixed: no two-phase start needed |
 | GUIs | six (no config-gui) | Nothing to configure in a preset simulation |
 
@@ -951,6 +956,7 @@ GUI ports.
 | `EM_SPEED` | AI-sim image and compose file | Not `1`: export `EDUMATCHER_SCHEDULER_SPEED` so the calendar runs faster |
 | `EM_START` | AI-sim compose file | Export `EDUMATCHER_SCHEDULER_START`: where an accelerated calendar begins |
 | `EM_RESTART_DEAD` | AI-sim image | `1`: every minute, restart any process of the profile that has died |
+| `EM_STOP_TIMEOUT` | nothing (default `60`) | Seconds `pm-opctl-cli stop --timeout` may take in total when the container stops. Keep it at least 10 below `stop_grace_period`; a value that is not a positive number is replaced by `60`, with a warning in the container log |
 | `EDUMATCHER_DATA_DIR` | the image (`/data`) | Where everything is read and written; do not change it in a container |
 
 

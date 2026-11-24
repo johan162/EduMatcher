@@ -6,7 +6,9 @@
 #
 #   * this file, for now: cancelling a GATEWAY'S EXPOSURE, at three scopes.
 #     risk.kill_switch (the caller's own), risk.kill_switch_gateway (one named
-#     participant, ADMIN only) and risk.kill_switch_global (everyone).
+#     participant, ADMIN only) and risk.kill_switch_global (everyone). Beside
+#     them risk.gateway_kick (ADMIN only, L044) ends one named participant's
+#     session.
 #   * 5.3b: acting on INSTRUMENTS. symbol_halt, symbol_resume, cancel_symbol
 #     and the two circuit-breaker sweeps.
 #
@@ -212,6 +214,64 @@ messages:
           with its own order_id, not quote objects — a quote's own quote_id
           is client-supplied and optional (see quote.yaml), so it cannot
           serve as this list's key even when present.
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: gateway_kick
+    topic: "risk.gateway_kick"
+    transport: [engine_pub, engine_push]
+    doc:
+      motivation: >
+        ADMIN to engine: end one named participant's session. The engine
+        applies that participant's configured `disconnect_behaviour`, exactly
+        as for its own logout.
+      published_by: [admin, api_gateway]
+      since: "1.0"
+      see_also: ["system.gateway_disconnect", "risk.kill_switch_gateway"]
+      example_note: >
+        The ADMIN counterpart of system.gateway_disconnect, which names only
+        the gateway it ends and so cannot say who asked: sent on another
+        participant's behalf it reached the audit trail as that participant's
+        own logout, and an unknown id was ignored without an answer (L044).
+        Here `gateway_id` is the ADMIN making the request -- role and
+        connection are checked against it, and the ack is addressed to it --
+        and `target_gateway_id` is the session that is ended. The broadcast
+        system.gateway_bye names the ADMIN in its `reason`.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "The ADMIN caller; the ack is addressed to this id." }
+      - { name: target_gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Whose session is ended. Must be configured, connected, and not the caller." }
+      - { name: note, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 256 },
+          doc: "Free-text reason, recorded on the admin monitor and in the bye's reason." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: gateway_kick_ack
+    topic: "risk.gateway_kick_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: whether the named session was ended."
+      published_by: [engine]
+      since: "1.0"
+      example_note: >
+        Published after the disconnect's own messages (the bye and any
+        cancels its `disconnect_behaviour` makes), so a caller that has the
+        ack finds the target gone from system.gateways. A refusal names its
+        reason: `Gateway not configured: X`, `Gateway not connected: X`, a
+        caller that is not an ADMIN, or the caller's own id.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: target_gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:

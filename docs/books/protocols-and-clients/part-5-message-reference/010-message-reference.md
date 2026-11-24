@@ -625,6 +625,8 @@ Every topic in the system, and which process puts it on the wire.
 | `risk.circuit_breaker_resume_all_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.force_uncross` | `risk` | `admin` |
 | `risk.force_uncross_ack.{gateway_id}` | `risk` | `engine` |
+| `risk.gateway_kick` | `risk` | `admin`, `api_gateway` |
+| `risk.gateway_kick_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.kill_switch` | `risk` | `admin`, `api_gateway`, `gateway` |
 | `risk.kill_switch_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.kill_switch_gateway` | `risk` | `api_gateway` |
@@ -694,7 +696,7 @@ What one admin command acted on, and what it did. Every field is optional becaus
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `symbol` | `string` | omitted when unset | max_len 16 | The instrument, when the command named one. `kill_switch.self` used to emit this as an explicit `null` when unscoped while its siblings omitted the key -- two spellings of one absence, and this is now the second. |
-| `target_gateway_id` | `string` | omitted when unset | max_len 32 | The participant acted upon, for `kill_switch.gateway`. |
+| `target_gateway_id` | `string` | omitted when unset | max_len 32 | The participant acted upon, for `kill_switch.gateway` and `gateway.kick`. |
 | `quotes_only` | `bool` | omitted when unset | — | For `kill_switch.gateway`: only the target's quotes were cancelled. |
 | `level` | `string` | omitted when unset | max_len 32 | The circuit-breaker rung, for `circuit_breaker.trigger`. Not an enum: the ladder is per-symbol configuration, so the value set differs per deployment. Bounded to match `circuit_breaker.halt.level`, which carries the same name onward. |
 | `note` | `string` | omitted when empty | max_len 256 | The operator's free-text reason, when one was supplied. Regime 4 to match `risk.kill_switch`'s own `note`, which is where this value arrives from -- a field that omits on one message and emits `""` on the next would be two answers to one question. |
@@ -720,7 +722,7 @@ Engine to the admin monitor: one admin-gated command ran, who ran it, what it ac
 | `gateway_id` | `string` | required | max_len 32 | The ADMIN caller. Topic-only; the body says the same thing as `initiator_gateway_id`. |
 | `command_id` | `string` | required | max_len 64 |  |
 | `initiator_gateway_id` | `string` | required | max_len 32 |  |
-| `action` | enum: `kill_switch.self`, `kill_switch.gateway`, `kill_switch.global`, `kill_switch.symbol`, `circuit_breaker.trigger`, `circuit_breaker.resume`, `auction.reopen` | required | — | Which command ran. The seven the engine publishes, enumerated rather than left a free string: an eighth admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there is no `circuit_breaker.trigger` topic anywhere. `auction.reopen` is the action behind `risk.force_uncross`. |
+| `action` | enum: `kill_switch.self`, `kill_switch.gateway`, `kill_switch.global`, `kill_switch.symbol`, `circuit_breaker.trigger`, `circuit_breaker.resume`, `auction.reopen`, `gateway.kick` | required | — | Which command ran. The eight the engine publishes, enumerated rather than left a free string: a ninth admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there is no `circuit_breaker.trigger` topic anywhere. `auction.reopen` is the action behind `risk.force_uncross`, `gateway.kick` the one behind `risk.gateway_kick`. |
 | `scope` | [`AdminActionScope`](#adminactionscope) | required | — |  |
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 | Why it was rejected; "" on an accepted action. |
@@ -3081,6 +3083,57 @@ Engine to ADMIN: what the gateway-targeted kill switch cancelled.
     `target_gateway_id` is echoed in the body, unlike `gateway_id`, which the topic already carries.
 
     The two are different participants here, so an ack naming only the topic's id would not say who was actually acted on.
+
+### `risk.gateway_kick`
+
+**Published by:** `admin`, `api_gateway`
+
+**Transport:** `engine_pub`, `engine_push`
+
+**Since:** 1.0
+
+ADMIN to engine: end one named participant's session. The engine applies that participant's configured `disconnect_behaviour`, exactly as for its own logout.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | The ADMIN caller; the ack is addressed to this id. |
+| `target_gateway_id` | `string` | required | max_len 32 | Whose session is ended. Must be configured, connected, and not the caller. |
+| `note` | `string` | omitted when empty | max_len 256 | Free-text reason, recorded on the admin monitor and in the bye's reason. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
+
+!!! note
+
+    The ADMIN counterpart of system.gateway_disconnect, which names only the gateway it ends and so cannot say who asked: sent on another participant's behalf it reached the audit trail as that participant's own logout, and an unknown id was ignored without an answer (L044).
+
+    Here `gateway_id` is the ADMIN making the request -- role and connection are checked against it, and the ack is addressed to it -- and `target_gateway_id` is the session that is ended.
+
+    The broadcast system.gateway_bye names the ADMIN in its `reason`.
+
+**See also:** `system.gateway_disconnect`, `risk.kill_switch_gateway`
+
+### `risk.gateway_kick_ack.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to ADMIN: whether the named session was ended.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `accepted` | `bool` | required | — |  |
+| `target_gateway_id` | `string` | defaults to `''` | max_len 32 |  |
+| `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
+
+!!! note
+
+    Published after the disconnect's own messages (the bye and any cancels its `disconnect_behaviour` makes), so a caller that has the ack finds the target gone from system.gateways.
+
+    A refusal names its reason: `Gateway not configured: X`, `Gateway not connected: X`, a caller that is not an ADMIN, or the caller's own id.
 
 ### `risk.kill_switch_global`
 

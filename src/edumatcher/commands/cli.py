@@ -192,8 +192,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser(
         "kick",
         help=(
-            "Forcefully disconnect a connected gateway (no ack; refused for an "
-            "unknown or disconnected one)"
+            "Forcefully disconnect a connected gateway (ADMIN role required; "
+            "refused for an unknown, a disconnected or your own gateway)"
         ),
     )
     p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
@@ -201,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--reason",
         default="",
         metavar="TEXT",
-        help="Reason string recorded in the engine log",
+        help="Reason recorded on the admin monitor and in the disconnect",
     )
 
     p = sub.add_parser(

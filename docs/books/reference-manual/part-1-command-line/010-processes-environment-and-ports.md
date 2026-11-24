@@ -3309,8 +3309,7 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.kill_switch_gateway`          | `KILL` / `QCANCEL` on another gateway — the ADMIN kill switch (all, symbol-scoped, or quotes only) |
 | `risk.kill_switch`                  | `KILL` on the console's own gateway                           |
 | `quote.cancel`                      | `QCANCEL` on the console's own gateway                        |
-| `system.gateways_request`           | `KICK` — checks first that the target is configured and connected |
-| `system.gateway_disconnect`         | `KICK` — forcefully disconnect a gateway (no ack published)   |
+| `risk.gateway_kick`                 | `KICK` — the ADMIN disconnect of another gateway (refused for an unknown, a disconnected or the console's own id) |
 | `book.snapshot_request`             | `BOOK` — request a book snapshot                              |
 | `order.orders_request`              | `ORDERS` — request a gateway's resting orders                 |
 | `order.price_level_orders_request`  | `LEVEL` — request every resting order at a symbol (optionally one price level) |
@@ -3337,6 +3336,7 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.force_uncross_ack.{GW_ID}`       | `REOPEN` acknowledgement, with indicative/printed price    |
 | `risk.kill_switch_gateway_ack.{GW_ID}` | `KILL` / `QCANCEL` acknowledgement for another gateway     |
 | `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement for the console's own gateway       |
+| `risk.gateway_kick_ack.{GW_ID}`        | `KICK` acknowledgement                                     |
 | `quote.cancel_ack.{GW_ID}`             | `QCANCEL` acknowledgement for the console's own gateway    |
 | `book.{SYMBOL}`                        | `BOOK` reply — book snapshot (subscribed only while `BOOK` waits) |
 | `order.orders.{TARGET}`                | `ORDERS` reply — resting order list (subscribed only while `ORDERS` waits) |
@@ -3951,7 +3951,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 | `start [PROFILE]` | `up` | `-d`/`--debug`/`-vv` (append `--log-level DEBUG` to every process's command) | Start a profile (`default` when omitted), skipping entries already running |
 | `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer), `--no-tcp-probe` (do not connect to each process's port; a live process reads as running) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
 | `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list` (always with the `tcp` probe); exits `0` only when every process is running — for monitoring scripts |
-| `stop` | `down` | — | `SIGTERM`, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running 15 s later keeps its PID file and makes `stop` exit `1` |
+| `stop` | `down` | `--timeout SEC` (finish within `SEC` seconds in total: each wave waits at most an even share of the time left) | `SIGTERM`, in waves, to the processes this tool started (recorded in the PID directory) and to active-profile processes re-adopted by command line; a process still running when its wave's wait ends (15 s, or its share of `--timeout`) keeps its PID file and makes `stop` exit `1` |
 | `kill` | — | — | Emergency stop: `SIGTERM` to every running process of this user whose program is a `pm-*` command, including ones this tool did not start (never to `npm`, editors or the calling shell, which merely mention `pm-`), plus every process recorded in the PID directory; exits `1` when one survives |
 | `init` | — | — | Write the built-in profiles to `<DATA_DIR>/emo-config.yaml`; refuses to overwrite an existing file |
 | `show` | — | `--json` | Print version, resolved data directory, and deployed config paths — same info as `pm-config-deploy --show` |

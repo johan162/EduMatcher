@@ -17,7 +17,7 @@ let roster = ROSTER;
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path.startsWith("/api/v1/admin/gateways") && path.endsWith("/disconnect")) {
-    return { gateway_id: "GW01", status: "PENDING_DISCONNECT" };
+    return { accepted: true, target_gateway_id: "GW01", reason: "" };
   }
   if (path.startsWith("/api/v1/admin/gateways")) {
     return { gateways: roster };
@@ -85,6 +85,24 @@ describe("AdminGatewaysPage (§15.7)", () => {
     expect(screen.getByText(/Disconnect participant GW01\?/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     await waitFor(() => expect(called("/api/v1/admin/gateways/GW01/disconnect")).toBe(true));
+  });
+
+  it("reports the engine's refusal to disconnect (409 DISCONNECT_REJECTED)", async () => {
+    // L044: the endpoint now awaits the engine's answer instead of 202 for any id.
+    const { ApiError } = await import("@/api/apiFetch");
+    const { toast } = await import("sonner");
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    apiFetchMock.mockRejectedValueOnce(
+      new ApiError(409, "DISCONNECT_REJECTED", "Gateway not connected: GW01"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kill participant GW01" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    await waitFor(() =>
+      expect((toast.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![0]).toBe(
+        "DISCONNECT_REJECTED: Gateway not connected: GW01",
+      ),
+    );
   });
 });
 

@@ -31,7 +31,8 @@ C13, on the same state: a kill switch -- a gateway's own (``risk.kill_switch``,
 one symbol or all), an administrator's on one gateway
 (``risk.kill_switch_gateway``: one symbol or all, its quotes only or
 everything) or on the market (``risk.kill_switch_global``) -- and a
-disconnect or a missed-heartbeat timeout (``system.gateway_bye``: the
+disconnect, an administrator's kick (``risk.gateway_kick``) or a
+missed-heartbeat timeout (``system.gateway_bye``: the
 gateway's ``disconnect_behaviour``, LEAVE_ALL, CANCEL_QUOTES_ONLY or
 CANCEL_ALL) cancel every live order in their scope, quote legs included
 (also a hit quote's remainder), and nothing beyond it, each with its
@@ -39,6 +40,8 @@ reason (KILL_SWITCH, GATEWAY_DISCONNECT); a cascade it sets off (an OCO
 sibling, a combo's other legs) is part of it. An accepted switch's ack lists
 exactly what it cancelled, quote legs apart, and counts its lists; a
 refused one cancels nothing; the administrator's two need an ADMIN caller.
+An accepted kick needs an ADMIN caller and ends exactly its target's
+session; a refused one ends none.
 A kill switch is a mass cancel: nothing keeps the gateway from trading
 again (KILL_SWITCH_ACTIVE is in the spec's enum but no gate uses it).
 
@@ -66,7 +69,7 @@ from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig
 
 _KEEP = 50
-_COMMANDS = frozenset({"order.new", "order.cancel", "order.amend", "order.oco_cancel", "quote.new", "quote.cancel", "risk.kill_switch", "risk.kill_switch_gateway", "risk.kill_switch_global", "system.gateway_disconnect"})  # fmt: skip
+_COMMANDS = frozenset({"order.new", "order.cancel", "order.amend", "order.oco_cancel", "quote.new", "quote.cancel", "risk.kill_switch", "risk.kill_switch_gateway", "risk.kill_switch_global", "risk.gateway_kick", "system.gateway_disconnect"})  # fmt: skip
 #: order.new codes this check derives; any other refusal is counted only.
 _NEW_CODES = frozenset({"GATEWAY_NOT_CONFIGURED", "UNKNOWN_SYMBOL", "DUPLICATE_ORDER", "QTY_OUT_OF_RANGE", "PRICE_OUT_OF_RANGE", "MAX_ORDER_QTY", "MAX_ORDER_VALUE", "MARKET_CLOSED", "SESSION_NOT_PERMITTED", "INSTRUMENT_HALTED", "CIRCUIT_BREAKER_ACTIVE"})  # fmt: skip
 _CANNOT_REST = frozenset({"MARKET", "FOK", "IOC"})
@@ -183,6 +186,8 @@ class _Pass:
             self._swept(what, self._scope(target, symbol, quotes_only), cancels, "KILL_SWITCH", ack, chain)  # fmt: skip
             return
         bye = next((t.rsplit(".", 1)[1] for t, _ in out if t.startswith("system.gateway_bye.")), None)  # fmt: skip
+        if topic == "risk.gateway_kick":
+            self._kick(p, out, bye, chain)
         if bye is not None:
             cfg = self.config.participants.get(bye)
             behaviour = cfg.disconnect_behaviour.value if cfg is not None else "CANCEL_QUOTES_ONLY"  # fmt: skip
@@ -192,6 +197,26 @@ class _Pass:
     def _role(self, gw: str) -> str:
         cfg = self.config.participants.get(gw)
         return cfg.role.value if cfg is not None else ""
+
+    def _kick(self, p: dict[str, Any], out: list[tuple[str, dict[str, Any]]], bye: str | None, chain: str) -> None:  # fmt: skip
+        """An administrator's kick ends its target's session and nothing
+        else; a refused one ends none. The sweep is the bye's, judged after."""
+        ack = next((x for t, x in out if t.startswith("risk.gateway_kick_ack.")), None)  # fmt: skip
+        if ack is None:
+            self.unjudged["risk.gateway_kick without an ack"] += 1
+            return
+        if not ack.get("accepted"):
+            if bye is not None:
+                self.sweep_flag("gateway_kick refused, but it disconnected", chain=chain, bye=bye)  # fmt: skip
+            self.sweeps["gateway_kick refused"] += 1
+            return
+        caller = str(p.get("gateway_id") or "").upper()
+        if self._role(caller) != "ADMIN":
+            self.sweep_flag(f"gateway_kick accepted from {caller}, not an ADMIN", chain=chain)  # fmt: skip
+        target = str(p.get("target_gateway_id") or "").upper()
+        if bye != target:
+            self.sweep_flag("gateway_kick did not disconnect its target", chain=chain, target=target, bye=bye)  # fmt: skip
+        self.sweeps["gateway_kick"] += 1
 
     def _scope(self, gw: str | None, symbol: str | None, quotes_only: bool) -> set[str]:  # fmt: skip
         return {

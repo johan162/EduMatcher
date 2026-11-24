@@ -51,7 +51,9 @@ def sweeps(data: Path) -> Path:
     r.cmd("risk.kill_switch", {"gateway_id": "TRADER01", "symbol": "AAPL", "command_id": "KS1"})  # fmt: skip
     r.cmd("risk.kill_switch_gateway", {"gateway_id": "OPS01", "target_gateway_id": "MM01", "symbol": "MSFT", "quotes_only": True, "command_id": "KS2"})  # fmt: skip
     r.cmd("risk.kill_switch_gateway", {"gateway_id": "TRADER02", "target_gateway_id": "MM01", "command_id": "KS3"})  # fmt: skip
+    r.cmd("risk.gateway_kick", {"gateway_id": "TRADER02", "target_gateway_id": "MM01", "command_id": "GK1"})  # fmt: skip
     r.cmd("system.gateway_disconnect", {"gateway_id": "TRADER02", "reason": "test"})
+    r.cmd("risk.gateway_kick", {"gateway_id": "OPS01", "target_gateway_id": "MM01", "command_id": "GK2"})  # fmt: skip
     r.cmd("risk.kill_switch_global", {"gateway_id": "OPS01", "command_id": "KS4"})
     return r.finish()
 
@@ -75,7 +77,7 @@ def test_every_sweep_of_the_engine_passes(
     results = run_checks(ds, [REGISTRY["C12"], REGISTRY["C13"]], 10)
     assert {r.check.id: (r.status, r.samples) for r in results} == {"C12": ("PASS", []), "C13": ("PASS", [])}  # fmt: skip
     note = REGISTRY["C13"].fn(ds).note
-    for sweep in ("disconnect CANCEL_ALL 1", "kill_switch 1", "kill_switch_gateway 1", "kill_switch_gateway refused 1", "kill_switch_global 1"):  # fmt: skip
+    for sweep in ("disconnect CANCEL_ALL 1", "disconnect CANCEL_QUOTES_ONLY 1", "gateway_kick 1", "gateway_kick refused 1", "kill_switch 1", "kill_switch_gateway 1", "kill_switch_gateway refused 1", "kill_switch_global 1"):  # fmt: skip
         assert sweep in note
 
 
@@ -108,12 +110,27 @@ def _accept_the_refused_switch(lines: list[str]) -> list[str]:
     return lines
 
 
+def _accept_the_refused_kick(lines: list[str]) -> list[str]:
+    i = next(i for i, ln in enumerate(lines) if "[risk.gateway_kick_ack." in ln and '"accepted": false' in ln)  # fmt: skip
+    lines[i] = lines[i].replace('"accepted": false', '"accepted": true')
+    return lines
+
+
+def _refuse_the_accepted_kick(lines: list[str]) -> list[str]:
+    """The kick that disconnected MM01 is said to have been refused."""
+    i = next(i for i, ln in enumerate(lines) if "[risk.gateway_kick_ack." in ln and '"accepted": true' in ln)  # fmt: skip
+    lines[i] = lines[i].replace('"accepted": true', '"accepted": false')
+    return lines
+
+
 @pytest.mark.parametrize(
     "plant, error",
     [
         (_drop_a_global_cancel, "kill_switch_global left orders live"),
         (_miscount_the_global_ack, "kill_switch_global ack's counts are not its lists"),
         (_accept_the_refused_switch, "kill_switch_gateway accepted from TRADER02, not an ADMIN"),  # fmt: skip
+        (_accept_the_refused_kick, "gateway_kick accepted from TRADER02, not an ADMIN"),  # fmt: skip
+        (_refuse_the_accepted_kick, "gateway_kick refused, but it disconnected"),
     ],
 )
 def test_c13_names_a_planted_fault(

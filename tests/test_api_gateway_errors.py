@@ -233,8 +233,9 @@ async def test_cancel_is_202_without_wait_and_200_with_the_outcome() -> None:
 
 
 def test_awaited_admin_commands_declare_200() -> None:
-    """Each of these waits for its ack and returns the outcome, so it is 200;
-    a disconnect is fire-and-forget and stays 202."""
+    """Each of these waits for its ack and returns the outcome, so it is 200.
+    The disconnect joined them when it became the acknowledged
+    ``risk.gateway_kick`` (L044)."""
     routes = {
         (method, route.path): route.status_code
         for route in [*admin.router.routes, *orders.router.routes]
@@ -248,10 +249,10 @@ def test_awaited_admin_commands_declare_200() -> None:
         "/api/v1/admin/symbols/{symbol}/resume",
         "/api/v1/admin/symbols/{symbol}/cancel-orders",
         "/api/v1/admin/gateways/{gateway_id}/kill-switch",
+        "/api/v1/admin/gateways/{gateway_id}/disconnect",
         "/api/v1/admin/market/kill-switch",
         "/api/v1/admin/indexes/{index_id}/rebalance",
         "/api/v1/mass-cancel",
     ):
         # None is FastAPI's default for a route without status_code: 200.
         assert routes[("POST", path)] in (None, 200), path
-    assert routes[("POST", "/api/v1/admin/gateways/{gateway_id}/disconnect")] == 202

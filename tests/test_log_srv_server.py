@@ -481,7 +481,8 @@ def test_concurrent_clients_all_rows_persisted(tmp_path: Path) -> None:
 
 def test_retention_pruning_deletes_only_old_rows(tmp_path: Path) -> None:
     rs = _RunningServer(tmp_path, retention_days=30)
-    rs.start()
+    # Not started: the retention pass belongs to the server loop's thread, and
+    # running it from here as well would race on the prune connection.
     try:
         from edumatcher.logclient.protocol import iso_utc
 
@@ -515,7 +516,7 @@ def test_retention_pruning_deletes_only_old_rows(tmp_path: Path) -> None:
         remaining = rs.server._conn.execute("SELECT message FROM log_events").fetchall()
         assert remaining == [("new",)]
     finally:
-        rs.stop()
+        rs.server.close()
 
 
 def test_session_bookkeeping_waits_for_the_writer_lock(

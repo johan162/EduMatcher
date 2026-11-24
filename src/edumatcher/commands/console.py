@@ -195,8 +195,9 @@ _HELP_TEXT = """
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all resting orders and the active quote for <gw>
                                    (add SYM= to scope to a single instrument)
   KICK|GW=<gw>[|REASON=<text>] — forcefully disconnect gateway <gw>
-                                   (applies its disconnect_behaviour; refused
-                                   for an unknown or disconnected gateway)
+                                   (applies its disconnect_behaviour; the engine
+                                   refuses an unknown, a disconnected or your
+                                   own gateway. ADMIN only)
   QCANCEL|GW=<gw>|SYM=<sym>    — cancel the active two-sided quote for <gw> on <sym>
                                    without touching resting limit orders
 
@@ -859,27 +860,12 @@ def _cmd_kick(
     if not gw:
         console.print("[yellow]Usage:[/yellow]  KICK|GW=<gw>[|REASON=<text>]")
         return False, {}
-    # The disconnect has no ack, and the engine ignores an unknown id
-    # silently: check the target first, so a typo fails instead of "sent".
-    target = gw.upper()
-    entry = next((g for g in client.gateway_list() if g.get("id") == target), None)
-    if entry is None or not entry.get("connected"):
-        reason = (
-            f"Gateway not configured: {target}"
-            if entry is None
-            else f"Gateway not connected: {target}"
-        )
-        refused = {"gateway_id": target, "accepted": False, "reason": reason}
-        return _report(refused, "", json_output=json_output)
-    client.gateway_kick(gw, reason=fields.get("REASON", ""))
-    result = {"gateway_id": target}
-    if json_output:
-        _print_json(result)
-    else:
-        console.print(
-            f"[yellow]KICK[/yellow]  sent disconnect for {escape(gw.upper())}"
-        )
-    return True, result
+    # The engine refuses an unknown, a disconnected or our own id itself.
+    result = client.gateway_kick(gw, reason=fields.get("REASON", ""))
+    target = escape(str(result.get("target_gateway_id") or gw.upper()))
+    return _report(
+        result, f"[yellow]KICK OK[/yellow]  {target}", json_output=json_output
+    )
 
 
 def _cmd_qcancel(

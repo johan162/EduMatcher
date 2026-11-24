@@ -359,8 +359,10 @@ detect when it was not reduced enough. Neither alone is sufficient.
 Reverse of startup, with one addition: `pm-engine` must be stopped with
 `SIGTERM` and given time to complete `_shutdown()`, which is what persists the
 resting GTC book. `SIGKILL` loses up to `_PERSIST_INTERVAL_SEC` (5 s) of book
-state — bounded, but avoidable. Compose `stop_grace_period` is set to 30 s for
-the engine and 10 s elsewhere.
+state — bounded, but avoidable. Compose `stop_grace_period` is 70 s for the
+exchange container, whose entrypoint runs `pm-opctl-cli stop --timeout 60`
+(`EM_STOP_TIMEOUT`): the waves share the 60 s, so a slow engine cannot leave
+the recorders to Docker's SIGKILL (For-Later L045).
 
 
 ## 8. Supervision: three options, decision deferred

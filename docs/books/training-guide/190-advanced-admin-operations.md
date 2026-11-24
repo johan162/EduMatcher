@@ -61,12 +61,15 @@ pm-admin-cli --id ADMIN_CLI kick --gw TRADER02 --reason "Training disconnect che
 
 Verification:
 
-1. The `TRADER02` console is **not told** it was kicked; its prompt looks
+1. The admin console answers `KICK OK  TRADER02`. Kicking it a second time
+   is refused (`REJECTED  Gateway not connected: TRADER02`), as is a mistyped
+   id (`REJECTED  Gateway not configured: …`): the engine answers every kick.
+2. The `TRADER02` console is **not told** it was kicked; its prompt looks
    unchanged. Confirm the disconnect from the operator side with `GATEWAYS`
    (`TRADER02` now shows `no` under *Connected*), and from the trader side by
    sending any order: it is refused with
    `code=AUTH_REQUIRED  Gateway not connected: TRADER02`.
-2. Leave that console (`EXIT`) and reconnect with a fresh one:
+3. Leave that console (`EXIT`) and reconnect with a fresh one:
 
 ```bash
 pm-alf-console --id TRADER02
@@ -136,7 +139,7 @@ pm-admin-cli --id ADMIN_CLI book --sym AAPL
 pm-admin-cli --id ADMIN_CLI session-status
 ```
 
-Each prints one line (`KICK  sent disconnect for TRADER02`,
+Each prints one line (`KICK OK  TRADER02`,
 `QCANCEL OK  MM_AAPL_01  AAPL`, `CANCEL_SYM OK  AAPL  orders=<n>  quotes=<n>`),
 then the empty AAPL book and the session state.
 

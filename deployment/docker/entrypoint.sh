@@ -17,6 +17,21 @@ CONFIG_STAMP="${DATA_DIR}/.container-config"
 
 log() { printf '==> %s\n' "$*"; }
 
+# Total seconds `pm-opctl-cli stop` may take at container stop: inside the
+# compose files' stop_grace_period (70 s), with room for tini and this script
+# to exit before Docker's SIGKILL (L045). Anything but a positive number would
+# make `stop` refuse its arguments and stop nothing, so that falls back to 60.
+stop_timeout() {
+    local value="${EM_STOP_TIMEOUT:-60}"
+    if [[ "${value}" =~ ^[0-9]*\.?[0-9]+$ && ! "${value}" =~ ^[0.]+$ ]]; then
+        printf '%s\n' "${value}"
+    else
+        log "warning: EM_STOP_TIMEOUT='${value}' is not a positive number of seconds; using 60" >&2
+        printf '60\n'
+    fi
+}
+STOP_TIMEOUT="$(stop_timeout)"
+
 setup_data_dir() {
     mkdir -p "${DATA_DIR}"
     # An engine configuration supplied as a file wins over the example name.
@@ -72,8 +87,8 @@ start_sshd() {
 }
 
 shutdown() {
-    log "stopping profile '${PROFILE}'"
-    pm-opctl-cli stop || true
+    log "stopping profile '${PROFILE}' (at most ${STOP_TIMEOUT}s)"
+    pm-opctl-cli stop --timeout "${STOP_TIMEOUT}" || true
     exit 0
 }
 
