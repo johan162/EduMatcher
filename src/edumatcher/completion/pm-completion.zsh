@@ -4462,6 +4462,7 @@ _shtab_pm_opctl_cli_clear_defaults_added=0
 
 _shtab_pm_opctl_cli_down_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--timeout[finish within SEC seconds in total\: each wave waits at most an even share of the time left (default\: up to 15s per wave, no total)]:SEC:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -4518,6 +4519,7 @@ _shtab_pm_opctl_cli_start_defaults_added=0
 
 _shtab_pm_opctl_cli_stop_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--timeout[finish within SEC seconds in total\: each wave waits at most an even share of the time left (default\: up to 15s per wave, no total)]:SEC:"
 )
 
 # guard to ensure default positional specs are added only once per session

@@ -601,12 +601,17 @@ Purpose: forcibly disconnect a gateway.
 
 **Request body:** _(none)_ — optional `{ "reason": "..." }`.
 
-**Response `202 Accepted`:** `{ "gateway_id": "GW02", "status": "DISCONNECTED" }`
+**Response `200 OK`:** the engine's `GatewayKickAck`,
+`{ "accepted": true, "target_gateway_id": "GW02", "reason": "", "command_id": "..." }`.
+A refusal (the gateway is not configured, not connected, or the caller's own) is
+`409 DISCONNECT_REJECTED` with the engine's reason as `message`.
 
-**Engine mapping:** emits `system.gateway_disconnect` `{ "gateway_id": "GW02" }` (Requirements §3.2,
-API Gateway spec §3.5 shutdown path). **Note:** disconnecting a gateway cancels that gateway's
-resting orders and active quotes per the engine's disconnect policy (FR-MMQ-006 `CANCEL_ALL`
-semantics). The UI's confirmation dialog states this explicitly.
+**Engine mapping:** emits the ADMIN message `risk.gateway_kick`
+`{ "gateway_id": <admin>, "target_gateway_id": "GW02", "note": <reason>, "command_id": ... }`
+and awaits `risk.gateway_kick_ack.<admin>` (For-Later L044; before that it sent the target's own
+`system.gateway_disconnect` and answered `202` for any id). **Note:** disconnecting a gateway
+handles that gateway's resting orders and active quotes per its configured `disconnect_behaviour`
+(FR-MMQ-006). The UI's confirmation dialog states this explicitly.
 
 ### 6.6 Halts and risk configuration (runtime read-only)
 
@@ -2182,10 +2187,11 @@ A table of all configured gateways with live connection status, from
 Clicking "Kick" on a connected gateway opens a confirmation dialog:
 "Disconnect gateway {id}? This will cancel all their active orders and quotes."
 
-Calls `POST /api/v1/admin/gateways/{id}/disconnect` ([§6.5](#65-gateway-administration)), which emits
-`system.gateway_disconnect`. The gateway is removed from the connected list; per FR-MMQ-006 the
-engine cancels the gateway's orders and quotes. This action **always confirms**, even in power-user
-mode (truly destructive, affects another participant).
+Calls `POST /api/v1/admin/gateways/{id}/disconnect` ([§6.5](#65-gateway-administration)), which sends
+the ADMIN message `risk.gateway_kick` and returns the engine's answer (`409 DISCONNECT_REJECTED`,
+shown as an error toast, when it refuses). The gateway is removed from the connected list; per
+FR-MMQ-006 the engine applies the gateway's `disconnect_behaviour` to its orders and quotes. This
+action **always confirms**, even in power-user mode (truly destructive, affects another participant).
 
 ### 15.8 Kill Switch (Admin)
 
@@ -3600,8 +3606,8 @@ Phase 12 (Session Control, Gateway Management + Kick, Kill Switch) findings:
   the power-user `confirmCancellations` setting — these are admin destructive actions that always
   confirm.
 - **Kick ≠ by-gateway kill-switch.** Two distinct actions on a gateway: **Kick** = `POST
-  /admin/gateways/{id}/disconnect` (`{gateway_id, status:"DISCONNECTED"}`) disconnects the participant
-  (the engine cancels its orders/quotes as a disconnect side effect, FR-MMQ-006); **by-gateway
+  /admin/gateways/{id}/disconnect` (`GatewayKickAck`, or `409 DISCONNECT_REJECTED`) disconnects the
+  participant (its `disconnect_behaviour` handles its orders/quotes, FR-MMQ-006); **by-gateway
   kill-switch** cancels its resting exposure while leaving it connected. Both are on the Gateway
   Management screen.
 - **Session transition REST response is authoritative.** `POST /admin/session/transition {to_state}`

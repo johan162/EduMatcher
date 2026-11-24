@@ -150,7 +150,7 @@ way.
 | L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Fixed 2026-11-19 (`state_since` on `system.session_status`) |
 | L043 | 2026-11-22 | pm-engine / msgen (inbound coercion) | The price-level orders filter rounds an off-grid price to the nearest tick, an amend's `qty` is truncated with `int()` (10.7 → 10), and the generated `from_dict` truncates float ticks (`int(10000.5)` → 10000) instead of refusing them (Models review 2026-11 §9) | Low | Open |
 | L044 | 2026-11-23 | pm-engine (target-only commands) | `risk.kill_switch`, `quote.cancel` and `system.gateway_disconnect` name only the gateway they act on, so any PUSH client can cancel or disconnect any participant, and pm-admin's `KICK` reaches the audit trail as the target's own logout, unattributed and without an ack (Admin commands review 2026-11 §9) | Low | Fixed 2026-11-24 (ADMIN `risk.gateway_kick` with ack and `admin.action`; the self-service messages stay, see entry) |
-| L045 | 2026-11-23 | deployment (container stop) | `stop_grace_period` is 30 s (60 s for ai-sim) while `pm-opctl-cli stop` may wait up to four 15 s waves; a slow engine stop is SIGKILLed by Docker before the recorders' wave (pm-opctl review 2026-11 §9) | Low | Open |
+| L045 | 2026-11-23 | deployment (container stop) | `stop_grace_period` is 30 s (60 s for ai-sim) while `pm-opctl-cli stop` may wait up to four 15 s waves; a slow engine stop is SIGKILLed by Docker before the recorders' wave (pm-opctl review 2026-11 §9) | Low | Fixed 2026-11-24 (`stop --timeout`, entrypoint budget 60 s, grace 70 s) |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -985,6 +985,26 @@ farewells.
 set `stop_grace_period` above the measured time plus margin (or 4 × 15 s +
 10 s), and/or let `pm-opctl-cli stop` take a total budget so it can share the
 grace period between waves.
+
+**Fixed (2026-11-24).** Both halves. Not measured: the shared simulation on
+the development host could not be stopped for it, so the bound is the
+worst case instead. `pm-opctl-cli stop --timeout SEC` finishes within `SEC`
+in total; each wave waits `min(15 s, time left ÷ waves left)`, so a slow
+early wave cannot take the later waves' time and a quick one leaves its
+share to them. The entrypoint runs `stop --timeout "${EM_STOP_TIMEOUT:-60}"`
+(60 s = four full waves, so the budget only bites on a stop already that
+slow), and all four compose files (`docker/` and `curl/`, plain and ai-sim)
+give the exchange `stop_grace_period: 70s`. An `EM_STOP_TIMEOUT` that is not
+a positive number falls back to 60 with a warning: passed through, `stop`
+would refuse it (exit 2), signal nothing, and leave the whole stack to the
+SIGKILL. Tests: `test_emo_reporting.py`
+(a stubborn first wave with a 2 s budget: the stop ends inside it and the
+later wave is stopped; a quick first wave leaves the stubborn last one nearly
+the whole budget; the entrypoint's budget plus 10 s fits every compose
+file's grace period), `test_emo_cli.py` (`--timeout` parsed, refused unless
+a positive number). Books: container walkthrough (which also wrongly said the
+engine sends the SIGKILL), running the exchange, reference manual, message
+architecture; pm-help and the shell completions.
 ---
 
 ## Work plan

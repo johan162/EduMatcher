@@ -18,8 +18,9 @@ services:
     container_name: edumatcher
     hostname: edumatcher
     restart: unless-stopped
-    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
-    stop_grace_period: 30s
+    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits. The
+    # entrypoint gives it 60 s in total (EM_STOP_TIMEOUT); the rest is margin.
+    stop_grace_period: 70s
     environment:
       # A bundled example name — s1-basic, s3-basic, s10-basic, s30-basic,
       # or s150-basic, each also as ...-nominal and ...-complex.

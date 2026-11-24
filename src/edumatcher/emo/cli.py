@@ -1176,7 +1176,17 @@ def is_alive(pid: int) -> bool:
         return False
 
 
-def stop_profile() -> int:
+def stop_profile(budget_sec: float | None = None) -> int:
+    """Stop the active profile's processes, wave by wave.
+
+    Each wave waits up to ``STOP_WAIT_SEC``. With *budget_sec* the whole stop
+    also ends within that total: a wave waits at most an even share of the
+    time still left, so a slow early wave cannot use the time the later
+    waves (the recorders, the log server) need, and a wave that is quick
+    leaves its share to them. The container's entrypoint passes one that
+    fits inside the compose ``stop_grace_period`` (L045).
+    """
+    stop_by = None if budget_sec is None else time.monotonic() + budget_sec
     active = read_active_profile()
     profile = load_profiles().get(active or "", [])
     programs = {
@@ -1211,7 +1221,8 @@ def stop_profile() -> int:
         return 0
 
     failed = False
-    for _, members in sorted(waves.items()):
+    ordered = sorted(waves.items())
+    for index, (_, members) in enumerate(ordered):
         for name, pid in members.items():
             try:
                 os.kill(pid, signal.SIGTERM)
@@ -1223,7 +1234,11 @@ def stop_profile() -> int:
                     f"  error: cannot signal {name} (pid {pid}): {exc}",
                     file=sys.stderr,
                 )
-        deadline = time.monotonic() + STOP_WAIT_SEC
+        wait = STOP_WAIT_SEC
+        if stop_by is not None:
+            left = max(0.0, stop_by - time.monotonic())
+            wait = min(wait, left / (len(ordered) - index))
+        deadline = time.monotonic() + wait
         while any(is_alive(pid) for pid in members.values()):
             if time.monotonic() >= deadline:
                 break
@@ -1234,7 +1249,7 @@ def stop_profile() -> int:
             if is_alive(pid):
                 print(
                     f"  error: {name} (pid {pid}) still running "
-                    f"{STOP_WAIT_SEC:g}s after SIGTERM; PID file kept",
+                    f"{wait:.3g}s after SIGTERM; PID file kept",
                     file=sys.stderr,
                 )
                 failed = True
@@ -1524,6 +1539,16 @@ def clear_data(*, scope: str, assume_yes: bool, force: bool = False) -> int:
     return 0
 
 
+def _positive_seconds(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number of seconds: {text!r}")
+    if not value > 0:
+        raise argparse.ArgumentTypeError(f"must be more than 0, got {text}")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-opctl-cli", description="Manage EduMatcher operational process control"
@@ -1548,8 +1573,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "init", help="create the built-in process profile configuration"
     )
-    subparsers.add_parser(
+    stop = subparsers.add_parser(
         "stop", aliases=["down"], help="stop processes started by pm-opctl"
+    )
+    stop.add_argument(
+        "--timeout",
+        type=_positive_seconds,
+        default=None,
+        metavar="SEC",
+        help=(
+            "finish within SEC seconds in total: each wave waits at most an "
+            "even share of the time left (default: up to "
+            f"{STOP_WAIT_SEC:g}s per wave, no total)"
+        ),
     )
     subparsers.add_parser(
         "kill",
@@ -1646,7 +1682,7 @@ def main() -> int:
         if args.command in ("start", "up"):
             return start_profile(args.config_name or "default", debug=args.debug)
         if args.command in ("stop", "down"):
-            return stop_profile()
+            return stop_profile(args.timeout)
         if args.command == "kill":
             return kill_all_processes()
         if args.command == "list":
