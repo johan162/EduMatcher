@@ -1,3 +1,25 @@
+## [v0.84.1] - 2026-11-24
+
+Release Type: minor
+
+### 📋 Summary
+This release adds an acknowledged ADMIN gateway-kick operation and binds participant-scoped engine commands to the gateway they act on. It also improves Docker shutdown handling and expands the Exchange Introduction's implied-liquidity examples.
+
+### ✨ Additions
+- Added an acknowledged `risk.gateway_kick` operation with caller and target validation and admin-action recording
+
+### 🚀 Improvements
+- Improved container shutdown by sharing the stop timeout across shutdown waves and extending Docker's grace period
+
+### 🐛 Bug Fixes
+- Fixed participant-scoped kill-switch, quote-cancel, and disconnect commands so actions and replies are bound to the intended gateway
+
+### 📚 Documentation
+- Expanded the Exchange Introduction's implied-liquidity examples and explanations of recalculations after order-book changes
+
+### 🛠 Internal
+- Stabilized process-control tests against startup timing variations and updated regression coverage for server restarts and new-symbol behavior
+
 ## [v0.84.0] - 2026-11-23
 
 Release Type: major
