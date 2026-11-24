@@ -422,21 +422,23 @@ pm-admin-cli --id ADMIN_CLI kick --gw TRADER01 --reason "Compliance hold"
 ```
 
 ```
-KICK  sent disconnect for TRADER01
+KICK OK  TRADER01
 ```
 
-The engine publishes no ack for a disconnect, so `kick` first asks for the
-gateway list: an id that is not configured (`REJECTED  Gateway not
-configured: X`) or not connected (`REJECTED  Gateway not connected: X`) is
-refused with exit code 1 and nothing is sent. Otherwise the line confirms
-that the disconnect was sent; verify it with `gateways` (the gateway shows
-`no` under *Connected*). What happens to its orders depends on its
+`kick` sends the ADMIN message `risk.gateway_kick` and waits for the engine's
+answer. The engine ends the session, names you in the disconnect's reason
+(`kicked by ADMIN_CLI: Compliance hold`, which clearing keeps as the
+session's disconnect reason) and records the action on the admin monitor.
+It refuses an id that is not configured (`REJECTED  Gateway not configured:
+X`), one that is not connected (`REJECTED  Gateway not connected: X`), your
+own id, and a caller without the ADMIN role; each exits with code 1 and
+disconnects nothing. What happens to the target's orders depends on its
 `disconnect_behaviour`; use `kill` to clear them.
 
 | Flag            | Required | Description                              |
 |-----------------|----------|------------------------------------------|
 | `--gw GW_ID`    | yes      | Target gateway to disconnect             |
-| `--reason TEXT` | no       | Reason string recorded in the engine log |
+| `--reason TEXT` | no       | Reason recorded on the admin monitor and in the disconnect |
 
 
 
@@ -1172,7 +1174,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `resume_all()`                  | —                             | **ADMIN**        | `risk.circuit_breaker_resume_all` | `risk.circuit_breaker_resume_all_ack.{GW}` |
 | `kill_switch(target, symbol?)`  | target GW ID, optional symbol | none checked (the target's own message, L044) | `risk.kill_switch` | `risk.kill_switch_ack.{target}` |
 | `quote_cancel(target, symbol)`  | target GW ID, symbol          | none checked (the target's own message, L044) | `quote.cancel`     | `quote.cancel_ack.{target}`     |
-| `gateway_kick(target, reason?)` | target GW ID, optional reason | none checked (L044) | `system.gateway_disconnect`       | *(none)*                                   |
+| `gateway_kick(target, reason?)` | target GW ID, optional reason | **ADMIN**        | `risk.gateway_kick`               | `risk.gateway_kick_ack.{GW}`               |
 | `book_depth(symbol)`            | symbol                        | Any connected GW | `book.snapshot_request`           | `book.{SYMBOL}`                            |
 | `order_list(target)` / `orders_reply(target)` | target GW ID  | Any connected GW | `order.orders_request`            | `order.orders.{target}`                    |
 | `price_level_orders(sym, price?)` | symbol, optional price      | **ADMIN**         | `order.price_level_orders_request` | `order.price_level_orders.{GW}`           |
@@ -1357,12 +1359,15 @@ also remove non-quote limit orders.
 ### `gateway_kick` — Forcefully disconnect a gateway
 
 ```
-Frame 0:  b"system.gateway_disconnect"
-Frame 1:  {"gateway_id": "TRADER01", "reason": "Compliance hold"}
+Frame 0:  b"risk.gateway_kick"
+Frame 1:  {"gateway_id": "GW_ADMIN", "target_gateway_id": "TRADER01",
+           "note": "Compliance hold", "command_id": "cmd-..."}
 ```
 
 ```python
-client.gateway_kick("TRADER01", reason="Compliance hold")
+result = client.gateway_kick("TRADER01", reason="Compliance hold")
+# result = {"accepted": True, "target_gateway_id": "TRADER01",
+#           "reason": "", "command_id": "cmd-..."}
 ```
 
 The engine applies the gateway's configured `disconnect_behaviour`:
@@ -1373,9 +1378,14 @@ The engine applies the gateway's configured `disconnect_behaviour`:
 | `CANCEL_QUOTES_ONLY` | Quotes cancelled, limit orders left resting                     |
 | `CANCEL_ALL`         | All quotes and orders cancelled                                 |
 
-No ack is published, and the engine ignores an id that is not a participant.
-Check the target with `gateway_list()` before, and verify the effect there
-after: the entry's `connected` turns `False`.
+The ack follows the disconnect's effects, so `gateway_list()` called after it
+shows the target with `connected: False`. The disconnect broadcast
+(`system.gateway_bye.TRADER01`) carries `kicked by GW_ADMIN: Compliance hold`
+as its reason, and an `admin.action` record (`gateway.kick`) names the caller.
+`accepted` is `False`, with nothing disconnected, for an id that is not
+configured (`Gateway not configured: X`), one that is not connected
+(`Gateway not connected: X`), the caller's own id, or a caller that is not an
+ADMIN.
 
 
 
@@ -1593,8 +1603,9 @@ result = client.kill_switch_gateway("TRADER01", note="Compliance review")
 assert result["accepted"], result["reason"]
 print(f"Kill switch TRADER01: {result['cancelled_orders']} orders cancelled")
 
-# 5. Kick the affected gateway
-client.gateway_kick("TRADER01", reason="Compliance review")
+# 5. Kick the affected gateway (refused, with a reason, if it is not connected)
+result = client.gateway_kick("TRADER01", reason="Compliance review")
+print(f"Kick TRADER01: {'done' if result['accepted'] else result['reason']}")
 
 # 6. Verify TRADER01 has no remaining orders
 remaining = client.order_list("TRADER01")

@@ -293,10 +293,11 @@ class TestTheFamilyIsCompleteNow:
     made them fail on the very change they existed to gate.
     """
 
-    def test_all_nineteen_topics_are_declared(self) -> None:
+    def test_all_twenty_one_topics_are_declared(self) -> None:
         # Sixteen at 5.3b, plus force_uncross + its ack for the operator reopen,
-        # plus risk.band (a symbol's collar, sim forensics S24).
-        assert len(G.FAMILY_TOPICS) == 19
+        # plus risk.band (a symbol's collar, sim forensics S24), plus
+        # gateway_kick + its ack (L044).
+        assert len(G.FAMILY_TOPICS) == 21
 
     def test_the_instrument_scoped_half_is_here(self) -> None:
         declared = set(G.FAMILY_TOPICS)

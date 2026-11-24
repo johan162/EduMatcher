@@ -1250,7 +1250,13 @@ ADMIN_GATEWAYS: dict[str, Any] = {
         },
     ],
 }
-ADMIN_DISCONNECT = {"gateway_id": "TRADER01", "status": "PENDING_DISCONNECT"}
+ADMIN_KICK: dict[str, Any] = {
+    "gateway_id": "OPS01",
+    "accepted": True,
+    "target_gateway_id": "TRADER01",
+    "reason": "",
+    "command_id": _CMD,
+}
 ADMIN_HALT_ACK: dict[str, Any] = {
     "gateway_id": "OPS01",
     "accepted": True,
@@ -1712,6 +1718,7 @@ ADMIN_RESUME_ACK_REPLY = _wire(risk_msgs.SymbolResumeAck, ADMIN_RESUME_ACK)
 ADMIN_KILL_SYMBOL_REPLY = _wire(risk_msgs.CancelSymbolAck, ADMIN_KILL_SYMBOL)
 ADMIN_KILL_GATEWAY_REPLY = _wire(risk_msgs.KillSwitchGatewayAck, ADMIN_KILL_GATEWAY)
 ADMIN_KILL_GLOBAL_REPLY = _wire(risk_msgs.KillSwitchGlobalAck, ADMIN_KILL_GLOBAL)
+ADMIN_KICK_REPLY = _wire(risk_msgs.GatewayKickAck, ADMIN_KICK)
 ADMIN_KILL_GATEWAY_SYMBOL_REPLY = _wire(
     risk_msgs.KillSwitchGatewayAck,
     {

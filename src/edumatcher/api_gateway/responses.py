@@ -451,11 +451,6 @@ class GatewayList(rest_system.Gateways, _Counted):
     """Every gateway the engine knows, with role and connection state."""
 
 
-class DisconnectPending(BaseModel):
-    gateway_id: str
-    status: Literal["PENDING_DISCONNECT"]
-
-
 class RiskStateView(rest_system.RiskState, _Counted):
     """Live collar and circuit-breaker state per symbol."""
 

@@ -219,6 +219,7 @@ the OpenAPI document lists all of them per operation.
 | `RESUME_REJECTED` | `409` | `UNKNOWN` | The engine refused the resume (for example `TSLA is not halted`) |
 | `KILL_SWITCH_REJECTED` | `409` | `UNKNOWN` | The engine refused a symbol, gateway or global kill switch |
 | `REOPEN_REJECTED` | `409` | `UNKNOWN` | The engine refused a symbol reopen (force-uncross), for example the symbol is not halted |
+| `DISCONNECT_REJECTED` | `409` | `UNKNOWN` | The engine refused to disconnect a gateway: not configured, not connected, or the caller's own |
 | `QUERY_REJECTED` | `409` | `UNKNOWN` | The engine refused an admin query, for example `Unknown symbol: XYZ` |
 | `REBALANCE_REJECTED` | `409` | `UNKNOWN` | `pm-index` refused the rebalance |
 | `REPLACE_REJECTED` | `409` | engine's | The engine refused `replace`'s cancel (for example the order already filled); nothing was sent |
@@ -265,7 +266,7 @@ not exposed.
   whose verdict arrived in time).
 - `202 Accepted` means the request was handed on and the outcome follows on a
   WebSocket: those writes without `?wait=ack` (or with it, when the verdict was
-  late: `ack_timeout: true`), and `POST /admin/gateways/{gateway_id}/disconnect`.
+  late: `ack_timeout: true`).
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
 
@@ -2623,20 +2624,22 @@ offline.
 
 ### `POST /api/v1/admin/gateways/{gateway_id}/disconnect`
 
-Purpose: forcibly disconnect one gateway.
+Purpose: forcibly disconnect one gateway. Sends the ADMIN message
+`risk.gateway_kick` and waits for the engine's answer; the target's
+`disconnect_behaviour` runs, and the disconnect names the caller.
 
 **Arguments**
 
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `gateway_id` | `GatewayId` | yes (path) | Gateway to disconnect (case-insensitive) |
-| `reason` | `Str` | no | Body, optional: note recorded in the engine log (default `admin disconnect`) |
+| `reason` | `Str` | no | Body, optional: note recorded on the admin monitor and in the disconnect (`kicked by <ADMIN>: <reason>`) |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{ "gateway_id": "...", "status": "PENDING_DISCONNECT" }` | Disconnect sent; not awaited — the roster in `GET /admin/gateways` shows the result |
+| `200 OK` | `{ "accepted": true, "target_gateway_id": "...", "reason": "", "command_id": "..." }` | The engine ended the session; `GET /admin/gateways` already shows it offline |
 
 **Errors**
 
@@ -2645,7 +2648,9 @@ Purpose: forcibly disconnect one gateway.
 | `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
 | `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `DISCONNECT_REJECTED` | `409` | The engine refused: the gateway is not configured, not connected, or the caller's own; `message` is its reason |
 | `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/symbols/{symbol}/halt`
 

@@ -32,6 +32,7 @@ import type {
   AdminOrderLifecycleResponse,
   AdminSymbolKillSwitchResponse,
   AdminGatewayKillSwitchResponse,
+  AdminGatewayDisconnectResponse,
   AdminGlobalKillSwitchResponse,
   RiskConfig,
   SymbolHaltAckResponse,
@@ -241,7 +242,7 @@ export const getAdminGateways = () =>
   apiFetch<{ gateways: AdminGateway[] }>("/api/v1/admin/gateways");
 
 export const disconnectGateway = (id: string, reason?: string) =>
-  apiFetch<{ gateway_id: string; status: string }>(`/api/v1/admin/gateways/${encodeURIComponent(id)}/disconnect`, {
+  apiFetch<AdminGatewayDisconnectResponse>(`/api/v1/admin/gateways/${encodeURIComponent(id)}/disconnect`, {
     method: "POST",
     body: JSON.stringify(reason ? { reason } : {}),
   });

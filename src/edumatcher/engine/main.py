@@ -195,6 +195,7 @@ from edumatcher.models.message import (
     make_symbol_resume_ack_msg,
     make_cancel_symbol_ack_msg,
     make_force_uncross_ack_msg,
+    make_gateway_kick_ack_msg,
     make_kill_switch_ack_msg,
     make_kill_switch_gateway_ack_msg,
     make_kill_switch_global_ack_msg,
@@ -280,6 +281,7 @@ from edumatcher.models.generated.risk import (
     TOPIC_CIRCUIT_BREAKER_HALT_ALL,
     TOPIC_CIRCUIT_BREAKER_RESUME_ALL,
     TOPIC_FORCE_UNCROSS,
+    TOPIC_GATEWAY_KICK,
     TOPIC_KILL_SWITCH,
     TOPIC_KILL_SWITCH_GATEWAY,
     TOPIC_KILL_SWITCH_GLOBAL,
@@ -5095,6 +5097,72 @@ class Engine:
             f" orders={cancelled_orders} quotes={cancelled_quotes}"
         )
 
+    def _handle_gateway_kick(self, payload: dict[str, Any]) -> None:
+        """ADMIN → engine: end *target_gateway_id*'s session (L044).
+
+        ``system.gateway_disconnect`` names only the session it ends, so a
+        kick sent with it was the target's own logout on the audit trail,
+        unattributed and unanswered. Here the caller is checked for ADMIN and
+        named in the bye's reason and the ``admin.action`` record; the
+        target's ``disconnect_behaviour`` then runs exactly as for its own
+        logout, and the ack follows the disconnect's effects.
+        """
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        target_gateway_id = _clamp_wire_id(payload.get("target_gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
+
+        def _answer(accepted: bool, reason: str = "") -> None:
+            self.pub_sock.send_multipart(
+                make_gateway_kick_ack_msg(
+                    gateway_id,
+                    target_gateway_id,
+                    accepted,
+                    reason,
+                    command_id=command_id,
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "gateway.kick",
+                {"target_gateway_id": target_gateway_id or None, "note": note},
+                accepted=accepted,
+                reason=reason,
+            )
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            _answer(False, reason)
+            return
+        if self._session_for_gateway(gateway_id).role != ParticipantRole.ADMIN:
+            _answer(False, "Gateway kick is only allowed for ADMIN participants")
+            return
+        if not target_gateway_id:
+            _answer(False, "target_gateway_id required")
+            return
+        if target_gateway_id == gateway_id:
+            _answer(False, "Cannot kick own gateway; disconnect instead")
+            return
+        if (
+            self._allowed_participants is not None
+            and target_gateway_id not in self._allowed_participants
+        ):
+            _answer(False, f"Gateway not configured: {target_gateway_id}")
+            return
+        target = self._sessions.get(target_gateway_id)
+        if target is None or not target.connected:
+            # A second bye would close a session clearing already closed.
+            _answer(False, f"Gateway not connected: {target_gateway_id}")
+            return
+
+        bye_reason = f"kicked by {gateway_id}" + (f": {note}" if note else "")
+        self._handle_gateway_disconnect(
+            {"gateway_id": target_gateway_id, "reason": bye_reason}
+        )
+        _answer(True)
+        log.info("ADMIN KICK — target=%s by %s", target_gateway_id, gateway_id)
+
     def _handle_kill_switch_global(self, payload: dict[str, Any]) -> None:
         """ADMIN → engine: cancel every resting order/quote for every gateway.
 
@@ -7994,6 +8062,8 @@ class Engine:
                 self._handle_kill_switch(payload)
             elif topic == TOPIC_KILL_SWITCH_GATEWAY:
                 self._handle_kill_switch_gateway(payload)
+            elif topic == TOPIC_GATEWAY_KICK:
+                self._handle_gateway_kick(payload)
             elif topic == TOPIC_KILL_SWITCH_GLOBAL:
                 self._handle_kill_switch_global(payload)
             elif topic == TOPIC_CIRCUIT_BREAKER_HALT_ALL:

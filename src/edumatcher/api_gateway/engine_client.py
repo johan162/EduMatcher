@@ -37,6 +37,7 @@ from edumatcher.models.message import (
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
+    make_gateway_kick_msg,
     make_gateways_request_msg,
     make_halt_status_request_msg,
     make_kill_switch_gateway_msg,
@@ -1277,6 +1278,19 @@ class EngineClient:
     ) -> None:
         self._send(
             make_kill_switch_global_msg(gateway_id, note=note, command_id=command_id)
+        )
+
+    def send_gateway_kick(
+        self,
+        gateway_id: str,
+        target_gateway_id: str,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self._send(
+            make_gateway_kick_msg(
+                gateway_id, target_gateway_id, note=note, command_id=command_id
+            )
         )
 
     def send_gateway_disconnect(self, gateway_id: str, reason: str = "") -> None:

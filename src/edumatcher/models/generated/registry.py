@@ -576,6 +576,22 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": ("gateway_id",),
         "fields": _risk.describe_kill_switch_gateway_ack(),
     },
+    _risk.TOPIC_GATEWAY_KICK: {
+        "family": "risk",
+        "message": "gateway_kick",
+        "prefix": _risk.TOPIC_GATEWAY_KICK,
+        "transport": ("engine_pub", "engine_push"),
+        "params": (),
+        "fields": _risk.describe_gateway_kick(),
+    },
+    _risk.TOPIC_GATEWAY_KICK_ACK: {
+        "family": "risk",
+        "message": "gateway_kick_ack",
+        "prefix": _risk.PREFIX_GATEWAY_KICK_ACK,
+        "transport": ("engine_pub",),
+        "params": ("gateway_id",),
+        "fields": _risk.describe_gateway_kick_ack(),
+    },
     _risk.TOPIC_KILL_SWITCH_GLOBAL: {
         "family": "risk",
         "message": "kill_switch_global",

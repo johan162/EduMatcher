@@ -209,6 +209,7 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "circuit_breaker.trigger": "a circuit-breaker trigger",
         "circuit_breaker.resume": "a circuit-breaker resume",
         "auction.reopen": "an auction reopen",
+        "gateway.kick": "a gateway kick",
         "SPLIT": "a share split",
         "CASH_DIVIDEND": "a cash dividend",
         "SHARES_ISSUANCE": "a share issuance",

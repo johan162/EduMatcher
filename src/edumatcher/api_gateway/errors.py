@@ -127,6 +127,12 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "The engine refused the reopen (force-uncross); `message` is its reason.",
         "AAPL is not halted",
     ),
+    "DISCONNECT_REJECTED": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The engine refused to disconnect the gateway; `message` is its reason.",
+        "Gateway not connected: TRADER01",
+    ),
     "QUERY_REJECTED": ErrorCode(
         409,
         "UNKNOWN",

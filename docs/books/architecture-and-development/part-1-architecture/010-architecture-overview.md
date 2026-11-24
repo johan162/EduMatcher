@@ -270,6 +270,8 @@ gives every field.
 | `risk.kill_switch_gateway_ack.{gateway_id}` | pm-engine | What the gateway-targeted kill switch cancelled. |
 | `risk.kill_switch_global` | pm-api-gwy | Cancel every resting order and quote, for every gateway. |
 | `risk.kill_switch_global_ack.{gateway_id}` | pm-engine | What the market-wide kill switch cancelled. |
+| `risk.gateway_kick` | ADMIN tools, pm-api-gwy | End one named participant's session; its `disconnect_behaviour` runs. |
+| `risk.gateway_kick_ack.{gateway_id}` | pm-engine | Whether the named session was ended, or why not. |
 | `risk.band.{symbol}` | pm-engine | Published once per collared symbol at startup (a reference reload leaves collars as they are). |
 | `risk.symbol_halt` | ADMIN tools, pm-api-gwy | Halt trading on one instrument. |
 | `risk.symbol_halt_ack.{gateway_id}` | pm-engine | The per-symbol halt's outcome. |

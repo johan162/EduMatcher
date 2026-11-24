@@ -108,9 +108,10 @@ class TestTheAppendixDocumentsEveryMessage:
         131 -> 134: oco/combo/quote.cancel_ack (WP-API17).
         134 -> 135: system.gateway_reject (audit A3).
         135 -> 136: system.quote_seed_skipped.
+        136 -> 138: risk.gateway_kick and its ack (L044).
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 136, total
+        assert total == 138, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

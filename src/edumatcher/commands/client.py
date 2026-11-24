@@ -6,11 +6,10 @@ Each public method corresponds to one exchange command:
   Lifecycle:      connect(), disconnect(), close()
   ADMIN risk:     halt_all(), resume_all(), symbol_halt(), symbol_resume(),
                   cancel_symbol(), force_uncross(), kill_switch_gateway(),
-                  kill_switch_global(), reference_reload()
+                  kill_switch_global(), gateway_kick(), reference_reload()
   Self-service:   kill_switch(), mass_cancel(), quote_cancel() -- the
                   participant's own messages: the engine acts on the gateway
                   they name and does not check who sent them (L044)
-  Disconnect:     gateway_kick() -- no ack
   Queries:        book_depth(), order_list(), orders_reply(),
                   price_level_orders(), symbol_list(), tick_decimals(),
                   quote_bootstrap(), position_snapshot(), positions_reply(),
@@ -57,6 +56,7 @@ from edumatcher.models.message import (
     make_force_uncross_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
+    make_gateway_kick_msg,
     make_gateways_request_msg,
     make_kill_switch_gateway_msg,
     make_kill_switch_global_msg,
@@ -86,6 +86,7 @@ from edumatcher.models.generated.risk import (
     topic_circuit_breaker_halt_all_ack,
     topic_circuit_breaker_resume_all_ack,
     topic_force_uncross_ack,
+    topic_gateway_kick_ack,
     topic_kill_switch_ack,
     topic_kill_switch_gateway_ack,
     topic_kill_switch_global_ack,
@@ -125,6 +126,7 @@ _OWN_ENGINE_TOPICS: tuple[Callable[[str], str], ...] = (
     topic_symbol_resume_ack,
     topic_cancel_symbol_ack,
     topic_force_uncross_ack,
+    topic_gateway_kick_ack,
     topic_kill_switch_ack,
     topic_kill_switch_gateway_ack,
     topic_kill_switch_global_ack,
@@ -684,18 +686,26 @@ class ExchangeCommandClient:
             topic_quote_cancel_ack(target_gw.upper()),
         )
 
-    def gateway_kick(self, target_gw: str, reason: str = "") -> None:
+    def gateway_kick(self, target_gw: str, reason: str = "") -> dict[str, Any]:
         """
         Forcefully disconnect *target_gw*.
 
-        The engine applies the gateway's configured ``disconnect_behaviour``
-        (``LEAVE_ALL``, ``CANCEL_QUOTES_ONLY``, or ``CANCEL_ALL``).
-        No ack is published, and the engine ignores an id that is not a
-        participant: check the target with :meth:`gateway_list` first (as
-        ``pm-admin``'s ``KICK`` does) and verify the effect there; the
-        gateway's resting orders say nothing about its connection.
+        Sends the ADMIN message ``risk.gateway_kick``: the engine applies the
+        target's configured ``disconnect_behaviour`` (``LEAVE_ALL``,
+        ``CANCEL_QUOTES_ONLY`` or ``CANCEL_ALL``), names this caller in the
+        bye's reason and on the admin monitor, and refuses an unknown, a
+        disconnected or this client's own id. Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``reason``, ``target_gateway_id``.
         """
-        self._send(make_gateway_disconnect_msg(target_gw.upper(), reason))
+        return self._ask(
+            make_gateway_kick_msg(
+                self._gw_id, target_gw, note=reason, command_id=new_command_id()
+            ),
+            topic_gateway_kick_ack(self._gw_id),
+        )
 
     # ------------------------------------------------------------------
     # Data queries

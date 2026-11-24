@@ -102,6 +102,10 @@ _KILL_GW = wire(
      "symbol": "AAPL", "quotes_only": True, "cancelled_quotes": 2,
      "cancelled_quote_order_ids": ["q1", "q2"]},
 )  # fmt: skip
+_KICK = wire(
+    gen_risk.GatewayKickAck,
+    {"gateway_id": ADMIN, "accepted": True, "target_gateway_id": "TRADER01"},
+)  # fmt: skip
 _LEVEL = wire(
     gen_order.PriceLevelOrders,
     {"gateway_id": ADMIN, "symbol": "AAPL", "price": 150.0, "rejected": False,
@@ -120,6 +124,7 @@ _REPLIES = {
     "risk.circuit_breaker_resume_all_ack": _RESUME_ALL,
     "risk.force_uncross_ack": _UNCROSS,
     "risk.kill_switch_gateway_ack": _KILL_GW,
+    "risk.gateway_kick_ack": _KICK,
     "order.price_level_orders": _LEVEL,
     "system.volume": _VOLUME,
     "order.orders": _ORDERS,
@@ -180,6 +185,34 @@ async def test_a_refused_reopen_is_409() -> None:
     )
     assert (status, body["error"]["code"]) == (409, "REOPEN_REJECTED")
     assert body["error"]["message"] == "AAPL is not halted"
+
+
+@pytest.mark.anyio
+async def test_disconnect_is_the_admin_kick_and_answers_with_its_ack() -> None:
+    """L044: the endpoint used to send the target's own logout and answer
+    202 PENDING_DISCONNECT for any id, a typo included."""
+    status, body, engine = await _call(
+        "POST", "/api/v1/admin/gateways/trader01/disconnect", body={"reason": "hold"}
+    )
+    assert status == 200
+    assert (body["accepted"], body["target_gateway_id"]) == (True, "TRADER01")
+    ((name, args, kwargs),) = engine.sent
+    assert (name, args) == ("send_gateway_kick", (ADMIN, "TRADER01"))
+    assert kwargs["note"] == "hold"
+    assert engine.awaited == [
+        ("risk.gateway_kick_ack.GW01", {"command_id": kwargs["command_id"]})
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_refused_disconnect_is_409() -> None:
+    refused = {**_KICK, "accepted": False, "reason": "Gateway not configured: NOSUCH01"}  # fmt: skip
+    engine = _Engine({**_REPLIES, "risk.gateway_kick_ack": refused})
+    status, _, body = await call(
+        make_app(engine), "POST", "/api/v1/admin/gateways/NOSUCH01/disconnect"
+    )
+    assert (status, body["error"]["code"]) == (409, "DISCONNECT_REJECTED")
+    assert body["error"]["message"] == "Gateway not configured: NOSUCH01"
 
 
 @pytest.mark.anyio

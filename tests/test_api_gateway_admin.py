@@ -102,6 +102,12 @@ class AdminFakeEngine:
                 "reason": "nope",
                 "cancelled_orders": 3,
             }
+        if topic.startswith("risk.gateway_kick_ack."):
+            return {
+                "accepted": self.ack_accepted,
+                "target_gateway_id": "GW02",
+                "reason": "" if self.ack_accepted else "nope",
+            }
         if self.ack_accepted:
             return {"accepted": True, "topic": topic}
         return {"accepted": False, "topic": topic, "reason": "nope"}
@@ -150,6 +156,13 @@ class AdminFakeEngine:
 
     def send_disconnect(self, gateway_id: str, reason: str) -> None:
         self.calls.append(("send_disconnect", (gateway_id, reason)))
+
+    def send_gateway_kick(
+        self, gateway_id: str, target_gateway_id: str, note: str, command_id: str
+    ) -> None:
+        self.calls.append(
+            ("send_gateway_kick", (gateway_id, target_gateway_id, note, command_id))
+        )
 
     def request_gateways(self, gateway_id: str) -> None:
         self.calls.append(("request_gateways", gateway_id))
@@ -277,6 +290,7 @@ async def test_halt_without_a_body_is_indefinite() -> None:
         (lambda r, s: admin.cancel_symbol_orders("AAPL", r, s), "KILL_SWITCH_REJECTED"),
         (lambda r, s: admin.kill_switch_gateway("GW02", r, s), "KILL_SWITCH_REJECTED"),
         (lambda r, s: admin.kill_switch_market(r, s), "KILL_SWITCH_REJECTED"),
+        (lambda r, s: admin.disconnect_gateway("GW02", r, s), "DISCONNECT_REJECTED"),
     ],
 )
 async def test_engine_refusal_is_409_with_its_own_code(call: Any, code: str) -> None:
@@ -431,13 +445,24 @@ async def test_admin_positions_empty_reply_renders_empty_list() -> None:
 
 
 @pytest.mark.anyio
-async def test_gateway_disconnect_uppercases_id() -> None:
+async def test_gateway_disconnect_sends_the_admin_kick_and_returns_its_ack() -> None:
+    """L044: the ADMIN's ``risk.gateway_kick`` (requester, command id, ack),
+    not the target's own logout message, which nobody answered."""
     engine = AdminFakeEngine()
     request = admin_request(engine)
     result = await admin.disconnect_gateway("gw02", request, admin_session())
     check_contract(admin.disconnect_gateway, result)
-    assert result == {"gateway_id": "GW02", "status": "PENDING_DISCONNECT"}
-    assert ("send_disconnect", ("GW02", "admin disconnect")) in engine.calls
+    assert result["accepted"] is True and result["target_gateway_id"] == "GW02"
+    ((caller, target, note, command_id),) = [
+        args for name, args in engine.calls if name == "send_gateway_kick"
+    ]
+    assert (caller, target, note) == ("GW01", "GW02", "")
+    assert command_id
+    assert (
+        "await_event",
+        ("risk.gateway_kick_ack.GW01", {"command_id": command_id}, 3.0),
+    ) in engine.calls
+    assert not [c for c in engine.calls if c[0] == "send_disconnect"]
 
 
 @pytest.mark.anyio
@@ -447,7 +472,10 @@ async def test_gateway_disconnect_passes_the_reason_through() -> None:
     await admin.disconnect_gateway(
         "gw02", admin_request(engine), admin_session(), AdminNoteRequest(reason="kick")
     )
-    assert ("send_disconnect", ("GW02", "kick")) in engine.calls
+    ((_, _, note, _),) = [
+        args for name, args in engine.calls if name == "send_gateway_kick"
+    ]
+    assert note == "kick"
 
 
 @pytest.mark.anyio

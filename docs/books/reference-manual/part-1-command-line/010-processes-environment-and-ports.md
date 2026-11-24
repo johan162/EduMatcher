@@ -3309,8 +3309,7 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.kill_switch_gateway`          | `KILL` / `QCANCEL` on another gateway — the ADMIN kill switch (all, symbol-scoped, or quotes only) |
 | `risk.kill_switch`                  | `KILL` on the console's own gateway                           |
 | `quote.cancel`                      | `QCANCEL` on the console's own gateway                        |
-| `system.gateways_request`           | `KICK` — checks first that the target is configured and connected |
-| `system.gateway_disconnect`         | `KICK` — forcefully disconnect a gateway (no ack published)   |
+| `risk.gateway_kick`                 | `KICK` — the ADMIN disconnect of another gateway (refused for an unknown, a disconnected or the console's own id) |
 | `book.snapshot_request`             | `BOOK` — request a book snapshot                              |
 | `order.orders_request`              | `ORDERS` — request a gateway's resting orders                 |
 | `order.price_level_orders_request`  | `LEVEL` — request every resting order at a symbol (optionally one price level) |
@@ -3337,6 +3336,7 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 | `risk.force_uncross_ack.{GW_ID}`       | `REOPEN` acknowledgement, with indicative/printed price    |
 | `risk.kill_switch_gateway_ack.{GW_ID}` | `KILL` / `QCANCEL` acknowledgement for another gateway     |
 | `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement for the console's own gateway       |
+| `risk.gateway_kick_ack.{GW_ID}`        | `KICK` acknowledgement                                     |
 | `quote.cancel_ack.{GW_ID}`             | `QCANCEL` acknowledgement for the console's own gateway    |
 | `book.{SYMBOL}`                        | `BOOK` reply — book snapshot (subscribed only while `BOOK` waits) |
 | `order.orders.{TARGET}`                | `ORDERS` reply — resting order list (subscribed only while `ORDERS` waits) |

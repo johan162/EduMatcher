@@ -149,7 +149,7 @@ way.
 | L041 | 2026-11-17 | pm-engine (collars) | A symbol that starts without a reference price gets no static collar until the next engine start, however long it trades (decided in WP-FL20 / Q11 for 1.x) | Low | Open |
 | L042 | 2026-11-18 | pm-engine / pm-scheduler (sessions) | The engine does not report when it entered its session state, so a scheduler started after an outage that spanned a close takes yesterday's `CONTINUOUS` as today's and the day boundary never happens (Scheduler review 2026-11 §9) | Low | Fixed 2026-11-19 (`state_since` on `system.session_status`) |
 | L043 | 2026-11-22 | pm-engine / msgen (inbound coercion) | The price-level orders filter rounds an off-grid price to the nearest tick, an amend's `qty` is truncated with `int()` (10.7 → 10), and the generated `from_dict` truncates float ticks (`int(10000.5)` → 10000) instead of refusing them (Models review 2026-11 §9) | Low | Open |
-| L044 | 2026-11-23 | pm-engine (target-only commands) | `risk.kill_switch`, `quote.cancel` and `system.gateway_disconnect` name only the gateway they act on, so any PUSH client can cancel or disconnect any participant, and pm-admin's `KICK` reaches the audit trail as the target's own logout, unattributed and without an ack (Admin commands review 2026-11 §9) | Low | Open |
+| L044 | 2026-11-23 | pm-engine (target-only commands) | `risk.kill_switch`, `quote.cancel` and `system.gateway_disconnect` name only the gateway they act on, so any PUSH client can cancel or disconnect any participant, and pm-admin's `KICK` reaches the audit trail as the target's own logout, unattributed and without an ack (Admin commands review 2026-11 §9) | Low | Fixed 2026-11-24 (ADMIN `risk.gateway_kick` with ack and `admin.action`; the self-service messages stay, see entry) |
 | L045 | 2026-11-23 | deployment (container stop) | `stop_grace_period` is 30 s (60 s for ai-sim) while `pm-opctl-cli stop` may wait up to four 15 s waves; a slow engine stop is SIGKILLed by Docker before the recorders' wave (pm-opctl review 2026-11 §9) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
@@ -938,6 +938,34 @@ a `command_id`, an ack (`Gateway not configured` / `not connected` refusals)
 and an `admin.action` record, used by pm-admin and pm-api-gwy; the
 self-service messages stay for their own gateway, and the PUSH socket's reach
 (internal network) is the other half of the answer, as for L039.
+
+**Fixed (2026-11-24).** Decisions: the REST endpoint awaits the ack; an
+ADMIN's own id is refused; the bye names the ADMIN. `risk.gateway_kick`
+(`gateway_id` = the ADMIN caller, `target_gateway_id`, `note`, `command_id`)
+and `risk.gateway_kick_ack.{gateway_id}` are in `spec/messages/risk.yaml`;
+`admin.action` gained the action `gateway.kick`. `Engine._handle_gateway_kick`
+refuses a caller that is not connected or not ADMIN, a missing target, the
+caller's own id, `Gateway not configured: X` and `Gateway not connected: X`
+(each with an ack and an `admin.action`, nothing disconnected); otherwise it
+runs the ordinary disconnect path with the bye reason `kicked by <ADMIN>[:
+<note>]` (which clearing keeps as the session's `disconnect_reason`), so the
+target's `disconnect_behaviour` applies, and acknowledges after the
+disconnect's effects. `ExchangeCommandClient.gateway_kick` returns the ack;
+pm-admin `KICK` / pm-admin-cli `kick` report it (`KICK OK  X` or `REJECTED
+…`, exit 1) and no longer pre-check with `gateway_list()`. `POST
+/admin/gateways/{id}/disconnect` answers `200` with the ack or `409
+DISCONNECT_REJECTED` (was `202 PENDING_DISCONNECT` for any id); the
+trader-gui type follows. Sim forensics C13 judges a kick: an accepted one
+needs an ADMIN caller and ends exactly its target's session, a refused one
+ends none. `risk.kill_switch` and `quote.cancel` remain the participant's own
+messages and are still not authenticated: closing that needs the engine to
+know who sent a PUSH message, the network half above. Tests:
+`test_engine_admin_gateway_kick.py` (wired engine), `test_commands.py`,
+`test_commands_console.py`, `test_api_gateway_admin.py`,
+`test_api_gateway_admin_parity.py`, `test_sim_forensics_sweeps.py`, the
+trader-gui `adminGateways.test.tsx`. Books: operator guide (admin console),
+reference manual, REST reference, training ch. 19, architecture overview,
+generated message reference.
 
 
 ## L045 — The container's stop grace is shorter than pm-opctl's stop budget

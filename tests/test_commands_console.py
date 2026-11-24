@@ -57,8 +57,19 @@ class _FakeClient:
         )
         return {"accepted": True, "cancelled_orders": 3, "cancelled_quotes": 1}
 
-    def gateway_kick(self, gw: str, reason: str = "") -> None:
+    def gateway_kick(self, gw: str, reason: str = "") -> dict[str, Any]:
         self.calls.append(("gateway_kick", (gw,), {"reason": reason}))
+        target = gw.upper()
+        refusal = {
+            "NOSUCH01": "Gateway not configured: NOSUCH01",
+            "TRADER02": "Gateway not connected: TRADER02",
+        }.get(target, "")
+        return {
+            "gateway_id": "ADM01",
+            "target_gateway_id": target,
+            "accepted": not refusal,
+            "reason": refusal,
+        }
 
     def quote_cancel(self, gw: str, sym: str) -> dict[str, Any]:
         self.calls.append(("quote_cancel", (gw, sym), {}))
@@ -1160,9 +1171,12 @@ def test_position_of_a_disconnected_gateway_says_so(
         ("trader02", "Gateway not connected: TRADER02"),
     ],
 )
-def test_kick_refuses_an_unknown_or_disconnected_gateway(
+def test_kick_reports_the_engines_refusal(
     monkeypatch: pytest.MonkeyPatch, gw: str, reason: str
 ) -> None:
+    """L044: the engine refuses an unknown or disconnected id itself, so
+    KICK sends the command and reports the ack instead of asking
+    gateway_list() first (a check that raced the engine anyway)."""
     printed = _capture_print(monkeypatch)
     client = _FakeClient()
     ok, result = console_mod.execute_command(
@@ -1170,21 +1184,23 @@ def test_kick_refuses_an_unknown_or_disconnected_gateway(
     )
     assert ok is False
     assert result["reason"] == reason and reason in _text(printed)
-    assert "gateway_kick" not in [c[0] for c in client.calls]
+    assert [c[0] for c in client.calls] == ["gateway_kick"]
 
 
-def test_kick_of_a_connected_gateway_sends_the_disconnect(
+def test_kick_of_a_connected_gateway_reports_the_ack(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _capture_print(monkeypatch)
+    printed = _capture_print(monkeypatch)
     client = _FakeClient()
     ok, result = console_mod.execute_command(
         cast(ExchangeCommandClient, client),
         "KICK",
         {"GW": "trader01", "REASON": "hold"},
     )
-    assert ok is True and result == {"gateway_id": "TRADER01"}
+    assert ok is True
+    assert result["accepted"] is True and result["target_gateway_id"] == "TRADER01"
     assert ("gateway_kick", ("trader01",), {"reason": "hold"}) in client.calls
+    assert "KICK OK[/yellow]  TRADER01" in _text(printed)
 
 
 # ---------------------------------------------------------------------------
