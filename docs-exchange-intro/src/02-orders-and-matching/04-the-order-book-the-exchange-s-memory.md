@@ -66,7 +66,7 @@ Modern CPUs are fast enough that raw instruction throughput is rarely the bottle
 
 **Co-location and deterministic networking.** Exchanges offer co-location services where participants place their servers in the same data centre, with equalised cable lengths to ensure fair, low-latency access. The exchange's own matching infrastructure is connected via cut-through switches with sub-microsecond forwarding latency.
 
-The cumulative effect of these techniques is that a modern exchange can process an order, match it against resting liquidity, update the book, generate execution reports, and publish market data, all in well under 10 microseconds from the moment the network packet arrives.
+The cumulative effect of these techniques is that a modern exchange can process an order, match it against resting liquidity, update the book, generate execution reports, and publish market data within a few tens of microseconds of the network packet arriving, and the fastest venues advertise internal latencies in single-digit microseconds.
 
 ## The Data Structure in Detail: Three Operations, Step by Step
 

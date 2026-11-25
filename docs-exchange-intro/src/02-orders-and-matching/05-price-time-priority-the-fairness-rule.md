@@ -15,7 +15,7 @@ This seems simple, but it has profound implications. It means:
 - Participants are incentivised to act quickly, at any given price, being early is an advantage.
 - It is completely transparent and deterministic, the exchange's matching rules are known in advance, equally to everyone.
 
-Price-time priority is the default on NYSE, NASDAQ, CME, Eurex, LSE, and virtually every major exchange [1]. Price-time FIFO is dominant in equities markets, but derivatives markets sometimes use alternative allocation rules. The most common alternative is **pro-rata**, where fills at a price level are distributed proportionally to the size of each resting order. To make the difference concrete:
+Price-time priority is the default on NASDAQ, CME, Eurex, LSE, and virtually every major exchange [1]. (The NYSE is a well-known variation: the order that first *set* the best price gets priority for the first execution there, after which fills at that price are shared on "parity" among the book, the floor brokers and the Designated Market Maker, a legacy of its floor-based past.) Price-time FIFO is dominant in equities markets, but derivatives markets sometimes use alternative allocation rules. The most common alternative is **pro-rata**, where fills at a price level are distributed proportionally to the size of each resting order. To make the difference concrete:
 
 **Example:** 60 lots are available to sell at a price. Two buy orders are resting at that price: Order X for 100 lots (arrived first) and Order Y for 40 lots (arrived second).
 
@@ -44,7 +44,7 @@ Applied to the three common amendment types:
 
 **Quantity decrease → priority is retained.** If a resting order is amended downward from 1,000 shares to 200 shares, the timestamp and queue position are unchanged. The logic: the order is conceding some of its claim, not expanding it. This is a concession that favours other participants (more liquidity becomes available behind it), so there is no fairness reason to penalise it.
 
-These rules hold on NYSE, NASDAQ, CME, Eurex, LSE, and virtually every other major exchange. They are sometimes informally summarised as: *increasing your claim loses priority; decreasing your claim does not.*
+These rules hold, with minor local variations, on virtually every major exchange. They are sometimes informally summarised as: *increasing your claim loses priority; decreasing your claim does not.*
 
 **Cancel-and-replace.** Some participants, particularly market makers who update quotes frequently, do not amend orders but instead cancel the old order and submit a new one. The new order always gets a fresh timestamp at the back of the queue, there is no way to retain priority through a cancel-replace. Some systems provide an **order modify** message specifically to allow quantity reductions without losing priority; using a cancel-replace when you only want to decrease size is a mistake that costs queue position unnecessarily.
 
@@ -54,5 +54,5 @@ These rules hold on NYSE, NASDAQ, CME, Eurex, LSE, and virtually every other maj
 
 Prices in financial markets do not move continuously. They move in discrete steps called **ticks**. The minimum price movement is the **tick size**. Tick size is the reason two prices can be safely compared for priority at all, without it, "better price" would be a question with infinitely many possible answers between any two quotes.
 
-For most US equities, the tick size is $0.01 (one cent); for equity index futures on CME it varies by product; EUR/USD in the interbank market moves in **pips** (0.0001 of the exchange rate). This is only the surface of the topic, tick size interacts with price representation, regulation, and market structure in ways that cause real numerical bugs when misunderstood, so it gets a full chapter of its own immediately following this one: *Tick Sizes and Fractional Ticks*.
+For most US equities, the tick size is $0.01 (one cent); for equity index futures on CME it varies by product; EUR/USD in the interbank market is quoted in **pips** (0.0001 of the exchange rate), and today often in tenths of a pip. This is only the surface of the topic, tick size interacts with price representation, regulation, and market structure in ways that cause real numerical bugs when misunderstood, so it gets a full chapter of its own immediately following this one: *Tick Sizes and Fractional Ticks*.
 

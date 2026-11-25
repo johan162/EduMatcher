@@ -7,7 +7,7 @@
 
 ## Market Maker Obligations
 
-Being a designated market maker is not a free lunch. The exchange grants privileges, reduced fees, faster data access, and in some markets priority access to certain order flow, but in return imposes binding contractual obligations. These are monitored continuously in real time. Failing to meet them results in financial penalties or loss of market maker status.
+Being a designated market maker is not a free lunch. The exchange grants privileges, reduced fees or rebates and, in some markets, priority or guaranteed allocations on certain order flow, but in return imposes binding contractual obligations. These are monitored continuously in real time. Failing to meet them results in financial penalties or loss of market maker status.
 
 The typical obligations, in descending order of fundamentality, are:
 
@@ -19,7 +19,7 @@ The typical obligations, in descending order of fundamentality, are:
 
 **4. Maximum distance from mid.** Quotes must remain within a specified distance of the current mid price. Quoting a bid at $100 and an ask at $200 on a $150 stock satisfies the letter of two-sided quoting but not its spirit.
 
-**5. Presence obligation.** The market maker must be actively quoting for at least a specified percentage of the trading session, commonly 85% or more. This prevents market makers from only quoting on easy days and disappearing on volatile ones when liquidity is most needed.
+**5. Presence obligation.** The market maker must be actively quoting for at least a specified percentage of the trading session. The figure depends on the venue and the programme: in the EU, MiFID II sets a floor of half the trading day for any formal market-making agreement, and many programmes demand far more, often 80–90%. This prevents market makers from only quoting on easy days and disappearing on volatile ones when liquidity is most needed.
 
 **6. Re-quoting obligation.** After either side of a quote is filled, the market maker must post a fresh replacement quote within a specified maximum delay, typically a few hundred milliseconds to a few seconds depending on the product and exchange. The exchange system must track fill events and monitor whether replacement quotes arrive in time.
 

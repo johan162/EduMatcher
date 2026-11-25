@@ -7,7 +7,7 @@ Let us trace the life of a complex event through the entire system using the voc
 
 **Step 1:** The investor's trading system sends the order to the exchange gateway (GW03). The gateway parses the FIX message, validates the format, and forwards it to the matching engine.
 
-**Step 2:** The engine receives the order, assigns it a unique order ID (say, `f3a7-... ` UUID) and a nanosecond timestamp. Status: NEW. The engine acknowledges to GW03.
+**Step 2:** The engine receives the order, assigns it a unique order ID (say, `f3a7…`, a random 128-bit identifier) and a nanosecond timestamp. Status: NEW. The engine acknowledges to GW03.
 
 **Step 3:** The engine checks the order type: LIMIT SELL at $150.20. Since the best bid is $150.35 (above the limit price), this order will immediately sweep the buy side.
 
@@ -16,7 +16,7 @@ Let us trace the life of a complex event through the entire system using the voc
 - An iceberg order's visible 500-share peak at $150.30 gets filled, triggering replenishment from the hidden reserve.
 - Several DAY limit orders at $150.25 get partially or fully filled.
 
-**Step 5:** After each fill, the engine updates `last_trade_price`. Some engines also keep the last price per aggressor side; here the seller was the aggressor, so `last_sell_price` also becomes $150.35. Certain stop-order variants use these per-side prices as their trigger.
+**Step 5:** After each fill, the engine updates `last_trade_price`. Some engines also keep the last price per aggressor side; here the seller was the aggressor, so `last_sell_price` follows the fills down as well: $150.35 after the first fill, $150.25 by the end of Step 4. Certain stop-order variants use these per-side prices as their trigger.
 
 **Step 6:** The engine checks dormant stops. Does the new `last_trade_price` trigger any waiting stop orders? Suppose a buy stop at $150.40 was waiting, but the price just moved down, not up, so it does not trigger. A sell stop at $150.30 was waiting, the last trade price of $150.25 is now below $150.30, so this sell stop triggers, converting to a market sell order and immediately joining the sweep.
 

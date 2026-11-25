@@ -11,17 +11,17 @@ Status: Published
 
 # Preface to the Second Edition
 
-This book is still for the person who have started in the fin-tech world wthout a financial background. 
-You may be an expert in your field but that will not help you when you are faced with a barrage of unfamiliar acronyms
-that people trow around like candy expecting you to understand and act on. This was the situation I found myself in
-a long time ago and this is the book I whished someone had handed to me back then. It would surely have made my journey
-so much faster and easier.  
+This book is still for anyone who has started out in the fintech world without a financial background.
+You may be an expert in your own field, but that will not help much when you face a barrage of unfamiliar acronyms
+that people throw around like candy and expect you to understand and act on. I found myself in exactly that situation
+a long time ago, and this is the book I wished someone had handed me back then. It would have made my journey
+much faster and a good deal easier.
 
 The first edition focused on giving the reader a map. This second edition keeps the same promise, almost no code-first deep dives, no equations for their own sake, just concepts that make the system legible, but the map is now wider, denser, and more practical. Compared with the first edition, this edition adds well over a thousand lines of new material and rewrites key chapters that were a bit too brief in the first pass where obviously my aspiration to keep it short sometimes conflicted with the need for completeness and understandability. Some pseudo-code has in addition been added where it helps clarify the mechanics, but the focus is still on concepts, not implementation. The goal is still to give you a mental model that lets you reason about the system, not just translate jargon.
 
 The largest expansion is in the implied-orders material, which has been rebuilt from a short overview into two full chapters placed at the end of Part II, once the order book and the matching engine are familiar. The first is a complete walkthrough: the spread sign convention, a vector model from which every implied price formula follows, quantity, depth and priority rules, tick alignment, market-data publication, a first-generation algorithm, engineering invariants, and self-check exercises with worked solutions. The second follows chains of implied orders across many contract months and shows why every venue must limit how far implication is allowed to reach. The order-book chapter has also been expanded from concept to implementation shape: cache behavior, memory layout, single-threaded matching partitions, pool allocation, and step-by-step insert/cancel/sweep mechanics, including determinism concerns.
 
-Several missing bridge topics are also now included explicitly. Part I this time around closes with listing (including the part black-magic art of IPO valuation) and delisting mechanics (initial and continued standards, cure periods, reverse splits, voluntary delisting, direct listings, and SPAC pathways). Part II adds round-lot vs odd-lot treatment and a dedicated tick-size chapter (Rule 612, historical fraction pricing, Tick Size Pilot, and midpoint rounding). The auction material has been upgraded with auction-only order types, opening/closing cross mechanics, and manipulation-at-the-close context.
+Several missing bridge topics are also now included explicitly. Part I now closes with listing (including the half-science, half-black-magic art of IPO valuation) and delisting mechanics (initial and continued standards, cure periods, reverse splits, voluntary delisting, direct listings, and SPAC pathways). Part II adds round-lot vs odd-lot treatment and a dedicated tick-size chapter (Rule 612, historical fraction pricing, Tick Size Pilot, and midpoint rounding). The auction material has been upgraded with auction-only order types, opening/closing cross mechanics, and manipulation-at-the-close context.
 
 Beyond core matching, this edition also adds the operational and structural topics developers eventually run into: benchmark integrity (LIBOR and FX fix case studies), trade busting and clearly erroneous handling, conformance testing and onboarding drift, market-data economics (SIP vs proprietary feeds, locked/crossed markets), fixed-income microstructure, crypto venue differences, and options expiry mechanics (exercise, assignment, settlement type, and pin risk).
 
@@ -29,7 +29,7 @@ So yes, the document is longer now. That is deliberate. The first edition tried 
 
 As before, this is an introduction, not a rulebook. Exchange rulebooks and venue technical specifications remain the final authority. But if this second edition helps you move from terminology to reasoning faster, it has done its job. The reference section includes the publicly available reference material many details in this book draw from to be as exact as possible.
 
-Reasonable efforts have been made to ensure accuracy, but it would be foolish of me to believe that I during some late night/early morning while editing this book didn't swap some bid/ask columns or simply forgot a whole section I had in my notes or my mind. 
+Reasonable efforts have been made to ensure accuracy, but it would be foolish of me to believe that I never, during some late night or early morning of editing, swapped a pair of bid/ask columns or simply forgot a whole section that existed only in my notes or in my head.
 
 Enjoy the pleasure of finding things out and the triumph of being sure that the author was provably wrong! 
 So, any typos, missing signs, bad explanations/grammar or faults otherwise, are mine and mine alone. I have no-one to blame!
@@ -42,13 +42,13 @@ Second Edition, Winter 2026, Järnboås Socken, Sweden
 
 # Preface to the First Edition
 
-This is a book for anyone who finds themselves having been asked to work in the finacial industry and yet, has no financial background. Scary. The air is full of new acronyms like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many, many more. These are not arbitrary names; each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened to be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50-ish years ago the terms did not yet exist and you would have seen them come to life organically.
+This is a book for anyone who finds themselves having been asked to work in the financial industry and yet, has no financial background. Scary. The air is full of new jargon and acronyms like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many, many more. These are not arbitrary names; each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened to be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50-ish years ago the terms did not yet exist and you would have seen them come to life organically.
 
 My goal with this book is simple: give you the conceptual vocabulary so that when someone says "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt," you nod instead of panic. No code. No math. Just the map of the territory your code inhabits.
 
 I have tried to keep things brief: each concept gets only as much space as it needs to be useful, and not a page more. Where I have necessarily oversimplified, you will find pointers at the end to the proper academic treatments (hundreds of pages of the hard stuff) for those rare evenings when you feel brave (or masochistic) enough to dive deeper. I make that promise with a clear conscience, because I spent rather too many evenings, and far too many weekends, working through the classic finance texts listed in the references, which served as the primary sources for this little book. If I am honest, this booklet is really nothing more than my own "lecture notes" from all that reading, tidied up and handed to you so you can skip the long way round. In the reference section you can find micro-reviews of all the books I used and taken inspiration from. You can also discover my own personal favourite! 
 
-This is an introduction, not a specification. Real exchanges are far more complex, and their official rulebooks are the final word. Think of this as the document I wish someone had handed me on day one I started to work in this world. I hope it helps you get up to speed faster than I did.
+This is an introduction, not a specification. Real exchanges are far more complex, and their official rulebooks are the final word. Think of this as the document I wish someone had handed me on my first day in this world. I hope it helps you get up to speed faster than I did.
 
 Reasonable efforts have been made to ensure accuracy, but as usual any remaining errors are entirely my fault. If you find mistakes or have suggestions, please let me know at *johan162@gmail.com* I genuinely appreciate it!
 

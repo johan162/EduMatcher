@@ -30,7 +30,7 @@ The limit price is a *floor* for sellers and a *ceiling* for buyers. The actual 
 
 Traders sometimes loosely call that $0.10 "improvement over the limit", but in the industry the term **price improvement** means something narrower: a fill at a better price than the best price publicly quoted at that moment. If the best displayed ask across the market is $150.30 and your buy order fills at $150.28, you received $0.02 of price improvement. This happens when your order meets hidden liquidity inside the spread, for example a midpoint order (described later in this chapter), or a market maker who chooses to fill you at a better price than its public quote.
 
-Price improvement matters for execution quality analysis. In the US, SEC Rule 605 requires market centres (and, since the SEC's 2024 amendments, larger broker-dealers too) to publish monthly statistics on execution quality, including how often orders received price improvement versus the quoted price. Large retail brokers like Fidelity and Charles Schwab report that a significant percentage of their retail orders receive price improvement, particularly small orders routed to market makers who can beat the NBBO (the best bid and offer across all exchanges) [1].
+Price improvement matters for execution quality analysis. In the US, SEC Rule 605 requires market centres (and, under amendments adopted in 2024 and in force since August 2026, larger broker-dealers too) to publish monthly statistics on execution quality, including how often orders received price improvement versus the quoted price. Large retail brokers like Fidelity and Charles Schwab report that a significant percentage of their retail orders receive price improvement, particularly small orders routed to market makers who can beat the NBBO (the best bid and offer across all exchanges).
 
 ## Market Orders
 
@@ -148,7 +148,7 @@ Neither party showed their intention in the lit book, avoiding the price impact 
 
 **Who uses midpoint pegs?**
 
-Midpoint pegs are primarily used by institutional investors, mutual funds, pension funds, hedge funds, who have large orders, are price-sensitive, and are not urgently time-pressured. They have enough time to wait for a natural counterparty at the midpoint. High-frequency traders and market makers generally do not use midpoint pegs because they need execution certainty, not price improvement at the cost of uncertain timing.
+Midpoint pegs are primarily used by institutional investors, mutual funds, pension funds, hedge funds, who have large orders, are price-sensitive, and are not urgently time-pressured. They have enough time to wait for a natural counterparty at the midpoint. High-frequency traders and market makers are less likely to *rest* midpoint pegs: their business depends on controlling exactly when and at what price they trade, and a passive order with an uncertain fill time and a moving price gives them neither.
 
 **The trade-offs.**
 
@@ -160,7 +160,7 @@ The mid price itself also moves continuously. An institution submitting a midpoi
 
 In a dark pool, the entire book is hidden, so a midpoint peg buyer and a midpoint peg seller can find each other without either revealing their interest to the lit market. The dark pool operator runs a separate matching process against the midpoint.
 
-On IEX (a lit exchange), midpoint pegs work slightly differently. The midpoint peg sits passively at the mid. An *aggressive* order, a sell order willing to accept a price at or below the mid, arrives from a participant routing to IEX. That aggressive sell is priced at or below $150.325 and matches the resting midpoint peg buy at the mid. The aggressive seller "crosses to mid" by accepting the mid price instead of demanding the full ask. They receive $150.325, still better than the bid ($150.30), and the midpoint peg buyer gets their fill at $150.325 instead of paying the ask ($150.35). IEX's speed bump (350 microseconds) is relevant here: it prevents fast-moving quotes from making the midpoint stale before the fill occurs, ensuring the mid price used in the match is genuinely current.
+On IEX (a lit exchange), midpoint pegs work slightly differently. The midpoint peg sits passively at the mid. An *aggressive* order, a sell order willing to accept a price at or below the mid, arrives from a participant routing to IEX. That aggressive sell is priced at or below $150.325 and matches the resting midpoint peg buy at the mid. The aggressive seller "crosses to mid" by accepting the mid price instead of demanding the full ask. They receive $150.325, still better than the bid ($150.30), and the midpoint peg buyer gets their fill at $150.325 instead of paying the ask ($150.35). IEX's speed bump (350 microseconds) is relevant here. Every incoming order is delayed by 350 microseconds, but IEX's own view of the market, and therefore the price of its resting pegs, is not. When prices elsewhere move, IEX can re-price its midpoint pegs before a fast trader who saw the same move can arrive and pick them off at the old, stale midpoint.
 
 **The developer perspective.**
 

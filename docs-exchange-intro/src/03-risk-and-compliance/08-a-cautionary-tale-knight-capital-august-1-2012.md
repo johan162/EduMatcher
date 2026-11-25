@@ -39,7 +39,7 @@ By 10:15am the damage was done. Knight announced a pre-tax loss of about **$440 
 
 ## The Aftermath
 
-Knight survived only through an emergency capital injection arranged over the following two days. A consortium of investment firms provided $400 million in rescue financing in exchange for equity stakes that gave them majority ownership. Effectively, Knight Capital ceased to exist as an independent firm. Several months later, what remained of Knight merged with Getco LLC to form KCG Holdings, which was eventually acquired by Virtu Financial in 2017.
+Knight survived only through an emergency capital injection, negotiated over the following weekend and announced on Monday, 6 August. A consortium of investment firms provided $400 million in rescue financing in exchange for equity stakes that gave them majority ownership. Effectively, Knight Capital ceased to exist as an independent firm. Several months later, what remained of Knight merged with Getco LLC to form KCG Holdings, which was eventually acquired by Virtu Financial in 2017.
 
 ## What Went Wrong: A Technical Post-Mortem
 

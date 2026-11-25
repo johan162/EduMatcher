@@ -23,7 +23,7 @@ The second option is to borrow money. Borrowed money must be repaid, with intere
 
 **Bonds** solve the scale problem by spreading the borrowing across many lenders. A bond is a standardised piece of debt. A company issues a bond with a **face value** (say, $1,000), a **coupon rate** (say, 5% per year), and a **maturity date** (say, 10 years from now). The investor who buys the bond lends the company $1,000 today. In return, the company promises to pay $50 per year (5% of $1,000) as regular interest payments (these periodic payments are called **coupons**, named after the physical coupon slips investors used to cut off and redeem before the digital age), and to repay the full $1,000 when the bond matures in 10 years.
 
-A large company might issue millions of these bonds simultaneously, raising hundreds of millions of dollars from thousands of individual investors. Those investors may want their money back before the bond matures, so they need a way to sell the bond on to someone else. That is why bonds, just like shares, trade on exchanges and other electronic markets.
+A large company might issue hundreds of thousands of these bonds at once, raising hundreds of millions of dollars from many different investors. Those investors may want their money back before the bond matures, so they need a way to sell the bond on to someone else. That is why bonds, just like shares, trade on exchanges and other electronic markets.
 
 **The key characteristic of debt:** the company has an unconditional obligation to make the promised payments. If it cannot, it is in default, which can lead to bankruptcy proceedings. Bondholders are **creditors**: they have a legal claim against the company's assets. In a bankruptcy, creditors get paid before the company's owners.
 
@@ -45,7 +45,7 @@ Here is the important distinction from debt: **there is no promise of repayment*
 
 - **Limited liability:** If the company goes bankrupt, shareholders can lose the money they invested, but nothing more. They are not personally liable for the company's debts. This protection ("limited liability") is a fundamental feature of the modern corporation and one reason equity investment became widespread.
 
-- **Market capitalisation (market cap):** The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190 (roughly its position in 2023), Apple's market cap is 15.4 billion × $190 ≈ $2.9 trillion [1]. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.
+- **Market capitalisation (market cap):** The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190 (roughly its position in 2023), Apple's market cap is 15.4 billion × $190 ≈ $2.9 trillion. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.
 
 **What does ownership mean for the company?**
 
@@ -73,7 +73,7 @@ The consequence:
 | Payment priority in bankruptcy | Paid first | Paid last (residual) |
 | Risk to investor | Lower (predictable return) | Higher (no guaranteed return) |
 | Dilutes ownership? | No | Yes |
-| Upside potential | Capped (only the promised coupons) | Unlimited (shares in a successful company grow without limit) |
+| Upside potential | Capped (only the promised coupons) | No ceiling (a successful company's shares can rise many times over) |
 
 A sophisticated investor builds a **portfolio** that mixes both: bonds for predictable income and capital preservation, equities for growth potential. The entire investment industry, pension funds, mutual funds, hedge funds, is built around managing this balance.
 
@@ -86,11 +86,11 @@ At some point, usually when the company has proven its business model and needs 
 In an IPO:
 
 1. The company works with **investment banks** to **underwrite** the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a **roadshow**, a series of presentations to large **institutional investors** (pension funds, insurance companies, fund managers), to gauge demand and set the final price. They rarely actually get stuck holding the shares.
-2. New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).
+2. New shares are created and sold, with the proceeds going directly to the company. Often some existing shares are sold alongside them by early investors who are "cashing out" part of their stakes; that money goes to those investors, not to the company.
 3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
 4. From that moment, anyone can buy or sell the shares through the exchange.
 
-Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its December 2019 IPO on the Saudi Exchange (Tadawul), later increased to about $29.4 billion when the underwriters exercised their over-allotment option (the right to sell extra shares when demand is strong, covered in *Listing and Delisting Mechanics*) [1]; Alibaba raised $21.8 billion on NYSE in 2014, about $25 billion including the over-allotment [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
+Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its December 2019 IPO on the Saudi Exchange (Tadawul), later increased to about $29.4 billion when the underwriters exercised their over-allotment option (the right to sell extra shares when demand is strong, covered in *Listing and Delisting Mechanics*); Alibaba raised $21.8 billion on NYSE in 2014, about $25 billion including the over-allotment; Arm Holdings raised $4.9 billion on NASDAQ in September 2023. Each of these companies brought enormous new pools of capital onto public markets. 
 
 All of them were dwarfed in June 2026, when SpaceX listed on NASDAQ (ticker: SPCX) in the largest IPO by proceeds in history. Priced on 11 June at $135 per share, raising about $75 billion before the over-allotment, the offering implied a valuation of approximately $1.77 trillion; on its first trading day, 12 June, the stock closed at about $161, up roughly 19%, putting the company's market cap at about $2.1 trillion [Initial public offering of SpaceX, Wikipedia; CoinDesk, 11 June 2026]. Note that the price of a single share says nothing about how large or how good the company is. It is simply the total valuation divided by the number of shares, and the company and its underwriters can choose the share count almost freely. A $135 share in a $1.77 trillion company is perfectly normal. (*The Language of the Market* explains the old "blue chip" rule of thumb, which used $200 a share as the mark of a premium stock in the 1920s. That was a figure of its era, never a rule, and it tells you nothing about a company listing a century later.)
 
