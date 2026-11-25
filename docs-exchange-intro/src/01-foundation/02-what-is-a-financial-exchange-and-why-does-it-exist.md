@@ -5,7 +5,9 @@
 
 Imagine you own 1,000 shares of a technology company (you understand now what that means: you own a tiny fraction of that company, acquired when you bought the shares from a previous owner on the secondary market) and you want to sell them. Somewhere out there, someone wants to buy exactly 1,000 shares of that same company at roughly the price you have in mind. The problem is finding each other.
 
-Before modern exchanges existed, this "finding" problem was enormous. Stock trading happened in coffee houses, in the street (London's brokers congregated in the narrow lane called Exchange Alley and its coffee houses), or through networks of personal contacts. One of the first places on record was Jonathan's Coffee House, the forerunner of the London Stock Exchange, opened around 1680 by Jonathan Miles; Jonathan's became the primary gathering place for stock brokers [10]. The brokers had not come entirely voluntarily: in the 17th century they were not allowed in the Royal Exchange, reportedly because of their rude manners, so they took their business, and their noise, to the coffee houses nearby. In 1698 a broker at Jonathan's named John Castaing began publishing a regular list of prices, *The Course of the Exchange*: arguably the first market-data feed, with a latency of several days.  Prices were inconsistent, you might sell at one price while, moments later, someone else sold the same shares at a very different price. There was no guarantee you were getting a fair deal, and there was no way to know what "fair" even meant.
+Before modern exchanges existed, this "finding" problem was enormous. Stock trading happened in coffee houses, in the street (London's brokers congregated in the narrow lane called Exchange Alley and its coffee houses), or through networks of personal contacts. One of the first places on record was Jonathan's Coffee House, the forerunner of the London Stock Exchange, opened around 1680 by Jonathan Miles; Jonathan's became the primary gathering place for stock brokers [10]. The brokers had not come entirely voluntarily: in the 17th century they were not allowed in the Royal Exchange, reportedly because of their rude manners, so they took their business, and their noise, to the coffee houses nearby. In 1698 a broker at Jonathan's named John Castaing began publishing a regular list of prices, *The Course of the Exchange*: arguably the first market-data feed, with a latency of several days.
+
+Even so, prices were inconsistent: you might sell at one price while, moments later, someone else sold the same shares at a very different price. There was no guarantee you were getting a fair deal, and there was no way to know what "fair" even meant.
 
 > **Auctions by the Candle**
 >
@@ -23,7 +25,7 @@ Exchanges are the most visible places where buyers and sellers are matched, but 
 
 Every exchange makes three implicit promises to its participants:
 
-**1. Price discovery.** At any moment, the current price of an asset reflects the aggregate opinion of all participants currently willing to trade it. You can look at the market and see what "fair value" is right now.
+**1. Price discovery.** At any moment, the current price of an asset reflects the combined opinion of everyone currently willing to trade it. You can look at the market and see its best present estimate of what the asset is worth, not a guarantee of value, but an honest, public consensus.
 
 **2. Liquidity.** You can convert your asset into cash (or vice versa) quickly, without having to wait indefinitely for a counterparty to appear. The exchange provides the infrastructure that makes counterparties findable.
 

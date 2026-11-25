@@ -1,3 +1,17 @@
+## [v0.84.2] - 2026-11-25
+
+Release Type: patch
+
+### 📋 Summary
+This patch refreshes the Exchange Introduction and presentation materials, fixes documentation-build compatibility, and improves the clean-history guidance.
+
+### 🐛 Bug Fixes
+- Fixed Exchange Introduction builds on macOS and Linux by restoring the missing phony target and platform-compatible copy handling
+
+### 📚 Documentation
+- Updated the Exchange Introduction to 2.0.4 with corrected facts, references, glossary entries, prose, and implied-liquidity examples
+- Updated the lattice-based option-pricing presentation
+
 ## [v0.84.1] - 2026-11-24
 
 Release Type: minor

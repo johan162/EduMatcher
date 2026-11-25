@@ -5,7 +5,7 @@
 
 ## The Problem
 
-Imagine a market maker who runs two algorithms simultaneously, one placing bids, another sweeping asks. If the bid algorithm quotes $150.30 and the ask algorithm routes a buy order at $150.30 or higher, the two sides match against each other. No ownership has changed hands; no real trade has occurred. Both sides belong to the same firm.
+Imagine a market maker who runs two algorithms simultaneously: one rests bids in the book, the other trades aggressively whenever its model says so. If the first algorithm is bidding $150.30 and the second decides to sell, sending a sell order at $150.30 or lower, the two orders match against each other. No ownership has changed hands; no real trade has occurred. Both sides belong to the same firm.
 
 This is called a **wash trade**. It is problematic for several reasons:
 
@@ -17,13 +17,13 @@ This is called a **wash trade**. It is problematic for several reasons:
 
 SMP detects the wash condition and applies one of several policies before any fill occurs:
 
-**Cancel the aggressor** (most common default): The incoming order is cancelled. The resting order remains in the book, available to other participants. Use this when you want to protect your standing quotes from being inadvertently swept by your own algorithms.
+**Cancel the aggressor** (a common default): The incoming order is cancelled. The resting order remains in the book, available to other participants. Use this when you want to protect your standing quotes from being inadvertently swept by your own algorithms.
 
 **Cancel the resting order**: The resting order is cancelled; the incoming order continues to sweep looking for a different counterparty. Use this when the new order reflects a more current view of value and should supersede the old one.
 
 **Cancel both**: Both the resting and incoming order are cancelled. Use this when you want to eliminate both sides cleanly, for example, when re-positioning and wanting neither order to remain active.
 
-**Allow the match (no SMP)**: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. Venues differ in the default: some apply SMP to every order, while others (CME, for example) make it optional and leave it to the participant to tag orders that must never match each other.
+**Allow the match (no SMP)**: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. Venues differ in the default: some apply SMP to every order, while others (CME, for example) make it optional and leave it to the participant to tag orders that must never match each other. Defaults for the policy differ too: when a CME participant tags its orders but does not say which side to cancel, Globex cancels the *resting* order.
 
 ## How SMP Identifies a Self-Match
 

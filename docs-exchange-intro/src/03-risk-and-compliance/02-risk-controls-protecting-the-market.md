@@ -9,7 +9,7 @@ A **circuit breaker** (also called a **trading curb** in some regulatory context
 
 **Why they exist:** In modern electronic markets, automated trading algorithms can drive prices far from fundamental value in seconds. The **2010 Flash Crash** saw the Dow Jones Industrial Average fall nearly 1,000 points in minutes before recovering [7]. Circuit breakers prevent such cascades from becoming permanent damage by imposing a mandatory pause during which participants can assess the situation, cancel erroneous orders, re-price their quotes, and allow the market to find equilibrium. A halt that lasts five minutes can prevent a price dislocation that might otherwise take hours or days to unwind.
 
-The origin of circuit breakers is the **Black Monday crash of 19 October 1987**, when US markets fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the *Black Monday and the Origin of Circuit Breakers* section of Part I.
+The origin of circuit breakers is the **Black Monday crash of 19 October 1987**, when the Dow Jones Industrial Average fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the *Black Monday and the Origin of Circuit Breakers* section of Part I.
 
 **The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching, this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
 
@@ -49,13 +49,13 @@ These market-wide halts are rare; Level 1 was triggered four times in March 2020
 
 For individual stocks, the US LULD system takes a complementary approach: rather than varying the halt duration by severity, it varies the *trigger band* by instrument type, acknowledging that normal volatility differs across stocks.
 
-| Tier | Instruments | Band during regular hours | Band in early/late sessions |
+| Tier | Instruments | Band, 9:30am–3:35pm | Band in the last 25 minutes (3:35–4:00pm) |
 |---|---|---|---|
-| **Tier 1** | S&P 500, Russell 1000, selected ETFs (priced above $3) | ±5% | ±10% |
-| **Tier 2** | Other NMS stocks (priced above $3) | ±10% | ±20% |
+| **Tier 1** | S&P 500, Russell 1000, selected ETPs (priced above $3) | ±5% | ±10% (doubled) |
+| **Tier 2** | Other NMS stocks (priced above $3) | ±10% | ±10% (not doubled) |
 | **Leveraged ETPs** | Band multiplied by the product's leverage factor | Wider, per the plan's rules | Wider still |
 
-(ETPs, exchange-traded products, are the wider family that includes ETFs. Stocks priced at $3 or below have wider bands. The doubled "early/late" bands apply before 9:45am and after 3:35pm.) The bands are recalculated continuously from a reference price, the average trade price over the preceding five minutes. Trades outside the band are simply not allowed. If the best bid or offer sits exactly at the band (a **limit state**) and does not recover within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
+(ETPs, exchange-traded products, are the wider family that includes ETFs. Stocks priced at $3 or below have wider bands, which are also doubled near the close. Until February 2020 the bands were doubled in the first fifteen minutes of trading as well, and for every tier near the close; a plan amendment removed both, a reminder that even well-established parameters change and belong in configuration, not code.) The bands are recalculated continuously from a reference price, the average trade price over the preceding five minutes (updated only when it has moved by at least 1%). Trades outside the band are simply not allowed. If the best bid or offer sits exactly at the band (a **limit state**) and does not recover within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
 
 ## The 2020 COVID-19 Circuit Breaker Events
 
@@ -89,7 +89,7 @@ Every real-world example in this section so far shows circuit breakers working r
 
 On 1 January 2016, China's CSRC introduced a market-wide circuit-breaker system for the CSI 300 index, modelled in broad outline on the US approach described above but with its own thresholds: a 5% decline triggered a 15-minute market-wide halt, and a 7% decline closed the market for the remainder of the day. The system was live for only four trading days. On 4 January 2016, the market fell 5%, triggering the 15-minute halt; trading resumed only to fall through the 7% threshold within minutes, closing the market for the day. On 7 January, the same sequence repeated even faster, the market closed for the day within roughly thirty minutes of the open. The CSRC suspended the entire mechanism after this second event, just four days after introducing it.
 
-The design flaw was the narrow **gap between the two thresholds** (5% and 7%, only two percentage points apart) combined with a **single index-wide trigger for a market with unusually large retail participation**: once the 5% halt was reached, rational participants anticipating that a further, small additional decline would close the market entirely for the day had a strong incentive to sell *immediately* upon resumption, to exit before the second, harsher halt made their positions unsellable until the next session. The circuit breaker, intended to give participants time to calm down and reassess, instead concentrated urgent selling into the narrow reopening window, the opposite of its purpose. This is a direct, real-world confirmation of the design principle raised earlier in this section, that threshold spacing and halt duration must be calibrated together, and it is the reason the wider gaps in the US system (7%, 13%, 20%, each roughly double the previous) and Japan's continuous-limit approach (below) are not arbitrary choices but responses to exactly this kind of failure mode. [China Securities Regulatory Commission public statements, January 2016; contemporary reporting including *Reuters*, "China scraps circuit breaker after just four days," 7 January 2016.]
+The design flaw was the narrow **gap between the two thresholds** (5% and 7%, only two percentage points apart) combined with a **single index-wide trigger for a market with unusually large retail participation**: once the 5% halt was reached, rational participants anticipating that a further, small additional decline would close the market entirely for the day had a strong incentive to sell *immediately* upon resumption, to exit before the second, harsher halt made their positions unsellable until the next session. The circuit breaker, intended to give participants time to calm down and reassess, instead concentrated urgent selling into the narrow reopening window, the opposite of its purpose. This is a direct, real-world confirmation of the design principle raised earlier in this section, that threshold spacing and halt duration must be calibrated together, and it is the reason the wider gaps in the US system (7%, 13% and 20%, with six or seven percentage points between levels) and Japan's continuous-limit approach (below) are not arbitrary choices but responses to exactly this kind of failure mode. [China Securities Regulatory Commission public statements, January 2016; contemporary reporting including *Reuters*, "China scraps circuit breaker after just four days," 7 January 2016.]
 
 **Japan: daily price limits**
 
@@ -138,11 +138,9 @@ A corridor is a promise: *this market will not trade outside this band*. On an o
 
 **Automated Corridor Expansion (ACE)** is the family of rules that avoids both. Instead of forcing an immediate yes-or-no decision, the venue *keeps collecting orders* for the affected instrument, repeatedly asks "at what price would these orders trade?", and, if the answer is still outside the band, *widens the band by a predefined step* and asks again. The instrument reopens as soon as the price the orders imply fits inside the (now wider) band. Only that one instrument waits; the rest of the market keeps trading normally.
 
-A note on the name: "ACE" is this book's label for the pattern, not a standardised industry term. Real venues each have their own names and parameters (the examples below give several), and the reference exchange that accompanies this book implements it under the name *Automated Corridor Expansion*, where "corridor" simply means the collar used for a reopening.
+A note on the name: *Automated Corridor Expansion* is Deutsche Börse's own term. Its Xetra market introduced the "ACE volatility interruption model" on 24 November 2021 for ETFs and other exchange-traded products, whose prices can legitimately jump whenever their underlying markets move, and "corridor" there simply means the price band used during the interruption. Other venues implement the same idea under their own names and parameters (the examples below give several). This book borrows Deutsche Börse's name for the general pattern, and the reference exchange that accompanies this book uses it too.
 
-As an example, Deutsche Boerse adopted the ACE (Automated Corridor Expansion) Model for ETFs in 2021, accounting for the specific nature of ETPs and their intrinsic higher volatility.
-
-The mechanism is publicly described in [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
+The Xetra mechanism is publicly described in [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
 
 **How it works, step by step.** Every ACE design has the same moving parts:
 
@@ -191,7 +189,7 @@ A participant should not be able to trade with themselves. If you have a resting
 
 **Self-Match Prevention (SMP)** detects when an incoming order would match against a resting order from the same participant (identified by gateway ID) and applies a policy (the next chapter covers SMP in depth):
 
-- **Cancel Aggressor:** Cancel the incoming order. Your resting order remains. This is the most common default.
+- **Cancel Aggressor:** Cancel the incoming order. Your resting order remains. This is a common default, though venues differ (CME's default, for example, cancels the resting order).
 - **Cancel Resting:** Cancel the resting order and continue looking for a counterparty. Used when the new order supersedes the old one.
 - **Cancel Both:** Cancel both orders. Used when you want a clean slate.
 

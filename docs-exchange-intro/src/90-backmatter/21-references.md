@@ -23,17 +23,17 @@ The leading corporate finance textbook, used in business schools worldwide. Cove
 
 **[4]** De la Vega, Joseph. *Confusión de Confusiones* (written 1688). Translated by Hermann Kellenbenz. Harvard University Graduate School of Business Administration, Kress Library of Business and Economics, 1957.
 
-The oldest known book about stock market trading, written in Amsterdam in 1688 by a Spanish merchant named Joseph de la Vega. Describes, in dialogues, the practices of the Amsterdam VOC share market, including resting orders, market making, and speculative trading. A remarkable primary source demonstrating that many modern concepts are centuries old. The Kellenbenz translation includes a scholarly introduction providing historical context.
+The oldest known book about stock market trading, written in Amsterdam in 1688 by Joseph de la Vega, a Spanish-born Sephardic Jewish merchant. Describes, in dialogues, the practices of the Amsterdam VOC share market, including resting orders, market making, and speculative trading. A remarkable primary source demonstrating that many modern concepts are centuries old. The Kellenbenz edition includes a scholarly introduction providing historical context.
 
 
 
-**[5]** Petram, Lodewijk. *The World's First Stock Exchange*. Columbia Business School Publishing, 2014. ISBN 978-0-231-16714-9. (Originally published in Dutch as *De wereld's eerste beurs*. Uitgeverij Atlas Contact, 2011.)
+**[5]** Petram, Lodewijk. *The World's First Stock Exchange*. Translated by Lynne Richards. Columbia Business School Publishing, 2014. ISBN 978-0-231-16378-1. (Originally published in Dutch as *De bakermat van de beurs*. Uitgeverij Atlas Contact, 2011.)
 
 The definitive modern history of the Amsterdam Exchange and the VOC share market. Covers the founding of the VOC (1602), the development of the first secondary market in shares, Isaac Le Maire's 1609 short selling campaign against VOC stock, the 1610 Amsterdam edict attempting to ban short selling, and the broader financial innovations that originated in 17th-century Amsterdam. Directly cited for the Le Maire material in this document.
 
 
 
-**[6]** Lewis, Michael. *Flash Boys: A Wall Street Revolt*. W.W. Norton & Company, 2014. ISBN 978-0-393-24413-3.
+**[6]** Lewis, Michael. *Flash Boys: A Wall Street Revolt*. W.W. Norton & Company, 2014. ISBN 978-0-393-24466-3.
 
 A narrative account of the founding of IEX by Brad Katsuyama and colleagues, describing the practice of high-frequency trading, its effects on institutional investors, and the design of the speed bump as a countermeasure. The primary source for the IEX material in the *Speed Bumps* chapter of Part IV. Accessible to non-specialist readers; recommended as background reading for anyone working on exchange latency and fairness.
 
@@ -47,11 +47,12 @@ The official regulatory investigation into the 2010 Flash Crash, which saw the D
 
 
 
-**[8]** U.S. Securities and Exchange Commission. *SEC Adopts T+2 Settlement Cycle for Securities Transactions*. Press Release No. 2017-68. 22 March 2017.
+**[8]** U.S. Securities and Exchange Commission. *SEC Adopts T+2 Settlement Cycle for Securities Transactions*. Press Release No. 2017-68. 22 March 2017; and *SEC Finalizes Rules to Reduce Risks in Clearance and Settlement*. Press Release No. 2023-29. 15 February 2023.
 
-The formal SEC announcement of the rule change shortening US equity settlement from T+3 to T+2, effective September 5, 2017. Contains the rationale for the change and the text of the amended rules. 
+The formal SEC announcements of the two most recent shortenings of the US settlement cycle: from T+3 to T+2, effective 5 September 2017, and from T+2 to T+1, effective 28 May 2024. Each release contains the rationale for the change and links to the amended rules.
 
 - **Available at:** https://www.sec.gov/news/press-release/2017-68
+- **Available at:** https://www.sec.gov/news/press-release/2023-29
 
 
 
@@ -61,7 +62,7 @@ The formal announcement that CME Group would cease open outcry operations in mos
 
 
 
-**[10]** Michie, Ranald C. *The Global Securities Market: A History*. Oxford University Press, 2006. ISBN 978-0-19-928065-3.
+**[10]** Michie, Ranald C. *The Global Securities Market: A History*. Oxford University Press, 2006. ISBN 978-0-19-928061-2.
 
 A comprehensive scholarly history of securities markets worldwide from the 17th century to the present. Covers the origins of the NYSE and NASDAQ, the development of settlement practices, short selling regulation, and the transition from physical to electronic trading. Cited for historical facts about exchange foundations and the evolution of market structure.
 
@@ -69,7 +70,7 @@ A comprehensive scholarly history of securities markets worldwide from the 17th 
 
 **[11]** Goetzmann, William N., and K. Geert Rouwenhorst, eds. *The Origins of Value: The Financial Innovations that Created Modern Capital Markets*. Oxford University Press, 2005. ISBN 978-0-19-517571-4.
 
-An edited volume of scholarly essays examining the historical development of financial instruments and markets. Includes detailed coverage of the Dutch East India Company, the Amsterdam Exchange, and the origin of tradeable shares, futures, and options. The chapter by Gelderblom and Jonker, "Amsterdam as the Cradle of Modern Futures and Options Trading, 1550–1650," is particularly relevant to the Amsterdam material in the *Language of the Market* chapter of Part I.
+An edited volume of scholarly essays examining the historical development of financial instruments and markets. Includes detailed coverage of the Dutch East India Company, the Amsterdam Exchange, and the origin of tradeable shares, futures, and options. The chapter by Gelderblom and Jonker, "Amsterdam as the Cradle of Modern Futures Trading and Options Trading, 1550–1650," is particularly relevant to the Amsterdam material in the *Language of the Market* chapter of Part I.
 
 
 
@@ -79,7 +80,7 @@ The practitioner standard. Used as the internal training text at options market 
 
 
 
-**[13]** Hull, John C. *Options, Futures, and Other Derivatives*. Pearson/Prentice Hall, (13th edition, 2021). ISBN 978-0-13-813423-3.
+**[13]** Hull, John C. *Options, Futures, and Other Derivatives*. 11th edition. Pearson, 2021. ISBN 978-0-13-693997-9.
 
 The authoritative academic and practitioner reference for all derivatives. Chapter 12 covers trading strategies involving options in detail, spreads (bull, bear, box, butterfly), combinations (straddles, strangles, strips, straps), with numerical examples and payoff diagrams. The chapters on futures also cover calendar spreads and the basis. Hull grounds everything in put-call parity and arbitrage relationships, which is what makes synthetics work. More mathematical than Natenberg but more complete.
 
@@ -89,7 +90,7 @@ The authoritative academic and practitioner reference for all derivatives. Chapt
 
 
 
-**[15]** *Edward Calahan and the stock ticker (1867):* Widely documented in the history of telegraphy and American industry. The invention is discussed in Calahan's own patents of the period [U.S. Patent No 76,157](https://www.invent.org/inductees/edward-calahan), [Edward A. Calahan](https://en.wikipedia.org/wiki/Edward_A._Calahan), 
+**[15]** *Edward Calahan and the stock ticker (1867):* Calahan, then working for the American Telegraph Company, demonstrated his stock ticker in New York in November 1867 and received U.S. Patent No. 76,157, "Improvement in Telegraphic Indicators", on 31 March 1868. See the patent itself, [US 76,157](https://patents.google.com/patent/US76157), the National Inventors Hall of Fame entry for [Edward A. Calahan](https://www.invent.org/inductees/edward-calahan), and [Edward A. Calahan](https://en.wikipedia.org/wiki/Edward_A._Calahan) on Wikipedia.
 
 
 
@@ -111,7 +112,7 @@ The formal record of the switch from fractional to decimal quoting in US equitie
 
 
 
-**[19]** U.S. Securities and Exchange Commission. *Tick Size Pilot Program*, adopted under Rule 612, effective October 2016 to October 2018. Final assessment reports prepared for the SEC by academic and industry researchers.
+**[19]** U.S. Securities and Exchange Commission. *Tick Size Pilot Program*, approved as a national market system plan in 2015 and run from October 2016 to September 2018. Final assessment reports prepared for the SEC by academic and industry researchers.
 
 The primary source for the Tick Size Pilot Program discussion in the *Tick Sizes and Fractional Ticks* chapter of Part II, including the pilot's design (control group plus three five-cent test groups across roughly 1,200 small-cap securities) and its mixed empirical findings.
 
@@ -142,7 +143,7 @@ The primary legal record of the FTX collapse, cited in the *Cryptocurrency and D
 
 
 
-# Exchanges own technical references
+# Exchanges' Own Technical References
 
 Publicly available technical specifications and documentation provide exact structural logic and algorithmic details for combo and implied/synthetic orders across major electronic matching engines.
 
@@ -161,7 +162,7 @@ CME Group provides open-access engineering wikis that map out their continuous m
 Cboe details its execution logic for multi-leg derivative allocations, net premium sorting, and atomicity verification.
 
 * **Technical Specifications Library:** Access the complete engineering documentation library, covering binary order entry and auction layout parameters, via the [Cboe U.S. Options Technical Specifications](https://www.cboe.com/us/options/support/technical/).
-* **Complex Book Fundamentals:** For an structural layout of multi-leg order handling constraints and leg ratio normalization, review the [Cboe Titanium Complex Order Basics](https://www.cboe.com/document/tech-spec/content/technical-specifications/cboe-titanium-u.s.-options-complex-book-process/complex-order-basics).
+* **Complex Book Fundamentals:** For a structural layout of multi-leg order handling constraints and leg ratio normalization, review the [Cboe Titanium Complex Order Basics](https://www.cboe.com/document/tech-spec/content/technical-specifications/cboe-titanium-u.s.-options-complex-book-process/complex-order-basics).
 * **Complex Book Process Guide:** To dive into the complete structural manual—detailing Signed Values on the Complex Book (debit vs. credit), order sorting mechanisms, and Complex Order Auctions (COA)—view the comprehensive [Cboe Titanium Complex Book Process Document](https://www.cboe.com/document/tech-spec/document/technical-specifications/cboe-titanium-u.s.-options-complex-book-process).
 
 ## Intercontinental Exchange (ICE) Order Books
@@ -190,7 +191,7 @@ The core documentation for understanding order behavior, priority categories, an
 * CME Group Client Systems Wiki, [Futures Implied Order Matching Priority](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457096650/Futures+Implied+Order+Matching+Priority) (real orders before implied orders; tie-breaks between implied sources).
 * CME Group Client Systems Wiki, [MDP 3.0 – Implied Book](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457422235/MDP+3.0+-+Implied+Book) (two-deep implied book dissemination).
 * CME Group, [Treasury Futures Calendar Spreads](https://www.cmegroup.com/trading/interest-rates/files/treasury-futures-calendar-spreads.pdf), 2016 (spread buy/sell convention; leg-price assignment).
-* Brendan Wilson, CME Group, [Liquidity in implied inter-commodity spread markets](https://www.cmegroup.com/articles/2023/liquidity-in-implied-inter-commodity-spread-markets.html), 22 October 2024 (implied IN/OUT rules for ICS; undisseminated and locked/inverted implied quotes; outward rounding and who receives the rounding gain).
+* Brendan Wilson, CME Group, [Liquidity in implied inter-commodity spread markets](https://www.cmegroup.com/articles/2023/liquidity-in-implied-inter-commodity-spread-markets.html), page dated 23 October 2024 (implied IN/OUT rules for ICS; undisseminated and locked/inverted implied quotes; outward rounding and who receives the rounding gain).
 * Isaac Carruthers, [Inter-Commodity Spreads and Implied Pricing](https://texnology.com/quant.pdf), 2018 (outward rounding of implied prices; finer implied grids for ratio spreads).
 * Eurex, [Matching principles](https://www.eurex.com/ex-en/trade/order-book-trading/matching-principles) (synthetic matching) and [Passive Liquidity Protection](https://www.eurex.com/ex-en/support/initiatives/archive/passive-liquidity-protection).
 * CME press releases on implied functionality for Eurodollar calendar and butterfly spreads, [8 March 2004](https://mondovisione.com/media-and-resources/news/cme-to-add-new-eurodollars-on-globex-cme-to-add-new-eurodollars-on-globex-functi-2011124/) and [18 October 2004](https://mondovisione.com/media-and-resources/news/cme-launches-implied-butterfly-spread-functionality-for-electronic-trading-of-cm-2011124/).
@@ -200,6 +201,7 @@ The core documentation for understanding order behavior, priority categories, an
 ### Crude oil and negative prices
 
 * CME Group, NYMEX Rulebook [Chapter 200: Light Sweet Crude Oil Futures](https://www.cmegroup.com/rulebook/NYMEX/2/200.pdf) (1,000 barrels; $0.01 tick).
+* CME Clearing, [Advisory 20-152](https://www.cmegroup.com/notices/clearing/2020/04/Chadv20-152.html), 8 April 2020 (plan for a negative underlying in energy options), and [Advisory 20-160](https://www.cmegroup.com/notices/clearing/2020/04/Chadv20-160.html), 15 April 2020 (testing negative prices in the New Release environment).
 * CFTC, [Interim Staff Report on NYMEX WTI Crude Oil Futures Trading around April 20, 2020](https://www.cftc.gov/PressRoom/PressReleases/8315-20), November 2020.
 * Congressional Research Service, [Crude Oil Futures Prices Turn Negative (IN11354)](https://www.everycrsreport.com/reports/IN11354.html), 2020.
 * CFTC press release [8432-21](https://www.cftc.gov/PressRoom/PressReleases/8432-21), 28 September 2021 (Interactive Brokers: negative-price handling failures).
@@ -219,11 +221,27 @@ The core documentation for understanding order behavior, priority categories, an
 
 * SEC, [Order approving Nasdaq Halt Cross price protections](https://www.federalregister.gov/documents/2025/02/10/2025-02386/self-regulatory-organizations-the-nasdaq-stock-market-llc-order-granting-approval-of-a-proposed-rule), Release No. 34-102336, 10 February 2025.
 
-* Deutsche Börse, [Protective Mechanisms in Auctions](https://www.cashmarket.deutsche-boerse.com/cash-en/trading/Xetra/protective-mechanisms/protective-mechanisms-in-auctions) (Xetra volatility interruptions); CME Group, 
+* Deutsche Börse, [Protective Mechanisms in Auctions](https://www.cashmarket.deutsche-boerse.com/cash-en/trading/Xetra/protective-mechanisms/protective-mechanisms-in-auctions) (Xetra volatility interruptions).
 
-* Deutsche Börse, [Price Limits](https://www.cmegroup.com/trading/price-limits.html). 
+* CME Group, [Price Limits](https://www.cmegroup.com/trading/price-limits.html) (daily limits and limit expansion in agricultural futures).
 
-* Deutsche Börse, [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
+* Deutsche Börse, [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf) (section 9, the ACE volatility interruption model); Xetra Circular 080/21, *Amendments to the Rules and Regulations of the Frankfurter Wertpapierbörse* (introduction of ACE for ETFs and ETPs on 24 November 2021).
+
+* LULD Plan Amendment 18, [Order approving the Eighteenth Amendment](https://www.federalregister.gov/documents/2019/04/17/2019-07637/joint-industry-plan-order-approving-the-eighteenth-amendment-to-the-national-market-system-plan-to), April 2019, in effect from 24 February 2020 (end of doubled price bands after the open, and for Tier 2 stocks above $3 before the close).
+
+* SEC, [Order granting temporary exemptive relief from Rules 610(c) and 612](https://www.sec.gov/files/rules/exorders/2026/34-105656.pdf), Release No. 34-105656, 11 June 2026 (half-penny tick and 10-mil access fee cap postponed to November 2027); SEC, [Exemptive order of 31 October 2025](https://www.govinfo.gov/content/pkg/FR-2025-11-17/html/2025-19926.htm) (the first postponement).
+
+* CTA/UTP SIP announcements on odd-lot quotes and the Best Odd Lot Order (activation 27 April 2026; odd-lot depth deferred to May 2028), e.g. [CTA Plan: Odd Lots](https://www.ctaplan.com/odd-lots).
+
+* SEC, [Treasury Clearing Implementation](https://www.sec.gov/securities-topics/treasury-clearing-implementation) (compliance dates 31 December 2026 for cash and 30 June 2027 for repo).
+
+* ESMA, [Consolidated Tape Providers](https://www.esma.europa.eu/esmas-activities/markets-and-infrastructure/consolidated-tape-providers) (selection of fairCT for bonds, EuroCTP for shares and ETFs, and Etrading Software for OTC derivatives).
+
+* Euronext, [Euronext announces the success of the voluntary share exchange tender offer to acquire ATHEX Group](https://live.euronext.com/en/products/equities/company-news/2025-11-19-euronext-announces-success-voluntary-share-exchange), 19 November 2025.
+
+* SEC, [SEC Charges New York-Based High Frequency Trading Firm With Fraudulent Trading to Manipulate Closing Prices](https://www.sec.gov/news/press-release/2014-229), press release 2014-229, 16 October 2014 (Athena Capital Research).
+
+* Bank for International Settlements, ["Two defaults at CCPs, 10 years apart"](https://www.bis.org/publ/qtrpdf/r_qt1812x.htm), *BIS Quarterly Review*, December 2018 (Einar Aas and Nasdaq Clearing); FIA, ["Deconstructing a Default"](https://www.fia.org/marketvoice/articles/deconstructing-default), 27 November 2018.
 
 * Wikipedia, [Initial public offering of SpaceX](https://en.wikipedia.org/wiki/Initial_public_offering_of_SpaceX); CoinDesk, [SpaceX prices shares at $135 in largest IPO ever](https://www.coindesk.com/markets/2026/06/11/spacex-prices-shares-at-usd135-in-largest-ipo-ever), 11 June 2026.
 * CME Group, [CME Group to Permanently Close Most Open Outcry Trading Pits](https://www.cmegroup.com/media-room/press-releases/2021/5/04/cme_group_to_permanentlyclosemostopenoutcrytradingpitseurodollar.html), 4 May 2021.
@@ -244,13 +262,14 @@ The core documentation for understanding order behavior, priority categories, an
 ### History and etymology
 
 * Christopher Steiner, ["How the Nasdaq Got Hacked"](https://www.forbes.com/sites/christophersteiner/2012/08/30/how-the-nasdaq-got-hacked/), *Forbes*, 30 August 2012 (Thomas Peterffy's robot typist); see also his book *Automate This* (2012).
-* Online Etymology Dictionary, [short](https://www.etymonline.com/word/short) ("sell short" attested by 1852).
+* Online Etymology Dictionary, [short](https://www.etymonline.com/word/short) ("sell short" attested by 1852) and [bear](https://www.etymonline.com/word/bear) (market sense from 1709, "bearskin jobber"; paired with "bull" from about 1720).
+* Wyatt Wells, "Certificates and Computers: The Remaking of Wall Street, 1967 to 1971," *Business History Review* 74(2), 2000; Bank for International Settlements, ["The US paper crunch, 1967–1970"](https://www.bis.org/publ/qtrpdf/r_qt0712z.htm), *BIS Quarterly Review*, December 2007 (the paperwork crisis).
 * Hendrik Bessembinder, "Trade Execution Costs and Market Quality after Decimalization", *Journal of Financial and Quantitative Analysis* 38(4), 2003.
 * Richard Smitten, *Jesse Livermore: World's Greatest Stock Trader* (Wiley, 2001).
 
 ## Notes on Sources Not Cited Inline
 
-Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary academic document within this text, but rather second hand sources such as NYSE own publications and posts. For example:
+Some facts in this book are well established in the financial literature but rest on secondary sources, such as an exchange's own publications, rather than on a single primary academic document. For example:
 
 **Closing auction volume:** The share of daily volume executed in US closing auctions varies by year, instrument, and calendar (it spikes on index rebalancing days); the figures in the text are from BMLL's 2024 analysis cited above. See [The shifting dynamics of the NYSE Closing Auction](https://www.nyse.com/data-insights/nyse-closing-auction-dynamics-2023)
 

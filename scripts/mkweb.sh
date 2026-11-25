@@ -120,7 +120,6 @@ fi
 echo -e "${GREEN}✓ Changes committed and pushed to GitHub Pages${NC}"
 
 echo ""
-exit 0
 
 command -v expect >/dev/null || { echo -e "${RED}✗ 'expect' is required${NC}" >&2; exit 1; }
 

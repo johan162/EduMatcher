@@ -10,7 +10,7 @@ The following definitions are written to be concise and standalone, useful as a 
 
 ## A {#glossary-a}
 
-**Automated Corridor Expansion (ACE):** This book's name for rules that, when an instrument's likely price lies outside its protective collar, pause only that instrument, keep collecting orders, and widen the collar in published steps until the indicative auction price fits, instead of either blocking a genuine repricing or trading at an absurd price. Real venues use their own names (Nasdaq's Halt Cross price protections, NYSE's auction-collar extension after LULD pauses, Xetra's extended volatility interruption). See *Price Collars*, Part III.
+**Automated Corridor Expansion (ACE):** Deutsche Börse's name (introduced on Xetra in 2021 for ETFs and ETPs), borrowed in this book for the general pattern of rules that, when an instrument's likely price lies outside its protective collar, pause only that instrument, keep collecting orders, and widen the collar in published steps until the indicative auction price fits, instead of either blocking a genuine repricing or trading at an absurd price. Other venues use their own names (Nasdaq's Halt Cross price protections, NYSE's auction-collar extension after LULD pauses). See *Price Collars*, Part III.
 
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
@@ -51,7 +51,7 @@ The collection of all active asks forms the sell side of the book.
 
 **Basis:** In derivatives and futures markets, the price difference between two related instruments, most commonly between the spot/cash price and a futures price on the same underlying, or between two futures contracts with different expiry dates. In the implied-order examples in this document (the *Implied Orders and Synthetic Liquidity* chapter of Part II), the spread price of −$2 between the January and February crude oil contracts is the basis between those two contract months: January is $2 cheaper than February. The basis is not fixed; it changes continuously as supply and demand for the near and far months evolve independently. **Basis risk** is the risk that the expected relationship between two instruments diverges unexpectedly, a spread trader who expected the two legs to move together may find they do not, leaving an unintended net exposure. See *Implied Order*, *Calendar Spread*.
 
-**Bear Market:** A sustained decline of 20% or more from a recent market peak. Originates from the image of a bear swiping its paws downward. Contrast with *Bull Market*.
+**Bear Market:** By convention, a decline of 20% or more from a recent market peak. The market sense of "bear" dates from early 18th-century London, where a "bearskin jobber" was a speculator who sold stock he did not yet own, after the proverb about selling the bear's skin before catching the bear; the image of a bear swiping downward is a later memory aid. Contrast with *Bull Market*.
 
 **Best Ask:** The lowest resting sell price in the order book, the price at which a buyer
 can trade immediately.
@@ -60,7 +60,7 @@ can trade immediately.
 can trade immediately.
 
 
-**Best Execution:** The regulatory obligation for brokers and investment firms to take all reasonable steps to achieve the best possible result for their clients when executing orders. "Best" considers price, execution costs, speed, likelihood of execution, and market impact simultaneously, not just the quoted price in isolation. Mandated by MiFID II in the EU and the SEC's duty of best execution in the US. Best execution is the regulatory foundation that makes smart order routing (SOR) necessary: brokers must demonstrate their routing decisions genuinely serve clients' interests, not just the broker's economics.
+**Best Execution:** The regulatory obligation for brokers and investment firms to take all reasonable steps to achieve the best possible result for their clients when executing orders. "Best" considers price, execution costs, speed, likelihood of execution, and market impact simultaneously, not just the quoted price in isolation. Mandated by MiFID II in the EU; in the US a long-standing duty of brokers, codified in FINRA Rule 5310. Best execution is the regulatory foundation that makes smart order routing (SOR) necessary: brokers must demonstrate their routing decisions genuinely serve clients' interests, not just the broker's economics.
 
 **Bid:** The price at which a buyer is willing to buy. The best (highest) bid is the top of the buy side of the order book.
 
@@ -68,7 +68,7 @@ can trade immediately.
 
 **Blue Chip:** A large, financially sound, well-established company, the most prestigious tier of the equity market. The term originates from poker, where blue chips represent the highest denomination.
 
-**Bond:** A standardised debt instrument. The issuing company borrows money and promises to pay periodic interest (coupon payments) and return the face value (principal) at maturity. Bondholders are creditors, not owners, and are paid before equity holders in a bankruptcy. Bonds trade on secondary markets after issuance, allowing investors to exit before maturity. The financial term "bond" traces its roots back to the 14th century from the Old English word bindan and band, which eventually evolved into the standard English word "bind". The word was originally used to describe something that literally ties, fastens, or holds things together. Because a financial bond fundamentally operates as a formal, legally binding contract where an issuer promises to repay a loan with interest, the term stuck.
+**Bond:** A standardised debt instrument. The issuing company borrows money and promises to pay periodic interest (coupon payments) and return the face value (principal) at maturity. Bondholders are creditors, not owners, and are paid before equity holders in a bankruptcy. Bonds trade on secondary markets after issuance, allowing investors to exit before maturity. The word is a variant of *band*, "something that binds", from the same root as the verb *bind*; by the late 16th century it also meant a deed by which a person bound themselves to pay a sum of money, which is exactly what a bond still is.
 
 **Book-Building:** The customary way a conventional IPO is priced: the issuer and its underwriters publish a price range, collect indications of interest from institutional investors during a roadshow, revise the range, and set the final offer price the evening before trading starts. A process of price discovery, not a legal requirement.
 
@@ -84,11 +84,11 @@ can trade immediately.
 stop-loss STOP, typically implemented as an OCO pair. 
 
 
-**Broker:** An intermediary who executes orders on behalf of clients without trading for their own account. The word traces to Old French/Norse roots meaning someone who opens a cask and sells by the cup, a retail intermediary.
+**Broker:** An intermediary who executes orders on behalf of clients without trading for their own account. The word traces to Anglo-Norman *abrocour*, a middleman or small trader; a popular but uncertain explanation links it to someone who "broaches" a cask and sells the wine retail.
 
 **Broker-Dealer:** A firm that acts both as a *broker* (executing orders on behalf of clients) and as a *dealer* (trading for its own account). The standard US regulatory category for securities firms. See *The Participants*, Part I.
 
-**Bull Market:** A sustained rise of 20% or more from a recent market trough. Originates from the image of a bull thrusting its horns upward. Contrast with *Bear Market*.
+**Bull Market:** By convention, a rise of 20% or more from a recent market trough. "Bull" appears as the partner of "bear" in London from about 1720; the image of a bull thrusting its horns upward is a memory aid rather than the documented origin. Contrast with *Bear Market*.
 
 **Buy-In:** A remedy for failed settlement: if a seller cannot deliver securities, the buyer purchases them in the open market at the seller's expense.
 
@@ -172,7 +172,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Direct Listing:** A method of going public in which a company's existing shares begin trading on an exchange via the opening auction mechanism, with no new shares issued, no underwriter guarantee, and no pre-set offer price. Contrast with a traditional underwritten IPO. Pioneered at scale by Spotify (2018) and Slack (2019), both on NYSE.
 
-**Dark Pool:** A private trading venue where orders are not displayed in a public order book. Participants submit orders and are matched against other participants' orders, typically at the midpoint of the NBBO, with the trade only reported publicly after it occurs. Used by large institutional investors to trade without revealing their intentions and causing adverse price movement. Contrast with *lit markets* (public exchanges) where resting orders are visible to all. See *Regulatory Surveillance*.
+**Dark Pool:** A private trading venue where orders are not displayed in a public order book. Participants submit orders and are matched against other participants' orders, typically at the midpoint of the NBBO, with the trade only reported publicly after it occurs. Used by large institutional investors to trade without revealing their intentions and causing adverse price movement. Contrast with *lit markets* (public exchanges) where resting orders are visible to all. See *Smart Order Routing and Market Fragmentation*, Part IV.
 
 **DAY:** An order TIF valid only for the current trading session.
 
@@ -201,7 +201,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 ## E {#glossary-e}
 
-**ECN (Electronic Communication Network):** An electronic trading system that automatically matches buy and sell orders, typically with narrower spreads than exchanges but less regulatory oversight.
+**ECN (Electronic Communication Network):** An early kind of alternative trading system (1990s–2000s) that automatically matched buy and sell orders and displayed them publicly, often with narrower spreads than the exchanges of the day. Most were later absorbed by exchanges or became exchanges themselves (Archipelago into NYSE Arca, Instinet/INET into NASDAQ, BATS into Cboe).
 
 **Equilibrium Price (Auction Price):** The single price at which the maximum volume can trade in a call auction.
 
@@ -253,9 +253,9 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Gateway:** The participant-facing interface to the exchange. Handles authentication, session management, and message translation.
 
-**Going Long:** Owning an asset in expectation that its price will rise, so it can be sold later at a profit. You are "long" the asset. The term originates in physical commodity trading: a merchant who had purchased durable goods, grain, spices, metal, cloth, and was holding them in a warehouse was described as "long" in those goods. The word captured both *possession* (you own something tangible) and *duration* (durable goods last a long time and can be held through seasons or years). Being long in modern finance carries exactly the same meaning: you hold the asset and are exposed to its price over time. A long position profits when the price rises and loses when it falls.
+**Going Long:** Owning an asset (or having agreed to buy it) in expectation that its price will rise, so it can be sold later at a profit. You are "long" the asset. The word came into use as the natural opposite of "short", meaning well supplied, holding more than enough; stories tying it to the durability of goods in a warehouse are appealing but not supported by the dictionaries (see *The Language of the Market*, Part I). A long position profits when the price rises and loses when it falls.
 
-**Going Short / Short Selling:** Selling an asset you do not currently own, typically by borrowing it from another party, with the intention of buying it back later at a lower price and returning it, pocketing the difference. The term originates in physical commodity trading: a merchant who had sold goods they did not yet possess, committing to deliver more than their warehouse held, was "short" of the goods. The same word family as "falling short," "short of supplies," or "shortage", deficient, insufficient, lacking. In the early forward markets of Amsterdam and London, a short seller would sell forward (promise future delivery), then purchase the goods in the market before delivery, hoping prices had fallen. Isaac Le Maire's 1609 campaign against VOC shares is the earliest recorded large-scale short selling operation. Today, a short position profits when the price falls (you buy back cheaper than you sold) and loses when it rises, in theory without limit, since a rising price has no ceiling.
+**Going Short / Short Selling:** Selling an asset you do not currently own, typically by borrowing it from another party, with the intention of buying it back later at a lower price and returning it, pocketing the difference. The seller is literally *short of* the goods: "short" in the sense of "having too little" is recorded from the 1690s, and the market phrase "to sell short" by 1852, the same word family as "falling short" or "shortage". In the early forward markets of Amsterdam and London, a short seller would sell forward (promise future delivery), then purchase the goods in the market before delivery, hoping prices had fallen. Isaac Le Maire's 1609 campaign against VOC shares is the earliest recorded large-scale short selling operation. Today, a short position profits when the price falls (you buy back cheaper than you sold) and loses when it rises, in theory without limit, since a rising price has no ceiling.
 
 **GTC (Good-Till-Cancelled):** An order TIF that persists across trading sessions until filled or cancelled.
 
@@ -371,7 +371,7 @@ as a positive number  P&L ledger.
 
 **Mark-to-Market:** The daily revaluation of positions at current market prices, with cash payments made to reflect daily gains and losses. The mechanism by which variation margin is calculated.
 
-**Market capitalisation (market cap):** The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190, Apple's market cap is roughly $2.9 trillion [1]. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.
+**Market capitalisation (market cap):** The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190 (roughly its position in 2023), Apple's market cap is roughly $2.9 trillion. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.
 
 **Market Fragmentation:** The distribution of trading volume for a single instrument across multiple competing venues, exchanges, dark pools, ATSs, and internalisers. Modern equity markets are highly fragmented; in the US, AAPL may trade simultaneously across a dozen registered exchanges plus numerous alternative venues. Fragmentation improves competition and reduces fees but complicates order routing and best-execution analysis. Regulatory frameworks like Regulation NMS (US) and MiFID II (EU) were introduced partly in response to fragmentation.
 
@@ -429,7 +429,7 @@ as a positive number  P&L ledger.
 
 **OCC (Options Clearing Corporation):** The central clearing house for equity options in the US.
 
-**Odd Lot:** An order or execution for fewer shares than the standard round lot size for that instrument (commonly 100 shares for US equities). A larger quantity that is not a whole multiple of the round lot is a *Mixed Lot*. Historically excluded from consolidated NBBO and tape data in US equities, a practice being revised under the SEC's market-data-infrastructure rules. See *Round Lot*.
+**Odd Lot:** An order or execution for fewer shares than the standard round lot size for that instrument (commonly 100 shares for US equities). A larger quantity that is not a whole multiple of the round lot is a *Mixed Lot*. Historically left out of the US consolidated tape (odd-lot trades until December 2013) and of the NBBO; since April 2026 the consolidated feeds also carry the best odd-lot quotes priced at or better than the NBBO. See *Round Lot*.
 
 **OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other.
 
@@ -474,7 +474,7 @@ as a positive number  P&L ledger.
 
 **PRE_OPEN:**  Session phase before the opening auction.  Orders are accepted and rest on the book, but no matching occurs.
 
-**Presence Obligation:** A market maker's contractual requirement to have live two-sided quotes resting in the book for a minimum percentage of the trading session, commonly 85% or more. Prevents market makers from only quoting on easy days and disappearing on volatile ones when liquidity is most needed.
+**Presence Obligation:** A market maker's contractual requirement to have live two-sided quotes resting in the book for a minimum percentage of the trading session: at least half the trading day under MiFID II, and often 80–90% in exchange programmes. Prevents market makers from only quoting on easy days and disappearing on volatile ones when liquidity is most needed.
 
 **Price Discovery:** The process by which the market determines the current fair price of an asset through the interaction of buyers and sellers. A well-functioning exchange enables efficient price discovery: prices reflect all currently available information and update rapidly as new information arrives. Price discovery is one of the three core promises every exchange makes. Poor price discovery, where the traded price diverges significantly from fair value for extended periods, is a sign of market dysfunction.
 
@@ -482,7 +482,7 @@ as a positive number  P&L ledger.
 
 **Price Level:** All resting orders at the same price on the same side of the book.
 
-**Price-Return / Total-Return Index:** A *price-return* index tracks only price changes, so it falls when constituents pay ordinary dividends; a *total-return* index assumes every dividend is reinvested. Headline indexes such as the S&P 500 are price-return indexes.
+**Price-Return / Total-Return Index:** A *price-return* index tracks only price changes, so it falls when constituents pay ordinary dividends; a *total-return* index assumes every dividend is reinvested. Headline indexes such as the S&P 500 are price-return indexes; Germany's DAX is a notable exception, whose headline figure is a total-return ("performance") index.
 
 **Price-Time Priority:** The matching rule: better prices fill first; at the same price, earlier arrivals fill first.
 
@@ -528,9 +528,9 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Reference Data / Instrument Master:** The configuration data describing a tradeable instrument, tick size, price scale, session schedule, contract multiplier, trading status, expiry date, position limits. Read by every exchange component; an error propagates system-wide. Treat it with the same rigour as code: version-controlled, tested, applied atomically.
 
-**Regulation NMS:** A US Securities and Exchange Commission regulation requiring that equity orders be executed at the best available price across all exchanges (the NBBO). A primary driver of US market fragmentation.
+**Regulation NMS:** A US Securities and Exchange Commission regulation (adopted 2005) whose Order Protection Rule prohibits trading venues from executing orders at prices worse than the best displayed, immediately accessible quotes on other venues (no "trade-throughs"). It also contains the access-fee cap (Rule 610) and the sub-penny rule (Rule 612). A primary driver of US market fragmentation.
 
-**Regulation SHO:** A US Securities and Exchange Commission rule governing short sales in equity markets. Key requirements: broker-dealers must have a reasonable belief shares can be borrowed before accepting a short sale order (the "locate" requirement); persistent fail-to-deliver situations must be closed out; short sales must be marked as "short" in order records. Adopted in 2005 to address concerns about abusive naked short selling.
+**Regulation SHO:** A US Securities and Exchange Commission rule governing short sales in equity markets. Key requirements: broker-dealers must have a reasonable belief shares can be borrowed before accepting a short sale order (the "locate" requirement); persistent fail-to-deliver situations must be closed out; short sales must be marked as "short" in order records. Adopted in 2004, in force from January 2005, to address concerns about abusive naked short selling.
 
 **Replay (Exchange):** Replaying a recorded sequence of input messages through the matching engine to reconstruct past market states. Requires the engine to be deterministic.
 
@@ -544,9 +544,9 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Rolling Window (MMP):** The time period over which fills are counted for Market Maker Protection purposes. Fills older than the window are discarded from the count; only fills within the current window matter. For example, a 1-second rolling window means: "if more than N fills have arrived in any sliding 1-second period, MMP fires."
 
-**Round Lot:** The standard trading unit for an instrument (commonly 100 shares for US equities), used as the basis for distinguishing a normal order from an *Odd Lot*.
+**Round Lot:** The standard trading unit for an instrument, used as the basis for distinguishing a normal order from an *Odd Lot*. For US equities it was a flat 100 shares for decades; since November 2025 it depends on price: 100 shares up to $250, 40 up to $1,000, 10 up to $10,000, and 1 share above that.
 
-**Rule 612 (Sub-Penny Rule):** The Regulation NMS provision, adopted 2005, prohibiting exchanges, ECNs, and market makers from displaying or accepting quotations in NMS stocks priced at $1.00 or more in increments finer than $0.01. Stocks priced below $1.00 may be quoted in sub-penny increments. See *Tick Sizes and Fractional Ticks*, Part II.
+**Rule 612 (Sub-Penny Rule):** The Regulation NMS provision, adopted 2005, prohibiting exchanges, ECNs, and market makers from displaying or accepting quotations in NMS stocks priced at $1.00 or more in increments finer than $0.01. Stocks priced below $1.00 may be quoted in sub-penny increments. Amendments adopted in 2024 add a half-penny tick for heavily traded stocks, but their compliance date has been postponed, most recently to November 2027. See *Tick Sizes and Fractional Ticks*, Part II.
 
 
 ## S {#glossary-s}
@@ -583,7 +583,7 @@ orders in thin books experience more slippage.
 
 **Smart Order Router (SOR):** Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.
 
-**SmartNIC / Ultra-Low-Latency NIC:** A specialised network interface card designed for trading and other latency-sensitive applications. Unlike commodity Ethernet cards, SmartNICs include an on-card kernel bypass networking stack (such as Solarflare's OpenOnload or Mellanox's RDMA), hardware timestamping of incoming packets to nanosecond precision, and CPU offload for networking tasks. Examples include the AMD Solarflare SFN series and NVIDIA Mellanox ConnectX series, widely deployed in exchange co-location environments.
+**SmartNIC / Ultra-Low-Latency NIC:** A specialised network interface card designed for trading and other latency-sensitive applications. Unlike commodity Ethernet cards, SmartNICs come with a kernel-bypass networking stack (such as Solarflare's OpenOnload or NVIDIA's VMA), hardware timestamping of incoming packets to nanosecond precision, and CPU offload for networking tasks. Examples include the AMD Solarflare SFN series and NVIDIA Mellanox ConnectX series, widely deployed in exchange co-location environments.
 
 **Snapshot (Persistence):** A complete dump of the matching engine's state (all resting orders, positions, key data) taken periodically to reduce recovery time by limiting the amount of write-ahead log that must be replayed.
 
@@ -591,7 +591,7 @@ orders in thin books experience more slippage.
 
 **Specialist:** NYSE's historical term for the designated firm responsible for maintaining fair and orderly markets in a specific stock, including maintaining the physical order book. The modern equivalent is the Designated Market Maker (DMM).
 
-**Speed Bump:** A deliberate artificial delay applied to all incoming orders to eliminate the advantage of being marginally faster than other participants. Pioneered by IEX.
+**Speed Bump:** A deliberate artificial delay applied to incoming orders (all of them, or only some types, such as aggressive orders). A fixed delay does not change who arrived first; its value lies in what the venue can do in the meantime, for example re-price pegged orders (IEX) or let market makers' cancels overtake aggressive orders (asymmetric speed bumps). Popularised by IEX.
 
 **Split-Brain:** A failure mode in distributed systems where two nodes both believe themselves to be the active primary, leading to conflicting actions.
 
@@ -611,7 +611,7 @@ orders in thin books experience more slippage.
 
 **Stop-Loss:** A sell stop order used to automatically exit a losing long position if the price falls to a specified level.
 
- **Surplus:**  The absolute difference between cumulative buy and sell quantity at the equilibrium price, the quantity that cannot be matched.
+**Surplus:** The absolute difference between cumulative buy and sell quantity at the equilibrium price, the quantity that cannot be matched.
 
 **Strip:** The full set of listed delivery months of one futures contract (January, February, March, and so on), and by extension the calendar spreads between them.
 
@@ -630,7 +630,7 @@ orders in thin books experience more slippage.
 
 **Tick Size:** The value of one tick, the minimum price increment for an instrument.
 
-**Tick Size Pilot Program:** A US SEC study (October 2016 – October 2018) that widened the tick size to five cents for roughly 1,200 small-capitalisation stocks to test whether coarser ticks improve market-making economics and liquidity for thinly traded names. Results were mixed: quoted spreads and costs for small trades rose, displayed size at the best prices rose sharply, but the hoped-for improvement in overall liquidity and capital formation did not appear, and no permanent wider-tick regime was adopted. See *Tick Sizes and Fractional Ticks*, Part II.
+**Tick Size Pilot Program:** A US SEC study (October 2016 – September 2018) that widened the tick size to five cents for roughly 1,200 small-capitalisation stocks to test whether coarser ticks improve market-making economics and liquidity for thinly traded names. Results were mixed: quoted spreads and costs for small trades rose, displayed size at the best prices rose sharply, but the hoped-for improvement in overall liquidity and capital formation did not appear, and no permanent wider-tick regime was adopted. See *Tick Sizes and Fractional Ticks*, Part II.
 
 **Tick-to-Trade Latency:** The time between a trading firm's system receiving a market data message and sending out an order in response, usually measured at the firm's own network card (some firms also quote the full round trip to and from the exchange). A key performance metric for market makers and HFT firms.
 
@@ -657,7 +657,7 @@ orders in thin books experience more slippage.
 
 **Underlying:** The asset whose price a derivative depends on: the stock behind an option, the crude oil behind an oil future, the index behind an index future.
 
-**UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
+**UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address; UUID v7 (standardised in 2024) starts with a millisecond timestamp, so its values sort roughly by time.
 
 **Underpricing:** Setting an IPO offer price below what the market will pay, visible as a first-day price jump. The gap multiplied by the number of shares sold is called money *left on the table*.
 
@@ -679,7 +679,7 @@ realized P&L when the position is closed.
 **VIX (Volatility Index):** A real-time index calculated by Cboe from the prices of S&P 500 options, representing the market's expectation of 30-day price volatility in the S&P 500. Commonly called the "fear gauge", when markets are uncertain or falling sharply, participants buy put options for protection, driving up option prices and therefore the VIX. Values above 30 typically indicate high market stress; values below 20 indicate relative calm. Derivatives on the VIX itself trade on Cboe.
 
 **VWAP (Volume-Weighted Average Price):** The average price of a position weighted by the quantity traded at each price. Used as cost basis for P&L calculation.
-$\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_i}$$
+$\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_i}$
 
 
 **VWAP Algorithm:** An execution algorithm that slices a large order and executes it throughout the day in proportion to expected trading volume, more during high-volume periods (open, close) and less during low-volume periods (mid-day). The goal is to achieve an average execution price close to or better than the day's volume-weighted average price. The most widely used institutional execution benchmark. Distinct from *VWAP (Volume-Weighted Average Price)*, which is a measurement; the VWAP algorithm is the execution strategy aimed at matching that measurement.
@@ -694,5 +694,5 @@ $\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_i
 
 ## Z {#glossary-z}
 
-**ZeroMQ (ZMQ):** A messaging library providing efficient pub/sub, push/pull, and other communication patterns. Commonly used as the message bus in exchange systems. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
+**ZeroMQ (ZMQ):** A messaging library providing efficient pub/sub, push/pull, and other communication patterns. Used as the message bus in smaller and educational exchange systems, including the reference exchange that accompanies this book; high-performance venues tend to use purpose-built transports such as Aeron or custom UDP multicast. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
 message queue server is required. 
