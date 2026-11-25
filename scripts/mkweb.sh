@@ -237,6 +237,18 @@ echo "✓ Upload to external site complete"
 echo ""
 
 
+
+#
+# Note: the github git-auth helper needs to be configured as otherwise the git push will fail
+# unless you recently pushed from VSCode which will have cached your credentials.
+# gh auth status
+# If not logged in:
+#
+# gh auth login --hostname github.com --git-protocol https --web
+# gh auth setup-git --hostname github.com
+#
+#
+
 echo -e "${CYAN}-------------------------------------------${NC}"
 echo -e "${CYAN}---       Copy to GitHub Pages          ---${NC}"
 echo -e "${CYAN}-------------------------------------------${NC}"
