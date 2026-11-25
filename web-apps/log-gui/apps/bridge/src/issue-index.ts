@@ -18,6 +18,7 @@ function rank(level: string): number {
 
 interface IssueState {
   fingerprint: string;
+  day: string;
   level: string;
   process: string;
   logger: string;
@@ -28,9 +29,17 @@ interface IssueState {
   lastSeq: number;
 }
 
+/**
+ * An issue is one fingerprint on one calendar day of the session timezone:
+ * the key is `<fingerprint>.<YYYY-MM-DD>`. A fault that keeps firing across
+ * midnight becomes a new issue for the new day, so the card's first/last
+ * clock times always belong to the single date it shows, and an ack of
+ * yesterday's card does not hide today's.
+ */
 export class IssueIndex {
   private readonly issues = new Map<string, IssueState>();
   private readonly minRank: number;
+  private readonly dayFormat: Intl.DateTimeFormat;
 
   /**
    * `minLevel` gates *both* the startup seed and live ingest. Previously the
@@ -42,8 +51,16 @@ export class IssueIndex {
   constructor(
     private readonly ackStore: AckStore,
     minLevel: LogLevel = "WARNING",
+    timeZone = "Europe/Stockholm",
   ) {
     this.minRank = rank(minLevel);
+    // en-CA formats a date as YYYY-MM-DD.
+    this.dayFormat = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
   }
 
   /** Feed a batch of rows during the startup backfill scan (no events emitted). */
@@ -65,7 +82,8 @@ export class IssueIndex {
 
   private absorb(row: LogRow): IssueState | null {
     if (rank(row.level) < this.minRank) return null;
-    const fingerprint = computeFingerprint(row);
+    const day = this.dayFormat.format(new Date(row.client_ts));
+    const fingerprint = `${computeFingerprint(row)}.${day}`;
     const existing = this.issues.get(fingerprint);
     if (existing) {
       existing.count += 1;
@@ -75,6 +93,7 @@ export class IssueIndex {
     }
     const created: IssueState = {
       fingerprint,
+      day,
       level: row.level,
       process: row.process,
       logger: row.logger,
@@ -92,6 +111,7 @@ export class IssueIndex {
     const ack = this.ackStore.get(state.fingerprint);
     return {
       fingerprint: state.fingerprint,
+      day: state.day,
       level: state.level as Issue["level"],
       process: state.process,
       logger: state.logger,

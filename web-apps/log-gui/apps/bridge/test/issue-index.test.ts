@@ -149,6 +149,54 @@ describe("IssueIndex", () => {
     expect(index.unackedCount("WARNING")).toBe(2);
   });
 
+  it("splits a fault that fires across midnight into one issue per day", () => {
+    // 22:59:59Z and 23:00:01Z are 23:59:59 and 00:00:01 in Stockholm (CET).
+    index.ingest(row({ seq: 1, client_ts: "2026-11-24T22:59:59.000Z" }));
+    index.ingest(row({ seq: 2, client_ts: "2026-11-24T23:00:01.000Z" }));
+    index.ingest(row({ seq: 3, client_ts: "2026-11-25T10:00:00.000Z" }));
+
+    const issues = index.list();
+    expect(issues.map((i) => [i.day, i.count])).toEqual([
+      ["2026-11-25", 2],
+      ["2026-11-24", 1],
+    ]);
+    const [today, yesterday] = issues;
+    expect(today!.firstSeen).toBe("2026-11-24T23:00:01.000Z");
+    expect(today!.lastSeen).toBe("2026-11-25T10:00:00.000Z");
+    expect(yesterday!.firstSeen).toBe(yesterday!.lastSeen);
+    expect(today!.fingerprint).not.toBe(yesterday!.fingerprint);
+    expect(today!.fingerprint.endsWith(".2026-11-25")).toBe(true);
+  });
+
+  it("draws the day boundary in the session timezone, not UTC", () => {
+    // Both rows are on 2026-11-24 in UTC but straddle midnight in Tokyo.
+    const tokyo = new IssueIndex(ackStore, "WARNING", "Asia/Tokyo");
+    tokyo.ingest(row({ seq: 1, client_ts: "2026-11-24T14:59:00.000Z" }));
+    tokyo.ingest(row({ seq: 2, client_ts: "2026-11-24T15:01:00.000Z" }));
+    expect(tokyo.list().map((i) => i.day)).toEqual(["2026-11-25", "2026-11-24"]);
+  });
+
+  it("an ack of one day's issue leaves the next day's issue unacked", () => {
+    const yesterday = index.ingest(row({ seq: 1, client_ts: "2026-11-24T21:28:52.000Z" }))!;
+    ackStore.ack({
+      fingerprint: yesterday.fingerprint,
+      ackedBy: "op",
+      note: null,
+      ackedThroughSeq: 1,
+      level: yesterday.level,
+      process: yesterday.process,
+      logger: yesterday.logger,
+      sampleMessage: yesterday.sampleMessage,
+    });
+    index.ingest(row({ seq: 2, client_ts: "2026-11-25T21:28:52.000Z" }));
+
+    const unacked = index.list({ acked: false });
+    expect(unacked).toHaveLength(1);
+    expect(unacked[0]!.day).toBe("2026-11-25");
+    expect(unacked[0]!.recurredSinceAck).toBe(false);
+    expect(index.get(yesterday.fingerprint)!.recurredSinceAck).toBe(false);
+  });
+
   it("pruneOlderThan removes issues with no activity since the cutoff", () => {
     index.ingest(row({ client_ts: "2026-01-01T00:00:00.000Z" }));
     expect(index.list()).toHaveLength(1);

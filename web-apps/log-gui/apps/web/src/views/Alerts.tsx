@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "../lib/api.js";
-import { formatClock, formatHm } from "../lib/formatTs.js";
+import { formatClock, formatDay, formatRowTs } from "../lib/formatTs.js";
 import { useUiConfig } from "../lib/useUiConfig.js";
 import { usePrefsStore } from "../store/usePrefsStore.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
@@ -127,12 +127,13 @@ export function AlertsView() {
             </div>
             <div className="mt-1 truncate font-mono text-sm">{issue.sampleMessage}</div>
             <div className="mt-1 text-xs text-fg-subtle">
-              first {timeZone ? formatClock(issue.firstSeen, timeZone) : "…"} · last{" "}
+              <span className="font-semibold">{formatDay(issue.day)}</span> · first{" "}
+              {timeZone ? formatClock(issue.firstSeen, timeZone) : "…"} · last{" "}
               {timeZone ? formatClock(issue.lastSeen, timeZone) : "…"}
             </div>
             {issue.ack && (
               <div className="mt-1 text-xs text-fg-subtle">
-                ✓ acked {timeZone ? formatHm(issue.ack.ackedAt, timeZone) : "…"} by {issue.ack.ackedBy}
+                ✓ acked {timeZone ? formatRowTs(issue.ack.ackedAt, timeZone) : "…"} by {issue.ack.ackedBy}
                 {issue.ack.note && ` — "${issue.ack.note}"`}
               </div>
             )}

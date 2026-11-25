@@ -175,6 +175,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         "paragraphs": [
           "Thousands of identical errors are one problem. Alerts groups them: lines from the same process, logger and level whose messages are the same once the variable parts (numbers, ids, hex strings, timestamps, quoted text) are stripped become one issue with a count ×N. Grouping is a heuristic and can occasionally merge or split; the issue lists its distinct raw messages so you can check.",
+          "An issue covers one day of the session timezone, shown as the date in front of its first and last times. A problem that keeps firing past midnight starts a new issue for the new day, so a card never mixes days and an acknowledgement covers only the day it was given for.",
           "For a line with a traceback only the exception and its last frame are compared."
         ]
       },

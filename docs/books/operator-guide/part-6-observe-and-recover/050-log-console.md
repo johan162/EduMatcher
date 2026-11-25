@@ -538,8 +538,12 @@ Where the console earns its keep. `WARNING`-and-above rows are **fingerprinted**
 one entry with a count, rather than a thousand lines to scroll past.
 
 Each issue card carries the level, process and logger, the occurrence count, a
-sample message, and first/last-seen times. Three tabs filter by state:
+sample message, and the date with first/last-seen times. Three tabs filter by state:
 **unacked**, **acked**, **all**.
+
+An issue covers one calendar day in the session timezone. A fault that keeps
+firing past midnight starts a fresh issue for the new day, so a card never
+mixes days, and an acknowledgement applies only to the day it was given for.
 
 The acknowledgement model:
 
@@ -547,7 +551,7 @@ The acknowledgement model:
   operator field, with an optional free-text note recording *what was done*.
 - **Un-ack** reverses it.
 - **`recurred since ack`** is flagged prominently when a fingerprint fires
-  again after being acknowledged. This is the case that matters most: it means
+  again on the same day after being acknowledged. This is the case that matters most: it means
   the fix did not hold, and it is visually distinct from a fresh issue.
 
 !!! warning "Acknowledgements are shared, not per-browser"
@@ -565,7 +569,7 @@ bridge loses nothing except issues that had already aged out.
 
 ![Alerts on the all tab, with an issue that recurred after it was acknowledged.](../../../assets/log-gui/log-alerts.png)
 
-*Each card is one fingerprint: level, process and logger, the occurrence count, a sample
+*Each card is one fingerprint on one day: level, process and logger, the occurrence count, a sample
 message and first/last seen. The second card was acknowledged by `instructor` with a note,
 then fired again — hence `recurred since ack` and **Un-ack** instead of **Acknowledge**.
 The operator name is set once, top right.*
