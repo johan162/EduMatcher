@@ -191,7 +191,7 @@ The core documentation for understanding order behavior, priority categories, an
 * CME Group Client Systems Wiki, [Futures Implied Order Matching Priority](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457096650/Futures+Implied+Order+Matching+Priority) (real orders before implied orders; tie-breaks between implied sources).
 * CME Group Client Systems Wiki, [MDP 3.0 – Implied Book](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457422235/MDP+3.0+-+Implied+Book) (two-deep implied book dissemination).
 * CME Group, [Treasury Futures Calendar Spreads](https://www.cmegroup.com/trading/interest-rates/files/treasury-futures-calendar-spreads.pdf), 2016 (spread buy/sell convention; leg-price assignment).
-* Brendan Wilson, CME Group, [Liquidity in implied inter-commodity spread markets](https://www.cmegroup.com/articles/2023/liquidity-in-implied-inter-commodity-spread-markets.html), 22 October 2024 (implied IN/OUT rules for ICS; undisseminated and locked/inverted implied quotes; outward rounding and who receives the rounding gain).
+* Brendan Wilson, CME Group, [Liquidity in implied inter-commodity spread markets](https://www.cmegroup.com/articles/2023/liquidity-in-implied-inter-commodity-spread-markets.html), page dated 23 October 2024 (implied IN/OUT rules for ICS; undisseminated and locked/inverted implied quotes; outward rounding and who receives the rounding gain).
 * Isaac Carruthers, [Inter-Commodity Spreads and Implied Pricing](https://texnology.com/quant.pdf), 2018 (outward rounding of implied prices; finer implied grids for ratio spreads).
 * Eurex, [Matching principles](https://www.eurex.com/ex-en/trade/order-book-trading/matching-principles) (synthetic matching) and [Passive Liquidity Protection](https://www.eurex.com/ex-en/support/initiatives/archive/passive-liquidity-protection).
 * CME press releases on implied functionality for Eurodollar calendar and butterfly spreads, [8 March 2004](https://mondovisione.com/media-and-resources/news/cme-to-add-new-eurodollars-on-globex-cme-to-add-new-eurodollars-on-globex-functi-2011124/) and [18 October 2004](https://mondovisione.com/media-and-resources/news/cme-launches-implied-butterfly-spread-functionality-for-electronic-trading-of-cm-2011124/).
@@ -201,6 +201,7 @@ The core documentation for understanding order behavior, priority categories, an
 ### Crude oil and negative prices
 
 * CME Group, NYMEX Rulebook [Chapter 200: Light Sweet Crude Oil Futures](https://www.cmegroup.com/rulebook/NYMEX/2/200.pdf) (1,000 barrels; $0.01 tick).
+* CME Clearing, [Advisory 20-152](https://www.cmegroup.com/notices/clearing/2020/04/Chadv20-152.html), 8 April 2020 (plan for a negative underlying in energy options), and [Advisory 20-160](https://www.cmegroup.com/notices/clearing/2020/04/Chadv20-160.html), 15 April 2020 (testing negative prices in the New Release environment).
 * CFTC, [Interim Staff Report on NYMEX WTI Crude Oil Futures Trading around April 20, 2020](https://www.cftc.gov/PressRoom/PressReleases/8315-20), November 2020.
 * Congressional Research Service, [Crude Oil Futures Prices Turn Negative (IN11354)](https://www.everycrsreport.com/reports/IN11354.html), 2020.
 * CFTC press release [8432-21](https://www.cftc.gov/PressRoom/PressReleases/8432-21), 28 September 2021 (Interactive Brokers: negative-price handling failures).
