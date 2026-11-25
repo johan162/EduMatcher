@@ -27,7 +27,7 @@ else
     PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
 endif
 
-.PHONY: pdf-docs pdf-parts-a4 epub-docs epub-docs-verify help clean really-clean check-latex-engine cover bundle-quiz
+.PHONY: all pdf-docs pdf-parts-a4 epub-docs epub-docs-verify help clean really-clean check-latex-engine cover bundle-quiz
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -275,7 +275,7 @@ check-latex-engine:
 		exit 1; \
 	fi
 
-all: cover cover-parts pdf-docs pdf-parts-a4 bundle-quiz epub-docs
+all: clean cover cover-parts pdf-docs pdf-parts-a4 bundle-quiz epub-docs
 
 pdfs: ## Build all PDF documentation variants in parallel
 	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz 
