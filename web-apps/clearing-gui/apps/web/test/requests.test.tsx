@@ -21,6 +21,9 @@ const POLLED = new Set([
   `${C}/participants`,
   `${C}/participants/TRADER01`,
   `${C}/health`,
+  // The Overview's largest positions (5 s) and session phase (30 s), CG23.
+  `${C}/exposure`,
+  "/api/v1/session",
 ]);
 
 function api() {

@@ -91,14 +91,6 @@ describe("Clearing Overview", () => {
     expect(panel.textContent).toMatch(/pm-clearing process.*not answering.*no reply within 500ms/);
   });
 
-  it("lists participants whose rows open their drill-down", async () => {
-    stubApi(overview());
-    renderApp("/overview");
-    const table = await screen.findByRole("table", { name: "Participants" });
-    fireEvent.click(within(table).getByText("TRADER01").closest("tr")!);
-    expect(currentPath()).toBe("/participants/TRADER01");
-  });
-
   it("shows recent PHASE and EOD events", async () => {
     stubApi(overview());
     renderApp("/overview");
@@ -111,7 +103,7 @@ describe("Clearing Overview", () => {
     try {
       const api = stubApi(overview());
       renderApp("/overview");
-      await screen.findByRole("table", { name: "Participants" });
+      await screen.findByRole("table", { name: "Largest losses" });
       await vi.advanceTimersByTimeAsync(31_000);
       expect(api.calls(SUMMARY).length).toBeGreaterThanOrEqual(6);
       expect(api.calls(HEALTH).length).toBe(2);
@@ -123,12 +115,14 @@ describe("Clearing Overview", () => {
   });
 
   it("names no venue-wide exposure, equity, margin or open interest", async () => {
-    stubApi(overview());
+    stubApi({ ...overview(), [`${C}/exposure`]: example(`${C}/exposure`) });
     renderApp("/overview");
-    await screen.findByRole("table", { name: "Participants" });
+    const largest = await screen.findByRole("table", { name: "Largest positions" });
+    // One position's own gross notional (CG23) is not a venue figure; every
+    // other heading, column and tile is held to the rule.
     const named = [
       ...screen.getAllByRole("heading"),
-      ...screen.getAllByRole("columnheader"),
+      ...screen.getAllByRole("columnheader").filter((h) => !largest.contains(h)),
       ...document.querySelectorAll("[data-stat-label]"),
     ]
       .map((e) => e.textContent)

@@ -7,23 +7,30 @@
  * - feed gaps: an alert when clearing saw trade ids jump on the latest
  *   session date, and the caveat that no gap is not proof of completeness;
  * - health: database and pm-clearing process, as two separate facts;
- * - participants, the last EOD run, recent session events.
+ * - the session phase, with a warning when continuous trading has gone
+ *   quiet in the ledger, and one when EOD failed or has not settled a closed
+ *   day (overviewChecks.ts);
+ * - needs attention: the largest losses and largest positions, each row
+ *   opening the participant's drawer (CG23);
+ * - the last EOD run, recent session events.
  *
- * Summary and participants refresh at 5 s, health at 30 s; events are
- * fetched once. There is deliberately no venue equity, margin, open-interest
- * or cross-symbol notional figure: none is computed by the system.
+ * Summary, participants and the largest positions refresh at 5 s, health
+ * and the phase at 30 s; events are fetched once. There is deliberately no
+ * venue equity, margin, open-interest or cross-symbol notional figure: none
+ * is computed by the system. A position's own gross notional is not one.
  */
 import { Link } from "react-router-dom";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { QueryState } from "@/components/shared/QueryState";
 import { Badge, PageHeader, Panel, Stat } from "@/components/shared/Ui";
-import { ParticipantsTable } from "@/components/views/ParticipantsTable";
+import { NeedsAttention } from "@/components/views/NeedsAttention";
 import { textColumn, timeColumn } from "@/components/views/columns";
 import { eventDetail } from "@/components/views/eventDetail";
-import { useHealth, useSessionEvents, useSummary } from "@/api/queries";
+import { useHealth, useSession, useSessionEvents, useSummary } from "@/api/queries";
 import type { SessionEventRowT, SummaryT } from "@/api/schemas";
 import { formatCurrency } from "@/lib/money";
-import { useFormatNs } from "@/components/shared/Time";
+import { Time, useFormatNs } from "@/components/shared/Time";
+import { STALE_WRITE_MS, eodProblem, staleWriteSeconds } from "./overviewChecks";
 
 const RECENT_EVENT_COLUMNS: Column<SessionEventRowT>[] = [
   timeColumn("ts", "Observed", (r) => r.ts_ns, "When clearing observed it; for a GAP, the trade after the gap"),
@@ -92,13 +99,29 @@ function Health() {
   );
 }
 
+/** A warning that is not an alarm: something to look at, worded with its possible causes. */
+function Warning({ children }: { children: string }) {
+  return (
+    <p role="status" className="mb-3 rounded border border-halt/50 bg-halt/10 p-2 text-xs">
+      {children}
+    </p>
+  );
+}
+
 export function OverviewPage() {
   const formatNs = useFormatNs();
   const summary = useSummary();
+  const session = useSession();
   const events = useSessionEvents({ limit: 10 });
+  const phase = session.data?.state ?? null;
   return (
     <>
-      <PageHeader title="Clearing Overview">The venue&apos;s clearing ledger, as pm-clearing last committed it.</PageHeader>
+      <PageHeader title="Clearing Overview">
+        The venue&apos;s clearing ledger, as pm-clearing last committed it.{" "}
+        <Link to="/reconciliation" className="text-link hover:underline">
+          Reconcile raw trades against daily rows
+        </Link>
+      </PageHeader>
       <QueryState query={summary} skeletonColumns={4}>
         {(s) => (
           <>
@@ -106,7 +129,22 @@ export function OverviewPage() {
               {`Last clearing write ${formatNs(s.last_flush_ts_ns)}; newest trade ${formatNs(s.last_trade_ts_ns)}. Committed data only: a fill can take up to 5 s (one clearing flush) to appear.`}
             </p>
             <FeedGaps summary={s} />
+            <OverviewWarnings summary={s} phase={phase} />
             <div className="mb-5 flex flex-wrap gap-3">
+              <Stat
+                label="Session phase"
+                value={session.data ? session.data.state : session.isError ? "unknown" : "…"}
+                sub={
+                  session.data ? (
+                    <>
+                      since <Time iso={session.data.state_since} />
+                    </>
+                  ) : session.isError ? (
+                    "the engine did not answer"
+                  ) : undefined
+                }
+                title="The engine's trading phase now (PRE_OPEN, auctions, CONTINUOUS, CLOSED), refreshed every 30 s"
+              />
               <Stat
                 label="Participants"
                 value={s.participant_count}
@@ -157,16 +195,7 @@ export function OverviewPage() {
         )}
       </QueryState>
       <Health />
-      <Panel
-        title="Participants"
-        actions={
-          <Link to="/reconciliation" className="text-xs text-link hover:underline">
-            Reconcile raw trades against daily rows
-          </Link>
-        }
-      >
-        <ParticipantsTable />
-      </Panel>
+      <NeedsAttention />
       <Panel
         title="Recent session events"
         actions={
@@ -186,6 +215,22 @@ export function OverviewPage() {
           )}
         </QueryState>
       </Panel>
+    </>
+  );
+}
+
+/** The stale-write and EOD warnings; nothing when all is well. */
+function OverviewWarnings({ summary, phase }: { summary: SummaryT; phase: string | null }) {
+  const stale = staleWriteSeconds(phase, summary.last_flush_ts_ns, Date.now());
+  const eod = eodProblem(summary, phase);
+  return (
+    <>
+      {stale !== null && (
+        <Warning>
+          {`No clearing write for ${stale} s during continuous trading (expected within ${STALE_WRITE_MS / 1000} s while trades arrive): no trade has arrived, or clearing is not writing. Check Health and the Events screen.`}
+        </Warning>
+      )}
+      {eod !== null && <Warning>{eod}</Warning>}
     </>
   );
 }

@@ -53,14 +53,16 @@ describe("venue session timezone", () => {
     );
   });
 
-  it("asks for the session once, whatever screens are opened", async () => {
-    const stub = stubApi(overview(stockholm()));
-    renderApp("/overview");
-    await screen.findByText(/Last clearing write .*CES?T/);
+  it("asks for the timezone once, whatever screens are opened", async () => {
+    // Screens that do not show the session phase (the Overview polls it, CG23).
+    const stub = stubApi({ ...overview(stockholm()), [`${C}/gateway-sessions`]: example(`${C}/gateway-sessions`) });
+    renderApp("/events");
+    const table = await screen.findByRole("table", { name: "Session events" });
+    await waitFor(() => expect(within(table).getAllByText(/CES?T$/).length).toBeGreaterThan(0));
+    navigate("/gateway-sessions");
+    await screen.findByRole("table", { name: "Gateway sessions" });
     navigate("/events");
     await screen.findByRole("table", { name: "Session events" });
-    navigate("/overview");
-    await screen.findByText(/Last clearing write .*CES?T/);
     expect(stub.calls(SESSION)).toHaveLength(1);
   });
 

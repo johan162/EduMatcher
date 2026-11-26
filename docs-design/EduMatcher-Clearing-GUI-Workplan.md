@@ -1272,7 +1272,7 @@ Suggested order is the table order: CG18 is the foundation the others use.
 | 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☑ | 2026-11-26 |
 | 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☑ | 2026-11-26 |
 | 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☑ | 2026-11-26 |
-| 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☐ | |
+| 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☑ | 2026-11-26 |
 | 24 | CG24 | Help drawer and the operator/participant guide chapters | CG18–CG23 | 0.5 d | ☐ | |
 
 Every WP is test-first in clearing-gui's vitest suite
@@ -1540,6 +1540,38 @@ typecheck and `a11y.test.tsx` green.
   run `failed` → the EOD warning; last settled day yesterday and today's
   session closed with trades → the lag warning.
 - **Exit:** no element on the Overview duplicates a whole other screen.
+- **Done 2026-11-26.** `test/overview.test.tsx` (14) failed first. Rules are
+  plain functions in `pages/admin/overviewChecks.ts`
+  (`staleWriteSeconds`, `eodProblem`, `largestLosses`); the panel is
+  `components/views/NeedsAttention.tsx`. Decisions taken in the WP:
+  - **Largest positions source:** `GET /exposure?limit=5&sort=gross_notional`
+    (the server's default sort). `store._EXPOSURE_SORT` ranks by display
+    currency (`/ {_CCY}`), so mixed precisions order correctly and the
+    reply is five rows: no 1 000-row ranking in the browser, no cap caveat.
+    Flat rows (net 0) are dropped. `useLargestPositions` polls at 5 s.
+  - **Staleness only in CONTINUOUS,** not "any phase but CLOSED": clearing
+    writes on fills, and PRE_OPEN and the auction phases fill only at the
+    uncross, so a warning there would fire every day. Threshold
+    `STALE_WRITE_MS` = 30 s; the text names both causes (no trade, or
+    clearing not writing).
+  - **EOD lag from the summary alone:** `last_eod_run` (status, trade_date)
+    and `session_date`, no `/balances` request. Warns when the last run is
+    not `ok`, or when the phase is CLOSED and the last run is for an earlier
+    day than `session_date`. Known gap: once the next day opens, a skipped
+    previous day is no longer flagged (only the failed-run rule still
+    shows); catching it would need the previous trading day, which nothing
+    the GUI reads gives. No warning when the EOD ledger is unavailable (the
+    EOD tile already says so).
+  - **Phase tile** from `useSession` (same `/session` key as the shell's
+    timezone read, polled at 30 s while the Overview is shown); "unknown /
+    the engine did not answer" when it fails, and then no staleness warning.
+  Old tests updated on purpose: the Overview-Participants row test removed
+  (covered by the new tests); two tests waited on that table; the
+  "no notional" rule now exempts the Largest positions table (one
+  position's own size, its tooltip says "not a venue total"); `requests`
+  allows `/exposure` and `/session` as polled; the timezone-once test moved
+  to screens that do not show the phase; the axe stub gained `/exposure`.
+  Suite 251 (was 238), typecheck and build green.
 
 ### CG24 — Help and guides
 

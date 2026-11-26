@@ -90,6 +90,20 @@ const cached: ReadOptions = { staleTime: CACHE_MS };
 export const usePositions = (params: Params = {}) =>
   useRead("/api/v1/clearing/positions", S.Positions, params, current);
 
+/**
+ * The venue's largest positions, as the server ranks them: gross notional
+ * in display currency (each row's own precision), all gateways (ADMIN).
+ */
+export const useLargestPositions = () =>
+  useRead("/api/v1/clearing/exposure", S.Exposure, { limit: 5, sort: "gross_notional" }, current);
+
+/**
+ * The session phase, refreshed at the health cadence (30 s) while a screen
+ * shows it -- the same request the shell makes once for the timezone.
+ */
+export const useSession = () =>
+  useRead("/api/v1/session", S.SessionInfo, {}, { refetchInterval: POLL_HEALTH_MS });
+
 export const useParticipants = () =>
   useRead("/api/v1/clearing/participants", S.Participants, {}, current);
 
