@@ -15,6 +15,7 @@ import type { ParticipantRowT } from "@/api/schemas";
 import { formatPnlCurrency, signClass } from "@/lib/money";
 import { qtyColumn, textColumn, timeColumn } from "./columns";
 import { participantPath } from "./GatewayId";
+import { PnlBalance } from "./PnlBalance";
 
 function currencyColumn(
   id: string,
@@ -72,6 +73,7 @@ export function ParticipantsTable({ selected }: { selected?: string }) {
             selectedKey={selected}
           />
           <MoreRows hasMore={d.has_more} count={d.count} />
+          <PnlBalance rows={d.participants} hasMore={d.has_more} />
         </>
       )}
     </QueryState>

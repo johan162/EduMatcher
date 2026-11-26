@@ -33,6 +33,7 @@ function api() {
     [`${C}/gateway-sessions`]: example(`${C}/gateway-sessions`),
     [`${C}/settlements`]: example(`${C}/settlements`),
     [`${C}/balances`]: example(`${C}/balances`),
+    [`${C}/netting`]: example(`${C}/netting`),
   });
 }
 

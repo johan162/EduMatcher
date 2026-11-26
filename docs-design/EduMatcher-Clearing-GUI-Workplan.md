@@ -1681,7 +1681,7 @@ API WPs come before the screens that need them. Order is the table order.
 |---|---|---|---|---|---|---|
 | 25 | CG25 | Explain mode; "how this number is made" per position; P&L split; words beside signs; teaching empty states | — | 1.5 d | ☑ | 2026-11-26 |
 | 26 | CG26 | API: long/short totals per symbol; `GET /clearing/netting` | — | 1 d | ☑ | 2026-11-26 |
-| 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☐ | |
+| 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☑ | 2026-11-26 |
 | 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☐ | |
 | 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☐ | |
 | 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☐ | |
@@ -1839,6 +1839,30 @@ published spec.
   `requests.test` gains the netting poll on exactly the screens above;
   Explain off removes the pictures, not the tables; axe clean.
 - **Exit:** as §9.2 for GUI WPs.
+- **Done 2026-11-26.** `test/teaching.test.tsx` (16) failed first (no
+  panels; the 5 Explain-off cases passed vacuously until then). New:
+  `components/shared/Bars.tsx` (`DivergingBars`, `ValueBars`, both
+  `aria-hidden`), `components/views/NettingPanel.tsx` (Overview, venue;
+  My Settlement, own; drawer Settlement, `gateway=`), `LongShortPanel.tsx`
+  (Symbol Activity), `MoneyByDay.tsx` (History, drawer and My, follows the
+  history filters) and `PnlBalance.tsx` (Participants); `useNetting` (30 s,
+  enabled only in Explain mode); `Netting` types. Every panel says what the
+  picture means in one or two sentences and carries its numbers in a table
+  (P&L sums: the Participants table above it). The netting texts say it is
+  cash netting and not pm-eod's settlement, which moves P&L (CG26's note).
+  `requests.test` allows `/clearing/netting` as a polled route; the tooltip
+  and axe suites now stub it, so its table's headers are checked. Suite 290
+  (was 274), typecheck and build green.
+  **Deviations:** (1) the pictures are plain HTML bars, not lazy-loaded
+  recharts (D12): horizontal bars need no chart library or lazy chunk.
+  (2) Every CG27 addition, the netting panel and its table included, is
+  Explain-only, by D7 ("off: the CG18–CG24 screens, unchanged"); the
+  plan's "removes the pictures, not the tables" meant the tables that
+  existed before. (3) Netting shows the latest trading day only (the API's
+  default); no past-day picker, so "once for a past day" does not arise.
+  (4) At most 20 bars per picture (largest first), the table lists all.
+  **Not done:** a look in a browser (bar widths at each font size, a venue
+  with many gateways); with CG25's, on the next live run.
 
 ### CG28 — API: position replay
 

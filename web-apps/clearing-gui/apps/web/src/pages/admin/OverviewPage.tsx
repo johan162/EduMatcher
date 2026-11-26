@@ -24,6 +24,7 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { QueryState } from "@/components/shared/QueryState";
 import { Badge, PageHeader, Panel, Stat } from "@/components/shared/Ui";
 import { NeedsAttention } from "@/components/views/NeedsAttention";
+import { NettingPanel } from "@/components/views/NettingPanel";
 import { textColumn, timeColumn } from "@/components/views/columns";
 import { eventDetail } from "@/components/views/eventDetail";
 import { useHealth, useSession, useSessionEvents, useSummary } from "@/api/queries";
@@ -204,6 +205,7 @@ export function OverviewPage() {
       </QueryState>
       <Health />
       <NeedsAttention />
+      <NettingPanel venue />
       <Panel
         title="Recent session events"
         actions={

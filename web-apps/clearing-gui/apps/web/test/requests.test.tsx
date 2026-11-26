@@ -24,6 +24,8 @@ const POLLED = new Set([
   // The Overview's largest positions (5 s) and session phase (30 s), CG23.
   `${C}/exposure`,
   "/api/v1/session",
+  // The netting panel (30 s, Explain mode), CG27.
+  `${C}/netting`,
 ]);
 
 function api() {
@@ -43,6 +45,7 @@ function api() {
     [`${C}/settlements`]: example(`${C}/settlements`),
     [`${C}/balances`]: example(`${C}/balances`),
     [`${C}/reconciliation`]: example(`${C}/reconciliation`),
+    [`${C}/netting`]: example(`${C}/netting`),
   });
 }
 

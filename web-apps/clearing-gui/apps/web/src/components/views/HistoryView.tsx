@@ -19,6 +19,7 @@ import { useCloseSnapshots, useDaily, useHistoryRevalidation, useSymbolOptions }
 import type { CloseSnapshotRowT, DailyRowT } from "@/api/schemas";
 import { formatPnlCurrency, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
 import { positionColumn, qtyColumn, textColumn, tickColumn } from "./columns";
+import { MoneyByDay } from "./MoneyByDay";
 import { subject, teachingHint } from "./teaching";
 
 const CloseChart = lazy(() => import("./CloseChart"));
@@ -168,6 +169,7 @@ export function HistoryView({ gateway }: { gateway?: string }) {
         >
           {(d) => (
             <>
+              <MoneyByDay rows={d.daily} />
               <DataTable
                 caption="Daily activity"
                 columns={DAILY_COLUMNS}

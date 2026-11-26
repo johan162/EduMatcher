@@ -141,6 +141,17 @@ export const useBalances = (params: Params) =>
   useRead("/api/v1/clearing/balances", S.Balances, params, cached);
 
 /**
+ * The latest trading day's trades netted per gateway (CG26/CG27): the venue
+ * for ADMIN, one gateway with `gateway`, the caller's own for a participant.
+ * Refreshed at 30 s while a teaching panel shows it (Explain mode only).
+ */
+export const useNetting = (gateway: string | undefined, enabled: boolean) =>
+  useRead("/api/v1/clearing/netting", S.Netting, gateway ? { gateway } : {}, {
+    refetchInterval: POLL_HEALTH_MS,
+    enabled,
+  });
+
+/**
  * The venue's session timezone, from `GET /api/v1/session`, into
  * `useVenueTimeZoneStore` for every time on screen. Fetched once per login:
  * the zone is configuration and does not change while the venue runs. The
