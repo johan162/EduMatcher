@@ -11,11 +11,11 @@
  */
 import { lazy, Suspense, useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
-import { FilterForm, filterDate, filterText, type FilterValues } from "@/components/shared/Filters";
+import { FilterForm, filterDate, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows, Panel } from "@/components/shared/Ui";
 import { Skeleton } from "@/components/shared/Skeleton";
-import { useCloseSnapshots, useDaily, useHistoryRevalidation } from "@/api/queries";
+import { useCloseSnapshots, useDaily, useHistoryRevalidation, useSymbolOptions } from "@/api/queries";
 import type { CloseSnapshotRowT, DailyRowT } from "@/api/schemas";
 import { formatCurrency, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
 import { qtyColumn, textColumn, tickColumn } from "./columns";
@@ -100,14 +100,15 @@ const TOTAL_COLUMNS: Column<CloseTotal>[] = [
   },
 ];
 
-const FIELDS = [
-  { name: "symbol", label: "Symbol", placeholder: "e.g. AAPL" },
-  { name: "from", label: "From", type: "date" as const },
-  { name: "to", label: "To", type: "date" as const },
+const DATE_FIELDS: FilterField[] = [
+  { name: "from", label: "From", type: "date" },
+  { name: "to", label: "To", type: "date" },
 ];
 
 export function HistoryView({ gateway }: { gateway?: string }) {
   const [filters, setFilters] = useState<FilterValues>({});
+  const symbols = useSymbolOptions();
+  const fields: FilterField[] = [{ name: "symbol", label: "Symbol", type: "combobox", suggestions: symbols }, ...DATE_FIELDS];
   useHistoryRevalidation(gateway);
   const params = {
     gateway,
@@ -121,7 +122,7 @@ export function HistoryView({ gateway }: { gateway?: string }) {
 
   return (
     <>
-      <FilterForm fields={FIELDS} onApply={setFilters} />
+      <FilterForm fields={fields} onApply={setFilters} />
       <Panel title="Close-to-close cumulative P&L">
         <p className="text-xs text-fg-dim">
           One point per session close; there is no intraday history. Each point is the cumulative realized plus

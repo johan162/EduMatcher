@@ -1271,7 +1271,7 @@ Suggested order is the table order: CG18 is the foundation the others use.
 | 19 | CG19 | Venue session timezone on every timestamp | — | 0.5 d | ☑ | 2026-11-26 |
 | 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☑ | 2026-11-26 |
 | 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☑ | 2026-11-26 |
-| 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☐ | |
+| 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☑ | 2026-11-26 |
 | 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☐ | |
 | 24 | CG24 | Help drawer and the operator/participant guide chapters | CG18–CG23 | 0.5 d | ☐ | |
 
@@ -1488,6 +1488,22 @@ typecheck and `a11y.test.tsx` green.
   unlisted value still filters; Escape closes the list without clearing it;
   axe has no violations.
 - **Exit:** no free-text gateway/symbol/account field left.
+- **Done 2026-11-26.** `test/filterCombobox.test.tsx` (10) failed first.
+  `components/shared/Combobox.tsx` (ARIA 1.2 combobox, list autocomplete;
+  pick on mousedown so it lands before blur; Escape closes and stops there,
+  so it does not also close a drawer) is the `combobox` field type of
+  `FilterForm`, with `suggestions`. **Deviation (symbol source):**
+  `/api/v1/symbols` requires a trading key (`require_trading`), so ADMIN could
+  not read it; symbols come from `GET /api/v1/reference/symbols` (any key)
+  instead, whose `ReferenceSymbolList` schema is declared in full and added to
+  `ROUTE_SCHEMAS`, so the contract test holds it. Lists are fetched once and
+  not polled: `useSymbolOptions` (`staleTime: Infinity`), `useGatewayOptions`
+  and `useAccountOptions` (cached 60 s, `enabled` only where the filter
+  exists, so a participant's Sessions/Settlement pages ask for neither); a
+  test holds `/participants` to one request over 30 s on Gateway Sessions.
+  A participant's Symbol list is every venue symbol, not only those it
+  traded. Suite 238 (was 226), typecheck and build green; axe clean with a
+  list open.
 
 ### CG23 — New Overview
 

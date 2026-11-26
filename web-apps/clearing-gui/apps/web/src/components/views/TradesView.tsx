@@ -7,9 +7,9 @@
  */
 import { useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
-import { FilterForm, filterDate, filterText, type FilterValues } from "@/components/shared/Filters";
+import { FilterForm, filterDate, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
-import { useTrades } from "@/api/queries";
+import { useSymbolOptions, useTrades } from "@/api/queries";
 import type { TradeRowT } from "@/api/schemas";
 import { gatewayColumn, qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
 
@@ -28,14 +28,15 @@ const COLUMNS: Column<TradeRowT>[] = [
   textColumn("msg", "Audit msg id", (r) => r.msg_id, "The id of the trade message in the audit trail, for looking it up there"),
 ];
 
-const FIELDS = [
-  { name: "symbol", label: "Symbol", placeholder: "e.g. AAPL" },
-  { name: "from", label: "From", type: "date" as const },
-  { name: "to", label: "To", type: "date" as const },
+const DATE_FIELDS: FilterField[] = [
+  { name: "from", label: "From", type: "date" },
+  { name: "to", label: "To", type: "date" },
 ];
 
 export function TradesView({ gateway, label }: { gateway?: string; label: string }) {
   const [filters, setFilters] = useState<FilterValues>({});
+  const symbols = useSymbolOptions();
+  const fields: FilterField[] = [{ name: "symbol", label: "Symbol", type: "combobox", suggestions: symbols }, ...DATE_FIELDS];
   const trades = useTrades({
     gateway,
     symbol: filterText(filters["symbol"]),
@@ -45,7 +46,7 @@ export function TradesView({ gateway, label }: { gateway?: string; label: string
   const retained = trades.data?.pages[0]?.retained_from;
   return (
     <>
-      <FilterForm fields={FIELDS} onApply={setFilters} />
+      <FilterForm fields={fields} onApply={setFilters} />
       {trades.data && (
         <p className="mb-2 text-xs text-fg-dim">
           {retained

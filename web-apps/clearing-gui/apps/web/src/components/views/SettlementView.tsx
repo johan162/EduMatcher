@@ -18,7 +18,7 @@ import { FilterForm, filterDate, filterText, type FilterField, type FilterValues
 import { QueryState } from "@/components/shared/QueryState";
 import { Time } from "@/components/shared/Time";
 import { Badge, MoreRows, Panel, Stat } from "@/components/shared/Ui";
-import { useBalances, useSettlements } from "@/api/queries";
+import { useAccountOptions, useBalances, useSettlements } from "@/api/queries";
 import type { BalanceRowT, EodRunT, SettlementRowT } from "@/api/schemas";
 import { formatMinor, signClass } from "@/lib/money";
 import { GatewayId } from "./GatewayId";
@@ -200,7 +200,9 @@ export function SettlementView({ mode, gateway, caption }: SettlementViewProps) 
     from: filterDate(filters["from"]),
     to: filterDate(filters["to"]),
   });
-  const fields = mode === "venue" ? [{ name: "account", label: "Account" }, ...DATE_FIELDS] : DATE_FIELDS;
+  const accounts = useAccountOptions(mode === "venue");
+  const fields: FilterField[] =
+    mode === "venue" ? [{ name: "account", label: "Account", type: "combobox", suggestions: accounts }, ...DATE_FIELDS] : DATE_FIELDS;
   return (
     <>
       <p className="mb-3 text-xs text-fg-dim">

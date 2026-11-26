@@ -10,11 +10,11 @@
  */
 import { useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
-import { FilterForm, filterText, type FilterValues } from "@/components/shared/Filters";
+import { FilterForm, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows, PageHeader } from "@/components/shared/Ui";
 import { gatewayColumn, qtyColumn, textColumn, tickColumn } from "@/components/views/columns";
-import { useReconciliation, type Params } from "@/api/queries";
+import { useGatewayOptions, useReconciliation, useSymbolOptions, type Params } from "@/api/queries";
 import type { ReconciliationRowT } from "@/api/schemas";
 
 const COLUMNS: Column<ReconciliationRowT>[] = [
@@ -33,15 +33,16 @@ const COLUMNS: Column<ReconciliationRowT>[] = [
   }),
 ];
 
-const FIELDS = [
-  { name: "from", label: "From", type: "date" as const, required: true },
-  { name: "to", label: "To", type: "date" as const, required: true },
-  { name: "gateway", label: "Gateway" },
-  { name: "symbol", label: "Symbol" },
-];
-
 export function ReconciliationPage() {
   const [params, setParams] = useState<Params | null>(null);
+  const gateways = useGatewayOptions();
+  const symbols = useSymbolOptions();
+  const fields: FilterField[] = [
+    { name: "from", label: "From", type: "date", required: true },
+    { name: "to", label: "To", type: "date", required: true },
+    { name: "gateway", label: "Gateway", type: "combobox", suggestions: gateways },
+    { name: "symbol", label: "Symbol", type: "combobox", suggestions: symbols },
+  ];
   const result = useReconciliation(params);
 
   function run(values: FilterValues) {
@@ -63,7 +64,7 @@ export function ReconciliationPage() {
         Compares the quantities and values counted from clearing&apos;s raw trades with its daily rows, per day,
         side, gateway and symbol. It reads every retained raw trade of the range, so it runs only when you ask.
       </PageHeader>
-      <FilterForm fields={FIELDS} onApply={run} submitLabel="Run" />
+      <FilterForm fields={fields} onApply={run} submitLabel="Run" />
       {params !== null && (
         <QueryState query={result} skeletonColumns={10}>
           {(d) => (

@@ -140,6 +140,35 @@ export function useVenueTimeZone(): void {
   useEffect(() => setTimeZone(zone), [zone, setTimeZone]);
 }
 
+// ── Filter lists (CG22): fetched once, never polled ─────────────────────────
+
+const NO_OPTIONS: string[] = [];
+
+/** Every symbol of the venue, for a Symbol filter (any key may read it). */
+export function useSymbolOptions(): string[] {
+  const q = useRead("/api/v1/reference/symbols", S.ReferenceSymbolList, {}, { staleTime: Number.POSITIVE_INFINITY });
+  return q.data ? q.data.symbols.map((s) => s.symbol).sort() : NO_OPTIONS;
+}
+
+/**
+ * Every participant gateway, for a Gateway filter (ADMIN). The same request
+ * as the Participants list, but cached rather than polled when only a filter
+ * asks for it.
+ */
+export function useGatewayOptions(enabled = true): string[] {
+  const q = useRead("/api/v1/clearing/participants", S.Participants, {}, { ...cached, enabled });
+  return q.data ? q.data.participants.map((p) => p.gateway_id).sort() : NO_OPTIONS;
+}
+
+/**
+ * Every settlement account, EXCHANGE included, for the EOD Account filter
+ * (ADMIN): the venue balances reply the EOD screen already shows.
+ */
+export function useAccountOptions(enabled = true): string[] {
+  const q = useRead("/api/v1/clearing/balances", S.Balances, {}, { ...cached, enabled });
+  return q.data ? q.data.balances.map((b) => b.account).sort() : NO_OPTIONS;
+}
+
 /** The caller's own symbol settings, including market-maker obligations. */
 export const useSymbolSettings = () =>
   useRead("/api/v1/symbols", S.SymbolList, {}, { staleTime: Number.POSITIVE_INFINITY });

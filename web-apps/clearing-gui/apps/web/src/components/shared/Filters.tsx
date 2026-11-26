@@ -4,15 +4,18 @@
  * letter. Each control has a visible label.
  */
 import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { Combobox } from "./Combobox";
 
 export type FilterValues = Record<string, string>;
 
 export interface FilterField {
   name: string;
   label: string;
-  type?: "text" | "date" | "select" | "checkbox";
+  type?: "text" | "date" | "select" | "checkbox" | "combobox";
   /** For `select`: value/label pairs; the first is the default. */
   options?: { value: string; label: string }[];
+  /** For `combobox`: the known values offered as the user types. */
+  suggestions?: string[];
   placeholder?: string;
   required?: boolean;
 }
@@ -68,7 +71,15 @@ export function FilterForm({
             <label htmlFor={inputId} className="text-[11px] text-fg-dim">
               {f.label}
             </label>
-            {f.type === "select" ? (
+            {f.type === "combobox" ? (
+              <Combobox
+                id={inputId}
+                value={value}
+                options={f.suggestions ?? []}
+                placeholder={f.placeholder}
+                onChange={(v) => set(f.name, v)}
+              />
+            ) : f.type === "select" ? (
               <select
                 id={inputId}
                 value={value}

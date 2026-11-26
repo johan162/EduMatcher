@@ -8,7 +8,7 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterForm, filterDate, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows } from "@/components/shared/Ui";
-import { useGatewaySessions } from "@/api/queries";
+import { useGatewayOptions, useGatewaySessions } from "@/api/queries";
 import type { GatewaySessionRowT } from "@/api/schemas";
 import { gatewayColumn, textColumn, timeColumn } from "./columns";
 
@@ -35,7 +35,10 @@ interface SessionsViewProps {
 
 export function SessionsView({ label, gateway, gatewayFilter = false }: SessionsViewProps) {
   const [filters, setFilters] = useState<FilterValues>({});
-  const fields = gatewayFilter ? [{ name: "gateway", label: "Gateway" }, ...DATE_FIELDS] : DATE_FIELDS;
+  const gateways = useGatewayOptions(gatewayFilter);
+  const fields: FilterField[] = gatewayFilter
+    ? [{ name: "gateway", label: "Gateway", type: "combobox", suggestions: gateways }, ...DATE_FIELDS]
+    : DATE_FIELDS;
   const sessions = useGatewaySessions({
     gateway: gateway ?? filterText(filters["gateway"]),
     from: filterDate(filters["from"]),
