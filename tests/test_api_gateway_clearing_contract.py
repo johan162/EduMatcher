@@ -57,6 +57,9 @@ MATRIX: dict[str, dict[str, int | str]] = {
     "/daily": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/close-snapshots": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/symbols": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},
+    "/flows": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},
+    "/netting": {"ADMIN": 200, "TRADER": 200, "MM": 200},
+    "/position-replay": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/session-events": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},
     "/gateway-sessions": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/reconciliation": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},
@@ -69,6 +72,7 @@ _KEYS = {"ADMIN": ADMIN_KEY, "TRADER": TRADER_KEY, "MM": MM_KEY}
 _REQUEST = {
     "/participants/{gateway_id}": "/participants/TRADER01",
     "/reconciliation": f"/reconciliation?from={DAY1}&to={DAY2}",
+    "/position-replay": "/position-replay?symbol=AAPL",
 }
 #: Lists whose size grows with time or venue size: each needs a bounded limit.
 _LISTS = {

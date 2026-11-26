@@ -23,6 +23,8 @@ import type { BalanceRowT, EodRunT, SettlementRowT } from "@/api/schemas";
 import { formatMinor, signClass } from "@/lib/money";
 import { GatewayId } from "./GatewayId";
 import { textColumn } from "./columns";
+import { NettingPanel } from "./NettingPanel";
+import { subject, teachingHint } from "./teaching";
 
 const EXCHANGE = "EXCHANGE";
 
@@ -210,6 +212,7 @@ export function SettlementView({ mode, gateway, caption }: SettlementViewProps) 
         It is not margin, collateral or a completed payment, and it exists only once pm-eod has settled the day.
         Amounts are in the display currency with 2 decimals.
       </p>
+      {mode !== "venue" && <NettingPanel gateway={gateway} />}
       {mode === "venue" ? <VenueBalances /> : <SingleBalance gateway={gateway} />}
       <Panel title="Settlements">
         <FilterForm label="Settlement filters" fields={fields} onApply={setFilters} />
@@ -217,7 +220,10 @@ export function SettlementView({ mode, gateway, caption }: SettlementViewProps) 
           query={settlements}
           isEmpty={(d) => d.settlements.length === 0 && d.runs.length === 0}
           emptyTitle="No settlements"
-          emptyHint="pm-eod has not settled a day in this range."
+          emptyHint={teachingHint(
+            `pm-eod has not settled a day in this range: pm-eod settles each trading day after the close, moving the day's change in P&L between the exchange and ${subject(gateway, mode === "venue").you}.`,
+            "Your End-of-Day Statement",
+          )}
         >
           {(d) => (
             <>

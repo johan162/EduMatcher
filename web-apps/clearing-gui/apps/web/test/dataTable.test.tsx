@@ -204,3 +204,26 @@ describe("Paging on a screen", () => {
     await waitFor(() => expect(screen.getByText("Page 1/3")).toBeTruthy());
   });
 });
+
+describe("DataTable row keys (CG32 review R6)", () => {
+  type R = { id: string };
+  const columns: Column<R>[] = [{ id: "id", header: "Id", title: "The id", cell: (r) => r.id }];
+
+  it("Enter on a row's disclosure button opens it, not the row", () => {
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        caption="Both"
+        columns={columns}
+        rows={[{ id: "A" }]}
+        rowKey={(r) => r.id}
+        onRowClick={onRowClick}
+        detail={{ name: (r) => `More ${r.id}`, render: (r) => `detail of ${r.id}` }}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "More A" }), { key: "Enter" });
+    expect(onRowClick).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.querySelector("tr[data-row-key='A']")!, { key: "Enter" });
+    expect(onRowClick).toHaveBeenCalledOnce();
+  });
+});

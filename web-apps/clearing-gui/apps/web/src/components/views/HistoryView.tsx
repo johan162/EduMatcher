@@ -17,8 +17,12 @@ import { MoreRows, Panel } from "@/components/shared/Ui";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { useCloseSnapshots, useDaily, useHistoryRevalidation, useSymbolOptions } from "@/api/queries";
 import type { CloseSnapshotRowT, DailyRowT } from "@/api/schemas";
-import { formatCurrency, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
-import { qtyColumn, textColumn, tickColumn } from "./columns";
+import { formatPnlCurrency, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
+import { positionColumn, qtyColumn, textColumn, tickColumn } from "./columns";
+import { useExplain } from "@/components/shared/Explain";
+import { MoneyByDay } from "./MoneyByDay";
+import { PositionReplayView } from "./PositionReplayView";
+import { subject, teachingHint } from "./teaching";
 
 const CloseChart = lazy(() => import("./CloseChart"));
 
@@ -36,16 +40,16 @@ const DAILY_COLUMNS: Column<DailyRowT>[] = [
     title: "Bought value − sold value that day: what was spent net",
   }),
   tickColumn("realized", "Realized P&L", (r) => r.realized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "Profit or loss locked in that day by trades that reduced or closed the position",
   }),
-  qtyColumn("end_qty", "End qty", (r) => r.end_net_qty, "Position after the day's last trade"),
+  positionColumn("end_qty", "End qty", (r) => r.end_net_qty, "Position after the day's last trade"),
   tickColumn("end_cost", "End avg cost", (r) => r.end_avg_cost_ticks, {
     extra: 2,
     title: "Average cost of the position after the day's last trade",
   }),
   tickColumn("end_unrealized", "End unrealized", (r) => r.end_unrealized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "Unrealized P&L of the open position after the day's last trade",
   }),
 ];
@@ -53,16 +57,16 @@ const DAILY_COLUMNS: Column<DailyRowT>[] = [
 const SNAPSHOT_COLUMNS: Column<CloseSnapshotRowT>[] = [
   textColumn("date", "Close", (r) => r.trade_date, "The trading day whose session close this snapshot is"),
   textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
-  qtyColumn("qty", "Net qty", (r) => r.net_qty, "Shares held at the close; negative is short"),
+  positionColumn("qty", "Net qty", (r) => r.net_qty, "Shares held at the close; negative is short"),
   tickColumn("mark", "Closing mark", (r) => r.mark_price_ticks, {
     title: "The price the position was valued at when the session closed",
   }),
   tickColumn("realized", "Cumulative realized", (r) => r.realized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "All realized P&L of the position up to this close",
   }),
   tickColumn("unrealized", "Unrealized at close", (r) => r.unrealized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "Profit or loss of the open quantity at the closing mark",
   }),
 ];
@@ -95,7 +99,7 @@ const TOTAL_COLUMNS: Column<CloseTotal>[] = [
     header: "Cumulative P&L",
     title: "Realized + unrealized at the closing marks, all symbols, display currency",
     align: "right",
-    cell: (r) => <span className={signClass(r.pnl)}>{formatCurrency(r.pnl)}</span>,
+    cell: (r) => <span className={signClass(r.pnl)}>{formatPnlCurrency(r.pnl)}</span>,
     sortValue: (r) => r.pnl,
   },
 ];
@@ -118,6 +122,8 @@ export function HistoryView({ gateway }: { gateway?: string }) {
   };
   const daily = useDaily(params);
   const closes = useCloseSnapshots(params);
+  const who = subject(gateway);
+  const explain = useExplain();
   const totals = useMemo(() => (closes.data ? closeTotals(closes.data.snapshots) : []), [closes.data]);
 
   return (
@@ -132,7 +138,10 @@ export function HistoryView({ gateway }: { gateway?: string }) {
           query={closes}
           isEmpty={(d) => d.snapshots.length === 0}
           emptyTitle="No close snapshots"
-          emptyHint="Clearing takes a snapshot at each session close."
+          emptyHint={teachingHint(
+            `None in this range: clearing takes a snapshot of ${who.your} positions at each session close.`,
+            "Positions and P&L",
+          )}
         >
           {(d) => (
             <>
@@ -152,14 +161,31 @@ export function HistoryView({ gateway }: { gateway?: string }) {
         </QueryState>
       </Panel>
       <Panel title="Daily activity">
-        <QueryState query={daily} isEmpty={(d) => d.daily.length === 0} emptyTitle="No daily rows">
+        <QueryState
+          query={daily}
+          isEmpty={(d) => d.daily.length === 0}
+          emptyTitle="No daily rows"
+          emptyHint={teachingHint(
+            `Nothing traded in this range: a daily row is written for each day and symbol in which ${who.you} traded.`,
+            "Positions and P&L",
+          )}
+        >
           {(d) => (
             <>
+              <MoneyByDay rows={d.daily} hasMore={d.has_more} />
               <DataTable
                 caption="Daily activity"
                 columns={DAILY_COLUMNS}
                 rows={d.daily}
                 rowKey={(r) => `${r.trade_date}/${r.gateway_id}/${r.symbol}`}
+                detail={
+                  explain
+                    ? {
+                        name: (r) => `Replay ${r.symbol} on ${r.trade_date}`,
+                        render: (r) => <PositionReplayView gateway={r.gateway_id} symbol={r.symbol} date={r.trade_date} />,
+                      }
+                    : undefined
+                }
               />
               <MoreRows hasMore={d.has_more} count={d.count} />
             </>

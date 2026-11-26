@@ -32,7 +32,9 @@ from edumatcher.api_gateway.clearing_scope import ClearingScope, clearing_scope
 from edumatcher.api_gateway.params import GatewayIdPath
 from edumatcher.api_gateway.responses import (
     ClearingDaily,
+    ClearingFlows,
     ClearingHealth,
+    ClearingNetting,
     ClearingPositions,
     ClearingSummary,
     ClearingSymbols,
@@ -43,6 +45,7 @@ from edumatcher.api_gateway.responses import (
     GatewaySessions,
     ParticipantDetail,
     Participants,
+    PositionReplay,
     Reconciliation,
     SessionEvents,
     Settlements,
@@ -50,13 +53,17 @@ from edumatcher.api_gateway.responses import (
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
 from edumatcher.clearing.query import day_bounds_ns, open_readonly_connection
+from edumatcher.clearing.replay import replay_position
 from edumatcher.clearing.store import (
     query_close_snapshots,
     query_daily,
     query_exposure,
     query_feed_gaps,
+    query_flows,
     query_freshness,
     query_health,
+    query_latest_trade_date,
+    query_netting,
     query_participants,
     query_positions,
     query_reconcile,
@@ -527,9 +534,120 @@ async def clearing_symbols(
     return _bounded("symbols", found, limit, _SYMBOL_MONEY)
 
 
+@router.get(
+    "/flows",
+    response_model=ClearingFlows,
+    summary="Who traded with whom on one day",
+    responses=docs.merge(
+        docs.ok(docs.CLEARING_FLOWS_REPLY, "Buyer/seller pairs, largest first."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "CLEARING_DB",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
+    ),
+)
+async def clearing_flows(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    date: Annotated[
+        str | None,
+        Query(
+            description="The trading day, `YYYY-MM-DD`, in the session timezone; "
+            "default the latest day with a daily row."
+        ),
+    ] = None,
+    symbol: _Symbol = None,
+) -> dict[str, Any]:
+    """Who bought from whom on one trading day: per buyer/seller gateway pair,
+    its trades, shares and value, largest value first.
+
+    ADMIN only: it names every trade's counterparty, which a participant
+    never sees. Read from the raw trades, so a day retention has pruned has
+    `trades_retained: false` and no pairs.
+    """
+    await require_admin(request, session)
+    _check_dates(date)
+
+    def _query(conn: sqlite3.Connection) -> dict[str, Any]:
+        day = date or query_latest_trade_date(conn)
+        if day is None:
+            return {
+                "trade_date": None,
+                "symbol": _upper(symbol),
+                "trades_retained": True,
+                "pairs": [],
+            }
+        return query_flows(conn, trade_date=day, symbol=_upper(symbol))
+
+    return await _in_clearing_db(request, _query)
+
+
 # ---------------------------------------------------------------------------
 # Gateway-scoped (ADMIN, or the caller's own gateway)
 # ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/netting",
+    response_model=ClearingNetting,
+    summary="One day's trades netted per gateway",
+    responses=docs.merge(
+        docs.ok(docs.CLEARING_NETTING_REPLY, "The day's netting."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "CLEARING_DB",
+            "SCOPE_DENIED",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
+    ),
+)
+async def clearing_netting(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    gateway: _Gateway = None,
+    date: Annotated[
+        str | None,
+        Query(
+            description="The trading day, `YYYY-MM-DD`, in the session timezone; "
+            "default the latest day with a daily row."
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """One trading day's trades against the one net amount each gateway is
+    left with: an ADMIN sees every gateway (or the one `gateway` names), a
+    participant only its own.
+
+    Values are in display currency, every symbol converted before the sum.
+    `net_amount` is bought value minus sold value (positive: the gateway
+    pays). The totals count each trade once. Trade counts come from the raw
+    trades and are null once retention has pruned the day. This is the cash
+    the day's trades net to; pm-eod's settlement (`/settlements`) moves the
+    day's change in P&L instead.
+    """
+    scope = await clearing_scope(request, session, gateway)
+    _check_dates(date)
+
+    def _query(conn: sqlite3.Connection) -> dict[str, Any]:
+        day = date or query_latest_trade_date(conn)
+        if day is None:
+            return {
+                "trade_date": None,
+                "trades_retained": True,
+                "trade_count": 0,
+                "traded_qty": 0,
+                "gross_value": 0.0,
+                "payment_count": 0,
+                "net_paid": 0.0,
+                "net_received": 0.0,
+                "gateways": [],
+            }
+        return query_netting(conn, trade_date=day, gateway=scope.gateway)
+
+    return await _in_clearing_db(request, _query)
 
 
 @router.get(
@@ -577,6 +695,60 @@ async def clearing_participant(
             "latest_close_date": latest[0]["trade_date"] if latest else None,
             "links": _links(target),
         }
+
+    return await _in_clearing_db(request, _query)
+
+
+@router.get(
+    "/position-replay",
+    response_model=PositionReplay,
+    summary="One position replayed through one day",
+    responses=docs.merge(
+        docs.ok(docs.CLEARING_POSITION_REPLAY_REPLY, "The day's fills, step by step."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "CLEARING_DB",
+            "SCOPE_DENIED",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
+    ),
+)
+async def clearing_position_replay(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    symbol: Annotated[
+        str, Query(description="The symbol (case-insensitive). Required.")
+    ],
+    gateway: _Gateway = None,
+    date: Annotated[
+        str | None,
+        Query(
+            description="The trading day, `YYYY-MM-DD`, in the session timezone; "
+            "default the latest day the pair traded."
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """How one gateway's position in one symbol was built through one day,
+    fill by fill, by pm-clearing's own position rules.
+
+    The replay starts from the previous daily row's end (or flat) and applies
+    the gateway's fills in the order clearing applied them. Each step says
+    what the fill did (`open`, `add`, `reduce`, `close`, `flip`) and the
+    position, average cost and realized P&L after it. `matches_daily_row` and
+    `matches_position` say whether the replay ends where the ledger does; a
+    mismatch is reported, never corrected. A day whose raw trades retention
+    has pruned has no steps. Without `gateway`, the caller's own gateway.
+    """
+    scope = await clearing_scope(request, session, gateway)
+    _check_dates(date)
+    target = scope.gateway or scope.caller
+    wanted = _upper(symbol)
+    if wanted is None:
+        raise _invalid("symbol", "symbol is required")
+
+    def _query(conn: sqlite3.Connection) -> dict[str, Any]:
+        return replay_position(conn, gateway=target, symbol=wanted, trade_date=date)
 
     return await _in_clearing_db(request, _query)
 

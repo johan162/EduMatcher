@@ -165,10 +165,91 @@ export const ClearingSymbolRow = z.object({
   realized_pnl: z.number(),
   realized_pnl_ticks: ticks,
   open_net_qty: int,
+  open_long_qty: int,
+  open_short_qty: int,
+  long_holders: int,
+  short_holders: int,
   open_unrealized_pnl: z.number(),
   open_unrealized_pnl_ticks: ticks,
 });
 export const ClearingSymbols = z.object({ symbols: z.array(ClearingSymbolRow), ...listFields });
+
+/** Who bought from whom on one day (CG30, ADMIN): per gateway pair, display currency. */
+export const FlowPair = z.object({
+  buyer: z.string(),
+  seller: z.string(),
+  trades: int,
+  quantity: int,
+  value: z.number(),
+});
+export const Flows = z.object({
+  trade_date: z.string().nullable(),
+  symbol: z.string().nullable(),
+  trades_retained: z.boolean(),
+  pairs: z.array(FlowPair),
+});
+
+/** One position replayed fill by fill through one day (CG28), by clearing's rules. */
+export const ReplayStep = z.object({
+  trade_id: z.string(),
+  ts_ns: nanos,
+  side: z.enum(["BUY", "SELL"]),
+  quantity: int,
+  kind: z.enum(["open", "add", "reduce", "close", "flip"]),
+  net_qty: int,
+  tick_decimals: int,
+  price: z.number(),
+  price_ticks: ticks,
+  avg_cost: z.number(),
+  avg_cost_ticks: ticks,
+  realized_delta: z.number(),
+  realized_delta_ticks: ticks,
+  realized_day: z.number(),
+  realized_day_ticks: ticks,
+  unrealized: z.number(),
+  unrealized_ticks: ticks,
+});
+export const PositionReplay = z.object({
+  gateway_id: z.string(),
+  symbol: z.string(),
+  trade_date: z.string().nullable(),
+  trades_retained: z.boolean(),
+  has_more: z.boolean(),
+  start: z.object({ net_qty: int, tick_decimals: int, avg_cost: z.number(), avg_cost_ticks: ticks }),
+  steps: z.array(ReplayStep),
+  matches_daily_row: z.boolean().nullable(),
+  matches_position: z.boolean().nullable(),
+  daily_row: z
+    .object({
+      end_net_qty: int,
+      tick_decimals: int,
+      end_avg_cost: z.number(),
+      end_avg_cost_ticks: ticks,
+      realized_pnl: z.number(),
+      realized_pnl_ticks: ticks,
+    })
+    .nullable(),
+});
+
+/** One day's trades netted per gateway (CG26): display currency, converted row by row. */
+export const NettingGatewayRow = z.object({
+  gateway_id: z.string(),
+  bought_value: z.number(),
+  sold_value: z.number(),
+  net_amount: z.number(),
+  trade_count: int.nullable(),
+});
+export const Netting = z.object({
+  trade_date: z.string().nullable(),
+  trades_retained: z.boolean(),
+  trade_count: int.nullable(),
+  traded_qty: int,
+  gross_value: z.number(),
+  payment_count: int,
+  net_paid: z.number(),
+  net_received: z.number(),
+  gateways: z.array(NettingGatewayRow),
+});
 
 /** Cross-symbol totals: display currency, already converted row by row. */
 const participantTotals = {
@@ -399,6 +480,9 @@ export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/clearing/daily": Daily,
   "/api/v1/clearing/close-snapshots": CloseSnapshots,
   "/api/v1/clearing/symbols": ClearingSymbols,
+  "/api/v1/clearing/netting": Netting,
+  "/api/v1/clearing/flows": Flows,
+  "/api/v1/clearing/position-replay": PositionReplay,
   "/api/v1/clearing/session-events": SessionEvents,
   "/api/v1/clearing/gateway-sessions": GatewaySessions,
   "/api/v1/clearing/reconciliation": Reconciliation,
@@ -413,6 +497,12 @@ export type TradeRowT = z.infer<typeof TradeRow>;
 export type DailyRowT = z.infer<typeof DailyRow>;
 export type CloseSnapshotRowT = z.infer<typeof CloseSnapshotRow>;
 export type ClearingSymbolRowT = z.infer<typeof ClearingSymbolRow>;
+export type NettingT = z.infer<typeof Netting>;
+export type FlowsT = z.infer<typeof Flows>;
+export type FlowPairT = z.infer<typeof FlowPair>;
+export type PositionReplayT = z.infer<typeof PositionReplay>;
+export type ReplayStepT = z.infer<typeof ReplayStep>;
+export type NettingGatewayRowT = z.infer<typeof NettingGatewayRow>;
 export type ParticipantRowT = z.infer<typeof ParticipantRow>;
 export type SessionEventRowT = z.infer<typeof SessionEventRow>;
 export type GatewaySessionRowT = z.infer<typeof GatewaySessionRow>;

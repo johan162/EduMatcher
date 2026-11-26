@@ -24,12 +24,15 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { QueryState } from "@/components/shared/QueryState";
 import { Badge, PageHeader, Panel, Stat } from "@/components/shared/Ui";
 import { NeedsAttention } from "@/components/views/NeedsAttention";
+import { FlowsPanel } from "@/components/views/FlowsPanel";
+import { NettingPanel } from "@/components/views/NettingPanel";
 import { textColumn, timeColumn } from "@/components/views/columns";
 import { eventDetail } from "@/components/views/eventDetail";
 import { useHealth, useSession, useSessionEvents, useSummary } from "@/api/queries";
 import type { SessionEventRowT, SummaryT } from "@/api/schemas";
 import { formatCurrency } from "@/lib/money";
 import { Time, useFormatNs } from "@/components/shared/Time";
+import { ExplainLine } from "@/components/shared/Explain";
 import { STALE_WRITE_MS, eodProblem, staleWriteSeconds, useUnchangedForMs } from "./overviewChecks";
 
 const RECENT_EVENT_COLUMNS: Column<SessionEventRowT>[] = [
@@ -38,6 +41,8 @@ const RECENT_EVENT_COLUMNS: Column<SessionEventRowT>[] = [
   textColumn("type", "Type", (r) => r.event_type, "PHASE: a session phase change; EOD: the engine's end of day; GAP: trade ids jumped"),
   textColumn("detail", "Detail", eventDetail, "The event's own payload, in words"),
 ];
+
+const EOD_TILE_TITLE = "The trading day pm-eod last ran for, and how the run ended";
 
 /** `1 trade`, `2 trades`. */
 function plural(n: number, noun: string): string {
@@ -176,7 +181,7 @@ export function OverviewPage() {
                 <span
                   data-stat-label
                   data-has-tooltip=""
-                  title="The trading day pm-eod last ran for, and how the run ended"
+                  title={EOD_TILE_TITLE}
                   className="cursor-help self-start text-[11px] uppercase tracking-wide text-fg-dim underline decoration-dotted underline-offset-2"
                 >
                   Last EOD run
@@ -193,6 +198,7 @@ export function OverviewPage() {
                 ) : (
                   <span className="text-halt">EOD ledger unavailable</span>
                 )}
+                <ExplainLine>{EOD_TILE_TITLE}</ExplainLine>
               </div>
             </div>
           </>
@@ -200,6 +206,8 @@ export function OverviewPage() {
       </QueryState>
       <Health />
       <NeedsAttention />
+      <NettingPanel venue />
+      <FlowsPanel />
       <Panel
         title="Recent session events"
         actions={

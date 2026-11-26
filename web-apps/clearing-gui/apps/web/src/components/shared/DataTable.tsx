@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight } from "lucide-react";
 import { PAGE_SIZES, usePageSizeStore } from "@/store/usePageSizeStore";
 import { pagination, TablePager } from "./TablePager";
 
@@ -37,6 +37,15 @@ interface DataTableProps<R> {
   onRowClick?: (row: R) => void;
   /** The `rowKey` of the row whose item is open (marked `aria-selected`). */
   selectedKey?: string;
+  /** A disclosure button per row that opens `render(row)` under it (CG25). */
+  detail?: RowDetail<R>;
+}
+
+/** What a row's disclosure button is called and what it opens. */
+export interface RowDetail<R> {
+  /** The button's accessible name, e.g. "Explain AAPL". */
+  name: (row: R) => string;
+  render: (row: R) => ReactNode;
 }
 
 /** The next server page of a cursor-paged list, fetched when paging needs it. */
@@ -63,6 +72,10 @@ export interface MoreRowsSource {
  * With `more`, the rows are the loaded part of a server-paged list: Next past
  * the loaded rows asks for the next server page, and the page shows once it
  * has arrived. "All" means all loaded rows.
+ *
+ * With `detail`, each row has a disclosure button at the start of its first
+ * cell that opens a full-width row under it; open rows are remembered by `rowKey`, so
+ * a poll or a page change does not close them.
  */
 export function DataTable<R>({
   caption,
@@ -74,7 +87,9 @@ export function DataTable<R>({
   more,
   onRowClick,
   selectedKey,
+  detail,
 }: DataTableProps<R>) {
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const [sort, setSort] = useState<SortState | null>(sortable ? (initialSort ?? null) : null);
   const [requestedPage, setRequestedPage] = useState(0);
   const pageSize = usePageSizeStore((s) => s.pageSize);
@@ -124,6 +139,14 @@ export function DataTable<R>({
     else setRequestedPage(index);
   }
 
+  function toggleDetail(key: string) {
+    setOpened((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }
+
   function changePageSize(size: number) {
     setPageSize(size);
     setRequestedPage(0);
@@ -167,32 +190,63 @@ export function DataTable<R>({
             </tr>
           </thead>
           <tbody>
-            {shown.map((row) => (
-              <tr
-                key={rowKey(row)}
-                className={`border-t border-line hover:bg-raised ${onRowClick ? "cursor-pointer" : ""} ${
-                  onRowClick && rowKey(row) === selectedKey ? "bg-accent/15" : ""
-                }`}
-                {...(onRowClick && {
-                  "data-row-key": rowKey(row),
-                  tabIndex: 0,
-                  "aria-selected": rowKey(row) === selectedKey,
-                  onClick: () => onRowClick(row),
-                  onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onRowClick(row);
-                    }
-                  },
-                })}
-              >
-                {columns.map((c) => (
-                  <td key={c.id} className={`px-2 py-1 ${c.align === "right" ? "num text-right" : ""}`}>
-                    {c.cell(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {shown.map((row) => {
+              const key = rowKey(row);
+              const open = detail !== undefined && opened.has(key);
+              const detailId = `detail-${caption}-${key}`.replace(/[^\w-]/g, "_");
+              return (
+                <Fragment key={key}>
+                  <tr
+                    className={`border-t border-line hover:bg-raised ${onRowClick ? "cursor-pointer" : ""} ${
+                      onRowClick && key === selectedKey ? "bg-accent/15" : ""
+                    }`}
+                    {...(onRowClick && {
+                      "data-row-key": key,
+                      tabIndex: 0,
+                      "aria-selected": key === selectedKey,
+                      onClick: () => onRowClick(row),
+                      onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+                        // Only the row's own keys: not one pressed on a
+                        // button in it, or in a table nested under it.
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onRowClick(row);
+                        }
+                      },
+                    })}
+                  >
+                    {columns.map((c, i) => (
+                      <td key={c.id} className={`px-2 py-1 ${c.align === "right" ? "num text-right" : ""}`}>
+                        {detail && i === 0 && (
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            aria-controls={open ? detailId : undefined}
+                            aria-label={detail.name(row)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleDetail(key);
+                            }}
+                            className="mr-1 align-middle text-fg-dim hover:text-fg"
+                          >
+                            {open ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+                          </button>
+                        )}
+                        {c.cell(row)}
+                      </td>
+                    ))}
+                  </tr>
+                  {open && (
+                    <tr id={detailId}>
+                      <td colSpan={columns.length} className="border-t border-line bg-raised/40 px-3 py-2">
+                        {detail.render(row)}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -141,6 +141,31 @@ export const useBalances = (params: Params) =>
   useRead("/api/v1/clearing/balances", S.Balances, params, cached);
 
 /**
+ * One position replayed fill by fill through one day (CG28/CG29): fetched
+ * when a replay is opened, and cached like the other history reads.
+ */
+export const usePositionReplay = (params: Params) =>
+  useRead("/api/v1/clearing/position-replay", S.PositionReplay, params, cached);
+
+/**
+ * Who bought from whom on the latest trading day (CG30, ADMIN), refreshed at
+ * 30 s while the Overview's teaching panel shows it (Explain mode only).
+ */
+export const useFlows = (enabled: boolean) =>
+  useRead("/api/v1/clearing/flows", S.Flows, {}, { refetchInterval: POLL_HEALTH_MS, enabled });
+
+/**
+ * The latest trading day's trades netted per gateway (CG26/CG27): the venue
+ * for ADMIN, one gateway with `gateway`, the caller's own for a participant.
+ * Refreshed at 30 s while a teaching panel shows it (Explain mode only).
+ */
+export const useNetting = (gateway: string | undefined, enabled: boolean) =>
+  useRead("/api/v1/clearing/netting", S.Netting, gateway ? { gateway } : {}, {
+    refetchInterval: POLL_HEALTH_MS,
+    enabled,
+  });
+
+/**
  * The venue's session timezone, from `GET /api/v1/session`, into
  * `useVenueTimeZoneStore` for every time on screen. Fetched once per login:
  * the zone is configuration and does not change while the venue runs. The

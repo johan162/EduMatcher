@@ -9,6 +9,7 @@ import { FilterForm, filterDate, type FilterValues } from "@/components/shared/F
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows, PageHeader } from "@/components/shared/Ui";
 import { qtyColumn, textColumn, tickColumn } from "@/components/views/columns";
+import { LongShortPanel } from "@/components/views/LongShortPanel";
 import { useClearingSymbols } from "@/api/queries";
 import type { ClearingSymbolRowT } from "@/api/schemas";
 
@@ -42,6 +43,7 @@ export function SymbolsPage() {
           <>
             <DataTable caption="Symbol activity" columns={COLUMNS} rows={d.symbols} rowKey={(r) => r.symbol} />
             <MoreRows hasMore={d.has_more} count={d.count} />
+            <LongShortPanel rows={d.symbols} />
           </>
         )}
       </QueryState>

@@ -11,6 +11,7 @@ import { MoreRows } from "@/components/shared/Ui";
 import { useGatewayOptions, useGatewaySessions } from "@/api/queries";
 import type { GatewaySessionRowT } from "@/api/schemas";
 import { gatewayColumn, textColumn, timeColumn } from "./columns";
+import { subject, teachingHint } from "./teaching";
 
 const COLUMNS: Column<GatewaySessionRowT>[] = [
   gatewayColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway that connected"),
@@ -52,7 +53,15 @@ export function SessionsView({ label, gateway, gatewayFilter = false }: Sessions
         disconnect is still connected, or its disconnect was not seen. Days are trading days.
       </p>
       <FilterForm fields={fields} onApply={setFilters} />
-      <QueryState query={sessions} isEmpty={(d) => d.sessions.length === 0} emptyTitle="No gateway sessions">
+      <QueryState
+        query={sessions}
+        isEmpty={(d) => d.sessions.length === 0}
+        emptyTitle="No gateway sessions"
+        emptyHint={teachingHint(
+          `None in this range: a session appears when ${subject(gateway, gatewayFilter).gateway} connects to the exchange, and ends when it disconnects.`,
+          "Clearing GUI",
+        )}
+      >
         {(d) => (
           <>
             <DataTable

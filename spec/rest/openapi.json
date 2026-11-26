@@ -9901,6 +9901,10 @@
                       "traded_notional": 71240.0,
                       "realized_pnl": 0.0,
                       "open_net_qty": 0,
+                      "open_long_qty": 110,
+                      "open_short_qty": 110,
+                      "long_holders": 1,
+                      "short_holders": 1,
                       "open_unrealized_pnl": 0.0,
                       "traded_notional_ticks": 7124000.0,
                       "realized_pnl_ticks": 0.0,
@@ -10010,6 +10014,465 @@
                       "error": {
                         "code": "ROLE_DENIED",
                         "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`CLEARING_DB`: The `pm-clearing` ledger is missing, locked or unreadable. Not an empty ledger: retry, or check that `pm-clearing` is deployed. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CLEARING_DB": {
+                    "summary": "CLEARING_DB",
+                    "value": {
+                      "error": {
+                        "code": "CLEARING_DB",
+                        "message": "Clearing ledger unavailable: not found",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clearing/flows": {
+      "get": {
+        "tags": [
+          "clearing"
+        ],
+        "summary": "Who traded with whom on one day",
+        "description": "Who bought from whom on one trading day: per buyer/seller gateway pair,\nits trades, shares and value, largest value first.\n\nADMIN only: it names every trade's counterparty, which a participant\nnever sees. Read from the raw trades, so a day retention has pruned has\n`trades_retained: false` and no pairs.",
+        "operationId": "clearing_flows",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day with a daily row.",
+              "title": "Date"
+            },
+            "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day with a daily row."
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this symbol (case-insensitive).",
+              "title": "Symbol"
+            },
+            "description": "Only this symbol (case-insensitive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Buyer/seller pairs, largest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearingFlows"
+                },
+                "example": {
+                  "trade_date": "2026-08-28",
+                  "symbol": null,
+                  "trades_retained": true,
+                  "pairs": [
+                    {
+                      "buyer": "TRADER01",
+                      "seller": "MM01",
+                      "trades": 2,
+                      "quantity": 150,
+                      "value": 28100.0
+                    },
+                    {
+                      "buyer": "MM01",
+                      "seller": "TRADER01",
+                      "trades": 1,
+                      "quantity": 1000,
+                      "value": 1085.0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Invalid date format: yesterday (expected YYYY-MM-DD)",
+                        "reject_code": "INVALID_VALUE",
+                        "field": "date"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`CLEARING_DB`: The `pm-clearing` ledger is missing, locked or unreadable. Not an empty ledger: retry, or check that `pm-clearing` is deployed. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CLEARING_DB": {
+                    "summary": "CLEARING_DB",
+                    "value": {
+                      "error": {
+                        "code": "CLEARING_DB",
+                        "message": "Clearing ledger unavailable: not found",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clearing/netting": {
+      "get": {
+        "tags": [
+          "clearing"
+        ],
+        "summary": "One day's trades netted per gateway",
+        "description": "One trading day's trades against the one net amount each gateway is\nleft with: an ADMIN sees every gateway (or the one `gateway` names), a\nparticipant only its own.\n\nValues are in display currency, every symbol converted before the sum.\n`net_amount` is bought value minus sold value (positive: the gateway\npays). The totals count each trade once. Trade counts come from the raw\ntrades and are null once retention has pruned the day. This is the cash\nthe day's trades net to; pm-eod's settlement (`/settlements`) moves the\nday's change in P&L instead.",
+        "operationId": "clearing_netting",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gateway",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this gateway (case-insensitive). ADMIN only: a participant key may name only itself, and is scoped to itself without it.",
+              "title": "Gateway"
+            },
+            "description": "Only this gateway (case-insensitive). ADMIN only: a participant key may name only itself, and is scoped to itself without it."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day with a daily row.",
+              "title": "Date"
+            },
+            "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day with a daily row."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The day's netting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearingNetting"
+                },
+                "example": {
+                  "trade_date": "2026-08-28",
+                  "trades_retained": true,
+                  "trade_count": 3,
+                  "traded_qty": 1150,
+                  "gross_value": 29185.0,
+                  "payment_count": 2,
+                  "net_paid": 27015.0,
+                  "net_received": 27015.0,
+                  "gateways": [
+                    {
+                      "gateway_id": "MM01",
+                      "bought_value": 1085.0,
+                      "sold_value": 28100.0,
+                      "net_amount": -27015.0,
+                      "trade_count": 3
+                    },
+                    {
+                      "gateway_id": "TRADER01",
+                      "bought_value": 28100.0,
+                      "sold_value": 1085.0,
+                      "net_amount": 27015.0,
+                      "trade_count": 3
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Invalid date format: yesterday (expected YYYY-MM-DD)",
+                        "reject_code": "INVALID_VALUE",
+                        "field": "date"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `SCOPE_DENIED`: A `TRADER` or `MARKET_MAKER` key asked for another gateway's clearing or settlement data; only `ADMIN` reads beyond its own gateway.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "SCOPE_DENIED": {
+                    "summary": "SCOPE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "SCOPE_DENIED",
+                        "message": "Gateway TRADER01 may read only its own clearing data, not MM01",
                         "reject_code": "ROLE_DENIED"
                       }
                     }
@@ -10195,6 +10658,267 @@
                         "code": "VALIDATION",
                         "message": "Input should be less than or equal to 5000",
                         "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `SCOPE_DENIED`: A `TRADER` or `MARKET_MAKER` key asked for another gateway's clearing or settlement data; only `ADMIN` reads beyond its own gateway.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "SCOPE_DENIED": {
+                    "summary": "SCOPE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "SCOPE_DENIED",
+                        "message": "Gateway TRADER01 may read only its own clearing data, not MM01",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`CLEARING_DB`: The `pm-clearing` ledger is missing, locked or unreadable. Not an empty ledger: retry, or check that `pm-clearing` is deployed. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CLEARING_DB": {
+                    "summary": "CLEARING_DB",
+                    "value": {
+                      "error": {
+                        "code": "CLEARING_DB",
+                        "message": "Clearing ledger unavailable: not found",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clearing/position-replay": {
+      "get": {
+        "tags": [
+          "clearing"
+        ],
+        "summary": "One position replayed through one day",
+        "description": "How one gateway's position in one symbol was built through one day,\nfill by fill, by pm-clearing's own position rules.\n\nThe replay starts from the previous daily row's end (or flat) and applies\nthe gateway's fills in the order clearing applied them. Each step says\nwhat the fill did (`open`, `add`, `reduce`, `close`, `flip`) and the\nposition, average cost and realized P&L after it. `matches_daily_row` and\n`matches_position` say whether the replay ends where the ledger does; a\nmismatch is reported, never corrected. A day whose raw trades retention\nhas pruned has no steps. Without `gateway`, the caller's own gateway.",
+        "operationId": "clearing_position_replay",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The symbol (case-insensitive). Required.",
+              "title": "Symbol"
+            },
+            "description": "The symbol (case-insensitive). Required."
+          },
+          {
+            "name": "gateway",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this gateway (case-insensitive). ADMIN only: a participant key may name only itself, and is scoped to itself without it.",
+              "title": "Gateway"
+            },
+            "description": "Only this gateway (case-insensitive). ADMIN only: a participant key may name only itself, and is scoped to itself without it."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day the pair traded.",
+              "title": "Date"
+            },
+            "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day the pair traded."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The day's fills, step by step.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionReplay"
+                },
+                "example": {
+                  "gateway_id": "TRADER01",
+                  "symbol": "AAPL",
+                  "trade_date": "2026-08-29",
+                  "trades_retained": true,
+                  "has_more": false,
+                  "start": {
+                    "net_qty": 150,
+                    "tick_decimals": 2,
+                    "avg_cost": 187.33333333333334,
+                    "avg_cost_ticks": 18733.333333333332
+                  },
+                  "steps": [
+                    {
+                      "trade_id": "000007-000000006",
+                      "ts_ns": 1788013800000000000,
+                      "side": "SELL",
+                      "quantity": 40,
+                      "kind": "reduce",
+                      "net_qty": 110,
+                      "tick_decimals": 2,
+                      "price": 188.0,
+                      "price_ticks": 18800.0,
+                      "avg_cost": 187.33333333333334,
+                      "avg_cost_ticks": 18733.333333333332,
+                      "realized_delta": 26.66666666666715,
+                      "realized_delta_ticks": 2666.666666666715,
+                      "realized_day": 26.66666666666715,
+                      "realized_day_ticks": 2666.666666666715,
+                      "unrealized": 73.33333333333466,
+                      "unrealized_ticks": 7333.333333333467
+                    }
+                  ],
+                  "matches_daily_row": true,
+                  "matches_position": true,
+                  "daily_row": {
+                    "end_net_qty": 110,
+                    "tick_decimals": 2,
+                    "end_avg_cost": 187.33333333333334,
+                    "end_avg_cost_ticks": 18733.333333333332,
+                    "realized_pnl": 26.66666666666715,
+                    "realized_pnl_ticks": 2666.666666666715
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Invalid date format: yesterday (expected YYYY-MM-DD)",
+                        "reject_code": "INVALID_VALUE",
+                        "field": "date"
                       }
                     }
                   }
@@ -21244,6 +21968,55 @@
         ],
         "title": "ClearingDailyRow"
       },
+      "ClearingFlows": {
+        "properties": {
+          "trade_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Date",
+            "description": "The trading day; null when the ledger has no day at all."
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol",
+            "description": "The symbol filter, or null: all."
+          },
+          "trades_retained": {
+            "type": "boolean",
+            "title": "Trades Retained",
+            "description": "The day's raw trades are still kept; false once retention pruned them, and then there are no pairs."
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/FlowPair"
+            },
+            "type": "array",
+            "title": "Pairs",
+            "description": "Largest value first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade_date",
+          "symbol",
+          "trades_retained",
+          "pairs"
+        ],
+        "title": "ClearingFlows"
+      },
       "ClearingHealth": {
         "properties": {
           "database": {
@@ -21259,6 +22032,85 @@
           "process"
         ],
         "title": "ClearingHealth"
+      },
+      "ClearingNetting": {
+        "properties": {
+          "trade_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Date",
+            "description": "The trading day, `YYYY-MM-DD`; null when the ledger has no day at all."
+          },
+          "trades_retained": {
+            "type": "boolean",
+            "title": "Trades Retained",
+            "description": "The day's raw trades are still kept; false once retention pruned them (the daily-row figures still answer)."
+          },
+          "trade_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Count",
+            "description": "Trades that day, each once (a participant: its own); null when the raw trades are pruned."
+          },
+          "traded_qty": {
+            "type": "integer",
+            "title": "Traded Qty",
+            "description": "Shares traded that day, each trade once (a participant: its buys plus its sells)."
+          },
+          "gross_value": {
+            "type": "number",
+            "title": "Gross Value",
+            "description": "Value of the day's trades, each once (a participant: its buys plus its sells), in display currency."
+          },
+          "payment_count": {
+            "type": "integer",
+            "title": "Payment Count",
+            "description": "Gateways left with a non-zero net amount."
+          },
+          "net_paid": {
+            "type": "number",
+            "title": "Net Paid",
+            "description": "Sum of the positive net amounts, in display currency."
+          },
+          "net_received": {
+            "type": "number",
+            "title": "Net Received",
+            "description": "Sum of the negative net amounts, as a positive, in display currency."
+          },
+          "gateways": {
+            "items": {
+              "$ref": "#/components/schemas/NettingGatewayRow"
+            },
+            "type": "array",
+            "title": "Gateways",
+            "description": "By gateway id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade_date",
+          "trades_retained",
+          "trade_count",
+          "traded_qty",
+          "gross_value",
+          "payment_count",
+          "net_paid",
+          "net_received",
+          "gateways"
+        ],
+        "title": "ClearingNetting"
       },
       "ClearingPositionRow": {
         "properties": {
@@ -21585,6 +22437,26 @@
             "title": "Open Net Qty",
             "description": "Sum of the current signed positions of all gateways; zero when every holder is a gateway. Not open interest."
           },
+          "open_long_qty": {
+            "type": "integer",
+            "title": "Open Long Qty",
+            "description": "Shares held long now, summed over the gateways that are long; `open_long_qty - open_short_qty = open_net_qty`."
+          },
+          "open_short_qty": {
+            "type": "integer",
+            "title": "Open Short Qty",
+            "description": "Shares held short now (a positive count), summed over the gateways that are short."
+          },
+          "long_holders": {
+            "type": "integer",
+            "title": "Long Holders",
+            "description": "Gateways long in the symbol now."
+          },
+          "short_holders": {
+            "type": "integer",
+            "title": "Short Holders",
+            "description": "Gateways short in the symbol now."
+          },
           "open_unrealized_pnl": {
             "type": "number",
             "title": "Open Unrealized Pnl",
@@ -21606,6 +22478,10 @@
           "realized_pnl",
           "realized_pnl_ticks",
           "open_net_qty",
+          "open_long_qty",
+          "open_short_qty",
+          "long_holders",
+          "short_holders",
           "open_unrealized_pnl",
           "open_unrealized_pnl_ticks"
         ],
@@ -23481,6 +24357,44 @@
         ],
         "title": "FeedGap"
       },
+      "FlowPair": {
+        "properties": {
+          "buyer": {
+            "type": "string",
+            "title": "Buyer",
+            "description": "The buying gateway."
+          },
+          "seller": {
+            "type": "string",
+            "title": "Seller",
+            "description": "The selling gateway."
+          },
+          "trades": {
+            "type": "integer",
+            "title": "Trades",
+            "description": "Trades between them that day."
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "description": "Shares the buyer bought from the seller."
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "description": "Their value, each trade converted with its precision, in display currency."
+          }
+        },
+        "type": "object",
+        "required": [
+          "buyer",
+          "seller",
+          "trades",
+          "quantity",
+          "value"
+        ],
+        "title": "FlowPair"
+      },
       "ForceUncrossAck": {
         "properties": {
           "accepted": {
@@ -25057,6 +25971,50 @@
             "symbol": "AAPL"
           }
         ]
+      },
+      "NettingGatewayRow": {
+        "properties": {
+          "gateway_id": {
+            "type": "string",
+            "title": "Gateway Id"
+          },
+          "bought_value": {
+            "type": "number",
+            "title": "Bought Value",
+            "description": "Value of the day's buys, every symbol, in display currency."
+          },
+          "sold_value": {
+            "type": "number",
+            "title": "Sold Value",
+            "description": "Value of the day's sells, every symbol, in display currency."
+          },
+          "net_amount": {
+            "type": "number",
+            "title": "Net Amount",
+            "description": "Bought value minus sold value: positive is what the gateway pays for the day's trades, negative what it receives, in display currency."
+          },
+          "trade_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Count",
+            "description": "The day's trades the gateway was a side of; null when the day's raw trades are pruned."
+          }
+        },
+        "type": "object",
+        "required": [
+          "gateway_id",
+          "bought_value",
+          "sold_value",
+          "net_amount",
+          "trade_count"
+        ],
+        "title": "NettingGatewayRow"
       },
       "News": {
         "properties": {
@@ -26714,6 +27672,100 @@
         ],
         "title": "Position",
         "description": "One instrument the gateway is not flat in. Only non-zero net positions are\nreported, so an empty list means flat everywhere."
+      },
+      "PositionReplay": {
+        "properties": {
+          "gateway_id": {
+            "type": "string",
+            "title": "Gateway Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "trade_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Date",
+            "description": "The day replayed; null when the pair never traded."
+          },
+          "trades_retained": {
+            "type": "boolean",
+            "title": "Trades Retained",
+            "description": "The day's raw trades are still kept; false once retention pruned them, and then there are no steps."
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "The day has more fills than the reply carries (5 000); the replay is then not checked."
+          },
+          "start": {
+            "$ref": "#/components/schemas/ReplayStart"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ReplayStep"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "The gateway's fills, in ledger order."
+          },
+          "matches_daily_row": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Daily Row",
+            "description": "The replay ends on the day's stored daily row (net quantity, average cost, realized P&L); null when there is nothing to compare."
+          },
+          "matches_position": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Position",
+            "description": "On the pair's latest day: it ends on the stored position (net quantity, average cost); null otherwise."
+          },
+          "daily_row": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReplayDailyRow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stored daily row, to show beside a mismatch."
+          }
+        },
+        "type": "object",
+        "required": [
+          "gateway_id",
+          "symbol",
+          "trade_date",
+          "trades_retained",
+          "has_more",
+          "start",
+          "steps",
+          "matches_daily_row",
+          "matches_position",
+          "daily_row"
+        ],
+        "title": "PositionReplay"
       },
       "PositionRow": {
         "properties": {
@@ -28470,6 +29522,200 @@
           "status"
         ],
         "title": "ReplaceResponse"
+      },
+      "ReplayDailyRow": {
+        "properties": {
+          "end_net_qty": {
+            "type": "integer",
+            "title": "End Net Qty"
+          },
+          "tick_decimals": {
+            "type": "integer",
+            "title": "Tick Decimals",
+            "description": "Price scale of this row: its ticks are 10**-tick_decimals of the display currency."
+          },
+          "end_avg_cost": {
+            "type": "number",
+            "title": "End Avg Cost",
+            "description": "Stored end-of-day average cost, in display currency."
+          },
+          "end_avg_cost_ticks": {
+            "type": "number",
+            "title": "End Avg Cost Ticks",
+            "description": "`end_avg_cost` as stored, in ticks of `tick_decimals`."
+          },
+          "realized_pnl": {
+            "type": "number",
+            "title": "Realized Pnl",
+            "description": "Stored realized P&L of the day, in display currency."
+          },
+          "realized_pnl_ticks": {
+            "type": "number",
+            "title": "Realized Pnl Ticks",
+            "description": "`realized_pnl` as stored, in ticks of `tick_decimals`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "end_net_qty",
+          "tick_decimals",
+          "end_avg_cost",
+          "end_avg_cost_ticks",
+          "realized_pnl",
+          "realized_pnl_ticks"
+        ],
+        "title": "ReplayDailyRow"
+      },
+      "ReplayStart": {
+        "properties": {
+          "net_qty": {
+            "type": "integer",
+            "title": "Net Qty",
+            "description": "The position before the day's first fill: the previous daily row's end, or 0."
+          },
+          "tick_decimals": {
+            "type": "integer",
+            "title": "Tick Decimals",
+            "description": "Price scale of this row: its ticks are 10**-tick_decimals of the display currency."
+          },
+          "avg_cost": {
+            "type": "number",
+            "title": "Avg Cost",
+            "description": "Its average cost, in display currency."
+          },
+          "avg_cost_ticks": {
+            "type": "number",
+            "title": "Avg Cost Ticks",
+            "description": "`avg_cost` as stored, in ticks of `tick_decimals`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "net_qty",
+          "tick_decimals",
+          "avg_cost",
+          "avg_cost_ticks"
+        ],
+        "title": "ReplayStart"
+      },
+      "ReplayStep": {
+        "properties": {
+          "trade_id": {
+            "type": "string",
+            "title": "Trade Id"
+          },
+          "ts_ns": {
+            "type": "integer",
+            "title": "Ts Ns",
+            "description": "Exchange time of the trade."
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "description": "The gateway's side."
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "open",
+              "add",
+              "reduce",
+              "close",
+              "flip"
+            ],
+            "title": "Kind",
+            "description": "What the fill did: `open` from flat, `add` to the same side, `reduce` part of it, `close` to flat, `flip` through flat to the other side."
+          },
+          "net_qty": {
+            "type": "integer",
+            "title": "Net Qty",
+            "description": "The position after the fill."
+          },
+          "tick_decimals": {
+            "type": "integer",
+            "title": "Tick Decimals",
+            "description": "Price scale of this row: its ticks are 10**-tick_decimals of the display currency."
+          },
+          "price": {
+            "type": "number",
+            "title": "Price",
+            "description": "The fill price, in display currency."
+          },
+          "price_ticks": {
+            "type": "number",
+            "title": "Price Ticks",
+            "description": "`price` as stored, in ticks of `tick_decimals`."
+          },
+          "avg_cost": {
+            "type": "number",
+            "title": "Avg Cost",
+            "description": "Average cost after the fill, in display currency."
+          },
+          "avg_cost_ticks": {
+            "type": "number",
+            "title": "Avg Cost Ticks",
+            "description": "`avg_cost` as stored, in ticks of `tick_decimals`."
+          },
+          "realized_delta": {
+            "type": "number",
+            "title": "Realized Delta",
+            "description": "P&L this fill realized, in display currency."
+          },
+          "realized_delta_ticks": {
+            "type": "number",
+            "title": "Realized Delta Ticks",
+            "description": "`realized_delta` as stored, in ticks of `tick_decimals`."
+          },
+          "realized_day": {
+            "type": "number",
+            "title": "Realized Day",
+            "description": "P&L realized so far that day, in display currency."
+          },
+          "realized_day_ticks": {
+            "type": "number",
+            "title": "Realized Day Ticks",
+            "description": "`realized_day` as stored, in ticks of `tick_decimals`."
+          },
+          "unrealized": {
+            "type": "number",
+            "title": "Unrealized",
+            "description": "Unrealized P&L after the fill, at its price, in display currency."
+          },
+          "unrealized_ticks": {
+            "type": "number",
+            "title": "Unrealized Ticks",
+            "description": "`unrealized` as stored, in ticks of `tick_decimals`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade_id",
+          "ts_ns",
+          "side",
+          "quantity",
+          "kind",
+          "net_qty",
+          "tick_decimals",
+          "price",
+          "price_ticks",
+          "avg_cost",
+          "avg_cost_ticks",
+          "realized_delta",
+          "realized_delta_ticks",
+          "realized_day",
+          "realized_day_ticks",
+          "unrealized",
+          "unrealized_ticks"
+        ],
+        "title": "ReplayStep"
       },
       "RiskLevel": {
         "properties": {

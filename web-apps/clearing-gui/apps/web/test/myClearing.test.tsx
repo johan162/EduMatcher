@@ -62,8 +62,9 @@ describe("My Positions", () => {
     renderApp("/me/positions");
     await screen.findByRole("table", { name: "My positions" });
     const aapl = rowCells("My positions", "AAPL");
-    expect(aapl).toEqual(expect.arrayContaining(["110", "187.3333", "188.00", "26.67", "73.33"]));
-    expect(rowCells("My positions", "MSFT")).toContain("-20");
+    // CG25: a word beside every sign.
+    expect(aapl).toEqual(expect.arrayContaining(["110 long", "187.3333", "188.00", "26.67 gain", "73.33 gain"]));
+    expect(rowCells("My positions", "MSFT")).toContain("-20 short");
     noForeignGateway(api.requests);
     expect(api.calls(POSITIONS).length).toBeGreaterThan(0);
   });
@@ -77,9 +78,9 @@ describe("My Positions", () => {
     // exposure query computes them from the same row.
     const aapl = rowCells("My positions", "AAPL");
     expect(aapl.filter((c) => c === "20,680.00")).toHaveLength(2);
-    expect(aapl).toContain("100.00");
+    expect(aapl).toContain("100.00 gain");
     const msft = rowCells("My positions", "MSFT");
-    expect(msft).toEqual(expect.arrayContaining(["-8,230.00", "8,230.00", "12.00"]));
+    expect(msft).toEqual(expect.arrayContaining(["-8,230.00", "8,230.00", "12.00 gain"]));
     const headers = within(screen.getByRole("table", { name: "My positions" }))
       .getAllByRole("columnheader")
       .map((h) => h.textContent);
@@ -193,7 +194,8 @@ describe("My Trades", () => {
       stubApi({ ...current(), [TRADES]: serverPages() });
       renderApp("/me/trades");
       const table = await screen.findByRole("table", { name: "My retained trades" });
-      expect(within(table).queryAllByRole("button")).toHaveLength(0);
+      // No sort buttons in the header (rows may have CG31's "Follow trade").
+      expect(within(table.querySelector("thead")!).queryAllByRole("button")).toHaveLength(0);
       expect(screen.getByText(/Newest first/)).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
     });
@@ -215,8 +217,8 @@ describe("Daily & Close History", () => {
     renderApp("/me/history");
     await screen.findByRole("table", { name: "Closes by day" });
     // 2026-08-29: AAPL realized 26.67 + unrealized 73.33 = 100.00.
-    expect(rowCells("Closes by day", "2026-08-29")).toContain("100.00");
-    expect(rowCells("Closes by day", "2026-08-28")).toContain("25.00");
+    expect(rowCells("Closes by day", "2026-08-29")).toContain("100.00 gain");
+    expect(rowCells("Closes by day", "2026-08-28")).toContain("25.00 gain");
   });
 
   it("history is fetched once, not at the polling cadence", async () => {

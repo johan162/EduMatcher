@@ -1,3 +1,30 @@
+## [v0.85.0] - 2026-11-26
+
+Release Type: major
+
+### 📋 Summary
+This release expands the Clearing GUI with teaching tools for explaining positions, following trades, and visualizing venue-wide activity. It also adds supporting clearing API endpoints and improves log-console alert configuration.
+
+### ✨ Additions
+- Added Explain mode and position breakdowns showing how clearing figures are calculated
+- Added position build-up replay and a timeline for following an individual trade
+- Added visualizations for long and short positions, netting, participant trading flows, P&L, and daily money movements
+- Added clearing API endpoints for netting, position replay, and trading flows, plus long/short totals per symbol
+- Added log-console issue and alert level settings to container deployment examples
+
+### 🚀 Improvements
+- Improved netting trade counts by using gateway indexes
+
+### 🐛 Bug Fixes
+- Fixed the log-console unacknowledged-alert badge labeling so it reflects the configured alert level
+
+### 📚 Documentation
+- Updated the Clearing GUI guides, in-app help, and API reference for the teaching features
+- Updated log-console documentation for issue and alert level settings
+
+### 🛠 Internal
+- Added API and GUI regression coverage for clearing teaching features and log-alert badge labels
+
 ## [v0.84.3] - 2026-11-26
 
 Release Type: minor

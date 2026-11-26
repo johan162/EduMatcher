@@ -190,8 +190,8 @@ export const HELP_TOPICS: HelpTopic[] = [
             "text": "The same problem happened again after it was acknowledged: a fix that did not hold."
           },
           {
-            "term": "⚠ N unacked (top bar)",
-            "text": "Issues at or above the alert level that nobody has acknowledged. It turns red when above 0."
+            "term": "⚠ N unacked errors (top bar)",
+            "text": "Issues at or above ISSUES_ALERT_LEVEL (default ERROR) that nobody has acknowledged; the last word names the level. Alerts lists everything from ISSUES_MIN_LEVEL (default WARNING) up, so it can show more. Both are set in the stack's .env file. It turns red when above 0."
           }
         ]
       }

@@ -504,11 +504,14 @@ chapter.
 | `/clearing/participants` | ADMIN | P&L and position counts per gateway |
 | `/clearing/participants/{gateway_id}` | ADMIN, or that gateway | One gateway's totals, positions and links to its other views |
 | `/clearing/positions` | ADMIN, or own | Current positions at their marks |
+| `/clearing/position-replay` | ADMIN, or own | One position replayed fill by fill through one day, checked against the ledger |
 | `/clearing/exposure` | ADMIN, or own | Net/gross notional and P&L per position |
 | `/clearing/trades` | ADMIN, or own | Retained raw executions, with match type and audit message id; a participant sees only its own side |
 | `/clearing/daily` | ADMIN, or own | Daily activity, realized P&L and end-of-day position |
 | `/clearing/close-snapshots` | ADMIN, or own | Position and cumulative P&L at every close |
-| `/clearing/symbols` | ADMIN | Activity and aggregate net position per symbol |
+| `/clearing/symbols` | ADMIN | Activity, aggregate net position and its long and short sides per symbol |
+| `/clearing/flows` | ADMIN | Who bought from whom on one day, per gateway pair |
+| `/clearing/netting` | ADMIN, or own | One day's trades against the net amount each gateway is left with |
 | `/clearing/session-events` | ADMIN | `PHASE`, `EOD` and `GAP` events clearing observed |
 | `/clearing/gateway-sessions` | ADMIN, or own | Connect/disconnect history |
 | `/clearing/reconciliation` | ADMIN | Raw trades against daily rows, for an explicit `from`/`to` range |

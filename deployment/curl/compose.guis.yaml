@@ -85,6 +85,8 @@ services:
       LOG_SRV_PULL_PORT: "5602"
       LOG_DB_PATH: "/backend-data/log.db"
       ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
+      ISSUES_MIN_LEVEL: "${ISSUES_MIN_LEVEL:-WARNING}"
+      ISSUES_ALERT_LEVEL: "${ISSUES_ALERT_LEVEL:-ERROR}"
     volumes:
       # pm-log-srv's own directory, read-only: the viewer reads log.db but
       # must never write it.

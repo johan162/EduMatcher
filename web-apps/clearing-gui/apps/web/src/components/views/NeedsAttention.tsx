@@ -10,9 +10,9 @@ import { QueryState } from "@/components/shared/QueryState";
 import { Panel } from "@/components/shared/Ui";
 import { useLargestPositions, useParticipants } from "@/api/queries";
 import type { ExposureRowT, ParticipantRowT } from "@/api/schemas";
-import { formatCurrency, signClass } from "@/lib/money";
+import { formatPnlCurrency, signClass } from "@/lib/money";
 import { largestLosses } from "@/pages/admin/overviewChecks";
-import { qtyColumn, textColumn, tickColumn } from "./columns";
+import { positionColumn, textColumn, tickColumn } from "./columns";
 import { participantPath } from "./GatewayId";
 
 function money(id: string, header: string, value: (r: ParticipantRowT) => number, title: string): Column<ParticipantRowT> {
@@ -21,7 +21,7 @@ function money(id: string, header: string, value: (r: ParticipantRowT) => number
     header,
     title,
     align: "right",
-    cell: (r) => <span className={signClass(value(r))}>{formatCurrency(value(r))}</span>,
+    cell: (r) => <span className={signClass(value(r))}>{formatPnlCurrency(value(r))}</span>,
     sortValue: value,
   };
 }
@@ -36,12 +36,12 @@ const LOSS_COLUMNS: Column<ParticipantRowT>[] = [
 const POSITION_COLUMNS: Column<ExposureRowT>[] = [
   textColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway; select the row to open it"),
   textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
-  qtyColumn("net_qty", "Net qty", (r) => r.net_qty, "Shares held now; negative is short"),
+  positionColumn("net_qty", "Net qty", (r) => r.net_qty, "Shares held now; negative is short"),
   tickColumn("gross", "Gross notional", (r) => r.gross_notional_ticks, {
     title: "|Net qty × mark|: the size of this one position at its mark (not a venue total)",
   }),
   tickColumn("unrealized", "Unrealized P&L", (r) => r.unrealized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "Profit or loss of the open quantity at the mark",
   }),
 ];

@@ -1169,6 +1169,161 @@ def count_summary_days(
     return int(conn.execute(_drop_unset_filters(sql, params), params).fetchone()[0])
 
 
+#: A gateway's net below this (display currency) is zero: a day's buys and
+#: sells that balance can sum to a float residue rather than exactly 0.
+_NET_ZERO = 1e-9
+
+
+def query_latest_trade_date(conn: sqlite3.Connection) -> str | None:
+    """The newest ``trade_date`` with a daily row; ``None`` when there is none."""
+    row = conn.execute("SELECT MAX(trade_date) FROM gateway_daily_summary").fetchone()
+    return row[0] if row else None
+
+
+def _day_trade_count(conn: sqlite3.Connection, trade_date: str, gateway: str) -> int:
+    """Trades *gateway* was a side of on *trade_date*, a trade with itself once,
+    read from the buyer and seller indexes."""
+    p = {"day": trade_date, "gateway": gateway}
+    bought, sold, itself = (
+        conn.execute(
+            f"SELECT COUNT(*) FROM trade_events WHERE {where} AND trade_date = :day",
+            p,
+        ).fetchone()[0]
+        for where in (
+            "buy_gateway_id = :gateway",
+            "sell_gateway_id = :gateway",
+            "buy_gateway_id = :gateway AND sell_gateway_id = :gateway",
+        )
+    )
+    return int(bought) + int(sold) - int(itself)
+
+
+def query_netting(
+    conn: sqlite3.Connection, *, trade_date: str, gateway: str | None = None
+) -> dict[str, Any]:
+    """One trading day's trades against what each gateway is left with.
+
+    Per gateway (one, or every gateway when *gateway* is ``None``), from the
+    daily rows, every symbol converted to display currency before the sum:
+    ``bought_value``, ``sold_value`` and ``net_amount`` (bought − sold:
+    positive is what the gateway pays for the day's trades, negative what it
+    receives). The totals count each trade once: in the venue every trade has
+    one buyer, so they are the buy side; for one gateway, its buys and sells.
+
+    Trade counts come from the raw trades, which retention prunes while the
+    daily rows stay: for a pruned day ``trades_retained`` is false and every
+    count is ``None``. This is the cash the trades net to, not pm-eod's
+    settlement, which moves the day's change in P&L.
+    """
+    scale = _pow10("tick_decimals")
+    rows = conn.execute(
+        "SELECT gateway_id,"
+        " SUM(buy_qty) AS bought_qty, SUM(sell_qty) AS sold_qty,"
+        f" SUM(buy_notional / {scale}) AS bought_value,"
+        f" SUM(sell_notional / {scale}) AS sold_value,"
+        f" SUM(net_amount / {scale}) AS net_amount"
+        " FROM gateway_daily_summary"
+        " WHERE trade_date = :day AND (:gateway IS NULL OR gateway_id = :gateway)"
+        " GROUP BY gateway_id ORDER BY gateway_id ASC",
+        {"day": trade_date, "gateway": gateway},
+    ).fetchall()
+    retained_from = query_retained_from(conn)
+    retained = not rows or (retained_from is not None and trade_date >= retained_from)
+    counts: dict[str, int] = {}
+    total_count: int | None = None
+    if retained:
+        # Each gateway's count from its own index entries: this is polled,
+        # and walking the whole day's trades instead cost 150 ms on a
+        # 100 000-trade day (review of CG25-CG32, P1).
+        counts = {
+            str(r["gateway_id"]): _day_trade_count(
+                conn, trade_date, str(r["gateway_id"])
+            )
+            for r in rows
+        }
+        if gateway is None:
+            total_count = conn.execute(
+                "SELECT COUNT(*) FROM trade_events WHERE trade_date = ?", (trade_date,)
+            ).fetchone()[0]
+        else:
+            total_count = counts.get(gateway, 0)
+    gateways = [
+        {
+            "gateway_id": r["gateway_id"],
+            "bought_value": r["bought_value"],
+            "sold_value": r["sold_value"],
+            "net_amount": r["net_amount"],
+            "trade_count": counts.get(r["gateway_id"], 0) if retained else None,
+        }
+        for r in rows
+    ]
+    nets = [float(r["net_amount"]) for r in rows]
+    own = gateway is not None
+    return {
+        "trade_date": trade_date,
+        "trades_retained": retained,
+        "trade_count": total_count,
+        "traded_qty": sum(
+            r["bought_qty"] + (r["sold_qty"] if own else 0) for r in rows
+        ),
+        "gross_value": sum(
+            r["bought_value"] + (r["sold_value"] if own else 0.0) for r in rows
+        ),
+        "payment_count": sum(1 for n in nets if abs(n) > _NET_ZERO),
+        "net_paid": sum(n for n in nets if n > _NET_ZERO),
+        "net_received": -sum(n for n in nets if n < -_NET_ZERO),
+        "gateways": gateways,
+    }
+
+
+def query_flows(
+    conn: sqlite3.Connection, *, trade_date: str, symbol: str | None = None
+) -> dict[str, Any]:
+    """Who bought from whom on one trading day: per (buyer, seller) gateway
+    pair, its trades, shares and value (display currency, each trade converted
+    with its own precision), largest value first.
+
+    Read from the raw trades, so a day retention has pruned (it has daily rows
+    but is older than the retained trades) has ``trades_retained: false`` and
+    no pairs.
+    """
+    params = {"day": trade_date, "symbol": symbol}
+    has_rows = (
+        conn.execute(
+            "SELECT 1 FROM gateway_daily_summary WHERE trade_date = :day"
+            " AND (:symbol IS NULL OR symbol = :symbol) LIMIT 1",
+            params,
+        ).fetchone()
+        is not None
+    )
+    retained_from = query_retained_from(conn)
+    retained = not has_rows or (
+        retained_from is not None and trade_date >= retained_from
+    )
+    pairs: list[dict[str, Any]] = []
+    if retained:
+        scale = _pow10("tick_decimals")
+        pairs = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT buy_gateway_id AS buyer, sell_gateway_id AS seller,"
+                " COUNT(*) AS trades, SUM(quantity) AS quantity,"
+                f" SUM(quantity * price / {scale}) AS value"
+                " FROM trade_events WHERE trade_date = :day"
+                " AND (:symbol IS NULL OR symbol = :symbol)"
+                " GROUP BY buy_gateway_id, sell_gateway_id"
+                " ORDER BY value DESC, buyer ASC, seller ASC",
+                params,
+            )
+        ]
+    return {
+        "trade_date": trade_date,
+        "symbol": symbol,
+        "trades_retained": retained,
+        "pairs": pairs,
+    }
+
+
 def query_retained_from(conn: sqlite3.Connection) -> str | None:
     """The oldest ``trade_date`` still in ``trade_events``; ``None`` when empty.
 
@@ -1290,6 +1445,10 @@ def query_symbols(
         "open_totals AS ("
         "  SELECT p.symbol,"
         "    SUM(p.net_qty) AS open_net_qty,"
+        "    SUM(MAX(p.net_qty, 0)) AS open_long_qty,"
+        "    SUM(MAX(-p.net_qty, 0)) AS open_short_qty,"
+        "    SUM(p.net_qty > 0) AS long_holders,"
+        "    SUM(p.net_qty < 0) AS short_holders,"
         f"    SUM({_rescaled('p.unrealized_pnl', 's.tick_decimals', 'p.tick_decimals')})"
         "      AS open_unrealized_pnl"
         "  FROM gateway_symbol_positions p"
@@ -1299,6 +1458,10 @@ def query_symbols(
         " SELECT d.symbol, d.traded_qty, d.traded_notional, d.realized_pnl,"
         "  d.tick_decimals,"
         "  COALESCE(o.open_net_qty, 0) AS open_net_qty,"
+        "  COALESCE(o.open_long_qty, 0) AS open_long_qty,"
+        "  COALESCE(o.open_short_qty, 0) AS open_short_qty,"
+        "  COALESCE(o.long_holders, 0) AS long_holders,"
+        "  COALESCE(o.short_holders, 0) AS short_holders,"
         "  COALESCE(o.open_unrealized_pnl, 0.0) AS open_unrealized_pnl"
         " FROM daily_totals d"
         " LEFT JOIN open_totals o ON o.symbol = d.symbol"

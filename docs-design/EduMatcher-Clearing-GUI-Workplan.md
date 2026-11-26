@@ -271,7 +271,8 @@ exist.
    values into a single unqualified number.
 7. Provide `summary` and participant-detail responses only from data that is
    actually stored. They may report P&L and counts but not equity, margin,
-   buying power, or long/short open interest.
+   buying power, or long/short open interest. *(Amended by D8, §9.1, 2026-11-26:
+   `/clearing/symbols` reports each symbol's long and short totals.)*
 
 **Exit criteria.**
 
@@ -1212,7 +1213,7 @@ any order.
 
 ## 8. Usability round (2026-11-26)
 
-Johan's list of clearing-gui improvements (paging, header tooltips, sorting,
+The list of clearing-gui improvements (paging, header tooltips, sorting,
 a drawer for the participant detail, searchable filters, a better Overview),
 assessed against the code and extended where the same problem shows up on
 screens the list did not name. Client-side only: every WP uses endpoints that
@@ -1246,7 +1247,7 @@ removed, not kept beside the new ones.
 - **Gateway ids elsewhere are dead text:** Trades buyer/seller,
   Reconciliation, Gateway Sessions, EOD account.
 
-### 8.2 Decisions (Johan, 2026-11-26)
+### 8.2 Decisions 
 
 | # | Question | Decision |
 |---|---|---|
@@ -1646,3 +1647,495 @@ Accepted limits (documented, not changed):
 Lesson: a warning that depends on time passing must be tested with time
 passing — fake timers and unchanged polls — not with data that is already
 old when the page loads.
+
+## 9. Teaching round (2026-11-26)
+
+The clearing GUI is primarily a teaching tool. After CG18–CG24 it shows every
+number the ledger holds, but not how a number arises: a beginner sees
+"Unrealized +240" without the average cost, the mark and the quantity that
+make it, and sees a list of trades without the idea that every share bought
+was sold by someone and that clearing nets thousands of trades into a few
+payments. This round adds explanations and pictures for both levels: one
+participant's position, and the venue as a whole.
+
+The API may change where the data is missing. Any
+arithmetic that clearing does is done by the server, never repeated in the
+browser, so a picture cannot teach a rule that differs from the ledger's.
+
+### 9.1 Decisions
+
+| # | Question | Decision |
+|---|---|---|
+| D7 | Explanations in a tool operators also use | An **Explain** toggle in the top bar, one persisted choice (as the font size), **on by default**. On: figures show their formula and a one-line explanation inline, and the teaching pictures are shown. Off: the CG18–CG24 screens, unchanged. Words beside signs ("−300 short", "+240 gain") and the teaching empty states are always on. |
+| D8 | Longs against shorts per symbol | Allowed. This **reverses CG1 constraint 7** ("not … long/short open interest") for the per-symbol long and short totals only: they are sums of stored positions, shown as a balance picture. Still no margin, equity or buying power. |
+| D9 | Replaying a position trade by trade | **On the server**, through pm-clearing's own `_apply_fill_to_position`, from the previous stored end of day; the reply says whether the replay ends on the stored daily row. The browser draws, it does not compute. |
+| D10 | Who traded with whom | ADMIN only. A participant never sees a counterparty, as today's trade rows. |
+| D11 | Netting for a participant | Their own day: gross bought and sold value against their one net payment. The venue's totals only for ADMIN. |
+| D12 | Pictures and accessibility | Every chart has its numbers in a table beside or under it (the `CloseChart` rule), is lazy-loaded with recharts, and has a fixed size fallback for tests and print. Colour is never the only carrier: gain/loss and long/short are also words. |
+
+### 9.2 Work packages
+
+API WPs come before the screens that need them. Order is the table order.
+
+| # | WP | Content | Depends on | Est. | Status | Done on |
+|---|---|---|---|---|---|---|
+| 25 | CG25 | Explain mode; "how this number is made" per position; P&L split; words beside signs; teaching empty states | — | 1.5 d | ☑ | 2026-11-26 |
+| 26 | CG26 | API: long/short totals per symbol; `GET /clearing/netting` | — | 1 d | ☑ | 2026-11-26 |
+| 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☑ | 2026-11-26 |
+| 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☑ | 2026-11-26 |
+| 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☑ | 2026-11-26 |
+| 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☑ | 2026-11-26 |
+| 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☑ | 2026-11-26 |
+| 32 | CG32 | Help, guides and a holistic review of CG25–CG31 | CG25–CG31 | 1 d | ☑ | 2026-11-26 |
+
+API WPs are test-first in pytest (`tests/test_api_gateway_clearing_*.py`,
+`clearing_api_fixture.py`) and exit with the clearing and api-gateway suites,
+the OpenAPI contract suites, `spec/rest/openapi.json` regenerated, the REST
+reference chapter ("Clearing" in `060-rest-and-websocket.md`) updated, and
+black/flake8/mypy/pyright clean. GUI WPs are test-first in clearing-gui's
+vitest suite and exit with the suite, the typecheck, the build and
+`a11y.test.tsx` green; `contract.test.ts` holds every new schema to the
+published spec.
+
+### CG25 — Explain mode and "how this number is made"
+
+- **Goal (D7):** the step from a number to its formula, using data every
+  screen already has.
+- **Explain toggle:** `useExplainStore` (zustand `persist`, key
+  `clearing-explain`, default on; storage failure falls back to on), a
+  switch in the top bar beside the font size, `aria-pressed`. An `<Explain>`
+  wrapper renders its children only when on.
+- **Per position (merged Positions table, drawer and My Positions):** in
+  Explain mode a row expands (click, or the row's disclosure button) into a
+  card: a small horizontal price scale with the average cost and the mark
+  marked on it, the gap shaded gain or loss, and the arithmetic written out
+  with the row's own values and precision: "Long 300 at average 101.20, mark
+  102.00: (102.00 − 101.20) × 300 = +240.00 gain". A short reads
+  "(average − mark) × quantity". A flat position explains that realized P&L
+  stays after the position is closed. Values come from the row only.
+- **P&L split:** in the card, a stacked bar realized + unrealized = total,
+  each part labelled with its word and value.
+- **Words beside signs (always):** net quantity "−300 short" / "+300 long" /
+  "0 flat"; P&L "+240.00 gain" / "−12.00 loss" where a P&L column or tile is
+  shown. Column widths checked at the smallest font size.
+- **Teaching empty states (always):** each empty participant table says what
+  would fill it and links the participant guide's clearing chapter, e.g.
+  Positions: "No positions yet: a position appears when one of your orders
+  trades."
+- **Explain lines on the Overview and participant tiles:** one sentence under
+  each `Stat`, from the same text as its tooltip, when on.
+- **First failing tests:** the toggle persists and defaults on; a long and a
+  short row produce the exact formula strings with the row's precision; the
+  split bar's parts sum to the row's total P&L; with Explain off no card,
+  chart or explain line is in the DOM; `−300 short` in the Net qty cell; each
+  empty table shows its teaching text and link; axe clean with the card open.
+- **Exit:** tests green; nothing changes for an operator who switches
+  Explain off, except words beside signs and empty-state texts.
+- **Done 2026-11-26.** `test/explain.test.tsx` (17) failed first on the
+  absent behaviour (the store alone was added so the file would load). New:
+  `store/useExplainStore.ts` (key `clearing-explain`, default on),
+  `components/shared/Explain.tsx` (`ExplainToggle` in the top bar,
+  `useExplain`, `ExplainLine`), `components/views/PositionExplain.tsx` (the
+  sum, an SVG price scale with a text alternative, the split bar) and
+  `components/views/teaching.tsx` (empty-table hints worded for "you",
+  "this gateway" or "a gateway"). `DataTable` gained `detail` (open rows kept
+  by `rowKey` through polls and paging). `lib/money.ts` gained
+  `formatPnlTicks`, `formatPnlCurrency` and `formatPosition`; `tickColumn`
+  a `pnl` option and `columns.tsx` a `positionColumn`. `Stat` shows its
+  `title` as an explain line; the Overview's EOD tile does the same.
+  The sum's result is always the ledger's value, never recomputed; the
+  written-out average is rounded (4 decimals when not a whole tick), so the
+  sum can be off in the last decimal, which the module comment says.
+  Words: every per-position and per-participant P&L cell and the drawer's
+  P&L tiles; not the Overview's venue P&L tiles or the Symbols screen's
+  venue columns (a venue sum is nobody's gain), not settlement amounts (a
+  payment, not P&L), not net notional. Changed old tests: `myClearing`
+  expects "110 long", "26.67 gain", "100.00 gain" (intended). Suite 272
+  (was 255), typecheck and build green; axe clean with a card open.
+  **Deviations:** (1) the disclosure is a button at the start of the first
+  cell, not a row click: a separate column broke the "every header has a
+  tooltip" rule, and a row click is already the drawer on the Participants
+  list. (2) Empty tables *name* the guide chapter ("Read more in the
+  Participant Guide, “Positions and P&L”") instead of linking it: the GUI
+  has no docs URL to link to (`mkdocs.yml` `site_url` is the repository).
+  **Not done:** the column widths at the smallest font size and the price
+  scale's look were not checked in a browser; do it on the next live run
+  with CG27's pictures.
+
+### CG26 — API: long/short totals per symbol, and netting
+
+- **Goal (D8, D11):** the two venue-level figures a beginner needs, computed
+  where the positions and daily rows are.
+- **`GET /clearing/symbols` (ADMIN) gains** `open_long_qty`,
+  `open_short_qty` (positive, from current positions), `long_holders`,
+  `short_holders` (gateway counts). `open_net_qty` stays and the docstring
+  explains `open_long_qty − open_short_qty = open_net_qty`. Update the
+  `ClearingSymbolRow` model, example and the reversed constraint 7 in CG1's
+  text (with a pointer to D8).
+- **New `GET /clearing/netting?date=`** (default: the latest `trade_date`),
+  from `gateway_daily_summary` and `trade_events` for that day:
+  - ADMIN: `trade_count`, `traded_qty`, `gross_value` (Σ buy value, each trade
+    counted once), `payment_count` (gateways with a non-zero net amount),
+    `net_paid` and `net_received` (Σ of negative and positive net amounts,
+    display currency per row then summed, as `participants`), and per
+    gateway `bought_value`, `sold_value`, `net_amount`.
+  - TRADER/MM: the same totals for their own gateway only (one row; no
+    venue counts).
+  - `trades_retained: false` when the day's raw trades are pruned (then
+    `trade_count` is null; the daily-row figures still answer).
+- **First failing tests:** a fixture with two gateways long and one short in a
+  symbol gives the right long/short totals and holder counts, and long −
+  short equals the old net; netting on a 3-gateway day gives gross value
+  counted once, net amounts summing to zero, `payment_count` and the
+  per-gateway rows; a participant sees only their row; a pruned day gives
+  `trades_retained: false`; bad date 400; unknown day an empty reply.
+- **Exit:** as §9.2 for API WPs.
+- **Done 2026-11-26.** `tests/test_api_gateway_clearing_teaching.py` (10)
+  failed first (404 / missing fields). `store.query_symbols` gains
+  `open_long_qty`, `open_short_qty`, `long_holders`, `short_holders` (a flat
+  position is on neither side); new `store.query_latest_trade_date` and
+  `store.query_netting`; route `GET /clearing/netting` with model
+  `ClearingNetting` / `NettingGatewayRow`, example
+  `CLEARING_NETTING_REPLY`. A pruned day is detected as "the day has daily
+  rows and is older than `query_retained_from`". A net below 1e-9 counts as
+  zero (float residue of balanced days). Spec regenerated; REST chapter
+  section + route row, operator-guide and participant-guide route tables;
+  contract matrix and the v1 route layout list gained the route;
+  clearing-gui `schemas.ts` gained `Netting` and the four symbol fields
+  (the GUI contract test requires every route). Full suite 15 589 passed,
+  coverage 91.9%; black, flake8, mypy, pyright, `openapi-check`, `mkdocs
+  build` clean; clearing-gui 274.
+  **Beyond the plan:** (1) a `gateway` filter, as every gateway-scoped
+  route has: the error-code check found `SCOPE_DENIED` reachable through
+  `clearing_scope`, and CG27's drawer needs one gateway's netting for an
+  ADMIN; tested (ADMIN `gateway=TRADER01` equals TRADER01's own reply; a
+  participant naming another is `SCOPE_DENIED`). (2) `trade_count` per
+  gateway. **For CG27:** this is the cash the trades net to, not pm-eod's
+  settlement (which moves the change in P&L); the screen must not call these
+  "settlement payments". The API docs say so.
+
+### CG27 — GUI: longs against shorts, netting, money in and out, P&L sums to zero
+
+- **Longs against shorts (Symbols screen, ADMIN):** per symbol, a mirrored
+  bar: long quantity right, short quantity left, always equal length, with
+  the holder counts. Explain line: "Every share held long was sold by someone
+  who is now short: the two sides are always equal." The table keeps the
+  numbers.
+- **Netting (Overview for ADMIN; My Settlement / drawer Settlement for a
+  participant):** one sentence and two bars: "Today 1 240 trades worth
+  3.1 M were settled with 14 net payments totalling 42 k." For a participant:
+  "You bought 120 k and sold 118 k; you pay 2 k." From `/clearing/netting`,
+  polled at 30 s for the current day, once for a past day.
+- **Money in and out (drawer and My History):** per day, the bought and sold
+  value bars and the net amount, from the existing daily rows.
+- **Venue P&L sums to zero (Participants screen, ADMIN, Explain mode):** a
+  bar per gateway, gains above the line and losses below, with the sum shown
+  as "0.00 (gateways trade with each other)". From the participants list
+  already fetched; a sum that is not zero within rounding is shown as it is,
+  not hidden.
+- **First failing tests:** each picture's table equivalent holds the reply's
+  numbers; the netting sentence for a venue and a participant reply; a pruned
+  day says "raw trades for this day are no longer kept" instead of a count;
+  `requests.test` gains the netting poll on exactly the screens above;
+  Explain off removes the pictures, not the tables; axe clean.
+- **Exit:** as §9.2 for GUI WPs.
+- **Done 2026-11-26.** `test/teaching.test.tsx` (16) failed first (no
+  panels; the 5 Explain-off cases passed vacuously until then). New:
+  `components/shared/Bars.tsx` (`DivergingBars`, `ValueBars`, both
+  `aria-hidden`), `components/views/NettingPanel.tsx` (Overview, venue;
+  My Settlement, own; drawer Settlement, `gateway=`), `LongShortPanel.tsx`
+  (Symbol Activity), `MoneyByDay.tsx` (History, drawer and My, follows the
+  history filters) and `PnlBalance.tsx` (Participants); `useNetting` (30 s,
+  enabled only in Explain mode); `Netting` types. Every panel says what the
+  picture means in one or two sentences and carries its numbers in a table
+  (P&L sums: the Participants table above it). The netting texts say it is
+  cash netting and not pm-eod's settlement, which moves P&L (CG26's note).
+  `requests.test` allows `/clearing/netting` as a polled route; the tooltip
+  and axe suites now stub it, so its table's headers are checked. Suite 290
+  (was 274), typecheck and build green.
+  **Deviations:** (1) the pictures are plain HTML bars, not lazy-loaded
+  recharts (D12): horizontal bars need no chart library or lazy chunk.
+  (2) Every CG27 addition, the netting panel and its table included, is
+  Explain-only, by D7 ("off: the CG18–CG24 screens, unchanged"); the
+  plan's "removes the pictures, not the tables" meant the tables that
+  existed before. (3) Netting shows the latest trading day only (the API's
+  default); no past-day picker, so "once for a past day" does not arise.
+  (4) At most 20 bars per picture (largest first), the table lists all.
+  **Not done:** a look in a browser (bar widths at each font size, a venue
+  with many gateways); with CG25's, on the next live run.
+
+### CG28 — API: position replay
+
+- **Goal (D9):** how one gateway's position in one symbol moved through one
+  trading day, step by step, by clearing's own rules.
+- **`GET /clearing/position-replay?gateway=&symbol=&date=`** (date default:
+  the latest `trade_date` for that pair). Scope as `positions`.
+- **Start state:** the pair's last `gateway_daily_summary` row before `date`
+  (`end_net_qty`, `end_avg_cost`; realized starts at 0 for the day), or flat
+  when there is none.
+- **Steps:** the pair's own fills on `date` from `trade_events`, in ledger
+  order, each applied with `ledger._apply_fill_to_position` on a scratch
+  `_Position` (rescaled with `_rescale_position` when `tick_decimals` changes,
+  as the ledger does). Per step: `trade_id`, `ts_ns`, side, quantity, price,
+  `kind` (`open` / `add` / `reduce` / `close` / `flip`), and after the step
+  `net_qty`, `avg_cost`, `realized_delta`, `realized_day`, the unrealized P&L
+  at the fill price. Money in the row's precision with `_ticks`, as every
+  clearing route.
+- **Check:** `matches_daily_row` (end state equal to that day's stored row
+  within the ledger's float tolerance) and, for the latest day,
+  `matches_position`. A mismatch is reported with both values, never
+  corrected.
+- **Limits:** a day older than the raw-trade retention gives
+  `trades_retained: false` and no steps; at most 5 000 steps
+  (`has_more: true` beyond, with the start state still correct for the
+  shown steps).
+- **First failing tests:** open, add (VWAP), partial reduce, full close and
+  flip each produce the documented `kind`, `avg_cost` and `realized_delta`;
+  a replay over a fixture day ends on the stored daily row and position; a
+  start from a previous day's carried position; a `tick_decimals` change;
+  scope denial for another gateway; pruned day; the 5 000 cap.
+- **Exit:** as §9.2 for API WPs.
+- **Done 2026-11-26.** 10 tests in `test_api_gateway_clearing_teaching.py`
+  failed first (404; the module held only `MAX_STEPS` so the file loads).
+  New `clearing/replay.py` (`replay_position`, 100% covered), models
+  `PositionReplay` / `ReplayStart` / `ReplayStep` / `ReplayDailyRow`,
+  example `CLEARING_POSITION_REPLAY_REPLY`, route with a required `symbol`
+  and optional `gateway`, `date`. Steps use the ledger's
+  `_apply_fill_to_position` and `_rescale_position` on a scratch
+  `_Position` (file-level `reportPrivateUsage=false`, as
+  `audit/replay/rerun.py`, with the reason). Order: `trade_events.rowid`,
+  the order clearing stored and applied the trades; a self-trade is buy leg
+  then sell leg. Kinds: open / add / reduce / close / flip. A hand-made
+  ledger covers every kind and a precision change in a carried position; a
+  test replays every gateway × symbol × day of the recorded venue and
+  requires it to end on the ledger (mutation-checked: starting flat instead
+  of from the previous day fails it). Spec regenerated; REST chapter
+  section and row, operator and participant guide rows, contract matrix,
+  route layout, clearing-gui `PositionReplay` schema. Full suite 15 604
+  passed, coverage 91.9%; black, flake8, mypy, pyright, `openapi-check`,
+  `mkdocs build` clean; clearing-gui 292.
+  **Decisions made here:** the stored daily row is echoed as `daily_row`
+  (CG29's mismatch warning needs both values); `matches_position` is
+  checked on the pair's latest day only, and on net quantity and average
+  cost (the stored position's realized P&L is cumulative, the replay's is
+  the day's); a replay cut at `MAX_STEPS` is not checked.
+
+### CG29 — GUI: position build-up replay
+
+- **Where:** the Explain card of a position (CG25) gains "Show how this
+  position was built today", in the drawer and My Positions; History rows
+  open the replay for their day.
+- **Picture:** a step chart of `net_qty` per fill, the average-cost line
+  beside the fill prices, and the day's realized P&L stepping at each reduce.
+  A step table under it (the D12 rule). Selecting a step (chart or table)
+  writes it out: "Sold 100 of a 300 long at 103.00: realized
+  (103.00 − 101.20) × 100 = +180.00 gain; average cost unchanged." One
+  sentence per `kind`.
+- **Mismatch:** when `matches_daily_row` is false, a warning above the chart
+  with both values ("Replay ends at 290, the ledger holds 300 — report this").
+- **First failing tests:** each `kind`'s sentence from a fixture reply; the
+  step table matches the reply; a mismatch shows the warning; pruned day and
+  empty day texts; keyboard selection of steps; axe clean.
+- **Exit:** as §9.2 for GUI WPs.
+- **Done 2026-11-26.** `test/replay.test.tsx` (16) failed first (no
+  button; the Explain-off case passed vacuously). New
+  `components/views/PositionReplayView.tsx`: start sentence, an SVG of two
+  bands (position as a step line; fill prices as dots, buy green / sell
+  red, against the average-cost line), a `role="status"` line that writes
+  out the selected fill (`stepSentence`, one form per kind, with the
+  previous step's average converted to the fill's precision), and the
+  "Fills of SYMBOL on DATE" table (unsorted, row click / Enter selects).
+  Mismatch with the daily row or the position is a `role="alert"` with
+  both values; pruned, empty, never-traded and capped days have their own
+  sentence. Opened from the position card ("Show how this position was
+  built", the latest day the pair traded) and, in Explain mode, from each
+  Daily activity row ("Replay SYMBOL on DATE", that day). `usePositionReplay`
+  is a cached read, fetched only when opened. `formatAverage` moved to
+  `lib/money.ts` (shared with the CG25 card). Suite 308 (was 292),
+  typecheck and build green; axe clean with a step selected.
+  **Deviations:** the chart is plain SVG, not recharts (as CG27); its dots
+  are mouse-only and `aria-hidden`, the table is the keyboard and
+  screen-reader path. "Built today" is "the latest day the pair traded",
+  the API's default, so a position untouched today still has a replay.
+
+### CG30 — Who traded with whom
+
+- **API (D10): `GET /clearing/flows?date=&symbol=`**, ADMIN only
+  (`require_admin`): per (buyer, seller) gateway pair, `trades`, `quantity`,
+  `value`, from `trade_events` for the day; `trades_retained` as CG26. Tests:
+  a 3-gateway fixture's pairs, symbol filter, a self-trade pair if the engine
+  allows one, role denial for TRADER/MM, pruned day.
+- **GUI (Symbols screen or a new "Flows" panel on the Overview, ADMIN):** a
+  buyer × seller grid, cells shaded by value with the value written in, rows
+  and columns ordered by total, at most 20 gateways shown with the rest as
+  "others". Gateway headers open the participant drawer. Explain line: "Each
+  cell is what one participant bought from another today; clearing settles
+  each participant's net, not each cell." Table equivalent: the pair list.
+- **Exit:** as §9.2 for API and GUI WPs.
+- **Done 2026-11-26.** API: 4 tests in `test_api_gateway_clearing_teaching.py`
+  failed first (404). `store.query_flows` (pairs from `trade_events`, value
+  per trade in its own precision, largest first; pruned day = daily rows
+  older than the retained trades), models `ClearingFlows` / `FlowPair`,
+  example, route `GET /clearing/flows?date=&symbol=` (ADMIN only; default
+  the latest day). Spec, REST chapter section and row, operator-guide row
+  (not the participant guide: ADMIN only), contract matrix, route layout.
+  Full suite 15 613 passed, coverage 91.9%; black, flake8, mypy, pyright,
+  `openapi-check`, `mkdocs build` clean.
+  GUI: `test/flows.test.tsx` (6) failed first. `FlowsPanel.tsx` on the
+  Overview after Netting, Explain only, `useFlows` (30 s): one sentence, the
+  grid (a real table: row and column headers with tooltips, the value
+  written in each shaded cell, gateway headers link to the drawer; beyond
+  the 20 gateways that traded most, one "others" row and column) and the
+  "Trades by pair" list with every pair. `requests.test` allows the poll;
+  tooltip and axe suites stub it. Suite 316 (was 308), typecheck and build
+  green.
+  **Wording changed from the plan:** "clearing settles each participant's
+  net" became "nets each gateway's buys against its sells … (see
+  Netting)", to keep cash netting apart from pm-eod's P&L settlement
+  (CG26's note). The panel is on the Overview, not the Symbol Activity
+  screen: it is one day, and that screen is a date range.
+
+### CG31 — Follow one trade
+
+- **Where:** any trade row (Trades screen, drawer Trades, My Trades) opens a
+  trade panel inside the drawer (ADMIN) or a dialog (participant).
+- **Timeline:** matched in the engine (`ts_ns`) → received by clearing
+  (`ingest_ts_ns`, with the difference) → the position change for each side
+  the caller may see (the replay step for that trade, CG28) → the day's
+  daily row → the EOD run and settlement for its `trade_date` (existing
+  settlements reply; "not settled yet" before EOD). A participant sees their
+  own side only.
+- **Tests:** every stage from fixture replies; a trade before EOD shows "not
+  settled yet"; a participant's panel has no counterparty; axe clean.
+- **Exit:** as §9.2 for GUI WPs.
+- **Done 2026-11-26.** `test/followTrade.test.tsx` (5) failed first (no
+  button; the Explain-off case passed vacuously). New
+  `components/views/TradeTimeline.tsx`: matched (exchange time, match type;
+  a participant reads "you sold … The buyer is not shown to you"),
+  received (ingest time and the delay), then per visible side: its replay
+  step written out (`stepSentence`), the day's daily row (from the same
+  replay reply, so no extra request), and pm-eod's settlement of the day
+  for it (settled with direction and amount, run failed, settled with
+  nothing, or "not settled yet"), with the note that a settlement moves the
+  day's change in P&L, not the trade's value. The replay is the one History
+  opens (same query key, cached); settlements are one cached read per side.
+  `myClearing`'s "no header sorts" check now looks at the header only (the
+  rows have Follow buttons). Suite 321 (was 316), typecheck and build green.
+  **Deviation:** the timeline opens under its trade row (the `detail`
+  disclosure, Explain mode), for ADMIN and participant alike, not in a
+  separate panel or dialog: the same pattern as CG25/CG29, and nothing to
+  close or lose focus to.
+
+### CG32 — Help, guides and holistic review
+
+- Help drawer topics "Explain mode" and "Reading the pictures"; the
+  operator and participant guide clearing-GUI chapters describe each picture
+  and what it teaches; the design doc's screen list. Screenshots only from a
+  live sim run.
+- Holistic review of CG25–CG31 as §8.4, written up as §9.3, including a
+  live-sim check of every picture with real data (widths, font sizes, a day
+  with many gateways).
+- **Done 2026-11-26.** Help drawer topics *Explain mode* and *Reading the
+  pictures*; *Getting Started* no longer says "no open interest anywhere"
+  (D8). Participant guide: a section *Explain mode: where each number comes
+  from* and a replay-mismatch row in *When something looks wrong*. Operator
+  guide: a section *Explain mode and the teaching pictures* (where, what,
+  which route), the replay mismatch in *Diagnosing* (with `pm-clearing-cli
+  rebuild`), the Explain polls in *Load*, the long/short note in *What it
+  leaves out*. Design doc: the three new routes and the symbols change in
+  the route table, §7.4 updated, new §7.5. Review below. No screenshots:
+  they wait for a live sim run.
+
+### 9.3 Holistic review of CG25–CG31 (2026-11-26)
+
+The committed range `086b13b3..6f93c128` (34 source files, +2 216 lines)
+was read as a whole, looking for interactions between the WPs and cases
+their own tests did not reach. Two defects were found; each got a failing
+test first and is fixed. clearing-gui suite 323 (was 321), typecheck,
+build and `mkdocs build` green; no Python changed in CG32.
+
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| R5 | Low | *Money in and out by day* (CG27) sums the daily rows it is given; they come newest first, bounded at 1 000, so when more match the oldest day can be cut and its total silently short. | `MoneyByDay` takes `hasMore` and leaves the oldest day out, saying so ("… is left out: more daily rows match than were sent"). Test. |
+| R6 | Low (latent) | `DataTable`'s row Enter/Space handler (CG21) also caught keys pressed on a button inside the row — CG25's disclosure: Enter on the disclosure would open the row instead. No table has both today. *(Corrected by §9.4: keys in a table nested in a detail row never reach the item row, which is its sibling.)* | The row handles only its own keys (`e.target === e.currentTarget`). Test with a table that has both. |
+| D1 | Doc | Help *Getting Started* and the operator guide's *What it leaves out* still said there is no open interest anywhere; the design doc said long/short totals were not implemented. | Reworded to D8 (part of CG32's doc work). |
+
+Checked and found sound (no change):
+
+- No position arithmetic in the browser: the card's result, the replay and
+  the trade timeline all show the server's values; written-out sums use the
+  replay's own previous step.
+- Cash netting is worded apart from pm-eod's settlement wherever both can
+  be seen (Netting on Settlement and Overview, Money in and out, Who traded
+  with whom, the trade timeline's settlement note).
+- Explain off requests nothing new (each screen tested) and draws nothing
+  new; words beside signs and teaching empty states stay, by D7.
+- Scope: flows ADMIN only; a participant's trade timeline asks only for its
+  own side; the replay and netting take `gateway` through `clearing_scope`.
+- Request discipline: netting and flows are the only new polls (30 s, in
+  `requests.test`); replay and settlements are cached reads on demand.
+- Every new table's headers have tooltips (`Column.title` is required; the
+  tooltip suite covers the panels shown by default); axe is clean on every
+  picture.
+- The replay's order (`trade_events.rowid`) is the order clearing applied
+  the trades: inserts are `INSERT OR IGNORE`, so a row's rowid never moves.
+
+Accepted limits (documented, not changed):
+
+- N4: a participant following a self-trade (buyer and seller both itself)
+  reads "you bought … The seller is not shown to you"; the engine's SMP
+  makes such trades rare.
+- N5: *Longs against shorts* follows Symbol Activity's date range: a symbol
+  held but not traded in the range is not drawn. With no filter, every
+  symbol is.
+- N6: the live-sim check of every picture (widths at each font size, a
+  venue with many gateways, a replay of a busy day) is still to do.
+
+Lesson: a summary computed from a bounded list must know whether the list
+was cut — the same `has_more` that drives the "more rows" note.
+
+### 9.4 Holistic review of CG25–CG32 (2026-11-26)
+
+The committed range `086b13b3..ce658de1` (CG25–CG32, including §9.3's own
+fixes) was reviewed again, this time with measurements: the teaching round
+added polled routes, and Explain mode is on by default, so every open
+Overview and Settlement screen polls them. `tools/clearing_api_bench.py`
+now includes the new routes. One defect was found and fixed test-first;
+one statement of §9.3 was wrong and is corrected.
+
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| P1 | Medium | `/clearing/netting` (CG26) counted each gateway's trades with `COUNT(DISTINCT id)` over a `UNION ALL` of the whole day's trades, even for one gateway. On a 100 000-trade day: 160–220 ms per call, polled every 30 s by every participant's My Settlement in Explain mode — about a quarter of a core for 40 participants. | `_day_trade_count`: buys + sells − trades with itself, each a count on the buyer/seller index. One gateway: 174 → 7 ms on that day (3 ms on the standard 90-day bench). Venue: 160 → ~100 ms, ADMIN Overview only (the trades-with-itself count needs row lookups; a partial index would cost clearing's write path, not done). Test: the query plans of `query_netting` read the gateway indexes, never the day's walk with a temporary B-tree (mutation-checked: the old union fails it); a trade with itself counts once. |
+| C1 | Doc | §9.3 R6 said keys pressed in a table nested in a detail row reached the item row. They do not: the detail row is the item row's sibling. The fix stands for the real case, a button inside the row. | §9.3 corrected. |
+
+Measured with the bench (in-process, real gateway app):
+
+| Route | 90 days × 2 000 trades | 1 day of 100 000 trades |
+|---|---:|---:|
+| netting, venue (ADMIN, 30 s) | 9 ms | ~100 ms |
+| netting, one gateway (30 s) | 3 ms | 7 ms |
+| flows (ADMIN, 30 s) | 19 ms, 89 kB | ~110 ms, 130 kB |
+| position-replay (on demand) | 4 ms | 16 ms (250 fills, 112 kB) |
+
+Checked and found sound (no change):
+
+- A participant naming its own gateway — as the trade timeline and the
+  replay do with the row's gateway id — is accepted by `/position-replay`,
+  `/settlements` and `/netting` (new test against the real routes; the
+  CG31 tests used stubs).
+- The replay's store order (`INSERT OR IGNORE`, rowid) and its check
+  against the daily row: a precision change is compared in display values.
+- Docs: every command and route named in the CG32 texts exists as written
+  (`pm-clearing-cli rebuild --from-audit … --output …`).
+
+Accepted limits (in addition to §9.3's N4–N6):
+
+- N7: the venue netting (~0.1 s on a 100 000-trade day) and who traded with
+  whom (~0.1 s; its payload grows with the number of buyer/seller pairs,
+  130 kB for 40 gateways) are polled every 30 s by an ADMIN Overview in
+  Explain mode. The operator guide's load table gives the numbers and says
+  that Explain off stops them.
+
+Lesson: when a mode is on by default, its polls are the default load —
+measure them on a busy day, not only on the bench's average one.
+

@@ -10,6 +10,7 @@ import { HELP_TOPICS } from "../help/helpContent.js";
 import { SessionIndicator } from "../SessionIndicator.js";
 import { api } from "../../lib/api.js";
 import { useUiConfig } from "../../lib/useUiConfig.js";
+import type { LogLevel } from "@edumatcher/log-types";
 import type { ThemePreference } from "../../lib/theme.js";
 import { useLiveStore, type SourceState } from "../../store/useLiveStore.js";
 import appVersion from "../../version.json";
@@ -20,7 +21,16 @@ const NEXT_THEME_ICON: Record<ThemePreference, typeof Moon> = {
   light: Moon,
 };
 
-const STATE_BADGE: Record<SourceState, { state: ConnectionBadgeState; cause: string }> = {
+/** What the unacked count covers at each ISSUES_ALERT_LEVEL ("and above"). */
+const ALERT_LEVEL_NOUN: Record<LogLevel, string> = {
+  DEBUG: "issues",
+  INFO: "issues",
+  WARNING: "warnings+errors",
+  ERROR: "errors",
+  CRITICAL: "critical",
+};
+
+const STATE_BADGE:Record<SourceState, { state: ConnectionBadgeState; cause: string }> = {
   LIVE: { state: "live", cause: "" },
   RECONNECTING: { state: "reconnecting", cause: "" },
   LOG_SERVER_DOWN: { state: "offline", cause: "log server down" },
@@ -69,7 +79,7 @@ export function TopBar({
             : "flex items-center gap-1 text-fg-subtle"
         }
       >
-        ⚠ {unackedCount} unacked
+        ⚠ {unackedCount} unacked{alertLevel ? ` ${ALERT_LEVEL_NOUN[alertLevel]}` : ""}
       </Link>
 
       <SessionIndicator

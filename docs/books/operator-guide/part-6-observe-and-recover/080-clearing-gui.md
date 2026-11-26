@@ -8,6 +8,7 @@
     - How to start it with the stack, on its own, or for development
     - How to use the ADMIN screens: freshness, feed gaps, health,
       reconciliation and EOD settlement
+    - What Explain mode and its teaching pictures add, and what they cost
     - How to diagnose an error it shows
     - What load it puts on the exchange, and what it deliberately leaves out
 
@@ -144,7 +145,8 @@ row, a gateway session, an EOD account — opens the same drawer.
 
 **Symbols** — traded quantity and value per symbol over a date range, and the
 aggregate signed position now. That aggregate is zero while every holder is a
-gateway; it is not open interest.
+gateway; it is not open interest. In Explain mode, *Longs against shorts*
+shows the long and the short side of each symbol separately (below).
 
 **Events** — `PHASE`, `EOD` and `GAP` events with their content. Times are
 when clearing observed the event.
@@ -163,6 +165,37 @@ raw and daily quantities and values.
 **EOD Settlement** — every account's daily settlement in minor units, the
 `EXCHANGE` rounding account, the derived balances, and each `pm-eod` run with
 its steps.
+
+
+## Explain mode and the teaching pictures
+
+The GUI is first a teaching tool. The **Explain** button in the top bar —
+on by default, remembered per browser — adds how each figure is made; off,
+the screens above are exactly as described, and nothing extra is requested.
+
+| Where | What Explain mode adds | Source |
+|---|---|---|
+| Every tile | Its explanation under it | — |
+| Positions (drawer, My Positions) | A card per row: the unrealized P&L written out, average cost and mark on a price line, realized + unrealized = total; and the position's replay | the row; `/clearing/position-replay` |
+| History | *Money in and out by day*; each daily row replays its day | daily rows; `/clearing/position-replay` |
+| Trades | Each trade followed: matched, received, each side's position change, the day's row, `pm-eod`'s settlement | the trade; replay; `/clearing/settlements` |
+| Settlement (drawer, My Settlement) | *Netting*: one gateway's latest day, bought and sold against the amount left | `/clearing/netting?gateway=` |
+| Overview | *Netting* for the venue; *Who traded with whom*, a buyer × seller grid (20 gateways, the rest as *others*) with the pair list | `/clearing/netting`, `/clearing/flows` |
+| Participants | *Gains and losses add up to zero*: each gateway's total P&L, and their sum | the participants list |
+| Symbols | *Longs against shorts*: each symbol's long and short quantities and holders | `/clearing/symbols` |
+
+Every picture has its numbers in a table. *Netting* is the cash the day's
+trades net to (buys against sells), not `pm-eod`'s settlement, which moves
+the change in P&L; the texts say so wherever both appear.
+
+The **position replay** is computed by the gateway with `pm-clearing`'s own
+position code, from the previous day's stored row through the day's raw
+trades, and checked against the stored daily row and position. A red
+*The replay ends at …, but clearing's daily row holds …: report this* means
+the ledger disagrees with its own trades: rebuild the ledger from the audit
+trail into a new file and compare (`pm-clearing-cli rebuild --from-audit
+DATA_DIR --output NEW.db`). Days whose raw trades have been pruned cannot be
+replayed or followed, and say so.
 
 
 ## Working with the tables
@@ -201,6 +234,7 @@ its steps.
 | *The last EOD run … ended failed* | `pm-eod` failed for that day | EOD Settlement's run steps; `pm-eod status` |
 | *Trading day … is closed but not settled* | `pm-eod` has not run yet for the day | normal just after the close; otherwise the scheduler and `pm-eod` |
 | Times end in *UTC*; phase *unknown* | `GET /api/v1/session` failed: the engine did not answer | `pm-opctl-cli status` |
+| *The replay ends at …, but clearing's daily row holds …* | the stored position disagrees with a replay of its own trades | `pm-clearing-cli rebuild --from-audit DATA_DIR --output NEW.db` |
 
 The gateway logs every unreadable store as a WARNING (`clearing: cannot read
 …`), with an explanation in the log ledger (`pm-log-cli explain`).
@@ -217,6 +251,9 @@ The GUI is built to stay cheap however long it is left open:
   the Overview is open, the session phase (one engine request);
 - the venue's timezone once per login, and the filters' gateway, symbol and
   account lists once;
+- in Explain mode, while the Overview or a Settlement screen is open, the
+  latest day's netting and (Overview) who traded with whom every 30 seconds;
+  a position replay and a trade's settlements only when opened, then cached;
 - trades, history, events and settlement only when a screen or filter asks;
   reconciliation only on **Run**, never automatically;
 - every list is bounded (`limit`, at most 5 000 rows); the trade audit pages
@@ -235,12 +272,23 @@ Measured with `tools/clearing_api_bench.py` on a 180 000-trade ledger (90 days,
 | One gateway's daily rows (1 000) | on demand | 19–45 ms | 585 kB |
 | Symbol activity, 90 days | on demand | 93 ms | 5 kB |
 | Reconciliation, 7 days / 90 days | on Run | 0.12 s / 1.2 s | — |
+| Netting, venue / one gateway (Explain mode) | 30 s | 9 ms / 3 ms | 5 kB / 0.3 kB |
+| Who traded with whom (Explain mode, ADMIN) | 30 s | 19 ms | 89 kB |
+| A position replay (one gateway, one symbol, one day) | on demand | 4 ms | 3 kB |
+
+On a busier day — 100 000 trades in one day, 40 gateways — the venue
+netting and who traded with whom take about 0.1 s each (130 kB for the
+latter, which grows with the number of buyer/seller pairs), a gateway's own
+netting 7 ms, and a replay of 250 fills 16 ms. Only an ADMIN's Overview in
+Explain mode polls the two venue-wide ones; switching Explain off stops
+them.
 
 
 ## What it leaves out
 
 Release 1.0 shows only what the system records. There is no margin,
-collateral, equity, buying power, credit limit, open interest, intraday P&L
-history, client (sub-)account, or market-maker presence/compliance figure,
-and no way to change anything. The design and the conditions for any of
+collateral, equity, buying power, credit limit, intraday P&L history, client
+(sub-)account, or market-maker presence/compliance figure, and no way to
+change anything. The one open-interest-like figure, the long and short
+totals per symbol in Explain mode, is a sum of stored positions. The design and the conditions for any of
 these are in `docs-design/EduMatcher-Clearing-GUI.md` §10 and §13.

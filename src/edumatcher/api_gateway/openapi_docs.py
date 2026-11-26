@@ -2066,6 +2066,10 @@ CLEARING_SYMBOLS_REPLY = _bounded(
                 "traded_notional": 7124000.0,
                 "realized_pnl": 0.0,
                 "open_net_qty": 0,
+                "open_long_qty": 110,
+                "open_short_qty": 110,
+                "long_holders": 1,
+                "short_holders": 1,
                 "open_unrealized_pnl": 0.0,
             },
             "traded_notional",
@@ -2074,6 +2078,100 @@ CLEARING_SYMBOLS_REPLY = _bounded(
         )
     ],
 )
+
+CLEARING_POSITION_REPLAY_REPLY = {
+    "gateway_id": "TRADER01",
+    "symbol": "AAPL",
+    "trade_date": "2026-08-29",
+    "trades_retained": True,
+    "has_more": False,
+    "start": {
+        "net_qty": 150,
+        "tick_decimals": 2,
+        "avg_cost": 187.33333333333334,
+        "avg_cost_ticks": 18733.333333333332,
+    },
+    "steps": [
+        {
+            "trade_id": "000007-000000006",
+            "ts_ns": 1788013800000000000,
+            "side": "SELL",
+            "quantity": 40,
+            "kind": "reduce",
+            "net_qty": 110,
+            "tick_decimals": 2,
+            "price": 188.0,
+            "price_ticks": 18800.0,
+            "avg_cost": 187.33333333333334,
+            "avg_cost_ticks": 18733.333333333332,
+            "realized_delta": 26.66666666666715,
+            "realized_delta_ticks": 2666.666666666715,
+            "realized_day": 26.66666666666715,
+            "realized_day_ticks": 2666.666666666715,
+            "unrealized": 73.33333333333466,
+            "unrealized_ticks": 7333.333333333467,
+        }
+    ],
+    "matches_daily_row": True,
+    "matches_position": True,
+    "daily_row": {
+        "end_net_qty": 110,
+        "tick_decimals": 2,
+        "end_avg_cost": 187.33333333333334,
+        "end_avg_cost_ticks": 18733.333333333332,
+        "realized_pnl": 26.66666666666715,
+        "realized_pnl_ticks": 2666.666666666715,
+    },
+}
+
+CLEARING_FLOWS_REPLY = {
+    "trade_date": "2026-08-28",
+    "symbol": None,
+    "trades_retained": True,
+    "pairs": [
+        {
+            "buyer": "TRADER01",
+            "seller": "MM01",
+            "trades": 2,
+            "quantity": 150,
+            "value": 28100.0,
+        },
+        {
+            "buyer": "MM01",
+            "seller": "TRADER01",
+            "trades": 1,
+            "quantity": 1000,
+            "value": 1085.0,
+        },
+    ],
+}
+
+CLEARING_NETTING_REPLY = {
+    "trade_date": "2026-08-28",
+    "trades_retained": True,
+    "trade_count": 3,
+    "traded_qty": 1150,
+    "gross_value": 29185.0,
+    "payment_count": 2,
+    "net_paid": 27015.0,
+    "net_received": 27015.0,
+    "gateways": [
+        {
+            "gateway_id": "MM01",
+            "bought_value": 1085.0,
+            "sold_value": 28100.0,
+            "net_amount": -27015.0,
+            "trade_count": 3,
+        },
+        {
+            "gateway_id": "TRADER01",
+            "bought_value": 28100.0,
+            "sold_value": 1085.0,
+            "net_amount": 27015.0,
+            "trade_count": 3,
+        },
+    ],
+}
 
 _PARTICIPANT = {
     "gateway_id": "TRADER01",

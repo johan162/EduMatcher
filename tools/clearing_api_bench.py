@@ -278,6 +278,11 @@ async def main_async(args: argparse.Namespace) -> None:
             ("on demand", "/api/v1/clearing/close-snapshots", PARTICIPANT),
             ("on demand", "/api/v1/clearing/symbols", ADMIN),
             ("on demand", "/api/v1/clearing/session-events", ADMIN),
+            # The teaching round (Explain mode): 30 s while shown, or opened.
+            ("30 s", "/api/v1/clearing/netting", ADMIN),
+            ("30 s", "/api/v1/clearing/netting", PARTICIPANT),
+            ("30 s", "/api/v1/clearing/flows", ADMIN),
+            ("on demand", "/api/v1/clearing/position-replay?symbol=SYM00", PARTICIPANT),
             ("explicit", f"/api/v1/clearing/reconciliation?from={week}&to={to}", ADMIN),
             (
                 "explicit",
