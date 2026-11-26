@@ -26,10 +26,16 @@ export function Panel({ title, children, actions }: { title: string; children: R
   );
 }
 
-export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
+/** A labelled figure; `title` explains it as the label's tooltip (dotted underline). */
+export function Stat({ label, value, sub, title }: { label: string; value: ReactNode; sub?: ReactNode; title?: string }) {
   return (
     <div className="flex min-w-[10rem] flex-col gap-0.5 rounded border border-line bg-panel px-3 py-2">
-      <span data-stat-label className="text-[11px] uppercase tracking-wide text-fg-dim">
+      <span
+        data-stat-label
+        data-has-tooltip={title ? "" : undefined}
+        title={title}
+        className={`self-start text-[11px] uppercase tracking-wide text-fg-dim ${title ? "cursor-help underline decoration-dotted underline-offset-2" : ""}`}
+      >
         {label}
       </span>
       <span className="num text-base">{value}</span>

@@ -1209,3 +1209,265 @@ any order.
 - **First failing test:** whatever axe reports. Each violation found
   becomes a finding here and is fixed test-first.
 - **Exit:** no axe violations on the covered screens.
+
+## 8. Usability round (2026-11-26)
+
+Johan's list of clearing-gui improvements (paging, header tooltips, sorting,
+a drawer for the participant detail, searchable filters, a better Overview),
+assessed against the code and extended where the same problem shows up on
+screens the list did not name. Client-side only: every WP uses endpoints that
+exist today. No backwards compatibility: replaced components and routes are
+removed, not kept beside the new ones.
+
+### 8.1 Findings from the assessment
+
+- **Sorting already exists, but is invisible.** Every `DataTable` column with
+  a `sortValue` sorts on a header click, which is almost all of them, but only
+  the active column shows an arrow. Unsorted headers look like plain text.
+- **Tooltips are optional, so most are missing.** `Column.title` exists, but
+  about two thirds of the columns have none. `Stat` has no tooltip at all.
+- **No paging.** Every list endpoint returns up to 1 000 rows plus `has_more`
+  (`MoreRows`), so client-side paging over the fetched rows is cheap. The
+  exception is Trades: a 200-row server cursor with "Load more", where a
+  header sort only orders the rows loaded so far, which is misleading.
+- **Times are UTC everywhere** (`lib/time.ts`), with the comment "the GUI is
+  not told the venue's session timezone". It can be: `GET /api/v1/session`
+  carries `session_timezone`. terminal-gui, dash-gui and log-gui already show
+  the session zone. EOD runs' "Finished (UTC)" is a raw string column.
+- **The participant detail is a page**; every other GUI drills down in a
+  right-hand drawer. It has 5 sub-tabs, tables of 12 columns and a chart, so
+  dash-gui's 44 rem drawer is too narrow for it.
+- **Positions and Exposure repeat 5 columns** (symbol, net qty, mark,
+  realized, unrealized) as two tables on one tab.
+- **Free-text Gateway/Symbol/Account filters** on Reconciliation, Trades,
+  History, Gateway Sessions and EOD: a typo gives an empty table that looks
+  like "no data".
+- **The Overview's Participants table** is the Participants screen again.
+- **Gateway ids elsewhere are dead text:** Trades buyer/seller,
+  Reconciliation, Gateway Sessions, EOD account.
+
+### 8.2 Decisions (Johan, 2026-11-26)
+
+| # | Question | Decision |
+|---|---|---|
+| D1 | Which clock? | The venue session timezone, on every timestamp: date + time + zone abbreviation. Not browser-local, no toggle. |
+| D2 | Trades paging | The pager follows the server's newest-first order and fetches the next server page when Next needs it. Header sorting is switched off on these tables; the order is stated above them. |
+| D3 | Participant detail | A wide drawer (about 90% of the main area). The URL stays `/participants/:gatewayId[/tab]`, so deep links and browser Back work; Escape and × close it. This replaces the "Back" button idea. |
+| D4 | Overview content | Remove the Participants table. Add *Needs attention*, *Phase + staleness* and *EOD/settlement lag*. |
+| D5 | Positions vs Exposure | Merge into one Positions table (also on My Positions). |
+| D6 | Page sizes | 10 / 30 / 50 / 100 / All, as dash-gui's `TablePager`; one remembered choice for all tables. |
+
+"Sorts loaded rows only" (D2's other option) was rejected in favour of
+switching the sort off: a half-sort that looks like a full one is the defect
+being removed.
+
+### 8.3 Work packages
+
+Suggested order is the table order: CG18 is the foundation the others use.
+
+| # | WP | Content | Depends on | Est. | Status | Done on |
+|---|---|---|---|---|---|---|
+| 18 | CG18 | Shared table: pager, sort affordance, required tooltips; `Stat` tooltip | — | 1 d | ☑ | 2026-11-26 |
+| 19 | CG19 | Venue session timezone on every timestamp | — | 0.5 d | ☐ | |
+| 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☐ | |
+| 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☐ | |
+| 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☐ | |
+| 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☐ | |
+| 24 | CG24 | Help drawer and the operator/participant guide chapters | CG18–CG23 | 0.5 d | ☐ | |
+
+Every WP is test-first in clearing-gui's vitest suite
+(`web-apps/clearing-gui/apps/web/test/`) and exits with the suite, the
+typecheck and `a11y.test.tsx` green.
+
+### CG18 — Shared table: pager, sort affordance, required tooltips
+
+- **Goal:** one `DataTable` that every table gets the new behaviour from, so
+  CG20 is mostly data (texts) rather than code.
+- **Pager:** port dash-gui's `TablePager` + `pagination()` into
+  `components/shared/`, with `PAGE_SIZES = [10, 30, 50, 100, 0]` (0 = All).
+  The page size is one persisted preference (a small zustand store with
+  `persist`, as `useFontSizeStore`; storage failures fall back to the
+  default). Default 30. The page index is per table: it is clamped, not
+  reset, when the 5 s poll changes the row count, and goes back to the first
+  page when the sort or the rows' filter changes. No pager is drawn when the
+  rows fit the smallest page (10); not "when they fit on one page", because
+  with "All" chosen every table fits one page and the choice could no
+  longer be undone.
+- **Sort affordance:** every sortable header shows a faint ↕ icon, and the
+  active one ↑/↓ as today. A column without `sortValue` shows none.
+  `DataTable` gets a `sortable={false}` switch for the Trades tables (D2).
+- **Tooltips:** a new optional `Stat.title`. Headers and tiles with a
+  tooltip get a dotted underline. CG20 then makes `Column.title` and
+  `Stat.title` required, so the compiler lists any it missed.
+  The tooltip stays the native `title`, as in the other GUIs; the full text is
+  also the header's accessible description.
+- **Pagination row:** "Rows 31–60 of 214" left, `TablePager` right; with
+  `has_more`, the existing `MoreRows` note stays under it ("of the first
+  1 000").
+- **First failing tests:** a 25-row table at page size 10 shows 3 pages and
+  rows 11–20 on page 2; a poll that drops rows below page 3 clamps to the last
+  page; a new sort returns to page 1; the size choice survives a remount;
+  every sortable header has the sort icon.
+- **Exit:** tests green; every existing table shows the pager and the sort
+  icons with no screen code changed.
+- **Done 2026-11-26.** `test/dataTable.test.tsx` (13 tests) failed first
+  (no page-size store, no pager). New: `store/usePageSizeStore.ts`
+  (`PAGE_SIZES`, `DEFAULT_PAGE_SIZE = 30`, localStorage key
+  `clearing-page-size`) and `components/shared/TablePager.tsx` (dash-gui's
+  pager plus "Rows a–b of n", in a `nav` named "<caption> pages" so two
+  tables on one screen have distinct landmarks). `DataTable`: paging,
+  `SortIcon` (faint ↕ on unsorted sortable headers, ↑/↓ on the active one),
+  `sortable={false}`, dotted underline on headers with a `title`. `Stat`:
+  optional `title` on its label. A filter change needs no code: a new filter
+  is a new query key, `QueryState` shows the skeleton, and the table remounts
+  on page 1 — the Events screen test proves it. Until CG20, the Trades tables
+  page their loaded rows and still have "Load more" under the pager. Suite
+  177 tests (was 164), typecheck and production build green; axe unchanged.
+
+### CG19 — Venue session timezone on every timestamp
+
+- **Goal (D1):** every time reads e.g. `2026-11-26 09:00:01 CET`.
+- **Source:** `GET /api/v1/session` once after login (`staleTime: Infinity`),
+  `session_timezone` into the formatters. The endpoint asks the engine and can
+  time out; until it answers, or when it fails, times stay in UTC and keep
+  their "UTC" label, so a time is never shown in an unnamed zone.
+- **Code:** `lib/time.ts` `formatNs`/`formatClock` take the zone
+  (`Intl.DateTimeFormat` with `timeZone`, `timeZoneName: "short"`);
+  `formatClock` is replaced by `formatNs` wherever a date is missing today
+  (the Overview line, `FreshnessNote`). EOD runs' `finished_at` (ISO string)
+  is parsed and shown the same way; the header loses "(UTC)". Update the
+  module comment.
+- **First failing tests:** with `Europe/Stockholm`, a winter and a summer ns
+  value format with CET / CEST and the right date across midnight UTC; a
+  failed `/session` gives the UTC form; the Overview freshness line contains
+  a date.
+- **Exit:** no `UTC` literal left outside the fallback.
+
+### CG20 — Every table: tooltip texts, paging, Trades pager, merged Positions
+
+- **Tables covered:** Participants; Symbols; Events; Gateway Sessions;
+  Reconciliation; EOD derived balances, settlements and EOD runs; the
+  participant views (Positions, Trades, History's three tables, Settlement,
+  Sessions), which the participant's own "My …" pages share; MM Quote
+  Obligations; Overview's recent events (plus an "All events →" link to
+  Events).
+- **Tooltip texts:** one sentence each, saying what the value is and where it
+  comes from, in the vocabulary of the participant guide's clearing chapter
+  (e.g. "Mark — last trade price, or the end-of-day mark when the session is
+  closed"). `Stat` tiles likewise, on the Overview and the participant
+  totals.
+- **Merged Positions (D5):** one table — Symbol, Net qty, Avg cost, Mark,
+  Net notional, Gross notional, Realized, Unrealized, Total P&L, Bought,
+  Sold, Bought value, Sold value, Last trade, Updated — joined on
+  gateway/symbol from `/positions` and `/exposure`. The Exposure panel and its
+  columns are removed. If the two replies disagree on the key set (they are
+  separate polls), a row missing from `/exposure` shows dashes in the
+  notional columns, never another row's values.
+- **Trades (D2):** `useTrades` keeps its cursor. The pager's "All" means
+  "everything loaded"; Next past the loaded rows calls `fetchNextPage` and
+  shows the page when it arrives; the last page is known only when the cursor
+  ends, so the count reads "Rows 401–430 of 430+" until then. `sortable={false}`
+  and the text "Newest first, as the exchange printed them" above the table.
+  "Load more" is removed.
+- **First failing tests:** a table-driven test that renders each screen with
+  fixture rows and asserts every `th` has a non-empty title; the merged
+  Positions table with an exposure row missing; Trades Next past 200 loaded
+  rows triggers the second request and shows row 201.
+- **Exit:** `Column.title` and `Stat.title` are required and the build is
+  green.
+
+### CG21 — Participant detail in a wide drawer
+
+- **Goal (D3):** the Participants list stays visible and live behind the
+  detail; the detail is reachable by URL.
+- **Routing:** `/participants/:gatewayId/*` renders `ParticipantsPage` with
+  the drawer open over it, instead of a separate page.
+  `ParticipantDetailPage` becomes `ParticipantDrawer`; its sub-tab routes are
+  unchanged. Closing navigates to `/participants`.
+- **Drawer:** the dash-gui `Drawer` pattern (non-modal `aside`, focus to the
+  title on open, Escape and × close), positioned in the main area under the
+  top bar, width `min(90%, 110rem)`. Header: "Participant", the gateway id,
+  the six totals tiles, then the sub-tabs. Body scrolls; wide tables scroll
+  horizontally inside it.
+- **List:** the whole row is clickable and keyboard-reachable (Enter/Space on
+  a focusable row, `aria-selected` on the open one, a visible highlight). A
+  hint above the table: "Select a participant to open its positions, trades,
+  history, settlement and sessions." The gateway cell is no longer a link.
+- **Gateway ids elsewhere:** Trades buyer/seller, Reconciliation, Gateway
+  Sessions and EOD account (not `EXCHANGE`) render as links to
+  `/participants/:gatewayId`, so they open the drawer over the Participants
+  screen. Only for ADMIN; on the "My …" pages they stay text.
+- **First failing tests:** clicking a row (and Enter on it) opens the drawer
+  with that gateway's title and the URL `/participants/GW1`; Escape returns
+  to `/participants` with focus on that row; a deep link to
+  `/participants/GW1/trades` shows the list and the drawer on Trades; a
+  Reconciliation gateway cell links to the drawer; axe has no violations with
+  the drawer open.
+- **Exit:** `routing.test.tsx` and `admin.test.tsx` updated; no route renders
+  the old page.
+
+### CG22 — Searchable Gateway / Symbol / Account filters
+
+- **Goal:** pick a value from a searchable list instead of typing one blind.
+- **Control:** a `combobox` field type in `Filters.tsx` (an input with a
+  filtered listbox, keyboard up/down/Enter/Escape, ARIA combobox pattern).
+  Empty means All. A typed value not in the list is still accepted: gateways
+  that connected but never traded are not in the participants list, and an
+  operator may know an id the GUI has not seen.
+- **Options:** gateways from `/clearing/participants`; symbols from
+  `/api/v1/symbols` (already fetched, `staleTime: Infinity`); EOD accounts from
+  the balances reply, including `EXCHANGE`.
+- **Screens:** Reconciliation (Gateway, Symbol), Trades and History (Symbol),
+  Gateway Sessions (Gateway), EOD Settlement (Account).
+- **First failing tests:** typing "aa" lists AAPL and Enter selects it; an
+  unlisted value still filters; Escape closes the list without clearing it;
+  axe has no violations.
+- **Exit:** no free-text gateway/symbol/account field left.
+
+### CG23 — New Overview
+
+- **Goal (D4):** the Overview answers "is anything wrong right now?"; lists
+  live on their own screens.
+- **Removed:** the Participants panel (the Reconciliation link moves to the
+  page header).
+- **Needs attention:** two small tables side by side. *Largest losses*: the
+  5 participants with the lowest total P&L below zero (from
+  `/clearing/participants`, already polled). *Largest positions*: the 5
+  gateway/symbol rows with the highest gross notional (from `/exposure` without
+  a gateway, the ADMIN venue scope). Gross notional is per symbol in that
+  symbol's own precision and converted to display currency before ranking,
+  as `tickColumn` sorts; no cross-symbol sum. Rows open the CG21 drawer.
+  Empty states: "No participant is at a loss" / "No open positions".
+- **Phase + staleness:** a tile with the phase from `GET /api/v1/session`
+  (shared with CG19, but refreshed at the 30 s health cadence). A warning
+  banner when the phase is not CLOSED and the last clearing write is older
+  than a stated threshold. Threshold: 30 s (six 5 s flushes), a constant in
+  the code and in the help text; with no trading, no write is expected, so the
+  warning names the age and says "no trade has arrived, or clearing is not
+  writing" rather than claiming a fault.
+- **EOD/settlement lag:** a warning when the last EOD run is not `ok`, or when
+  the last settled day is before the latest trading day that has trades and
+  the session is CLOSED for that day. Uses `/summary` (`last_eod_run`,
+  `session_date`) and `/eod/balances` (`last_settled_date`), which already
+  exist. While the market is open, today not being settled is normal and not
+  shown as lag.
+- **First failing tests:** with fixture data: 7 participants, 3 at a loss →
+  exactly those 3 listed, worst first; phase CONTINUOUS and a 60 s old write →
+  the staleness banner; phase CLOSED and an old write → no banner; last EOD
+  run `failed` → the EOD warning; last settled day yesterday and today's
+  session closed with trades → the lag warning.
+- **Exit:** no element on the Overview duplicates a whole other screen.
+
+### CG24 — Help and guides
+
+- **Scope:** `components/help/helpContent.ts`;
+  `docs/books/operator-guide/part-6-observe-and-recover/080-clearing-gui.md`
+  and `docs/books/participant-guide/part-6-front-ends/040-clearing-gui.md`;
+  the design doc `docs-design/EduMatcher-Clearing-GUI.md` where it describes
+  the screens: the drawer,
+  the pager, the venue timezone, the merged Positions table, the new
+  Overview and its thresholds. Screenshots retaken where the layout changed.
+- **Check:** every statement verified against the running GUI on a live sim,
+  as the 2026-11-19 guide reviews did.
+- **Exit:** `mkdocs build` clean; no text says "UTC", "Exposure table" or
+  "Load more" for the clearing GUI.
