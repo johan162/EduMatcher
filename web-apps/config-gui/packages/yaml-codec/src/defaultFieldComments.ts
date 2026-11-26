@@ -828,7 +828,7 @@ export function buildDefaultEngineFieldCommentLines(): string[] {
     "clearing_db: data/clearing.db",
     "  pm-clearing ledger, opened read-only for the session/MTD/YTD realized P&L on GET /positions (null when absent) and the /clearing routes (503 when absent).",
     "eod_db: data/eod.db",
-    "  pm-eod settlement ledger, opened read-only by /clearing/settlements and /clearing/balances (503 when absent); the roster is read from ref_data/roster.yaml beside it.",
+    "  pm-eod settlement ledger, opened read-only by /clearing/settlements and /clearing/balances (eod_db_available false when absent); the roster is read from ref_data/roster.yaml beside it.",
     "order_retention_sec: 3600",
     "  Seconds a terminal order stays in the in-memory cache; 0 disables eviction.",
     "market_data_cache_sec: 60",

@@ -89,8 +89,8 @@ class ApiGatewayConfig:
     #: while clearing records it per trading day and keeps it for good.
     clearing_db: Path = CLEARING_DB_FILE
     #: `pm-eod`'s settlement ledger, opened **read-only** for
-    #: `/clearing/settlements` and `/clearing/balances` (`503 EOD_DB` when
-    #: absent). The roster with the opening balances is read from beside it,
+    #: `/clearing/settlements` and `/clearing/balances` (absent before pm-eod's
+    #: first run: `eod_db_available: false`). The roster with the opening balances is read from beside it,
     #: where `pm-eod` keeps it: see `eod_roster`.
     eod_db: Path = EOD_DB_FILE
     #: How long a *terminal* order (FILLED, CANCELLED, EXPIRED, REJECTED)

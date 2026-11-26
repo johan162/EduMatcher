@@ -196,6 +196,7 @@ settlement. See [Your End-of-Day Statement](../part-5-positions-and-results/020-
 | *CLEARING_DB: … unavailable* | The API gateway cannot read the clearing ledger | Tell the operator; `pm-clearing` may not be deployed |
 | *EOD_DB: … unavailable* | The settlement ledger cannot be read | Settlement screens only; tell the operator |
 | *No settlements* | `pm-eod` has not settled a day in that range | Wait for the end of day |
+| *No EOD run yet* | The exchange is new: `pm-eod` has not run here, so each balance is its opening balance | Wait for the first end of day |
 | *API unreachable* | The API gateway does not answer | Tell the operator; `pm-api-gwy` may be down |
 | A fill is missing | It may not be committed yet | Wait 5 seconds |
 | *The replay ends at …, but clearing's daily row holds …: report this.* | Clearing's replay of the day disagrees with its own stored row: a ledger fault | Tell the operator, with the symbol and the date |

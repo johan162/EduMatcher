@@ -70,7 +70,7 @@ function replay(gateway: string, side: "BUY" | "SELL", before: number, after: nu
   };
 }
 
-const NOT_SETTLED = { settlements: [], runs: [], count: 0, has_more: false };
+const NOT_SETTLED = { settlements: [], runs: [], count: 0, has_more: false, eod_db_available: true };
 
 function settled() {
   const reply = example<{ settlements: Row[]; runs: Row[] }>(`${C}/settlements`);

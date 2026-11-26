@@ -53,10 +53,13 @@ export function useUnchangedForMs(value: unknown): number {
  * What is wrong with end of day, in words, or `null`:
  * - pm-eod's last run did not end `ok`;
  * - the latest trading day is CLOSED and pm-eod has not run for it. While
- *   the market is open, today not being settled is normal.
+ *   the market is open, today not being settled is normal, and so is a new
+ *   exchange that has not traded yet.
  */
 export function eodProblem(summary: SummaryT, phase: string | null): string | null {
-  if (!summary.eod_db_available) return null; // the EOD tile already says the ledger is unavailable
+  if (summary.eod_db_status === "unreadable") return null; // the EOD tile already says so
+  // A new exchange with no trade yet has nothing to settle.
+  if (summary.eod_db_status === "not_run" && summary.last_trade_ts_ns === null) return null;
   const run = summary.last_eod_run;
   if (run && run.status !== "ok") {
     return `The last EOD run, for ${run.trade_date}, ended ${run.status}: settlement for that day may be missing. See EOD Settlement.`;

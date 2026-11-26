@@ -20,6 +20,7 @@ interface SettlementBody {
   count: number;
   has_more: boolean;
   runs: Record<string, unknown>[];
+  eod_db_available: boolean;
 }
 
 /** The contract example as a participant receives it: own rows, runs without steps. */
@@ -106,7 +107,7 @@ describe("My EOD settlement", () => {
 
   it("an empty ledger day is a true zero, not an error", async () => {
     stubApi({
-      [SETTLEMENTS]: { settlements: [], count: 0, has_more: false, runs: [] },
+      [SETTLEMENTS]: { settlements: [], count: 0, has_more: false, runs: [], eod_db_available: true },
       [BALANCES]: example(BALANCES),
     });
     renderApp("/me/settlement");
@@ -169,9 +170,20 @@ describe("EOD settlement (ADMIN)", () => {
     expect(api.calls(BALANCES)[0]!.searchParams.get("gateway")).toBe("TRADER01");
   });
 
-  it("an unavailable EOD ledger is an error naming it", async () => {
+  it("no EOD ledger yet (fresh exchange) is a calm note with opening balances, not an error", async () => {
     stubApi({
-      [SETTLEMENTS]: new Response(JSON.stringify({ error: { code: "EOD_DB", message: "EOD ledger unavailable: not found" } }), {
+      [SETTLEMENTS]: { settlements: [], count: 0, has_more: false, runs: [], eod_db_available: false },
+      [BALANCES]: { ...example<Record<string, unknown>>(BALANCES), last_settled_date: null, eod_db_available: false },
+    });
+    renderApp("/eod");
+    expect(await screen.findByText("No EOD run yet")).toBeTruthy();
+    expect(await screen.findByRole("table", { name: "Balances" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("an unreadable EOD ledger is an error naming it", async () => {
+    stubApi({
+      [SETTLEMENTS]: new Response(JSON.stringify({ error: { code: "EOD_DB", message: "EOD ledger unavailable: file is not a database" } }), {
         status: 503,
         headers: { "Content-Type": "application/json" },
       }),

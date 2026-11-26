@@ -65,7 +65,8 @@ api_gateways:
     clearing_db: data/clearing.db
     # pm-eod's settlement ledger, read-only, for /clearing/settlements and
     # /clearing/balances; the roster is read from ref_data/roster.yaml beside
-    # it. Optional: without it those two routes answer 503 EOD_DB.
+    # it. Optional: until pm-eod first writes it, those two routes answer
+    # eod_db_available: false (nothing settled).
     eod_db: data/eod.db
     # Seconds a terminal order stays in the in-memory cache. 0 disables
     # eviction (unbounded growth).
@@ -104,7 +105,7 @@ api_gateways:
 | `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |
 | `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}/audit`. Optional |
 | `clearing_db` | `pm-clearing`'s ledger, read-only, for the session/MTD/YTD realized P&L on `/positions` and for every `/clearing` route. Optional: without it those three fields report `null` and `/clearing` answers `503 CLEARING_DB` |
-| `eod_db` | `pm-eod`'s settlement ledger, read-only, for `/clearing/settlements` and `/clearing/balances`; opening balances come from `ref_data/roster.yaml` in the same directory, as `pm-eod --datapath` finds it. Optional: without it those two routes answer `503 EOD_DB` |
+| `eod_db` | `pm-eod`'s settlement ledger, read-only, for `/clearing/settlements` and `/clearing/balances`; opening balances come from `ref_data/roster.yaml` in the same directory, as `pm-eod --datapath` finds it. Optional: until `pm-eod` first writes it, those two routes answer `eod_db_available: false` (nothing settled); an unreadable file is `503 EOD_DB` |
 | `order_retention_sec` | Seconds a terminal order stays cached (default `3600`; `0` disables eviction) |
 | `market_data_cache_sec` | Seconds the market-data cache retains the per-symbol `trades` tail for WS snapshot/resume (default `60`; latest book/depth/auction snapshots are kept regardless of age; `0` disables the trade buffer) |
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |

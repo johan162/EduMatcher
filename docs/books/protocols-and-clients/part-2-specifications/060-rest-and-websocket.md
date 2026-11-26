@@ -239,7 +239,7 @@ the OpenAPI document lists all of them per operation.
 | `COMPANY_DB_UNAVAILABLE` | `503` | `UNKNOWN` | The company database is missing or unreadable |
 | `NEWS_DB_UNAVAILABLE` | `503` | `UNKNOWN` | pm-market-sim's news history cannot be read |
 | `CLEARING_DB` | `503` | `UNKNOWN` | The `pm-clearing` ledger is missing, locked or unreadable. Never answered as an empty ledger |
-| `EOD_DB` | `503` | `UNKNOWN` | The `pm-eod` ledger is missing or unreadable, or its roster is malformed. A day without settlement is an empty list, not this |
+| `EOD_DB` | `503` | `UNKNOWN` | The `pm-eod` ledger is unreadable, or its roster is malformed. A missing ledger (pm-eod has not run yet) is `eod_db_available: false`, and a day without settlement an empty list, not this |
 
 For an engine refusal (`409`), `message` is the engine's own reason. New codes
 may be added within v1; clients must treat an unknown `code` by its HTTP status.
@@ -2129,7 +2129,7 @@ trading days in the session timezone; a malformed date, or a `from` after
 
 ### `GET /api/v1/clearing/summary`
 
-Purpose: the venue's clearing state — participant and open-position counts, realized/unrealized P&L in display currency, the latest trade and flush times, feed gaps on the latest session date (`gap_count`, `latest_gap`), and `pm-eod`'s newest run (`last_eod_run`; `eod_db_available: false` when the EOD ledger cannot be read, which is not an error here).
+Purpose: the venue's clearing state — participant and open-position counts, realized/unrealized P&L in display currency, the latest trade and flush times, feed gaps on the latest session date (`gap_count`, `latest_gap`), and `pm-eod`'s newest run (`last_eod_run`; `eod_db_status`: `ok`, `not_run` when there is no ledger yet because `pm-eod` has not run here, or `unreadable`; none of them is an error here).
 
 **Arguments**
 
@@ -2581,7 +2581,7 @@ Purpose: `pm-eod`'s daily settlement per account, newest day first, then account
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | bounded list envelope (`settlements`) + `runs` | Settlement rows and `pm-eod` runs |
+| `200 OK` | bounded list envelope (`settlements`) + `runs` + `eod_db_available` | Settlement rows and `pm-eod` runs; `eod_db_available` is false before pm-eod's first run (no ledger, nothing settled) |
 
 **Errors**
 
@@ -2590,7 +2590,7 @@ Purpose: `pm-eod`'s daily settlement per account, newest day first, then account
 | `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
 | `READ_ONLY` | `403` | Read-only key: no clearing data |
 | `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
-| `EOD_DB` | `503` | `eod.db` missing or unreadable, or its roster malformed |
+| `EOD_DB` | `503` | `eod.db` unreadable, or its roster malformed. A missing `eod.db` (pm-eod has not run yet) is a `200` with `eod_db_available: false` |
 
 ### `GET /api/v1/clearing/balances`
 
@@ -2607,7 +2607,7 @@ Purpose: per account, the opening balance from `pm-eod`'s roster (`ref_data/rost
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "balances", "count", "as_of", "last_settled_date" }` | Derived balance per account |
+| `200 OK` | `{ "balances", "count", "as_of", "last_settled_date", "eod_db_available" }` | Derived balance per account |
 
 **Errors**
 
@@ -2616,7 +2616,7 @@ Purpose: per account, the opening balance from `pm-eod`'s roster (`ref_data/rost
 | `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
 | `READ_ONLY` | `403` | Read-only key: no clearing data |
 | `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
-| `EOD_DB` | `503` | `eod.db` missing or unreadable, or its roster malformed |
+| `EOD_DB` | `503` | `eod.db` unreadable, or its roster malformed. A missing `eod.db` (pm-eod has not run yet) is a `200` with `eod_db_available: false` |
 
 ## Admin REST
 

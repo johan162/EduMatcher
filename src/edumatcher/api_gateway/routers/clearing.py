@@ -75,6 +75,7 @@ from edumatcher.clearing.store import (
 )
 from edumatcher.config import CLEARING_HEALTH_ADDR
 from edumatcher.healthcheck import ping_health_endpoint
+from edumatcher.eod.ledger import SCHEMA as EOD_SCHEMA
 from edumatcher.eod.ledger import (
     balances,
     last_settled_on_or_before,
@@ -202,19 +203,33 @@ async def _in_clearing_db(
         raise _unavailable("CLEARING_DB", "Clearing ledger", exc) from exc
 
 
-async def _in_eod_db(request: Request, work: Callable[[sqlite3.Connection], _T]) -> _T:
-    """Run *work* against ``eod.db`` on a worker thread; ``503 EOD_DB`` when the
-    ledger is missing or unreadable -- which is not the same answer as a day
-    pm-eod has not settled (an empty list)."""
+async def _in_eod_db(
+    request: Request, work: Callable[[sqlite3.Connection], dict[str, Any]]
+) -> dict[str, Any]:
+    """Run *work* against ``eod.db`` on a worker thread, adding
+    ``eod_db_available``.
+
+    A missing ledger is a fresh exchange (pm-eod has not run here yet):
+    *work* runs against an empty one and the reply says
+    ``eod_db_available: false``. An unreadable ledger is ``503 EOD_DB``.
+    """
     path = request.app.state.config.eod_db
 
-    def _run() -> _T:
-        with closing(open_ledger_readonly(path)) as conn:
-            return work(conn)
+    def _run() -> dict[str, Any]:
+        try:
+            conn = open_ledger_readonly(path)
+            available = True
+        except FileNotFoundError:
+            conn = sqlite3.connect(":memory:")
+            conn.row_factory = sqlite3.Row
+            conn.executescript(EOD_SCHEMA)
+            available = False
+        with closing(conn):
+            return {**work(conn), "eod_db_available": available}
 
     try:
         return await asyncio.to_thread(_run)
-    except (FileNotFoundError, sqlite3.DatabaseError) as exc:
+    except sqlite3.DatabaseError as exc:
         log.warning("clearing: cannot read %s: %s", path, exc)
         raise _unavailable("EOD_DB", "EOD ledger", exc) from exc
 
@@ -366,19 +381,20 @@ def _links(gateway_id: str) -> dict[str, str]:
     }
 
 
-def _last_eod_run(request: Request) -> tuple[bool, dict[str, Any] | None]:
-    """pm-eod's newest run, and whether its ledger could be read at all."""
+def _last_eod_run(request: Request) -> tuple[str, dict[str, Any] | None]:
+    """The ledger's state (``ok``, ``not_run``, ``unreadable``) and pm-eod's
+    newest run."""
     path = request.app.state.config.eod_db
     try:
         with closing(open_ledger_readonly(path)) as conn:
             newest = runs(conn, limit=1)
     except FileNotFoundError:
         # No ledger yet: pm-eod has not run here (fresh exchange or not deployed).
-        return False, None
+        return "not_run", None
     except sqlite3.DatabaseError as exc:
         log.warning("clearing summary: cannot read %s: %s", path, exc)
-        return False, None
-    return True, (_eod_run(newest[0]) if newest else None)
+        return "unreadable", None
+    return "ok", (_eod_run(newest[0]) if newest else None)
 
 
 def _eod_run(row: dict[str, Any], steps: bool = True) -> dict[str, Any]:
@@ -437,8 +453,8 @@ async def clearing_summary(
     `last_flush_ts_ns` is the latest committed clearing write: a fill may take
     up to the flush interval to appear. `gap_count` counts the trade-id jumps
     clearing saw on `session_date`; no gap does not prove the feed was
-    complete. A missing EOD ledger is `eod_db_available: false`, not an
-    error.
+    complete. A missing EOD ledger is `eod_db_status: not_run` (pm-eod has
+    not run yet), not an error.
     """
     await require_admin(request, session)
 
@@ -466,8 +482,8 @@ async def clearing_summary(
         }
 
     summary = await _in_clearing_db(request, _query)
-    available, last_run = await asyncio.to_thread(_last_eod_run, request)
-    return {**summary, "eod_db_available": available, "last_eod_run": last_run}
+    eod_status, last_run = await asyncio.to_thread(_last_eod_run, request)
+    return {**summary, "eod_db_status": eod_status, "last_eod_run": last_run}
 
 
 @router.get(
@@ -1240,7 +1256,8 @@ async def clearing_settlements(
     margin, collateral or a completed payment, and exists only for days
     pm-eod has settled; a day without one is an empty list, with its run (if
     any) in `runs`. `EXCHANGE` carries the rounding residual and is ADMIN
-    only.
+    only. Before pm-eod's first run there is no ledger: both lists are empty
+    and `eod_db_available` is false.
     """
     scope = await clearing_scope(request, session, gateway)
     _check_dates(date, from_date, to_date)
@@ -1314,6 +1331,8 @@ async def clearing_balances(
     The balance is derived here; pm-eod stores none. It is a running total of
     mark-to-market settlements, not cash, equity or collateral. A gateway on
     neither the roster nor the ledger has zeros. `EXCHANGE` is ADMIN only.
+    Before pm-eod's first run there is no ledger: each balance is its opening
+    balance and `eod_db_available` is false.
     """
     scope = await clearing_scope(request, session, gateway)
     if as_of is not None:

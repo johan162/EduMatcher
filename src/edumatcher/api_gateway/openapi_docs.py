@@ -2247,7 +2247,7 @@ CLEARING_SUMMARY: dict[str, Any] = {
     "session_date": _CL_DAY,
     "gap_count": 1,
     "latest_gap": CLEARING_GAP,
-    "eod_db_available": True,
+    "eod_db_status": "ok",
     "last_eod_run": EOD_RUN,
 }
 
@@ -2364,6 +2364,7 @@ CLEARING_SETTLEMENTS_REPLY: dict[str, Any] = {
     "count": 2,
     "has_more": False,
     "runs": [EOD_RUN],
+    "eod_db_available": True,
 }
 
 CLEARING_BALANCES_REPLY: dict[str, Any] = {
@@ -2381,4 +2382,5 @@ CLEARING_BALANCES_REPLY: dict[str, Any] = {
     "count": 1,
     "as_of": _CL_PREV_DAY,
     "last_settled_date": _CL_PREV_DAY,
+    "eod_db_available": True,
 }

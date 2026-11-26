@@ -468,7 +468,7 @@ async def test_the_summary_reports_only_stored_facts(venue: Venue) -> None:
     assert body["latest_gap"]["missing_trades"] == 2
     assert body["latest_gap"]["last_seq"] == 3
     assert body["latest_gap"]["next_seq"] == 6
-    assert body["eod_db_available"] is True
+    assert body["eod_db_status"] == "ok"
     assert body["last_eod_run"]["trade_date"] == "2026-11-04"
     assert body["last_eod_run"]["status"] == "failed"
     for unsupported in ("equity", "margin", "net_notional", "open_interest"):
@@ -485,7 +485,7 @@ async def test_the_summary_names_a_missing_eod_ledger(
     with caplog.at_level(logging.WARNING, logger=clearing_router.__name__):
         status, body = await _get(venue, "/summary", eod_db=tmp_path / "eod.db")
     assert status == 200
-    assert body["eod_db_available"] is False
+    assert body["eod_db_status"] == "not_run"
     assert body["last_eod_run"] is None
     assert not caplog.records
 
@@ -499,7 +499,7 @@ async def test_the_summary_warns_about_an_unreadable_eod_ledger(
     with caplog.at_level(logging.WARNING, logger=clearing_router.__name__):
         status, body = await _get(venue, "/summary", eod_db=eod_db)
     assert status == 200
-    assert body["eod_db_available"] is False
+    assert body["eod_db_status"] == "unreadable"
     assert body["last_eod_run"] is None
     assert any("clearing summary: cannot read" in r.message for r in caplog.records)
 
