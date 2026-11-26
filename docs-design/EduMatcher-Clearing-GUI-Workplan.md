@@ -1685,7 +1685,7 @@ API WPs come before the screens that need them. Order is the table order.
 | 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☑ | 2026-11-26 |
 | 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☑ | 2026-11-26 |
 | 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☑ | 2026-11-26 |
-| 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☐ | |
+| 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☑ | 2026-11-26 |
 | 32 | CG32 | Help, guides and a holistic review of CG25–CG31 | CG25–CG31 | 1 d | ☐ | |
 
 API WPs are test-first in pytest (`tests/test_api_gateway_clearing_*.py`,
@@ -2008,6 +2008,23 @@ published spec.
 - **Tests:** every stage from fixture replies; a trade before EOD shows "not
   settled yet"; a participant's panel has no counterparty; axe clean.
 - **Exit:** as §9.2 for GUI WPs.
+- **Done 2026-11-26.** `test/followTrade.test.tsx` (5) failed first (no
+  button; the Explain-off case passed vacuously). New
+  `components/views/TradeTimeline.tsx`: matched (exchange time, match type;
+  a participant reads "you sold … The buyer is not shown to you"),
+  received (ingest time and the delay), then per visible side: its replay
+  step written out (`stepSentence`), the day's daily row (from the same
+  replay reply, so no extra request), and pm-eod's settlement of the day
+  for it (settled with direction and amount, run failed, settled with
+  nothing, or "not settled yet"), with the note that a settlement moves the
+  day's change in P&L, not the trade's value. The replay is the one History
+  opens (same query key, cached); settlements are one cached read per side.
+  `myClearing`'s "no header sorts" check now looks at the header only (the
+  rows have Follow buttons). Suite 321 (was 316), typecheck and build green.
+  **Deviation:** the timeline opens under its trade row (the `detail`
+  disclosure, Explain mode), for ADMIN and participant alike, not in a
+  separate panel or dialog: the same pattern as CG25/CG29, and nothing to
+  close or lose focus to.
 
 ### CG32 — Help, guides and holistic review
 

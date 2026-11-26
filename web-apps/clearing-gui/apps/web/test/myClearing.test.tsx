@@ -194,7 +194,8 @@ describe("My Trades", () => {
       stubApi({ ...current(), [TRADES]: serverPages() });
       renderApp("/me/trades");
       const table = await screen.findByRole("table", { name: "My retained trades" });
-      expect(within(table).queryAllByRole("button")).toHaveLength(0);
+      // No sort buttons in the header (rows may have CG31's "Follow trade").
+      expect(within(table.querySelector("thead")!).queryAllByRole("button")).toHaveLength(0);
       expect(screen.getByText(/Newest first/)).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
     });

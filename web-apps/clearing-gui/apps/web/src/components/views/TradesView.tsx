@@ -12,7 +12,9 @@ import { QueryState } from "@/components/shared/QueryState";
 import { useSymbolOptions, useTrades } from "@/api/queries";
 import type { TradeRowT } from "@/api/schemas";
 import { gatewayColumn, qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
+import { useExplain } from "@/components/shared/Explain";
 import { subject, teachingHint } from "./teaching";
+import { TradeTimeline } from "./TradeTimeline";
 
 const COLUMNS: Column<TradeRowT>[] = [
   textColumn("trade_id", "Trade id", (r) => r.trade_id, "The engine's trade id: run number and sequence within the run"),
@@ -45,6 +47,7 @@ export function TradesView({ gateway, label }: { gateway?: string; label: string
     to: filterDate(filters["to"]),
   });
   const retained = trades.data?.pages[0]?.retained_from;
+  const explain = useExplain();
   return (
     <>
       <FilterForm fields={fields} onApply={setFilters} />
@@ -78,6 +81,11 @@ export function TradesView({ gateway, label }: { gateway?: string; label: string
                 rows={rows}
                 rowKey={(r) => r.trade_id}
                 sortable={false}
+                detail={
+                  explain
+                    ? { name: (r) => `Follow trade ${r.trade_id}`, render: (r) => <TradeTimeline trade={r} /> }
+                    : undefined
+                }
                 more={{
                   available: trades.hasNextPage,
                   loading: trades.isFetchingNextPage,

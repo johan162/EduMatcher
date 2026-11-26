@@ -59,7 +59,7 @@ export function stepSentence(s: ReplayStepT, before: Before): string {
   }
 }
 
-function positionAt(qty: number, avgTicks: Ticks, td: number): string {
+export function positionAt(qty: number, avgTicks: Ticks, td: number): string {
   return qty === 0 ? "flat" : `${formatPosition(qty)} at average ${formatAverage(avgTicks, td)}`;
 }
 
