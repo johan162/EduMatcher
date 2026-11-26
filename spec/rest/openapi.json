@@ -10060,6 +10060,233 @@
         }
       }
     },
+    "/api/v1/clearing/flows": {
+      "get": {
+        "tags": [
+          "clearing"
+        ],
+        "summary": "Who traded with whom on one day",
+        "description": "Who bought from whom on one trading day: per buyer/seller gateway pair,\nits trades, shares and value, largest value first.\n\nADMIN only: it names every trade's counterparty, which a participant\nnever sees. Read from the raw trades, so a day retention has pruned has\n`trades_retained: false` and no pairs.",
+        "operationId": "clearing_flows",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day with a daily row.",
+              "title": "Date"
+            },
+            "description": "The trading day, `YYYY-MM-DD`, in the session timezone; default the latest day with a daily row."
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this symbol (case-insensitive).",
+              "title": "Symbol"
+            },
+            "description": "Only this symbol (case-insensitive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Buyer/seller pairs, largest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearingFlows"
+                },
+                "example": {
+                  "trade_date": "2026-08-28",
+                  "symbol": null,
+                  "trades_retained": true,
+                  "pairs": [
+                    {
+                      "buyer": "TRADER01",
+                      "seller": "MM01",
+                      "trades": 2,
+                      "quantity": 150,
+                      "value": 28100.0
+                    },
+                    {
+                      "buyer": "MM01",
+                      "seller": "TRADER01",
+                      "trades": 1,
+                      "quantity": 1000,
+                      "value": 1085.0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Invalid date format: yesterday (expected YYYY-MM-DD)",
+                        "reject_code": "INVALID_VALUE",
+                        "field": "date"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`CLEARING_DB`: The `pm-clearing` ledger is missing, locked or unreadable. Not an empty ledger: retry, or check that `pm-clearing` is deployed. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CLEARING_DB": {
+                    "summary": "CLEARING_DB",
+                    "value": {
+                      "error": {
+                        "code": "CLEARING_DB",
+                        "message": "Clearing ledger unavailable: not found",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clearing/netting": {
       "get": {
         "tags": [
@@ -21741,6 +21968,55 @@
         ],
         "title": "ClearingDailyRow"
       },
+      "ClearingFlows": {
+        "properties": {
+          "trade_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Date",
+            "description": "The trading day; null when the ledger has no day at all."
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol",
+            "description": "The symbol filter, or null: all."
+          },
+          "trades_retained": {
+            "type": "boolean",
+            "title": "Trades Retained",
+            "description": "The day's raw trades are still kept; false once retention pruned them, and then there are no pairs."
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/FlowPair"
+            },
+            "type": "array",
+            "title": "Pairs",
+            "description": "Largest value first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade_date",
+          "symbol",
+          "trades_retained",
+          "pairs"
+        ],
+        "title": "ClearingFlows"
+      },
       "ClearingHealth": {
         "properties": {
           "database": {
@@ -24080,6 +24356,44 @@
           "ts_ns"
         ],
         "title": "FeedGap"
+      },
+      "FlowPair": {
+        "properties": {
+          "buyer": {
+            "type": "string",
+            "title": "Buyer",
+            "description": "The buying gateway."
+          },
+          "seller": {
+            "type": "string",
+            "title": "Seller",
+            "description": "The selling gateway."
+          },
+          "trades": {
+            "type": "integer",
+            "title": "Trades",
+            "description": "Trades between them that day."
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "description": "Shares the buyer bought from the seller."
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "description": "Their value, each trade converted with its precision, in display currency."
+          }
+        },
+        "type": "object",
+        "required": [
+          "buyer",
+          "seller",
+          "trades",
+          "quantity",
+          "value"
+        ],
+        "title": "FlowPair"
       },
       "ForceUncrossAck": {
         "properties": {

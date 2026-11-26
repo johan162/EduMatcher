@@ -104,6 +104,7 @@ optional parameters.
 | [GET /api/v1/clearing/daily](#get-apiv1clearingdaily) | Admin role, or own gateway | Daily activity, realized P&L and end-of-day position |
 | [GET /api/v1/clearing/close-snapshots](#get-apiv1clearingclose-snapshots) | Admin role, or own gateway | Position and cumulative P&L at each session close |
 | [GET /api/v1/clearing/symbols](#get-apiv1clearingsymbols) | Admin role | Activity, aggregate net position and its long and short sides per symbol |
+| [GET /api/v1/clearing/flows](#get-apiv1clearingflows) | Admin role | Who bought from whom on one trading day, per gateway pair |
 | [GET /api/v1/clearing/netting](#get-apiv1clearingnetting) | Admin role, or own gateway | One trading day's trades against the net amount each gateway is left with |
 | [GET /api/v1/clearing/session-events](#get-apiv1clearingsession-events) | Admin role | `PHASE`, `EOD` and `GAP` events clearing observed |
 | [GET /api/v1/clearing/gateway-sessions](#get-apiv1clearinggateway-sessions) | Admin role, or own gateway | Gateway connect/disconnect history |
@@ -2391,6 +2392,32 @@ Purpose: per symbol traded in the date range: `traded_qty` (counted once per sid
 | Status | Shape | Meaning |
 |---|---|---|
 | `200 OK` | bounded list envelope (`symbols`) | Activity per symbol |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/flows`
+
+Purpose: who bought from whom on one trading day — per buyer/seller gateway pair, its `trades`, `quantity` and `value` (display currency, each trade converted with its own precision), largest value first. ADMIN only: it names every trade's counterparty, which a participant never sees. Read from the raw trades, so a day whose raw trades retention has pruned has `trades_retained: false` and no pairs; an empty ledger has `trade_date: null`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `date` | `Date` | no | The trading day, session timezone; default the latest day with a daily row |
+| `symbol` | `Symbol` | no | Only this symbol |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `ClearingFlows` | Buyer/seller pairs, largest first |
 
 **Errors**
 

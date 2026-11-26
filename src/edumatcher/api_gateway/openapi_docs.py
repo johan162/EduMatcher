@@ -2124,6 +2124,28 @@ CLEARING_POSITION_REPLAY_REPLY = {
     },
 }
 
+CLEARING_FLOWS_REPLY = {
+    "trade_date": "2026-08-28",
+    "symbol": None,
+    "trades_retained": True,
+    "pairs": [
+        {
+            "buyer": "TRADER01",
+            "seller": "MM01",
+            "trades": 2,
+            "quantity": 150,
+            "value": 28100.0,
+        },
+        {
+            "buyer": "MM01",
+            "seller": "TRADER01",
+            "trades": 1,
+            "quantity": 1000,
+            "value": 1085.0,
+        },
+    ],
+}
+
 CLEARING_NETTING_REPLY = {
     "trade_date": "2026-08-28",
     "trades_retained": True,

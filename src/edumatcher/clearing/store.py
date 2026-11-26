@@ -1260,6 +1260,54 @@ def query_netting(
     }
 
 
+def query_flows(
+    conn: sqlite3.Connection, *, trade_date: str, symbol: str | None = None
+) -> dict[str, Any]:
+    """Who bought from whom on one trading day: per (buyer, seller) gateway
+    pair, its trades, shares and value (display currency, each trade converted
+    with its own precision), largest value first.
+
+    Read from the raw trades, so a day retention has pruned (it has daily rows
+    but is older than the retained trades) has ``trades_retained: false`` and
+    no pairs.
+    """
+    params = {"day": trade_date, "symbol": symbol}
+    has_rows = (
+        conn.execute(
+            "SELECT 1 FROM gateway_daily_summary WHERE trade_date = :day"
+            " AND (:symbol IS NULL OR symbol = :symbol) LIMIT 1",
+            params,
+        ).fetchone()
+        is not None
+    )
+    retained_from = query_retained_from(conn)
+    retained = not has_rows or (
+        retained_from is not None and trade_date >= retained_from
+    )
+    pairs: list[dict[str, Any]] = []
+    if retained:
+        scale = _pow10("tick_decimals")
+        pairs = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT buy_gateway_id AS buyer, sell_gateway_id AS seller,"
+                " COUNT(*) AS trades, SUM(quantity) AS quantity,"
+                f" SUM(quantity * price / {scale}) AS value"
+                " FROM trade_events WHERE trade_date = :day"
+                " AND (:symbol IS NULL OR symbol = :symbol)"
+                " GROUP BY buy_gateway_id, sell_gateway_id"
+                " ORDER BY value DESC, buyer ASC, seller ASC",
+                params,
+            )
+        ]
+    return {
+        "trade_date": trade_date,
+        "symbol": symbol,
+        "trades_retained": retained,
+        "pairs": pairs,
+    }
+
+
 def query_retained_from(conn: sqlite3.Connection) -> str | None:
     """The oldest ``trade_date`` still in ``trade_events``; ``None`` when empty.
 

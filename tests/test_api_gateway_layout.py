@@ -83,6 +83,7 @@ REST_ROUTES = {
     ("GET", "/clearing/daily"),
     ("GET", "/clearing/close-snapshots"),
     ("GET", "/clearing/symbols"),
+    ("GET", "/clearing/flows"),
     ("GET", "/clearing/netting"),
     ("GET", "/clearing/position-replay"),
     ("GET", "/clearing/session-events"),

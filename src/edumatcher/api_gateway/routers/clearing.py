@@ -32,6 +32,7 @@ from edumatcher.api_gateway.clearing_scope import ClearingScope, clearing_scope
 from edumatcher.api_gateway.params import GatewayIdPath
 from edumatcher.api_gateway.responses import (
     ClearingDaily,
+    ClearingFlows,
     ClearingHealth,
     ClearingNetting,
     ClearingPositions,
@@ -58,6 +59,7 @@ from edumatcher.clearing.store import (
     query_daily,
     query_exposure,
     query_feed_gaps,
+    query_flows,
     query_freshness,
     query_health,
     query_latest_trade_date,
@@ -530,6 +532,57 @@ async def clearing_symbols(
 
     found = await _in_clearing_db(request, _query)
     return _bounded("symbols", found, limit, _SYMBOL_MONEY)
+
+
+@router.get(
+    "/flows",
+    response_model=ClearingFlows,
+    summary="Who traded with whom on one day",
+    responses=docs.merge(
+        docs.ok(docs.CLEARING_FLOWS_REPLY, "Buyer/seller pairs, largest first."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "CLEARING_DB",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
+    ),
+)
+async def clearing_flows(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    date: Annotated[
+        str | None,
+        Query(
+            description="The trading day, `YYYY-MM-DD`, in the session timezone; "
+            "default the latest day with a daily row."
+        ),
+    ] = None,
+    symbol: _Symbol = None,
+) -> dict[str, Any]:
+    """Who bought from whom on one trading day: per buyer/seller gateway pair,
+    its trades, shares and value, largest value first.
+
+    ADMIN only: it names every trade's counterparty, which a participant
+    never sees. Read from the raw trades, so a day retention has pruned has
+    `trades_retained: false` and no pairs.
+    """
+    await require_admin(request, session)
+    _check_dates(date)
+
+    def _query(conn: sqlite3.Connection) -> dict[str, Any]:
+        day = date or query_latest_trade_date(conn)
+        if day is None:
+            return {
+                "trade_date": None,
+                "symbol": _upper(symbol),
+                "trades_retained": True,
+                "pairs": [],
+            }
+        return query_flows(conn, trade_date=day, symbol=_upper(symbol))
+
+    return await _in_clearing_db(request, _query)
 
 
 # ---------------------------------------------------------------------------

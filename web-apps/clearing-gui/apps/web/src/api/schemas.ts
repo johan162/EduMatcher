@@ -174,6 +174,21 @@ export const ClearingSymbolRow = z.object({
 });
 export const ClearingSymbols = z.object({ symbols: z.array(ClearingSymbolRow), ...listFields });
 
+/** Who bought from whom on one day (CG30, ADMIN): per gateway pair, display currency. */
+export const FlowPair = z.object({
+  buyer: z.string(),
+  seller: z.string(),
+  trades: int,
+  quantity: int,
+  value: z.number(),
+});
+export const Flows = z.object({
+  trade_date: z.string().nullable(),
+  symbol: z.string().nullable(),
+  trades_retained: z.boolean(),
+  pairs: z.array(FlowPair),
+});
+
 /** One position replayed fill by fill through one day (CG28), by clearing's rules. */
 export const ReplayStep = z.object({
   trade_id: z.string(),
@@ -466,6 +481,7 @@ export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/clearing/close-snapshots": CloseSnapshots,
   "/api/v1/clearing/symbols": ClearingSymbols,
   "/api/v1/clearing/netting": Netting,
+  "/api/v1/clearing/flows": Flows,
   "/api/v1/clearing/position-replay": PositionReplay,
   "/api/v1/clearing/session-events": SessionEvents,
   "/api/v1/clearing/gateway-sessions": GatewaySessions,
@@ -482,6 +498,8 @@ export type DailyRowT = z.infer<typeof DailyRow>;
 export type CloseSnapshotRowT = z.infer<typeof CloseSnapshotRow>;
 export type ClearingSymbolRowT = z.infer<typeof ClearingSymbolRow>;
 export type NettingT = z.infer<typeof Netting>;
+export type FlowsT = z.infer<typeof Flows>;
+export type FlowPairT = z.infer<typeof FlowPair>;
 export type PositionReplayT = z.infer<typeof PositionReplay>;
 export type ReplayStepT = z.infer<typeof ReplayStep>;
 export type NettingGatewayRowT = z.infer<typeof NettingGatewayRow>;

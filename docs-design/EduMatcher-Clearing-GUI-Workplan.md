@@ -1684,7 +1684,7 @@ API WPs come before the screens that need them. Order is the table order.
 | 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☑ | 2026-11-26 |
 | 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☑ | 2026-11-26 |
 | 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☑ | 2026-11-26 |
-| 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☐ | |
+| 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☑ | 2026-11-26 |
 | 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☐ | |
 | 32 | CG32 | Help, guides and a holistic review of CG25–CG31 | CG25–CG31 | 1 d | ☐ | |
 
@@ -1972,6 +1972,28 @@ published spec.
   cell is what one participant bought from another today; clearing settles
   each participant's net, not each cell." Table equivalent: the pair list.
 - **Exit:** as §9.2 for API and GUI WPs.
+- **Done 2026-11-26.** API: 4 tests in `test_api_gateway_clearing_teaching.py`
+  failed first (404). `store.query_flows` (pairs from `trade_events`, value
+  per trade in its own precision, largest first; pruned day = daily rows
+  older than the retained trades), models `ClearingFlows` / `FlowPair`,
+  example, route `GET /clearing/flows?date=&symbol=` (ADMIN only; default
+  the latest day). Spec, REST chapter section and row, operator-guide row
+  (not the participant guide: ADMIN only), contract matrix, route layout.
+  Full suite 15 613 passed, coverage 91.9%; black, flake8, mypy, pyright,
+  `openapi-check`, `mkdocs build` clean.
+  GUI: `test/flows.test.tsx` (6) failed first. `FlowsPanel.tsx` on the
+  Overview after Netting, Explain only, `useFlows` (30 s): one sentence, the
+  grid (a real table: row and column headers with tooltips, the value
+  written in each shaded cell, gateway headers link to the drawer; beyond
+  the 20 gateways that traded most, one "others" row and column) and the
+  "Trades by pair" list with every pair. `requests.test` allows the poll;
+  tooltip and axe suites stub it. Suite 316 (was 308), typecheck and build
+  green.
+  **Wording changed from the plan:** "clearing settles each participant's
+  net" became "nets each gateway's buys against its sells … (see
+  Netting)", to keep cash netting apart from pm-eod's P&L settlement
+  (CG26's note). The panel is on the Overview, not the Symbol Activity
+  screen: it is one day, and that screen is a date range.
 
 ### CG31 — Follow one trade
 

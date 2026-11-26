@@ -758,6 +758,26 @@ class ClearingNetting(BaseModel):
     gateways: list[NettingGatewayRow] = Field(description="By gateway id.")
 
 
+class FlowPair(BaseModel):
+    buyer: str = Field(description="The buying gateway.")
+    seller: str = Field(description="The selling gateway.")
+    trades: int = Field(description="Trades between them that day.")
+    quantity: int = Field(description="Shares the buyer bought from the seller.")
+    value: float = _display("Their value, each trade converted with its precision")
+
+
+class ClearingFlows(BaseModel):
+    trade_date: str | None = Field(
+        description="The trading day; null when the ledger has no day at all."
+    )
+    symbol: str | None = Field(description="The symbol filter, or null: all.")
+    trades_retained: bool = Field(
+        description="The day's raw trades are still kept; false once retention "
+        "pruned them, and then there are no pairs."
+    )
+    pairs: list[FlowPair] = Field(description="Largest value first.")
+
+
 class ReplayStart(BaseModel):
     net_qty: int = Field(
         description="The position before the day's first fill: the previous "

@@ -510,6 +510,7 @@ chapter.
 | `/clearing/daily` | ADMIN, or own | Daily activity, realized P&L and end-of-day position |
 | `/clearing/close-snapshots` | ADMIN, or own | Position and cumulative P&L at every close |
 | `/clearing/symbols` | ADMIN | Activity, aggregate net position and its long and short sides per symbol |
+| `/clearing/flows` | ADMIN | Who bought from whom on one day, per gateway pair |
 | `/clearing/netting` | ADMIN, or own | One day's trades against the net amount each gateway is left with |
 | `/clearing/session-events` | ADMIN | `PHASE`, `EOD` and `GAP` events clearing observed |
 | `/clearing/gateway-sessions` | ADMIN, or own | Connect/disconnect history |

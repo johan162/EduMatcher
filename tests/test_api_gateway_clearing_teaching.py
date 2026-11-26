@@ -523,3 +523,64 @@ async def test_a_replay_is_scoped_and_needs_a_symbol(venue: Venue) -> None:
         venue, f"/position-replay?gateway=MM01&symbol=AAPL&date={DAY1}"
     )
     assert [s["net_qty"] for s in body["steps"]] == [-100, -150]
+
+
+# ---------------------------------------------------------------------------
+# who traded with whom (CG30)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_flows_pair_each_buyer_with_each_seller(venue: Venue) -> None:
+    status, body = await _get(venue, f"/flows?date={DAY1}")
+    assert status == 200
+    assert (body["trade_date"], body["symbol"], body["trades_retained"]) == (
+        DAY1,
+        None,
+        True,
+    )
+    # Largest value first; each trade counted once, on its one pair.
+    assert [
+        (p["buyer"], p["seller"], p["trades"], p["quantity"]) for p in body["pairs"]
+    ] == [("TRADER01", "MM01", 2, 150), ("MM01", "TRADER01", 1, 1000)]
+    assert body["pairs"][0]["value"] == pytest.approx(AAPL_BOUGHT_DAY1)
+    assert body["pairs"][1]["value"] == pytest.approx(EURUSD_DAY1)
+
+
+@pytest.mark.anyio
+async def test_flows_default_to_the_latest_day_and_filter_by_symbol(
+    venue: Venue,
+) -> None:
+    _, body = await _get(venue, "/flows?symbol=eurusd")
+    assert (body["trade_date"], body["symbol"]) == (DAY2, "EURUSD")
+    ((pair),) = body["pairs"]
+    assert (pair["buyer"], pair["seller"], pair["value"]) == (
+        "TRADER01",
+        "MM01",
+        pytest.approx(EURUSD_DAY2),
+    )
+
+
+@pytest.mark.anyio
+async def test_flows_of_a_pruned_or_quiet_day(venue: Venue, tmp_path: Path) -> None:
+    db = _copy(venue.clearing_db, tmp_path / "clearing.db")
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("DELETE FROM trade_events WHERE trade_date = ?", (DAY1,))
+        conn.commit()
+    _, body = await _get(venue, f"/flows?date={DAY1}", clearing_db=db)
+    assert (body["trades_retained"], body["pairs"]) == (False, [])
+    _, body = await _get(venue, "/flows?date=2026-12-01")
+    assert (body["trades_retained"], body["pairs"]) == (True, [])
+
+
+@pytest.mark.anyio
+async def test_flows_are_admin_only(venue: Venue) -> None:
+    for key, code in (
+        (TRADER_KEY, "ROLE_DENIED"),
+        (MM_KEY, "ROLE_DENIED"),
+        (READ_ONLY_KEY, "READ_ONLY"),
+    ):
+        status, body = await _get(venue, "/flows", key)
+        assert (status, _code(body)) == (403, code)
+    status, body = await _get(venue, "/flows?date=2026-13-01")
+    assert (status, body["error"]["field"]) == (400, "date")

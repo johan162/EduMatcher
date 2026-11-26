@@ -34,6 +34,7 @@ function api() {
     [`${C}/settlements`]: example(`${C}/settlements`),
     [`${C}/balances`]: example(`${C}/balances`),
     [`${C}/netting`]: example(`${C}/netting`),
+    [`${C}/flows`]: example(`${C}/flows`),
   });
 }
 

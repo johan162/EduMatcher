@@ -26,6 +26,8 @@ const POLLED = new Set([
   "/api/v1/session",
   // The netting panel (30 s, Explain mode), CG27.
   `${C}/netting`,
+  // Who traded with whom (30 s, Explain mode), CG30.
+  `${C}/flows`,
 ]);
 
 function api() {
@@ -46,6 +48,7 @@ function api() {
     [`${C}/balances`]: example(`${C}/balances`),
     [`${C}/reconciliation`]: example(`${C}/reconciliation`),
     [`${C}/netting`]: example(`${C}/netting`),
+    [`${C}/flows`]: example(`${C}/flows`),
   });
 }
 
