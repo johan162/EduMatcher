@@ -30,7 +30,7 @@ import { useHealth, useSession, useSessionEvents, useSummary } from "@/api/queri
 import type { SessionEventRowT, SummaryT } from "@/api/schemas";
 import { formatCurrency } from "@/lib/money";
 import { Time, useFormatNs } from "@/components/shared/Time";
-import { STALE_WRITE_MS, eodProblem, staleWriteSeconds } from "./overviewChecks";
+import { STALE_WRITE_MS, eodProblem, staleWriteSeconds, useUnchangedForMs } from "./overviewChecks";
 
 const RECENT_EVENT_COLUMNS: Column<SessionEventRowT>[] = [
   timeColumn("ts", "Observed", (r) => r.ts_ns, "When clearing observed it; for a GAP, the trade after the gap"),
@@ -114,6 +114,7 @@ export function OverviewPage() {
   const session = useSession();
   const events = useSessionEvents({ limit: 10 });
   const phase = session.data?.state ?? null;
+  const unchangedMs = useUnchangedForMs(summary.data?.last_flush_ts_ns ?? null);
   return (
     <>
       <PageHeader title="Clearing Overview">
@@ -129,13 +130,16 @@ export function OverviewPage() {
               {`Last clearing write ${formatNs(s.last_flush_ts_ns)}; newest trade ${formatNs(s.last_trade_ts_ns)}. Committed data only: a fill can take up to 5 s (one clearing flush) to appear.`}
             </p>
             <FeedGaps summary={s} />
-            <OverviewWarnings summary={s} phase={phase} />
+            <OverviewWarnings summary={s} phase={phase} unchangedMs={unchangedMs} />
             <div className="mb-5 flex flex-wrap gap-3">
               <Stat
                 label="Session phase"
                 value={session.data ? session.data.state : session.isError ? "unknown" : "…"}
                 sub={
-                  session.data ? (
+                  session.data && session.isError ? (
+                    // A failed refresh keeps the last reply: say it is stale.
+                    "last known — the engine did not answer the latest check"
+                  ) : session.data ? (
                     <>
                       since <Time iso={session.data.state_since} />
                     </>
@@ -220,14 +224,15 @@ export function OverviewPage() {
 }
 
 /** The stale-write and EOD warnings; nothing when all is well. */
-function OverviewWarnings({ summary, phase }: { summary: SummaryT; phase: string | null }) {
-  const stale = staleWriteSeconds(phase, summary.last_flush_ts_ns, Date.now());
+function OverviewWarnings({ summary, phase, unchangedMs }: { summary: SummaryT; phase: string | null; unchangedMs: number }) {
+  const stale = staleWriteSeconds(phase, unchangedMs);
+  const formatNs = useFormatNs();
   const eod = eodProblem(summary, phase);
   return (
     <>
       {stale !== null && (
         <Warning>
-          {`No clearing write for ${stale} s during continuous trading (expected within ${STALE_WRITE_MS / 1000} s while trades arrive): no trade has arrived, or clearing is not writing. Check Health and the Events screen.`}
+          {`No new clearing write for at least ${stale} s during continuous trading (last write ${formatNs(summary.last_flush_ts_ns)}; expected within ${STALE_WRITE_MS / 1000} s while trades arrive): no trade has arrived, or clearing is not writing. Check Health and the Events screen.`}
         </Warning>
       )}
       {eod !== null && <Warning>{eod}</Warning>}

@@ -47,6 +47,10 @@ export function Combobox({ id, value, options, placeholder = "All", onChange }: 
     } else if (e.key === "Enter" && shown && active >= 0) {
       e.preventDefault();
       pick(matches[active]!);
+    } else if (e.key === "Enter") {
+      // Nothing highlighted: the form submits the text as typed; the list goes.
+      setOpen(false);
+      setActive(-1);
     } else if (e.key === "Escape" && shown) {
       e.preventDefault();
       e.stopPropagation();
@@ -82,6 +86,9 @@ export function Combobox({ id, value, options, placeholder = "All", onChange }: 
           id={listId}
           role="listbox"
           aria-label="Suggestions"
+          // Keep focus on the input when the list itself (its scrollbar) is
+          // pressed; otherwise the input blurs and the list closes mid-scroll.
+          onMouseDown={(e) => e.preventDefault()}
           className="absolute left-0 top-full z-20 mt-0.5 max-h-60 w-40 overflow-y-auto rounded border border-line bg-panel py-0.5 text-xs shadow-lg"
         >
           {matches.map((option, i) => (

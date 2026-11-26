@@ -72,7 +72,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     blocks: [
       {
         bullets: [
-          "No clearing write for N s — during continuous trading only, after 30 s without a clearing write: no trade has arrived, or pm-clearing is not writing. Health tells which.",
+          "No new clearing write for at least N s — during continuous trading only, when the last clearing write has not changed for 30 s while this page was open: no trade has arrived, or pm-clearing is not writing. Health tells which.",
           "The last EOD run ended failed — pm-eod failed for that day; see EOD Settlement.",
           "Trading day … is closed but not settled — pm-eod has not run for it yet; expected right after the close.",
           "Needs attention lists the largest losses and the five largest open positions; select a row to open the participant.",

@@ -129,6 +129,26 @@ describe("DataTable paging", () => {
   });
 });
 
+describe("DataTable over a server-paged list (review R2)", () => {
+  it("with All rows, Next fetches the next server page", () => {
+    usePageSizeStore.setState({ pageSize: 0 });
+    const load = vi.fn();
+    render(
+      <DataTable
+        caption="Test rows"
+        columns={COLUMNS}
+        rows={rows(20)}
+        rowKey={(r) => String(r.id)}
+        more={{ available: true, loading: false, load }}
+      />,
+    );
+    const next = screen.getByRole("button", { name: "Next page" }) as HTMLButtonElement;
+    expect(next.disabled).toBe(false);
+    fireEvent.click(next);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("DataTable headers", () => {
   it("marks every sortable header with a sort icon, and only those", () => {
     render(table(rows(3)));

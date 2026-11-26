@@ -1604,3 +1604,45 @@ typecheck and `a11y.test.tsx` green.
   next sim run (drawer under the top bar at each font size, the staleness
   warning in a quiet continuous session, the EOD-lag warning after the
   close).
+
+### 8.4 Holistic review of CG18–CG24 (2026-11-26)
+
+The committed range `2d51ef61..3c00c483` (49 files) was read as a whole,
+looking for interactions between the WPs and for cases each WP's own tests
+did not reach. Four defects were found; each got a failing test first and is
+fixed. Suite 255 (was 251), typecheck, build and `mkdocs build` green.
+
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| R1 | High | **The stale-write warning (CG23) could not appear in the case it exists for.** It computed `Date.now() − last_flush_ts_ns` during render, but a poll that returns the same summary does not re-render the page (TanStack Query v5 re-renders only on changed, tracked fields), and "the same summary" *is* the stale case. CG23's test loaded data that was already 60 s old, so it passed. Proven: with the page open, recent data at load and 35 s of unchanged polls, no warning. Second defect in the same line: it compared the server's timestamp with the browser's clock, so a laptop clock 30 s off warns always or never. | `useUnchangedForMs` (`overviewChecks.ts`): how long the last-write timestamp has stood unchanged on the browser's own clock, re-checked by a 5 s tick. `staleWriteSeconds(phase, unchangedMs)`; text "No new clearing write for at least N s … (last write …)". Tests with fake timers: appears after 35 s of unchanged polls; never while writes change, with the server clock two hours off; never outside CONTINUOUS. Limit: a ledger already stale when the page opens is reported after 30 s of watching. Operator guide, help and design doc updated. |
+| R2 | Low | Trades pager (CG20) with **All rows** and more on the server: Next was enabled but did nothing (it set a page number; the fetch rule needs a page size). | `DataTable.changePage`: with All, Next past the one page asks for the next server page. Test. |
+| R3 | Low | Combobox (CG22): pressing the list's **scrollbar** blurred the input and closed the list, so a long list could not be scrolled with the mouse; Enter with nothing highlighted submitted but left the list open. | `mousedown` on the listbox is cancelled (focus stays in the input); Enter with no active option closes the list and lets the form submit. Two tests. |
+| R4 | Low | Phase tile (CG23): after a failed refresh TanStack keeps the last reply, so the tile showed an old phase as current. | Sub-line "last known — the engine did not answer the latest check" when the latest refresh failed. Test. The stale-write rule keeps using the last-known phase, which is the useful reading when the engine stops answering mid-session. |
+
+Checked and found sound (no change):
+
+- Page-size store: one persisted choice; page index clamped through polls,
+  reset on sort/size; a new filter remounts the table (proven in CG18).
+- `more` loading: one `fetchNextPage` per need (effect keyed on the flag,
+  tested to issue exactly one `after=` request).
+- Venue timezone: one `/session` read per login from the shell; the Overview
+  adds its own 30 s poll on the same key; a failed refresh keeps the zone.
+- Merged Positions: per-row `net_qty × mark_price_ticks` matches
+  `store.query_exposure`; no mark gives dashes.
+- Gateway links: ADMIN only, never `EXCHANGE`; drawer's error boundary key
+  keeps the list mounted (proven by mutation in CG21).
+- Request discipline: `requests.test` holds every screen to its polled set.
+
+Accepted limits (documented, not changed):
+
+- N1: the error boundary is keyed per screen, so a crash inside a
+  participant's drawer replaces the whole Participants screen until another
+  screen is opened (the price of not remounting the list on open/close).
+- N2: the EOD-lag rule cannot flag a day left unsettled once the next day has
+  opened (CG23; operator guide says so).
+- N3: Escape closes the drawer only while focus is inside it (non-modal by
+  design, as dash-gui's).
+
+Lesson: a warning that depends on time passing must be tested with time
+passing — fake timers and unchanged polls — not with data that is already
+old when the page loads.

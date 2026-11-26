@@ -117,6 +117,13 @@ export function DataTable<R>({
     setRequestedPage(0);
   }
 
+  // With "All" there is one page of everything loaded, so Next past it is a
+  // request for the next server page rather than a page number.
+  function changePage(index: number) {
+    if (pageSize === 0 && moreAvailable && index > pageIndex) load.current?.();
+    else setRequestedPage(index);
+  }
+
   function changePageSize(size: number) {
     setPageSize(size);
     setRequestedPage(0);
@@ -198,7 +205,7 @@ export function DataTable<R>({
           pageSize={pageSize}
           more={moreAvailable}
           loading={more?.loading ?? false}
-          onPage={setRequestedPage}
+          onPage={changePage}
           onPageSize={changePageSize}
         />
       )}

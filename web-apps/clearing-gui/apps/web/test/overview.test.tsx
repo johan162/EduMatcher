@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { currentPath, example, renderApp, signIn, stubApi } from "./helpers";
+import { apiError, currentPath, example, renderApp, signIn, stubApi } from "./helpers";
 
 /**
  * CG23: the Overview answers "is anything wrong right now?" -- the largest
@@ -131,26 +131,57 @@ describe("Overview", () => {
     await waitFor(() => expect(label.closest("div")!.textContent).toMatch(/CLOSING_AUCTION/));
   });
 
-  it("warns when clearing has not written for a while during continuous trading", async () => {
-    api({ [SUMMARY]: summary(60_000) });
-    renderApp("/overview");
-    const warning = await screen.findByText(/No clearing write for \d+ s/);
-    expect(warning.textContent).toMatch(/no trade has arrived, or clearing is not writing/);
-  });
+  describe("stale-write warning (review R1)", () => {
+    beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+    afterEach(() => vi.useRealTimers());
 
-  it("does not warn about an old write when no trading is expected", async () => {
-    api({ [SESSION]: session("CLOSED"), [SUMMARY]: summary(60_000) });
-    renderApp("/overview");
-    await screen.findByText("Session phase");
-    await waitFor(() => expect(screen.getByText("Session phase").closest("div")!.textContent).toMatch(/CLOSED/));
-    expect(screen.queryByText(/No clearing write for/)).toBeNull();
-  });
+    async function phaseShown(state: string) {
+      await waitFor(() =>
+        expect(screen.getByText("Session phase").closest("div")!.textContent).toContain(state),
+      );
+    }
 
-  it("does not warn while writes are recent", async () => {
-    api();
-    renderApp("/overview");
-    await waitFor(() => expect(screen.getByText("Session phase").closest("div")!.textContent).toMatch(/CONTINUOUS/));
-    expect(screen.queryByText(/No clearing write for/)).toBeNull();
+    it("appears once writes stop during continuous trading, with the page left open", async () => {
+      // Recent at load; then every poll returns the same, unchanged summary.
+      api({ [SUMMARY]: summary(1_000) });
+      renderApp("/overview");
+      await phaseShown("CONTINUOUS");
+      expect(screen.queryByText(/No new clearing write/)).toBeNull();
+      await vi.advanceTimersByTimeAsync(35_000);
+      const warning = await screen.findByText(/No new clearing write for at least \d+ s/);
+      expect(warning.textContent).toMatch(/no trade has arrived, or clearing is not writing/);
+    });
+
+    it("does not appear while writes keep coming, whatever the browser's clock says", async () => {
+      // The server's clock two hours behind the browser's: only change counts.
+      let write = 0;
+      api({ [SUMMARY]: () => summary(2 * 3_600_000 - 1_000 * write++) });
+      renderApp("/overview");
+      await phaseShown("CONTINUOUS");
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(screen.queryByText(/No new clearing write/)).toBeNull();
+    });
+
+    it("the phase tile says when the phase is only last-known (review R4)", async () => {
+      let calls = 0;
+      api({
+        [SESSION]: () => (calls++ === 0 ? session("CONTINUOUS") : apiError(504, "ENGINE_TIMEOUT")),
+      });
+      renderApp("/overview");
+      await phaseShown("CONTINUOUS");
+      await vi.advanceTimersByTimeAsync(31_000);
+      await waitFor(() =>
+        expect(screen.getByText("Session phase").closest("div")!.textContent).toMatch(/last known.*did not answer/),
+      );
+    });
+
+    it("does not appear outside continuous trading", async () => {
+      api({ [SESSION]: session("CLOSED"), [SUMMARY]: summary(1_000) });
+      renderApp("/overview");
+      await phaseShown("CLOSED");
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(screen.queryByText(/No new clearing write/)).toBeNull();
+    });
   });
 
   it("warns when the last EOD run failed", async () => {

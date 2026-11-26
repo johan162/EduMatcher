@@ -255,7 +255,8 @@ The overview is an operational dashboard, not a margin dashboard. It contains:
   five-second committed-data qualifier;
 - an unmistakable GAP alarm with observed sequence interval and missing count;
 - the session phase (`GET /session`), with a warning when continuous trading
-  has gone 30 s without a clearing write, and one when the last EOD run
+  has gone 30 s without a new clearing write (observed by the browser, not
+  by comparing clocks), and one when the last EOD run
   failed or a closed trading day is not yet settled (usability round, CG23);
 - *Needs attention*: the largest losses (up to five participants) and the
   five largest open positions by gross notional, each opening the

@@ -104,6 +104,29 @@ describe("searchable filters", () => {
     expect(input.value).toBe("a");
   });
 
+  it("keeps the list open when its scrollbar is used (review R3)", async () => {
+    signIn("TRADER", "TRADER01");
+    api();
+    renderApp("/me/trades");
+    const input = (await screen.findByRole("combobox", { name: "Symbol" })) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "a" } });
+    const list = await screen.findByRole("listbox");
+    // A mousedown the list does not cancel would move focus off the input
+    // and close the list: scrolling it with the mouse would be impossible.
+    expect(fireEvent.mouseDown(list)).toBe(false);
+  });
+
+  it("Enter with nothing highlighted applies the filters and closes the list (review R3)", async () => {
+    signIn("TRADER", "TRADER01");
+    api();
+    renderApp("/me/trades");
+    const input = (await screen.findByRole("combobox", { name: "Symbol" })) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "a" } });
+    await screen.findByRole("listbox");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
   it("Enter with the list closed applies the filters, as before", async () => {
     signIn("TRADER", "TRADER01");
     const stub = api();

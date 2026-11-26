@@ -99,11 +99,15 @@ attention; the full lists are on the other screens.
   of lag is normal; minutes mean `pm-clearing` is stalled or not receiving.
 - *Session phase* tile: the engine's trading phase now, refreshed every 30
   seconds.
-- *No clearing write for N s* (amber): during continuous trading, clearing
-  has not written for more than 30 seconds. Either no trade has arrived (a
-  quiet market writes nothing) or `pm-clearing` is not writing; Health tells
-  which. It is never shown outside continuous trading: before the open and
-  during an auction, fills arrive only at the uncross.
+- *No new clearing write for at least N s* (amber): during continuous
+  trading, the last clearing write has not changed for more than 30 seconds
+  while the page was open. Either no trade has arrived (a quiet market writes
+  nothing) or `pm-clearing` is not writing; Health tells which. It is never
+  shown outside continuous trading: before the open and during an auction,
+  fills arrive only at the uncross. The time is measured by the browser
+  watching for a change, not by comparing clocks, so a wrong clock on the
+  operator's machine does not trigger it; a ledger that was already stale
+  when the page opened is reported after 30 seconds.
 - *EOD* (amber): the last `pm-eod` run did not end `ok`, or the market is
   closed and `pm-eod` has not yet run for the latest trading day. Right after
   the close this is expected until `pm-eod` has run for the day. Once the
@@ -193,7 +197,7 @@ its steps.
 | Health: *pm-clearing process: not answering* | `pm-clearing` stopped, or the health address differs | `pm-clearing-cli health` from the gateway's host |
 | *API contract error* | the GUI and the gateway are different versions | deploy matching versions |
 | Feed gap alert | trades lost on the bus between engine and clearing | reconcile the day; compare with the audit trail |
-| *No clearing write for N s* | no trades during continuous trading, or `pm-clearing` not writing | Health's process line; `pm-clearing-cli health` |
+| *No new clearing write for at least N s* | no trades during continuous trading, or `pm-clearing` not writing | Health's process line; `pm-clearing-cli health` |
 | *The last EOD run … ended failed* | `pm-eod` failed for that day | EOD Settlement's run steps; `pm-eod status` |
 | *Trading day … is closed but not settled* | `pm-eod` has not run yet for the day | normal just after the close; otherwise the scheduler and `pm-eod` |
 | Times end in *UTC*; phase *unknown* | `GET /api/v1/session` failed: the engine did not answer | `pm-opctl-cli status` |
