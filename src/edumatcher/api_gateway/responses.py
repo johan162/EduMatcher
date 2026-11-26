@@ -758,6 +758,79 @@ class ClearingNetting(BaseModel):
     gateways: list[NettingGatewayRow] = Field(description="By gateway id.")
 
 
+class ReplayStart(BaseModel):
+    net_qty: int = Field(
+        description="The position before the day's first fill: the previous "
+        "daily row's end, or 0."
+    )
+    tick_decimals: int = _TICK_DECIMALS
+    avg_cost: float = _display("Its average cost")
+    avg_cost_ticks: float = _ticks("avg_cost")
+
+
+class ReplayStep(BaseModel):
+    trade_id: str
+    ts_ns: int = Field(description="Exchange time of the trade.")
+    side: Literal["BUY", "SELL"] = Field(description="The gateway's side.")
+    quantity: int
+    kind: Literal["open", "add", "reduce", "close", "flip"] = Field(
+        description="What the fill did: `open` from flat, `add` to the same "
+        "side, `reduce` part of it, `close` to flat, `flip` through flat to the "
+        "other side."
+    )
+    net_qty: int = Field(description="The position after the fill.")
+    tick_decimals: int = _TICK_DECIMALS
+    price: float = _display("The fill price")
+    price_ticks: float = _ticks("price")
+    avg_cost: float = _display("Average cost after the fill")
+    avg_cost_ticks: float = _ticks("avg_cost")
+    realized_delta: float = _display("P&L this fill realized")
+    realized_delta_ticks: float = _ticks("realized_delta")
+    realized_day: float = _display("P&L realized so far that day")
+    realized_day_ticks: float = _ticks("realized_day")
+    unrealized: float = _display("Unrealized P&L after the fill, at its price")
+    unrealized_ticks: float = _ticks("unrealized")
+
+
+class ReplayDailyRow(BaseModel):
+    end_net_qty: int
+    tick_decimals: int = _TICK_DECIMALS
+    end_avg_cost: float = _display("Stored end-of-day average cost")
+    end_avg_cost_ticks: float = _ticks("end_avg_cost")
+    realized_pnl: float = _display("Stored realized P&L of the day")
+    realized_pnl_ticks: float = _ticks("realized_pnl")
+
+
+class PositionReplay(BaseModel):
+    gateway_id: str
+    symbol: str
+    trade_date: str | None = Field(
+        description="The day replayed; null when the pair never traded."
+    )
+    trades_retained: bool = Field(
+        description="The day's raw trades are still kept; false once retention "
+        "pruned them, and then there are no steps."
+    )
+    has_more: bool = Field(
+        description="The day has more fills than the reply carries (5 000); "
+        "the replay is then not checked."
+    )
+    start: ReplayStart
+    steps: list[ReplayStep] = Field(description="The gateway's fills, in ledger order.")
+    matches_daily_row: bool | None = Field(
+        description="The replay ends on the day's stored daily row (net "
+        "quantity, average cost, realized P&L); null when there is nothing to "
+        "compare."
+    )
+    matches_position: bool | None = Field(
+        description="On the pair's latest day: it ends on the stored position "
+        "(net quantity, average cost); null otherwise."
+    )
+    daily_row: ReplayDailyRow | None = Field(
+        description="The stored daily row, to show beside a mismatch."
+    )
+
+
 class ParticipantRow(BaseModel):
     gateway_id: str
     realized_pnl: float = _display(

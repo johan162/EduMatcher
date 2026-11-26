@@ -504,6 +504,7 @@ chapter.
 | `/clearing/participants` | ADMIN | P&L and position counts per gateway |
 | `/clearing/participants/{gateway_id}` | ADMIN, or that gateway | One gateway's totals, positions and links to its other views |
 | `/clearing/positions` | ADMIN, or own | Current positions at their marks |
+| `/clearing/position-replay` | ADMIN, or own | One position replayed fill by fill through one day, checked against the ledger |
 | `/clearing/exposure` | ADMIN, or own | Net/gross notional and P&L per position |
 | `/clearing/trades` | ADMIN, or own | Retained raw executions, with match type and audit message id; a participant sees only its own side |
 | `/clearing/daily` | ADMIN, or own | Daily activity, realized P&L and end-of-day position |

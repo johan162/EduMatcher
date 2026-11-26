@@ -98,6 +98,7 @@ optional parameters.
 | [GET /api/v1/clearing/participants](#get-apiv1clearingparticipants) | Admin role | P&L and position counts per participant gateway |
 | [GET /api/v1/clearing/participants/{gateway_id}](#get-apiv1clearingparticipantsgateway_id) | Admin role, or the gateway itself | One gateway's totals, positions and the routes for its other views |
 | [GET /api/v1/clearing/positions](#get-apiv1clearingpositions) | Admin role, or own gateway | Current positions at their marks |
+| [GET /api/v1/clearing/position-replay](#get-apiv1clearingposition-replay) | Admin role, or own gateway | One position replayed fill by fill through one day, checked against the ledger |
 | [GET /api/v1/clearing/exposure](#get-apiv1clearingexposure) | Admin role, or own gateway | Net/gross notional and P&L per position |
 | [GET /api/v1/clearing/trades](#get-apiv1clearingtrades) | Admin role, or own gateway | Retained raw executions, keyset-paginated |
 | [GET /api/v1/clearing/daily](#get-apiv1clearingdaily) | Admin role, or own gateway | Daily activity, realized P&L and end-of-day position |
@@ -2216,6 +2217,33 @@ Purpose: current position per gateway and symbol: signed `net_qty`, `avg_cost`, 
 | Status | Shape | Meaning |
 |---|---|---|
 | `200 OK` | bounded list envelope (`positions`) | Positions as of the latest flush |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/position-replay`
+
+Purpose: how one gateway's position in one symbol was built through one trading day, fill by fill, by `pm-clearing`'s own position rules. `start` is the position before the day's first fill (the previous daily row's end, or flat). Each step is one of the gateway's fills in the order clearing applied it, with `kind` (`open` from flat, `add`, `reduce`, `close` to flat, `flip` through flat to the other side) and, after the fill, `net_qty`, `avg_cost`, `realized_delta`, `realized_day` (the day's so far) and `unrealized` at the fill's price; money as display value and `_ticks` beside the step's `tick_decimals`. `matches_daily_row` says whether the replay ends on the day's stored daily row (net quantity, average cost, realized P&L, which is echoed as `daily_row`), and on the pair's latest day `matches_position` whether it ends on the stored position; null when there is nothing to compare or the replay was cut (`has_more`, beyond 5 000 fills). A mismatch is reported, never corrected. A day whose raw trades retention has pruned has `trades_retained: false` and no steps; a pair that never traded has `trade_date: null`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | `Symbol` | yes | The symbol |
+| `gateway` | `GatewayId` | no | This gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `date` | `Date` | no | The trading day, session timezone; default the latest day the pair traded |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `PositionReplay` | The day's fills, step by step |
 
 **Errors**
 

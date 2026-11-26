@@ -44,6 +44,7 @@ from edumatcher.api_gateway.responses import (
     GatewaySessions,
     ParticipantDetail,
     Participants,
+    PositionReplay,
     Reconciliation,
     SessionEvents,
     Settlements,
@@ -51,6 +52,7 @@ from edumatcher.api_gateway.responses import (
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
 from edumatcher.clearing.query import day_bounds_ns, open_readonly_connection
+from edumatcher.clearing.replay import replay_position
 from edumatcher.clearing.store import (
     query_close_snapshots,
     query_daily,
@@ -640,6 +642,60 @@ async def clearing_participant(
             "latest_close_date": latest[0]["trade_date"] if latest else None,
             "links": _links(target),
         }
+
+    return await _in_clearing_db(request, _query)
+
+
+@router.get(
+    "/position-replay",
+    response_model=PositionReplay,
+    summary="One position replayed through one day",
+    responses=docs.merge(
+        docs.ok(docs.CLEARING_POSITION_REPLAY_REPLY, "The day's fills, step by step."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "CLEARING_DB",
+            "SCOPE_DENIED",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
+    ),
+)
+async def clearing_position_replay(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    symbol: Annotated[
+        str, Query(description="The symbol (case-insensitive). Required.")
+    ],
+    gateway: _Gateway = None,
+    date: Annotated[
+        str | None,
+        Query(
+            description="The trading day, `YYYY-MM-DD`, in the session timezone; "
+            "default the latest day the pair traded."
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """How one gateway's position in one symbol was built through one day,
+    fill by fill, by pm-clearing's own position rules.
+
+    The replay starts from the previous daily row's end (or flat) and applies
+    the gateway's fills in the order clearing applied them. Each step says
+    what the fill did (`open`, `add`, `reduce`, `close`, `flip`) and the
+    position, average cost and realized P&L after it. `matches_daily_row` and
+    `matches_position` say whether the replay ends where the ledger does; a
+    mismatch is reported, never corrected. A day whose raw trades retention
+    has pruned has no steps. Without `gateway`, the caller's own gateway.
+    """
+    scope = await clearing_scope(request, session, gateway)
+    _check_dates(date)
+    target = scope.gateway or scope.caller
+    wanted = _upper(symbol)
+    if wanted is None:
+        raise _invalid("symbol", "symbol is required")
+
+    def _query(conn: sqlite3.Connection) -> dict[str, Any]:
+        return replay_position(conn, gateway=target, symbol=wanted, trade_date=date)
 
     return await _in_clearing_db(request, _query)
 

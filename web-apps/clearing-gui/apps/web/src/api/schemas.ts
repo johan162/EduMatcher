@@ -174,6 +174,48 @@ export const ClearingSymbolRow = z.object({
 });
 export const ClearingSymbols = z.object({ symbols: z.array(ClearingSymbolRow), ...listFields });
 
+/** One position replayed fill by fill through one day (CG28), by clearing's rules. */
+export const ReplayStep = z.object({
+  trade_id: z.string(),
+  ts_ns: nanos,
+  side: z.enum(["BUY", "SELL"]),
+  quantity: int,
+  kind: z.enum(["open", "add", "reduce", "close", "flip"]),
+  net_qty: int,
+  tick_decimals: int,
+  price: z.number(),
+  price_ticks: ticks,
+  avg_cost: z.number(),
+  avg_cost_ticks: ticks,
+  realized_delta: z.number(),
+  realized_delta_ticks: ticks,
+  realized_day: z.number(),
+  realized_day_ticks: ticks,
+  unrealized: z.number(),
+  unrealized_ticks: ticks,
+});
+export const PositionReplay = z.object({
+  gateway_id: z.string(),
+  symbol: z.string(),
+  trade_date: z.string().nullable(),
+  trades_retained: z.boolean(),
+  has_more: z.boolean(),
+  start: z.object({ net_qty: int, tick_decimals: int, avg_cost: z.number(), avg_cost_ticks: ticks }),
+  steps: z.array(ReplayStep),
+  matches_daily_row: z.boolean().nullable(),
+  matches_position: z.boolean().nullable(),
+  daily_row: z
+    .object({
+      end_net_qty: int,
+      tick_decimals: int,
+      end_avg_cost: z.number(),
+      end_avg_cost_ticks: ticks,
+      realized_pnl: z.number(),
+      realized_pnl_ticks: ticks,
+    })
+    .nullable(),
+});
+
 /** One day's trades netted per gateway (CG26): display currency, converted row by row. */
 export const NettingGatewayRow = z.object({
   gateway_id: z.string(),
@@ -424,6 +466,7 @@ export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/clearing/close-snapshots": CloseSnapshots,
   "/api/v1/clearing/symbols": ClearingSymbols,
   "/api/v1/clearing/netting": Netting,
+  "/api/v1/clearing/position-replay": PositionReplay,
   "/api/v1/clearing/session-events": SessionEvents,
   "/api/v1/clearing/gateway-sessions": GatewaySessions,
   "/api/v1/clearing/reconciliation": Reconciliation,
@@ -439,6 +482,8 @@ export type DailyRowT = z.infer<typeof DailyRow>;
 export type CloseSnapshotRowT = z.infer<typeof CloseSnapshotRow>;
 export type ClearingSymbolRowT = z.infer<typeof ClearingSymbolRow>;
 export type NettingT = z.infer<typeof Netting>;
+export type PositionReplayT = z.infer<typeof PositionReplay>;
+export type ReplayStepT = z.infer<typeof ReplayStep>;
 export type NettingGatewayRowT = z.infer<typeof NettingGatewayRow>;
 export type ParticipantRowT = z.infer<typeof ParticipantRow>;
 export type SessionEventRowT = z.infer<typeof SessionEventRow>;

@@ -764,6 +764,7 @@ your own rows instead. A read-only key reads no clearing data.
 |---|---|
 | `GET /api/v1/clearing/participants/{gateway_id}` | Your totals and positions (`gateway_id` must be yours) |
 | `GET /api/v1/clearing/positions` | Your current positions at their marks |
+| `GET /api/v1/clearing/position-replay` | How one of your positions was built through a day (`symbol` required, `date` optional): each fill, what it did (`open`, `add`, `reduce`, `close`, `flip`) and the average cost and realized P&L after it, by clearing's own rules |
 | `GET /api/v1/clearing/exposure` | Net and gross notional and P&L per position |
 | `GET /api/v1/clearing/trades` | Your retained executions, newest first, with `match_type` and the audit `msg_id`; the counterparty's gateway and order id are `null` |
 | `GET /api/v1/clearing/daily` | Per day and symbol: traded quantities and values, realized P&L, end-of-day position |

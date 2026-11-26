@@ -1,4 +1,4 @@
-"""CG26: the clearing figures the teaching pictures need.
+"""CG26 and CG28: the clearing figures the teaching pictures need.
 
 - ``/clearing/symbols`` reports the long and the short side of each symbol
   separately (decision D8 in the clearing-GUI workplan): every share held
@@ -6,6 +6,9 @@
 - ``/clearing/netting`` reports one trading day's trades against the one net
   amount each gateway is left with (D11): the venue for ADMIN, the caller's
   own gateway for a participant.
+- ``/clearing/position-replay`` replays one gateway's position in one symbol
+  through one day, fill by fill, by pm-clearing's own rules (D9), and says
+  whether it ends where the ledger does.
 
 Driven through the whole ASGI app against the venue recorded by the real
 pm-clearing process (``tests/clearing_api_fixture.py``):
@@ -25,6 +28,7 @@ from typing import Any
 
 import pytest
 
+from edumatcher.clearing import replay
 from edumatcher.clearing.store import apply_schema
 from tests.api_gateway_harness import call
 from tests.clearing_api_fixture import (
@@ -246,3 +250,276 @@ async def test_netting_refuses_a_bad_date_and_a_read_only_key(venue: Venue) -> N
     assert (status, _code(body), body["error"]["field"]) == (400, "VALIDATION", "date")
     status, body = await _get(venue, "/netting", READ_ONLY_KEY)
     assert (status, _code(body)) == (403, "READ_ONLY")
+
+
+# ---------------------------------------------------------------------------
+# position replay (CG28)
+# ---------------------------------------------------------------------------
+
+#: A day in a hand-made ledger, for the step kinds the venue does not have.
+REPLAY_DAY = "2026-11-10"
+
+
+def _trade_row(
+    conn: sqlite3.Connection,
+    seq: int,
+    side: str,
+    qty: int,
+    price: int,
+    tick_decimals: int = 2,
+    day: str = REPLAY_DAY,
+) -> None:
+    """One raw trade of T1 in XYZ against a counterparty, in feed order."""
+    buyer, seller = ("T1", "CP") if side == "BUY" else ("CP", "T1")
+    conn.execute(
+        "INSERT INTO trade_events (id, ts_ns, trade_date, symbol, quantity, price,"
+        " tick_decimals, buy_gateway_id, sell_gateway_id, ingest_ts_ns)"
+        " VALUES (?, ?, ?, 'XYZ', ?, ?, ?, ?, ?, ?)",
+        (f"T{seq}", seq, day, qty, price, tick_decimals, buyer, seller, seq),
+    )
+
+
+def _daily_row(
+    conn: sqlite3.Connection,
+    day: str,
+    end_net_qty: int,
+    end_avg_cost: float,
+    tick_decimals: int,
+    realized: float = 0.0,
+) -> None:
+    conn.execute(
+        "INSERT INTO gateway_daily_summary (trade_date, gateway_id, symbol,"
+        " traded_qty, traded_notional, buy_qty, sell_qty, buy_notional,"
+        " sell_notional, net_amount, realized_pnl, end_net_qty, end_avg_cost,"
+        " end_unrealized_pnl, tick_decimals, updated_ts_ns)"
+        " VALUES (?, 'T1', 'XYZ', 0, 0, 0, 0, 0, 0, 0, ?, ?, ?, 0, ?, 0)",
+        (day, realized, end_net_qty, end_avg_cost, tick_decimals),
+    )
+
+
+def _ledger(tmp_path: Path, fill: Any) -> Path:
+    db = tmp_path / "clearing.db"
+    with closing(sqlite3.connect(db)) as conn:
+        apply_schema(conn)
+        fill(conn)
+        conn.commit()
+    return db
+
+
+def _steps(body: dict[str, Any]) -> list[tuple[Any, ...]]:
+    return [
+        (s["kind"], s["net_qty"], s["avg_cost"], s["realized_delta"])
+        for s in body["steps"]
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_replay_builds_the_day_by_clearing_s_own_rules(venue: Venue) -> None:
+    status, body = await _get(
+        venue, f"/position-replay?symbol=AAPL&date={DAY1}", TRADER_KEY
+    )
+    assert status == 200
+    assert (body["gateway_id"], body["symbol"], body["trade_date"]) == (
+        "TRADER01",
+        "AAPL",
+        DAY1,
+    )
+    assert body["start"] == {
+        "net_qty": 0,
+        "avg_cost": 0.0,
+        "avg_cost_ticks": 0.0,
+        "tick_decimals": 2,
+    }
+    assert _steps(body) == [
+        ("open", 100, 187.25, 0.0),
+        ("add", 150, pytest.approx((18725 * 100 + 18750 * 50) / 150 / 100), 0.0),
+    ]
+    first = body["steps"][0]
+    assert (first["side"], first["quantity"], first["price"], first["price_ticks"]) == (
+        "BUY",
+        100,
+        187.25,
+        18725,
+    )
+    assert body["matches_daily_row"] is True
+
+
+@pytest.mark.anyio
+async def test_a_replay_starts_from_the_previous_day_and_ends_on_the_ledger(
+    venue: Venue,
+) -> None:
+    # The latest day by default; DAY1 left TRADER01 long 150 AAPL.
+    status, body = await _get(venue, "/position-replay?symbol=aapl", TRADER_KEY)
+    assert status == 200
+    assert body["trade_date"] == DAY2
+    assert body["start"]["net_qty"] == 150
+    ((kind, net, avg, realized),) = _steps(body)
+    assert (kind, net) == ("reduce", 110)
+    assert avg == pytest.approx(187.3333333)
+    assert realized == pytest.approx((188.0 - 187.3333333) * 40)
+    assert body["steps"][0]["realized_day"] == pytest.approx(realized)
+    assert body["steps"][0]["unrealized"] == pytest.approx(110 * (188.0 - avg))
+    assert body["matches_daily_row"] is True
+    assert body["matches_position"] is True
+    assert body["daily_row"]["end_net_qty"] == 110
+
+
+@pytest.mark.anyio
+async def test_every_day_of_the_recorded_venue_replays_onto_the_ledger(
+    venue: Venue,
+) -> None:
+    # The ledger recorded these days itself: a replay by its rules must agree.
+    for gateway in ("TRADER01", "MM01"):
+        for symbol in ("AAPL", "EURUSD"):
+            for day in (DAY1, DAY2):
+                _, body = await _get(
+                    venue,
+                    f"/position-replay?gateway={gateway}&symbol={symbol}&date={day}",
+                )
+                assert body["steps"], (gateway, symbol, day)
+                assert body["matches_daily_row"] is True, (gateway, symbol, day)
+                expected = True if day == DAY2 else None
+                assert body["matches_position"] is expected, (gateway, symbol, day)
+
+
+@pytest.mark.anyio
+async def test_every_kind_of_step(venue: Venue, tmp_path: Path) -> None:
+    def fill(conn: sqlite3.Connection) -> None:
+        for seq, (side, qty, price) in enumerate(
+            [
+                ("BUY", 100, 1000),  # open long 100 at 10.00
+                ("BUY", 100, 1200),  # add: average 11.00
+                ("SELL", 50, 1300),  # reduce: +2.00 × 50
+                ("SELL", 150, 900),  # close: −2.00 × 150
+                ("SELL", 30, 800),  # open short 30 at 8.00
+                ("BUY", 50, 700),  # flip: +1.00 × 30, then long 20 at 7.00
+            ],
+            start=1,
+        ):
+            _trade_row(conn, seq, side, qty, price)
+
+    db = _ledger(tmp_path, fill)
+    status, body = await _get(
+        venue,
+        f"/position-replay?gateway=T1&symbol=XYZ&date={REPLAY_DAY}",
+        clearing_db=db,
+    )
+    assert status == 200
+    assert _steps(body) == [
+        ("open", 100, 10.0, 0.0),
+        ("add", 200, 11.0, 0.0),
+        ("reduce", 150, 11.0, 100.0),
+        ("close", 0, 0.0, -300.0),
+        ("open", -30, 8.0, 0.0),
+        ("flip", 20, 7.0, 30.0),
+    ]
+    assert body["steps"][-1]["realized_day"] == pytest.approx(100 - 300 + 30)
+    # No daily row to compare with: not a mismatch, just no check.
+    assert body["matches_daily_row"] is None
+    assert body["daily_row"] is None
+
+
+@pytest.mark.anyio
+async def test_a_replay_converts_a_carried_position_to_a_new_precision(
+    venue: Venue, tmp_path: Path
+) -> None:
+    def fill(conn: sqlite3.Connection) -> None:
+        _daily_row(conn, "2026-11-09", 100, 1000.0, 2)  # long 100 at 10.00
+        _trade_row(conn, 1, "SELL", 100, 110000, tick_decimals=4)  # 11.0000
+
+    db = _ledger(tmp_path, fill)
+    _, body = await _get(
+        venue,
+        f"/position-replay?gateway=T1&symbol=XYZ&date={REPLAY_DAY}",
+        clearing_db=db,
+    )
+    assert body["start"] == {
+        "net_qty": 100,
+        "avg_cost": 10.0,
+        "avg_cost_ticks": 1000.0,
+        "tick_decimals": 2,
+    }
+    (step,) = body["steps"]
+    assert (step["kind"], step["tick_decimals"]) == ("close", 4)
+    assert step["realized_delta"] == pytest.approx(100.0)
+    assert step["realized_delta_ticks"] == pytest.approx(1_000_000)
+
+
+@pytest.mark.anyio
+async def test_a_replay_that_disagrees_with_the_ledger_says_so(
+    venue: Venue, tmp_path: Path
+) -> None:
+    db = _copy(venue.clearing_db, tmp_path / "clearing.db")
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute(
+            "UPDATE gateway_daily_summary SET end_net_qty = 111"
+            " WHERE trade_date = ? AND gateway_id = 'TRADER01' AND symbol = 'AAPL'",
+            (DAY2,),
+        )
+        conn.commit()
+    _, body = await _get(
+        venue, f"/position-replay?symbol=AAPL&date={DAY2}", TRADER_KEY, clearing_db=db
+    )
+    assert body["steps"][-1]["net_qty"] == 110
+    assert body["matches_daily_row"] is False
+    assert body["daily_row"]["end_net_qty"] == 111
+
+
+@pytest.mark.anyio
+async def test_a_pruned_day_has_no_steps(venue: Venue, tmp_path: Path) -> None:
+    db = _copy(venue.clearing_db, tmp_path / "clearing.db")
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("DELETE FROM trade_events WHERE trade_date = ?", (DAY1,))
+        conn.commit()
+    _, body = await _get(
+        venue, f"/position-replay?symbol=AAPL&date={DAY1}", TRADER_KEY, clearing_db=db
+    )
+    assert body["trades_retained"] is False
+    assert body["steps"] == []
+    assert body["matches_daily_row"] is None
+
+
+@pytest.mark.anyio
+async def test_a_long_day_is_capped_and_not_checked(
+    venue: Venue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(replay, "MAX_STEPS", 1)
+    _, body = await _get(venue, f"/position-replay?symbol=AAPL&date={DAY1}", TRADER_KEY)
+    assert (len(body["steps"]), body["has_more"]) == (1, True)
+    assert body["matches_daily_row"] is None
+
+
+@pytest.mark.anyio
+async def test_a_pair_that_never_traded_has_no_day(venue: Venue) -> None:
+    status, body = await _get(venue, "/position-replay?symbol=TSLA", TRADER_KEY)
+    assert status == 200
+    assert (body["trade_date"], body["steps"], body["start"]["net_qty"]) == (
+        None,
+        [],
+        0,
+    )
+
+
+@pytest.mark.anyio
+async def test_a_replay_is_scoped_and_needs_a_symbol(venue: Venue) -> None:
+    status, body = await _get(
+        venue, "/position-replay?gateway=MM01&symbol=AAPL", TRADER_KEY
+    )
+    assert (status, _code(body)) == (403, "SCOPE_DENIED")
+    status, body = await _get(venue, "/position-replay?symbol=AAPL", READ_ONLY_KEY)
+    assert (status, _code(body)) == (403, "READ_ONLY")
+    status, body = await _get(venue, "/position-replay", TRADER_KEY)
+    assert (status, _code(body), body["error"]["field"]) == (
+        400,
+        "VALIDATION",
+        "symbol",
+    )
+    status, body = await _get(
+        venue, "/position-replay?symbol=AAPL&date=2026-02-30", TRADER_KEY
+    )
+    assert (status, body["error"]["field"]) == (400, "date")
+    # An ADMIN replays the gateway it names.
+    _, body = await _get(
+        venue, f"/position-replay?gateway=MM01&symbol=AAPL&date={DAY1}"
+    )
+    assert [s["net_qty"] for s in body["steps"]] == [-100, -150]

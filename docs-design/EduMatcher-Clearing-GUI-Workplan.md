@@ -1682,7 +1682,7 @@ API WPs come before the screens that need them. Order is the table order.
 | 25 | CG25 | Explain mode; "how this number is made" per position; P&L split; words beside signs; teaching empty states | — | 1.5 d | ☑ | 2026-11-26 |
 | 26 | CG26 | API: long/short totals per symbol; `GET /clearing/netting` | — | 1 d | ☑ | 2026-11-26 |
 | 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☑ | 2026-11-26 |
-| 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☐ | |
+| 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☑ | 2026-11-26 |
 | 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☐ | |
 | 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☐ | |
 | 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☐ | |
@@ -1895,6 +1895,30 @@ published spec.
   start from a previous day's carried position; a `tick_decimals` change;
   scope denial for another gateway; pruned day; the 5 000 cap.
 - **Exit:** as §9.2 for API WPs.
+- **Done 2026-11-26.** 10 tests in `test_api_gateway_clearing_teaching.py`
+  failed first (404; the module held only `MAX_STEPS` so the file loads).
+  New `clearing/replay.py` (`replay_position`, 100% covered), models
+  `PositionReplay` / `ReplayStart` / `ReplayStep` / `ReplayDailyRow`,
+  example `CLEARING_POSITION_REPLAY_REPLY`, route with a required `symbol`
+  and optional `gateway`, `date`. Steps use the ledger's
+  `_apply_fill_to_position` and `_rescale_position` on a scratch
+  `_Position` (file-level `reportPrivateUsage=false`, as
+  `audit/replay/rerun.py`, with the reason). Order: `trade_events.rowid`,
+  the order clearing stored and applied the trades; a self-trade is buy leg
+  then sell leg. Kinds: open / add / reduce / close / flip. A hand-made
+  ledger covers every kind and a precision change in a carried position; a
+  test replays every gateway × symbol × day of the recorded venue and
+  requires it to end on the ledger (mutation-checked: starting flat instead
+  of from the previous day fails it). Spec regenerated; REST chapter
+  section and row, operator and participant guide rows, contract matrix,
+  route layout, clearing-gui `PositionReplay` schema. Full suite 15 604
+  passed, coverage 91.9%; black, flake8, mypy, pyright, `openapi-check`,
+  `mkdocs build` clean; clearing-gui 292.
+  **Decisions made here:** the stored daily row is echoed as `daily_row`
+  (CG29's mismatch warning needs both values); `matches_position` is
+  checked on the pair's latest day only, and on net quantity and average
+  cost (the stored position's realized P&L is cumulative, the replay's is
+  the day's); a replay cut at `MAX_STEPS` is not checked.
 
 ### CG29 — GUI: position build-up replay
 
