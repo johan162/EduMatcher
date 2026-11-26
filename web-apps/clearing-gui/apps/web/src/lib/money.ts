@@ -99,6 +99,11 @@ export function formatPnlCurrency(value: number | null): string {
   return value === null ? DASH : formatCurrency(value) + pnlWord(value, 2);
 }
 
+/** An average cost: the symbol's decimals when it is a whole tick, 2 more when not. */
+export function formatAverage(ticks: Ticks, tickDecimals: number): string {
+  return formatTicks(ticks, tickDecimals, Number.isInteger(ticks) ? 0 : 2);
+}
+
 /** A signed position with its word: "110 long", "-20 short", "0 flat". */
 export function formatPosition(qty: number | null): string {
   if (qty === null) return DASH;

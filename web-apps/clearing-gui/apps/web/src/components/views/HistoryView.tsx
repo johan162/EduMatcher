@@ -19,7 +19,9 @@ import { useCloseSnapshots, useDaily, useHistoryRevalidation, useSymbolOptions }
 import type { CloseSnapshotRowT, DailyRowT } from "@/api/schemas";
 import { formatPnlCurrency, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
 import { positionColumn, qtyColumn, textColumn, tickColumn } from "./columns";
+import { useExplain } from "@/components/shared/Explain";
 import { MoneyByDay } from "./MoneyByDay";
+import { PositionReplayView } from "./PositionReplayView";
 import { subject, teachingHint } from "./teaching";
 
 const CloseChart = lazy(() => import("./CloseChart"));
@@ -121,6 +123,7 @@ export function HistoryView({ gateway }: { gateway?: string }) {
   const daily = useDaily(params);
   const closes = useCloseSnapshots(params);
   const who = subject(gateway);
+  const explain = useExplain();
   const totals = useMemo(() => (closes.data ? closeTotals(closes.data.snapshots) : []), [closes.data]);
 
   return (
@@ -175,6 +178,14 @@ export function HistoryView({ gateway }: { gateway?: string }) {
                 columns={DAILY_COLUMNS}
                 rows={d.daily}
                 rowKey={(r) => `${r.trade_date}/${r.gateway_id}/${r.symbol}`}
+                detail={
+                  explain
+                    ? {
+                        name: (r) => `Replay ${r.symbol} on ${r.trade_date}`,
+                        render: (r) => <PositionReplayView gateway={r.gateway_id} symbol={r.symbol} date={r.trade_date} />,
+                      }
+                    : undefined
+                }
               />
               <MoreRows hasMore={d.has_more} count={d.count} />
             </>

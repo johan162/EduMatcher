@@ -1683,7 +1683,7 @@ API WPs come before the screens that need them. Order is the table order.
 | 26 | CG26 | API: long/short totals per symbol; `GET /clearing/netting` | — | 1 d | ☑ | 2026-11-26 |
 | 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☑ | 2026-11-26 |
 | 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☑ | 2026-11-26 |
-| 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☐ | |
+| 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☑ | 2026-11-26 |
 | 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☐ | |
 | 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☐ | |
 | 32 | CG32 | Help, guides and a holistic review of CG25–CG31 | CG25–CG31 | 1 d | ☐ | |
@@ -1937,6 +1937,26 @@ published spec.
   step table matches the reply; a mismatch shows the warning; pruned day and
   empty day texts; keyboard selection of steps; axe clean.
 - **Exit:** as §9.2 for GUI WPs.
+- **Done 2026-11-26.** `test/replay.test.tsx` (16) failed first (no
+  button; the Explain-off case passed vacuously). New
+  `components/views/PositionReplayView.tsx`: start sentence, an SVG of two
+  bands (position as a step line; fill prices as dots, buy green / sell
+  red, against the average-cost line), a `role="status"` line that writes
+  out the selected fill (`stepSentence`, one form per kind, with the
+  previous step's average converted to the fill's precision), and the
+  "Fills of SYMBOL on DATE" table (unsorted, row click / Enter selects).
+  Mismatch with the daily row or the position is a `role="alert"` with
+  both values; pruned, empty, never-traded and capped days have their own
+  sentence. Opened from the position card ("Show how this position was
+  built", the latest day the pair traded) and, in Explain mode, from each
+  Daily activity row ("Replay SYMBOL on DATE", that day). `usePositionReplay`
+  is a cached read, fetched only when opened. `formatAverage` moved to
+  `lib/money.ts` (shared with the CG25 card). Suite 308 (was 292),
+  typecheck and build green; axe clean with a step selected.
+  **Deviations:** the chart is plain SVG, not recharts (as CG27); its dots
+  are mouse-only and `aria-hidden`, the table is the keyboard and
+  screen-reader path. "Built today" is "the latest day the pair traded",
+  the API's default, so a position untouched today still has a replay.
 
 ### CG30 — Who traded with whom
 

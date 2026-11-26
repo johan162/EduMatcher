@@ -1,8 +1,9 @@
 /**
  * "How this number is made" for one position (CG25), opened from its row in
  * Explain mode: the unrealized P&L written out as a sum with the row's own
- * values, a price scale with the average cost and the mark on it, and the
- * total split into its realized and unrealized parts.
+ * values, a price scale with the average cost and the mark on it, the
+ * total split into its realized and unrealized parts, and (CG29) how the
+ * position was built on its latest trading day, fill by fill.
  *
  * Every number is the row's, formatted with its own precision; the result of
  * each sum is the ledger's value, not one computed here, so the card can
@@ -11,11 +12,12 @@
  * decimal: the ledger keeps the full average.
  */
 import type { PositionRowT } from "@/api/schemas";
-import { formatPnlTicks, formatQty, formatTicks, type Ticks } from "@/lib/money";
+import { useState } from "react";
+import { formatAverage as formatAverageTicks, formatPnlTicks, formatQty, formatTicks, type Ticks } from "@/lib/money";
+import { PositionReplayView } from "./PositionReplayView";
 
-/** An average cost: the symbol's decimals when it is a whole tick, 2 more when not. */
 function formatAverage(r: PositionRowT): string {
-  return formatTicks(r.avg_cost_ticks, r.tick_decimals, Number.isInteger(r.avg_cost_ticks) ? 0 : 2);
+  return formatAverageTicks(r.avg_cost_ticks, r.tick_decimals);
 }
 
 /** The unrealized P&L as a sum, or why there is none. */
@@ -104,11 +106,21 @@ function PnlSplit({ r }: { r: PositionRowT }) {
 
 export function PositionExplain({ row }: { row: PositionRowT }) {
   const mark = row.mark_price_ticks;
+  const [built, setBuilt] = useState(false);
   return (
     <section aria-label={`How ${row.symbol}'s P&L is made`} data-explain className="text-xs">
       <p>{unrealizedSentence(row)}</p>
       {row.net_qty !== 0 && mark !== null && <PriceScale r={{ ...row, mark_price_ticks: mark }} />}
       <PnlSplit r={row} />
+      <button
+        type="button"
+        aria-expanded={built}
+        onClick={() => setBuilt((v) => !v)}
+        className="mt-2 text-link hover:underline"
+      >
+        Show how this position was built
+      </button>
+      {built && <PositionReplayView gateway={row.gateway_id} symbol={row.symbol} />}
     </section>
   );
 }

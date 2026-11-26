@@ -141,6 +141,13 @@ export const useBalances = (params: Params) =>
   useRead("/api/v1/clearing/balances", S.Balances, params, cached);
 
 /**
+ * One position replayed fill by fill through one day (CG28/CG29): fetched
+ * when a replay is opened, and cached like the other history reads.
+ */
+export const usePositionReplay = (params: Params) =>
+  useRead("/api/v1/clearing/position-replay", S.PositionReplay, params, cached);
+
+/**
  * The latest trading day's trades netted per gateway (CG26/CG27): the venue
  * for ADMIN, one gateway with `gateway`, the caller's own for a participant.
  * Refreshed at 30 s while a teaching panel shows it (Explain mode only).
