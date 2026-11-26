@@ -198,6 +198,30 @@ describe("Overview", () => {
     expect(await screen.findByText(/2026-08-29 is closed but not settled/)).toBeTruthy();
   });
 
+  it("a new exchange without an EOD ledger is calm: no warning colour, no attention item", async () => {
+    api({
+      [SESSION]: session("CLOSED"),
+      [SUMMARY]: summary(2_000, { eod_db_status: "not_run", last_eod_run: null, last_trade_ts_ns: null }),
+    });
+    renderApp("/overview");
+    const tile = (await screen.findByText("no EOD run yet")) as HTMLElement;
+    expect(tile.className).not.toMatch(/text-halt/);
+    await waitFor(() => expect(screen.getByText("Session phase").closest("div")!.textContent).toMatch(/CLOSED/));
+    expect(screen.queryByText(/is closed but not settled/)).toBeNull();
+  });
+
+  it("an unreadable EOD ledger is flagged on the tile", async () => {
+    api({ [SUMMARY]: summary(2_000, { eod_db_status: "unreadable", last_eod_run: null }) });
+    renderApp("/overview");
+    expect(((await screen.findByText("EOD ledger unreadable")) as HTMLElement).className).toMatch(/text-halt/);
+  });
+
+  it("a closed day with trades but no EOD ledger is still unsettled", async () => {
+    api({ [SESSION]: session("CLOSED"), [SUMMARY]: summary(2_000, { eod_db_status: "not_run", last_eod_run: null }) });
+    renderApp("/overview");
+    expect(await screen.findByText(/2026-08-29 is closed but not settled/)).toBeTruthy();
+  });
+
   it("does not call an open trading day unsettled", async () => {
     api();
     renderApp("/overview");

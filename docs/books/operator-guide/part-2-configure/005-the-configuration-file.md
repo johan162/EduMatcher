@@ -1103,7 +1103,7 @@ audiences different keys on different ports.
 | `stats_db` | `data/stats.db` | `pm-stats` database, for history endpoints. |
 | `audit_db` | `data/audit_index.db` | `pm-audit` index, used only by the order-audit endpoint (`503` if the file is absent). |
 | `clearing_db` | `data/clearing.db` | `pm-clearing` ledger, read-only: realised P&L on `GET /positions` (reported as `null` if absent) and every `/clearing` route (`503 CLEARING_DB` if absent). |
-| `eod_db` | `data/eod.db` | `pm-eod` settlement ledger, read-only, for `/clearing/settlements` and `/clearing/balances` (`503 EOD_DB` if absent); opening balances come from `ref_data/roster.yaml` beside it. |
+| `eod_db` | `data/eod.db` | `pm-eod` settlement ledger, read-only, for `/clearing/settlements` and `/clearing/balances` (absent before pm-eod's first run: `eod_db_available: false`; unreadable: `503 EOD_DB`); opening balances come from `ref_data/roster.yaml` beside it. |
 | `order_retention_sec` | `3600` | How long a finished order stays in the in-memory cache; `0` never evicts. |
 | `market_data_cache_sec` | `60` | Lifetime of the per-symbol cache behind WebSocket snapshots and resume. |
 | `credentials` | empty | The accepted API keys (below). |

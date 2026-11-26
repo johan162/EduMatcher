@@ -9,11 +9,13 @@ the rounding account, is visible to ADMIN only.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from edumatcher.api_gateway.routers import clearing as clearing_router
 from edumatcher.eod.report import fmt_minor
 from tests.api_gateway_harness import call
 from tests.clearing_api_fixture import (
@@ -29,6 +31,7 @@ from tests.clearing_api_fixture import (
     build_venue,
     make_clearing_app,
     rows,
+    write_roster,
 )
 
 
@@ -268,12 +271,38 @@ async def test_a_gateway_never_settled_has_its_opening_balance(
 
 
 @pytest.mark.anyio
-async def test_a_missing_ledger_is_503(venue: Venue, tmp_path: Path) -> None:
-    for path in ("/settlements", "/balances"):
-        status, body = await _get(venue, path, eod_db=tmp_path / "eod.db")
-        assert (status, _code(body)) == (503, "EOD_DB"), path
-        assert str(tmp_path) not in body["error"]["message"]
+async def test_a_missing_ledger_is_a_fresh_exchange_not_an_error(
+    venue: Venue, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # No eod.db until pm-eod's first run: nothing settled yet, not a 503.
+    write_roster(tmp_path / "ref_data" / "roster.yaml")
+    with caplog.at_level(logging.WARNING, logger=clearing_router.__name__):
+        status, body = await _get(venue, "/settlements", eod_db=tmp_path / "eod.db")
+        assert status == 200
+        assert body == {
+            "settlements": [],
+            "count": 0,
+            "has_more": False,
+            "runs": [],
+            "eod_db_available": False,
+        }
+        status, body = await _get(venue, "/balances", eod_db=tmp_path / "eod.db")
+    assert status == 200
+    assert body["eod_db_available"] is False
+    assert body["last_settled_date"] is None
+    assert {r["account"]: r["balance_minor"] for r in body["balances"]} == {
+        "MM01": 5_000_000,
+        "TRADER01": 1_000_000,
+    }
+    assert not caplog.records
     assert not (tmp_path / "eod.db").exists()
+
+
+@pytest.mark.anyio
+async def test_a_present_ledger_is_available(venue: Venue) -> None:
+    for path in ("/settlements", "/balances"):
+        status, body = await _get(venue, path)
+        assert (status, body["eod_db_available"]) == (200, True), path
 
 
 @pytest.mark.anyio

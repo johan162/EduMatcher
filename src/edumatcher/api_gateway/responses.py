@@ -946,8 +946,10 @@ class ClearingSummary(BaseModel):
     )
     gap_count: int = Field(description="Feed gaps clearing saw on `session_date`.")
     latest_gap: FeedGap | None = Field(description="The newest feed gap, any day.")
-    eod_db_available: bool = Field(
-        description="False when the `pm-eod` ledger is missing or unreadable."
+    eod_db_status: Literal["ok", "not_run", "unreadable"] = Field(
+        description="The `pm-eod` ledger: `ok`; `not_run`, no ledger yet "
+        "because pm-eod has not run here (expected on a new exchange); or "
+        "`unreadable`, a fault."
     )
     last_eod_run: EodRun | None = Field(
         description="pm-eod's newest run; null when none, or the ledger is "
@@ -1143,6 +1145,10 @@ class Settlements(_Bounded):
         description="pm-eod's runs in the date range, newest first, including "
         "days it ran but did not settle (`failed`)."
     )
+    eod_db_available: bool = Field(
+        description="False when pm-eod has not run here yet (no ledger): the "
+        "lists are then empty because nothing is settled, not because of a fault."
+    )
 
 
 class BalanceRow(BaseModel):
@@ -1171,4 +1177,8 @@ class Balances(_Counted):
     )
     last_settled_date: str | None = Field(
         description="The latest settled day the sums include; null when none."
+    )
+    eod_db_available: bool = Field(
+        description="False when pm-eod has not run here yet (no ledger): the "
+        "lists are then empty because nothing is settled, not because of a fault."
     )

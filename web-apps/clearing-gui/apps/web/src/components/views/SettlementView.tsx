@@ -202,6 +202,8 @@ export function SettlementView({ mode, gateway, caption }: SettlementViewProps) 
     from: filterDate(filters["from"]),
     to: filterDate(filters["to"]),
   });
+  // No ledger yet: pm-eod has not run on this exchange. Expected, not a fault.
+  const notRunYet = settlements.data?.eod_db_available === false;
   const accounts = useAccountOptions(mode === "venue");
   const fields: FilterField[] =
     mode === "venue" ? [{ name: "account", label: "Account", type: "combobox", suggestions: accounts }, ...DATE_FIELDS] : DATE_FIELDS;
@@ -219,11 +221,15 @@ export function SettlementView({ mode, gateway, caption }: SettlementViewProps) 
         <QueryState
           query={settlements}
           isEmpty={(d) => d.settlements.length === 0 && d.runs.length === 0}
-          emptyTitle="No settlements"
-          emptyHint={teachingHint(
-            `pm-eod has not settled a day in this range: pm-eod settles each trading day after the close, moving the day's change in P&L between the exchange and ${subject(gateway, mode === "venue").you}.`,
-            "Your End-of-Day Statement",
-          )}
+          emptyTitle={notRunYet ? "No EOD run yet" : "No settlements"}
+          emptyHint={
+            notRunYet
+              ? "pm-eod has not run on this exchange yet, so nothing is settled and each balance is its opening balance. The first settlement appears after the first trading day's EOD run. If pm-eod has already run, check the API gateway's eod_db setting."
+              : teachingHint(
+                  `pm-eod has not settled a day in this range: pm-eod settles each trading day after the close, moving the day's change in P&L between the exchange and ${subject(gateway, mode === "venue").you}.`,
+                  "Your End-of-Day Statement",
+                )
+          }
         >
           {(d) => (
             <>

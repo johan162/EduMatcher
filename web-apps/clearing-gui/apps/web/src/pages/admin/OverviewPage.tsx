@@ -186,17 +186,17 @@ export function OverviewPage() {
                 >
                   Last EOD run
                 </span>
-                {s.eod_db_available ? (
-                  s.last_eod_run ? (
-                    <span>
-                      {`${s.last_eod_run.trade_date} · `}
-                      <Badge tone={s.last_eod_run.status === "ok" ? "ok" : "bad"}>{s.last_eod_run.status}</Badge>
-                    </span>
-                  ) : (
-                    <span>none recorded</span>
-                  )
+                {s.eod_db_status === "unreadable" ? (
+                  <span className="text-halt">EOD ledger unreadable</span>
+                ) : s.eod_db_status === "not_run" ? (
+                  <span className="text-fg-dim">no EOD run yet</span>
+                ) : s.last_eod_run ? (
+                  <span>
+                    {`${s.last_eod_run.trade_date} · `}
+                    <Badge tone={s.last_eod_run.status === "ok" ? "ok" : "bad"}>{s.last_eod_run.status}</Badge>
+                  </span>
                 ) : (
-                  <span className="text-halt">EOD ledger unavailable</span>
+                  <span>none recorded</span>
                 )}
                 <ExplainLine>{EOD_TILE_TITLE}</ExplainLine>
               </div>

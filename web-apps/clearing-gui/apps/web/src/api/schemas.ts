@@ -312,7 +312,8 @@ export const Summary = z.object({
   session_date: z.string().nullable(),
   gap_count: int,
   latest_gap: FeedGap.nullable(),
-  eod_db_available: z.boolean(),
+  /** `not_run`: no ledger yet, pm-eod has not run here (a new exchange). */
+  eod_db_status: z.enum(["ok", "not_run", "unreadable"]),
   last_eod_run: EodRun.nullable(),
 });
 
@@ -393,6 +394,8 @@ export const Settlements = z.object({
   count: int,
   has_more: z.boolean(),
   runs: z.array(EodRun),
+  /** False before pm-eod's first run: no ledger yet, so nothing is settled. */
+  eod_db_available: z.boolean(),
 });
 
 export const BalanceRow = z.object({
@@ -409,6 +412,8 @@ export const Balances = z.object({
   count: int,
   as_of: z.string().nullable(),
   last_settled_date: z.string().nullable(),
+  /** False before pm-eod's first run: no ledger yet, so nothing is settled. */
+  eod_db_available: z.boolean(),
 });
 
 // ── Market-maker settings (GET /api/v1/symbols, requester-scoped) ──────────

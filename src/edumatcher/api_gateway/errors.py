@@ -214,9 +214,10 @@ ERROR_CODES: dict[str, ErrorCode] = {
     "EOD_DB": ErrorCode(
         503,
         "UNKNOWN",
-        "The `pm-eod` ledger is missing or unreadable, or its roster is "
-        "malformed. A day without settlement is an empty list, not this.",
-        "EOD ledger unavailable: not found",
+        "The `pm-eod` ledger is unreadable, or its roster is malformed. A "
+        "missing ledger (pm-eod has not run yet) is `eod_db_available: false`, "
+        "and a day without settlement an empty list, not this.",
+        "EOD ledger unavailable: file is not a database",
     ),
     "AUDIT_INDEX_UNAVAILABLE": ErrorCode(
         503,

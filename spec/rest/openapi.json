@@ -9418,7 +9418,7 @@
           "clearing"
         ],
         "summary": "Clearing overview",
-        "description": "Position and P&L totals, freshness, feed gaps and the last EOD run.\n\nTotals are in display currency, each position converted before the sum.\n`last_flush_ts_ns` is the latest committed clearing write: a fill may take\nup to the flush interval to appear. `gap_count` counts the trade-id jumps\nclearing saw on `session_date`; no gap does not prove the feed was\ncomplete. A missing EOD ledger is `eod_db_available: false`, not an\nerror.",
+        "description": "Position and P&L totals, freshness, feed gaps and the last EOD run.\n\nTotals are in display currency, each position converted before the sum.\n`last_flush_ts_ns` is the latest committed clearing write: a fill may take\nup to the flush interval to appear. `gap_count` counts the trade-id jumps\nclearing saw on `session_date`; no gap does not prove the feed was\ncomplete. A missing EOD ledger is `eod_db_status: not_run` (pm-eod has\nnot run yet), not an error.",
         "operationId": "clearing_summary",
         "responses": {
           "200": {
@@ -9445,7 +9445,7 @@
                     "next_seq": 401,
                     "missing_trades": 2
                   },
-                  "eod_db_available": true,
+                  "eod_db_status": "ok",
                   "last_eod_run": {
                     "trade_date": "2026-08-28",
                     "status": "ok",
@@ -13478,7 +13478,7 @@
           "clearing"
         ],
         "summary": "EOD settlements",
-        "description": "pm-eod's daily settlement per account, in integer minor units.\n\nA settlement is the day's change in the account's close-to-close P&L,\ntransferred: positive means the exchange owes the gateway. It is not\nmargin, collateral or a completed payment, and exists only for days\npm-eod has settled; a day without one is an empty list, with its run (if\nany) in `runs`. `EXCHANGE` carries the rounding residual and is ADMIN\nonly.",
+        "description": "pm-eod's daily settlement per account, in integer minor units.\n\nA settlement is the day's change in the account's close-to-close P&L,\ntransferred: positive means the exchange owes the gateway. It is not\nmargin, collateral or a completed payment, and exists only for days\npm-eod has settled; a day without one is an empty list, with its run (if\nany) in `runs`. `EXCHANGE` carries the rounding residual and is ADMIN\nonly. Before pm-eod's first run there is no ledger: both lists are empty\nand `eod_db_available` is false.",
         "operationId": "clearing_settlements",
         "security": [
           {
@@ -13627,7 +13627,8 @@
                         }
                       ]
                     }
-                  ]
+                  ],
+                  "eod_db_available": true
                 }
               }
             }
@@ -13742,7 +13743,7 @@
             }
           },
           "503": {
-            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry. `EOD_DB`: The `pm-eod` ledger is missing or unreadable, or its roster is malformed. A day without settlement is an empty list, not this.",
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry. `EOD_DB`: The `pm-eod` ledger is unreadable, or its roster is malformed. A missing ledger (pm-eod has not run yet) is `eod_db_available: false`, and a day without settlement an empty list, not this.",
             "content": {
               "application/json": {
                 "examples": {
@@ -13761,7 +13762,7 @@
                     "value": {
                       "error": {
                         "code": "EOD_DB",
-                        "message": "EOD ledger unavailable: not found",
+                        "message": "EOD ledger unavailable: file is not a database",
                         "reject_code": "UNKNOWN"
                       }
                     }
@@ -13782,7 +13783,7 @@
           "clearing"
         ],
         "summary": "Derived EOD balances",
-        "description": "Each account's opening balance (pm-eod's roster), the sum of its\nsettlements up to `as_of`, and their total, in integer minor units.\n\nThe balance is derived here; pm-eod stores none. It is a running total of\nmark-to-market settlements, not cash, equity or collateral. A gateway on\nneither the roster nor the ledger has zeros. `EXCHANGE` is ADMIN only.",
+        "description": "Each account's opening balance (pm-eod's roster), the sum of its\nsettlements up to `as_of`, and their total, in integer minor units.\n\nThe balance is derived here; pm-eod stores none. It is a running total of\nmark-to-market settlements, not cash, equity or collateral. A gateway on\nneither the roster nor the ledger has zeros. `EXCHANGE` is ADMIN only.\nBefore pm-eod's first run there is no ledger: each balance is its opening\nbalance and `eod_db_available` is false.",
         "operationId": "clearing_balances",
         "security": [
           {
@@ -13849,7 +13850,8 @@
                   ],
                   "count": 1,
                   "as_of": "2026-08-28",
-                  "last_settled_date": "2026-08-28"
+                  "last_settled_date": "2026-08-28",
+                  "eod_db_available": true
                 }
               }
             }
@@ -13963,7 +13965,7 @@
             }
           },
           "503": {
-            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry. `EOD_DB`: The `pm-eod` ledger is missing or unreadable, or its roster is malformed. A day without settlement is an empty list, not this.",
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry. `EOD_DB`: The `pm-eod` ledger is unreadable, or its roster is malformed. A missing ledger (pm-eod has not run yet) is `eod_db_available: false`, and a day without settlement an empty list, not this.",
             "content": {
               "application/json": {
                 "examples": {
@@ -13982,7 +13984,7 @@
                     "value": {
                       "error": {
                         "code": "EOD_DB",
-                        "message": "EOD ledger unavailable: not found",
+                        "message": "EOD ledger unavailable: file is not a database",
                         "reject_code": "UNKNOWN"
                       }
                     }
@@ -20805,6 +20807,11 @@
             ],
             "title": "Last Settled Date",
             "description": "The latest settled day the sums include; null when none."
+          },
+          "eod_db_available": {
+            "type": "boolean",
+            "title": "Eod Db Available",
+            "description": "False when pm-eod has not run here yet (no ledger): the lists are then empty because nothing is settled, not because of a fault."
           }
         },
         "type": "object",
@@ -20812,7 +20819,8 @@
           "count",
           "balances",
           "as_of",
-          "last_settled_date"
+          "last_settled_date",
+          "eod_db_available"
         ],
         "title": "Balances"
       },
@@ -22363,10 +22371,15 @@
             ],
             "description": "The newest feed gap, any day."
           },
-          "eod_db_available": {
-            "type": "boolean",
-            "title": "Eod Db Available",
-            "description": "False when the `pm-eod` ledger is missing or unreadable."
+          "eod_db_status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "not_run",
+              "unreadable"
+            ],
+            "title": "Eod Db Status",
+            "description": "The `pm-eod` ledger: `ok`; `not_run`, no ledger yet because pm-eod has not run here (expected on a new exchange); or `unreadable`, a fault."
           },
           "last_eod_run": {
             "anyOf": [
@@ -22391,7 +22404,7 @@
           "session_date",
           "gap_count",
           "latest_gap",
-          "eod_db_available",
+          "eod_db_status",
           "last_eod_run"
         ],
         "title": "ClearingSummary"
@@ -30123,6 +30136,11 @@
             "type": "array",
             "title": "Runs",
             "description": "pm-eod's runs in the date range, newest first, including days it ran but did not settle (`failed`)."
+          },
+          "eod_db_available": {
+            "type": "boolean",
+            "title": "Eod Db Available",
+            "description": "False when pm-eod has not run here yet (no ledger): the lists are then empty because nothing is settled, not because of a fault."
           }
         },
         "type": "object",
@@ -30130,7 +30148,8 @@
           "count",
           "has_more",
           "settlements",
-          "runs"
+          "runs",
+          "eod_db_available"
         ],
         "title": "Settlements"
       },

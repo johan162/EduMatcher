@@ -226,7 +226,7 @@ replayed or followed, and say so.
 | *Gateway reached, but the engine did not answer* (login) | `pm-engine` not running | `pm-opctl-cli status` |
 | `CLEARING_DB: … unavailable: not found` | `clearing_db` points at no file | the gateway's `clearing_db`; `pm-clearing-cli health --extended` |
 | `CLEARING_DB: … database is locked` | a read waited out a long write | usually transient; retry |
-| `EOD_DB: … unavailable` | no `eod.db` (pm-eod never ran) or a malformed roster | `pm-eod status`; the gateway log names the roster line |
+| `EOD_DB: … unavailable` | an unreadable `eod.db` or a malformed roster (no `eod.db` yet is *No EOD run yet*, not an error) | `pm-eod status`; the gateway log names the roster line |
 | Health: *pm-clearing process: not answering* | `pm-clearing` stopped, or the health address differs | `pm-clearing-cli health` from the gateway's host |
 | *API contract error* | the GUI and the gateway are different versions | deploy matching versions |
 | Feed gap alert | trades lost on the bus between engine and clearing | reconcile the day; compare with the audit trail |

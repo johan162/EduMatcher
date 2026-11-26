@@ -211,7 +211,7 @@ describe("empty tables that teach", () => {
     [`${C}/trades`]: { trades: [], count: 0, has_more: false, next_cursor: null, retained_from: null },
     [`${C}/close-snapshots`]: { snapshots: [], count: 0, has_more: false },
     [`${C}/daily`]: { daily: [], count: 0, has_more: false },
-    [`${C}/settlements`]: { settlements: [], runs: [], count: 0, has_more: false },
+    [`${C}/settlements`]: { settlements: [], runs: [], count: 0, has_more: false, eod_db_available: true },
     [`${C}/balances`]: example(`${C}/balances`),
     [`${C}/gateway-sessions`]: { sessions: [], count: 0, has_more: false },
     "/api/v1/symbols": example("/api/v1/symbols"),

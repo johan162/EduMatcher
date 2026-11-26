@@ -1,3 +1,23 @@
+## [v0.85.1] - 2026-11-26
+
+Release Type: major
+
+### 📋 Summary
+This release fixes clearing views and API responses for a new exchange where end-of-day settlement has not yet run.
+
+### ⚠️ Breaking Changes
+- Changed the clearing summary response from `eod_db_available` to `eod_db_status`; API clients must handle `ok`, `not_run`, and `unreadable`
+
+### 🐛 Bug Fixes
+- Fixed the Clearing GUI treating a missing end-of-day ledger on a new exchange as a fault while still reporting an unreadable ledger
+- Fixed settlement and balance requests returning an error before the first end-of-day run; responses now include `eod_db_available` and return empty settlements or opening balances
+
+### 📚 Documentation
+- Updated clearing, API, and configuration documentation for missing and unreadable end-of-day ledgers
+
+### 🛠 Internal
+- Added regression coverage for missing and unreadable end-of-day ledgers in the API and Clearing GUI
+
 ## [v0.85.0] - 2026-11-26
 
 Release Type: major
