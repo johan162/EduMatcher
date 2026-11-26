@@ -159,6 +159,21 @@ describe("money in and out", () => {
       "receive 7,520.00",
     ]);
   });
+
+  it("leaves out a day the 1 000-row bound may have cut (CG32 review R5)", async () => {
+    const daily = example<{ daily: Record<string, unknown>[]; has_more: boolean }>(`${C}/daily`);
+    const newest = daily.daily[0]!;
+    daily.daily = [newest, { ...newest, trade_date: "2026-08-28", symbol: "MSFT" }];
+    daily.has_more = true;
+    api({ [`${C}/daily`]: daily });
+    signIn("TRADER");
+    renderApp("/me/history");
+    const panel = await waitFor(() => region("Money in and out by day"));
+    const table = within(panel).getByRole("table", { name: "Money by day" });
+    expect(table.textContent).toContain("2026-08-29");
+    expect(table.textContent).not.toContain("2026-08-28");
+    expect(panel.textContent).toContain("2026-08-28 is left out: more daily rows match than were sent");
+  });
 });
 
 describe("gains and losses add up to zero", () => {

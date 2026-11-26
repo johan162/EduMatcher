@@ -9,6 +9,7 @@
     - Why a fill can take a few seconds to appear, and how far back trades go
     - What an EOD settlement and the derived balance are — and are not
     - How to tell "nothing there" from "could not be read"
+    - How Explain mode shows where each number comes from
 
 
 ## Overview
@@ -103,6 +104,41 @@ your quotes against, not a score of how you quoted.
   timezone, times are shown in UTC and say so.
 
 
+## Explain mode: where each number comes from
+
+The **Explain** button in the top bar is on when you first log in, and the
+GUI remembers your choice. It adds, beside the tables, how each figure is
+made. Switch it off for the plain tables.
+
+- **Under every tile**, its explanation in words.
+- **My Positions.** The arrow at the start of a row opens a card that writes
+  out the row's unrealized P&L with its own numbers — *Long 110 at average
+  187.3333, mark 188.00: (188.00 − 187.3333) × 110 = 73.33 gain* — draws the
+  average cost and the mark on a price line, and splits the total into
+  realized and unrealized. **Show how this position was built** replays the
+  position's latest trading day fill by fill: a small chart of the position
+  and of the fill prices against the average cost, and a table of the fills.
+  Select a fill to have it written out — *Sold 40 of a 150 long at 188.00:
+  realized (188.00 − 187.3333) × 40 = 26.67 gain; average cost unchanged,
+  now 110 long.* The replay is made by the clearing server with
+  `pm-clearing`'s own rules, so it ends exactly where your position is; if
+  it ever does not, a red warning shows both values — report it.
+- **My Trades.** The arrow on a trade follows it: when the exchange matched
+  it, when clearing received it, what it did to your position, your day's
+  row, and `pm-eod`'s settlement of that day (or *not settled yet*).
+- **Daily & Close History.** *Money in and out by day*: what you bought
+  (money out) and sold (money in) each day, and the net left to pay or
+  receive. The arrow on a daily row replays that day.
+- **EOD Settlement.** *Netting*: on the latest trading day, what you bought
+  and sold and the one amount your trades net to — *you pay 27,015.00*. That
+  is cash, buys set against sells. It is **not** your settlement, which moves
+  the day's change in P&L; the two are on the same screen to tell them apart.
+
+Whatever the setting, a position says *long*, *short* or *flat* beside its
+quantity, a P&L says *gain* or *loss* beside its amount, and an empty table
+says what would fill it and which chapter explains it.
+
+
 ## Reading the numbers
 
 **Ticks and decimals.** Clearing stores money in ticks of each symbol's
@@ -162,3 +198,4 @@ settlement. See [Your End-of-Day Statement](../part-5-positions-and-results/020-
 | *No settlements* | `pm-eod` has not settled a day in that range | Wait for the end of day |
 | *API unreachable* | The API gateway does not answer | Tell the operator; `pm-api-gwy` may be down |
 | A fill is missing | It may not be committed yet | Wait 5 seconds |
+| *The replay ends at …, but clearing's daily row holds …: report this.* | Clearing's replay of the day disagrees with its own stored row: a ledger fault | Tell the operator, with the symbol and the date |

@@ -2,7 +2,9 @@
  * Money in and out by day (CG27, Explain mode): what a gateway bought (money
  * out) and sold (money in) each day, every symbol converted to display
  * currency, and the net it is left to pay or receive. Summed from the daily
- * rows the History screen already shows, so it follows their filters.
+ * rows the History screen already shows, so it follows their filters. The
+ * rows come newest first and bounded: when more match than were sent, the
+ * oldest day may be cut, so it is left out rather than shown short.
  */
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { DivergingBars } from "@/components/shared/Bars";
@@ -51,15 +53,18 @@ const COLUMNS: Column<DayMoney>[] = [
   },
 ];
 
-export function MoneyByDay({ rows }: { rows: DailyRowT[] }) {
+export function MoneyByDay({ rows, hasMore }: { rows: DailyRowT[]; hasMore: boolean }) {
   const explain = useExplain();
   if (!explain) return null;
-  const days = moneyByDay(rows);
+  const all = moneyByDay(rows);
+  const cut = hasMore ? all.at(-1) : undefined;
+  const days = cut ? all.slice(0, -1) : all;
   return (
     <Panel title="Money in and out by day">
       <p className="text-xs">
         A buy is money out and a sell is money in; what is left after setting one against the other is the net
         to pay or receive. This is cash, not P&amp;L: buying shares spends money without making a loss.
+        {cut && ` ${cut.date} is left out: more daily rows match than were sent, so its total could be short.`}
       </p>
       <DivergingBars
         leftLabel="sold: money in"

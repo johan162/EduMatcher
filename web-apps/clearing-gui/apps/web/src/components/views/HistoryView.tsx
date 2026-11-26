@@ -172,7 +172,7 @@ export function HistoryView({ gateway }: { gateway?: string }) {
         >
           {(d) => (
             <>
-              <MoneyByDay rows={d.daily} />
+              <MoneyByDay rows={d.daily} hasMore={d.has_more} />
               <DataTable
                 caption="Daily activity"
                 columns={DAILY_COLUMNS}

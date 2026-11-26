@@ -162,7 +162,10 @@ Dates are `YYYY-MM-DD` in the clearing session timezone.
 | `GET /clearing/exposure?gateway=&symbol=&sort=` | ADMIN or self | `query_exposure` | Per-row normalized gross/net notional and P&L, plus source tick fields/precision where audit display requires them. |
 | `GET /clearing/trades?gateway=&symbol=&date=&from=&to=` | ADMIN or self | `query_trades` | Execution ID, exchange and ingest timestamps, date, symbol, quantity, display price plus precision, buy/sell gateway IDs subject to scope, order IDs, aggressor side, match type, and audit message ID when stored. |
 | `GET /clearing/daily?gateway=&symbol=&from=&to=` | ADMIN or self | `query_daily` | Date, gateway, symbol, traded quantities/notionals, net amount, realized P&L, end position/average cost/unrealized P&L, precision and update timestamp. |
-| `GET /clearing/symbols?date=&from=&to=` | ADMIN | `query_symbols` | Symbol activity totals, realized P&L, current aggregate open quantity, and precision. No claim of gross open interest until the API explicitly computes long and short quantities. |
+| `GET /clearing/symbols?date=&from=&to=` | ADMIN | `query_symbols` | Symbol activity totals, realized P&L, current aggregate open quantity, and precision; since CG26 (D8) also the long and short quantities and holder counts. |
+| `GET /clearing/netting?date=&gateway=` | ADMIN or self | `query_netting` (CG26) | One day's bought/sold value and net amount per gateway, day totals counting each trade once; cash netting, not EOD settlement. |
+| `GET /clearing/position-replay?symbol=&gateway=&date=` | ADMIN or self | `clearing.replay` (CG28) | One position through one day, fill by fill, by the ledger's own code, checked against the stored daily row and position. |
+| `GET /clearing/flows?date=&symbol=` | ADMIN | `query_flows` (CG30) | Buyer/seller gateway pairs of one day with trades, shares and value. |
 | `GET /clearing/close-snapshots?gateway=&symbol=&from=&to=` | ADMIN or self | `query_close_snapshots` | Close date, gateway, symbol, position, cumulative realized/unrealized P&L, mark and precision. |
 | `GET /clearing/session-events?type=&from=&to=` | ADMIN | `query_session_events` | Event type (`EOD`, `PHASE`, `GAP`), clearing-observed timestamp/date, and typed payload. GAP payload includes the observed missing-trade count. |
 | `GET /clearing/gateway-sessions?gateway=&from=&to=&connected_only=` | ADMIN or self | `query_sessions` | Gateway ID, connect/disconnect timestamps, and disconnect reason. |
@@ -296,8 +299,8 @@ array is a zero-position state.
 ### 7.4 Symbols, events, reconciliation, and MM obligations
 
 - **Symbols (ADMIN):** activity and current aggregate net quantity by symbol.
-  It is a venue activity/exposure index, not an open-interest or concentration
-  page until long/short aggregation is implemented and exposed.
+  It is a venue activity/exposure index, not a concentration page. In
+  Explain mode it shows the long and short totals (§7.5).
 - **Events (ADMIN):** filterable `GAP`, `PHASE`, and `EOD` event feed. Event
   timestamps reflect when clearing observed an event, as documented by the
   clearing process.
@@ -308,6 +311,29 @@ array is a zero-position state.
   already resolved `enforce_mm_obligation`, maximum spread ticks, and minimum
   quantity. The copy must say these are configured enforcement parameters; it
   must not imply an observed compliance rate.
+
+### 7.5 Explain mode and the teaching pictures (workplan §9, CG25–CG31)
+
+An **Explain** switch in the top bar, on by default and persisted, shows how
+each figure is made; off, the screens are §7.1–§7.4 unchanged and the
+pictures' routes are not requested (D7). Always on: *long / short / flat*
+beside a position, *gain / loss* beside a P&L, and empty tables that say what
+would fill them. Every picture carries its numbers in a table (D12); the
+pictures are plain HTML/SVG.
+
+- **Position card** (Positions): the unrealized P&L written out with the
+  row's values, a price line with average cost and mark, realized +
+  unrealized = total, and the position's replay (below).
+- **Position replay** (card; each History daily row): the server's replay
+  of one day (D9) as a step chart, the fills table and the selected fill
+  written out; a mismatch with the ledger is an alert with both values.
+- **Follow one trade** (Trades): matched, received, each visible side's
+  replay step, the day's row, EOD settlement of the day.
+- **Money in and out by day** (History); **Netting** (Settlement; Overview
+  for the venue), worded apart from EOD settlement.
+- **ADMIN:** *Who traded with whom* (Overview, buyer × seller grid, D10),
+  *Gains and losses add up to zero* (Participants), *Longs against shorts*
+  (Symbols, D8).
 
 ## 8. UI data contracts and formatting rules
 

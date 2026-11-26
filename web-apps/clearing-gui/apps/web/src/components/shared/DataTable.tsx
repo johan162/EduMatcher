@@ -206,6 +206,9 @@ export function DataTable<R>({
                       "aria-selected": key === selectedKey,
                       onClick: () => onRowClick(row),
                       onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+                        // Only the row's own keys: not one pressed on a
+                        // button in it, or in a table nested under it.
+                        if (e.target !== e.currentTarget) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           onRowClick(row);

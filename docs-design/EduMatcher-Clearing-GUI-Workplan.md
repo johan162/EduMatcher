@@ -1213,7 +1213,7 @@ any order.
 
 ## 8. Usability round (2026-11-26)
 
-Johan's list of clearing-gui improvements (paging, header tooltips, sorting,
+The list of clearing-gui improvements (paging, header tooltips, sorting,
 a drawer for the participant detail, searchable filters, a better Overview),
 assessed against the code and extended where the same problem shows up on
 screens the list did not name. Client-side only: every WP uses endpoints that
@@ -1247,7 +1247,7 @@ removed, not kept beside the new ones.
 - **Gateway ids elsewhere are dead text:** Trades buyer/seller,
   Reconciliation, Gateway Sessions, EOD account.
 
-### 8.2 Decisions (Johan, 2026-11-26)
+### 8.2 Decisions 
 
 | # | Question | Decision |
 |---|---|---|
@@ -1658,11 +1658,11 @@ was sold by someone and that clearing nets thousands of trades into a few
 payments. This round adds explanations and pictures for both levels: one
 participant's position, and the venue as a whole.
 
-The API may change where the data is missing (Johan, 2026-11-26). Any
+The API may change where the data is missing. Any
 arithmetic that clearing does is done by the server, never repeated in the
 browser, so a picture cannot teach a rule that differs from the ledger's.
 
-### 9.1 Decisions (Johan, 2026-11-26: "go with your suggestions")
+### 9.1 Decisions
 
 | # | Question | Decision |
 |---|---|---|
@@ -1686,7 +1686,7 @@ API WPs come before the screens that need them. Order is the table order.
 | 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☑ | 2026-11-26 |
 | 30 | CG30 | API + GUI: who traded with whom (`GET /clearing/flows`) | CG25 | 1 d | ☑ | 2026-11-26 |
 | 31 | CG31 | GUI: follow one trade | CG28 | 1 d | ☑ | 2026-11-26 |
-| 32 | CG32 | Help, guides and a holistic review of CG25–CG31 | CG25–CG31 | 1 d | ☐ | |
+| 32 | CG32 | Help, guides and a holistic review of CG25–CG31 | CG25–CG31 | 1 d | ☑ | 2026-11-26 |
 
 API WPs are test-first in pytest (`tests/test_api_gateway_clearing_*.py`,
 `clearing_api_fixture.py`) and exit with the clearing and api-gateway suites,
@@ -2035,3 +2035,62 @@ published spec.
 - Holistic review of CG25–CG31 as §8.4, written up as §9.3, including a
   live-sim check of every picture with real data (widths, font sizes, a day
   with many gateways).
+- **Done 2026-11-26.** Help drawer topics *Explain mode* and *Reading the
+  pictures*; *Getting Started* no longer says "no open interest anywhere"
+  (D8). Participant guide: a section *Explain mode: where each number comes
+  from* and a replay-mismatch row in *When something looks wrong*. Operator
+  guide: a section *Explain mode and the teaching pictures* (where, what,
+  which route), the replay mismatch in *Diagnosing* (with `pm-clearing-cli
+  rebuild`), the Explain polls in *Load*, the long/short note in *What it
+  leaves out*. Design doc: the three new routes and the symbols change in
+  the route table, §7.4 updated, new §7.5. Review below. No screenshots:
+  they wait for a live sim run.
+
+### 9.3 Holistic review of CG25–CG31 (2026-11-26)
+
+The committed range `086b13b3..6f93c128` (34 source files, +2 216 lines)
+was read as a whole, looking for interactions between the WPs and cases
+their own tests did not reach. Two defects were found; each got a failing
+test first and is fixed. clearing-gui suite 323 (was 321), typecheck,
+build and `mkdocs build` green; no Python changed in CG32.
+
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| R5 | Low | *Money in and out by day* (CG27) sums the daily rows it is given; they come newest first, bounded at 1 000, so when more match the oldest day can be cut and its total silently short. | `MoneyByDay` takes `hasMore` and leaves the oldest day out, saying so ("… is left out: more daily rows match than were sent"). Test. |
+| R6 | Low (latent) | `DataTable`'s row Enter/Space handler (CG21) also caught keys pressed on a button inside the row — CG25's disclosure — and in a table nested in a detail row (CG29, CG31): Enter on the disclosure would open the row instead. No table has both today. | The row handles only its own keys (`e.target === e.currentTarget`). Test with a table that has both. |
+| D1 | Doc | Help *Getting Started* and the operator guide's *What it leaves out* still said there is no open interest anywhere; the design doc said long/short totals were not implemented. | Reworded to D8 (part of CG32's doc work). |
+
+Checked and found sound (no change):
+
+- No position arithmetic in the browser: the card's result, the replay and
+  the trade timeline all show the server's values; written-out sums use the
+  replay's own previous step.
+- Cash netting is worded apart from pm-eod's settlement wherever both can
+  be seen (Netting on Settlement and Overview, Money in and out, Who traded
+  with whom, the trade timeline's settlement note).
+- Explain off requests nothing new (each screen tested) and draws nothing
+  new; words beside signs and teaching empty states stay, by D7.
+- Scope: flows ADMIN only; a participant's trade timeline asks only for its
+  own side; the replay and netting take `gateway` through `clearing_scope`.
+- Request discipline: netting and flows are the only new polls (30 s, in
+  `requests.test`); replay and settlements are cached reads on demand.
+- Every new table's headers have tooltips (`Column.title` is required; the
+  tooltip suite covers the panels shown by default); axe is clean on every
+  picture.
+- The replay's order (`trade_events.rowid`) is the order clearing applied
+  the trades: inserts are `INSERT OR IGNORE`, so a row's rowid never moves.
+
+Accepted limits (documented, not changed):
+
+- N4: a participant following a self-trade (buyer and seller both itself)
+  reads "you bought … The seller is not shown to you"; the engine's SMP
+  makes such trades rare.
+- N5: *Longs against shorts* follows Symbol Activity's date range: a symbol
+  held but not traded in the range is not drawn. With no filter, every
+  symbol is.
+- N6: the live-sim check of every picture (widths at each font size, a
+  venue with many gateways, a replay of a busy day) is still to do.
+
+Lesson: a summary computed from a bounded list must know whether the list
+was cut — the same `has_more` that drives the "more rows" note.
+
