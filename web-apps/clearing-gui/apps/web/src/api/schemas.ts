@@ -165,10 +165,34 @@ export const ClearingSymbolRow = z.object({
   realized_pnl: z.number(),
   realized_pnl_ticks: ticks,
   open_net_qty: int,
+  open_long_qty: int,
+  open_short_qty: int,
+  long_holders: int,
+  short_holders: int,
   open_unrealized_pnl: z.number(),
   open_unrealized_pnl_ticks: ticks,
 });
 export const ClearingSymbols = z.object({ symbols: z.array(ClearingSymbolRow), ...listFields });
+
+/** One day's trades netted per gateway (CG26): display currency, converted row by row. */
+export const NettingGatewayRow = z.object({
+  gateway_id: z.string(),
+  bought_value: z.number(),
+  sold_value: z.number(),
+  net_amount: z.number(),
+  trade_count: int.nullable(),
+});
+export const Netting = z.object({
+  trade_date: z.string().nullable(),
+  trades_retained: z.boolean(),
+  trade_count: int.nullable(),
+  traded_qty: int,
+  gross_value: z.number(),
+  payment_count: int,
+  net_paid: z.number(),
+  net_received: z.number(),
+  gateways: z.array(NettingGatewayRow),
+});
 
 /** Cross-symbol totals: display currency, already converted row by row. */
 const participantTotals = {
@@ -399,6 +423,7 @@ export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/clearing/daily": Daily,
   "/api/v1/clearing/close-snapshots": CloseSnapshots,
   "/api/v1/clearing/symbols": ClearingSymbols,
+  "/api/v1/clearing/netting": Netting,
   "/api/v1/clearing/session-events": SessionEvents,
   "/api/v1/clearing/gateway-sessions": GatewaySessions,
   "/api/v1/clearing/reconciliation": Reconciliation,

@@ -699,12 +699,63 @@ class ClearingSymbolRow(BaseModel):
         description="Sum of the current signed positions of all gateways; zero "
         "when every holder is a gateway. Not open interest."
     )
+    open_long_qty: int = Field(
+        description="Shares held long now, summed over the gateways that are "
+        "long; `open_long_qty - open_short_qty = open_net_qty`."
+    )
+    open_short_qty: int = Field(
+        description="Shares held short now (a positive count), summed over the "
+        "gateways that are short."
+    )
+    long_holders: int = Field(description="Gateways long in the symbol now.")
+    short_holders: int = Field(description="Gateways short in the symbol now.")
     open_unrealized_pnl: float = _display("Open P&L of all current positions")
     open_unrealized_pnl_ticks: float = _ticks("open_unrealized_pnl")
 
 
 class ClearingSymbols(_Bounded):
     symbols: list[ClearingSymbolRow] = Field(description="By symbol.")
+
+
+class NettingGatewayRow(BaseModel):
+    gateway_id: str
+    bought_value: float = _display("Value of the day's buys, every symbol")
+    sold_value: float = _display("Value of the day's sells, every symbol")
+    net_amount: float = _display(
+        "Bought value minus sold value: positive is what the gateway pays for "
+        "the day's trades, negative what it receives"
+    )
+    trade_count: int | None = Field(
+        description="The day's trades the gateway was a side of; null when the "
+        "day's raw trades are pruned."
+    )
+
+
+class ClearingNetting(BaseModel):
+    trade_date: str | None = Field(
+        description="The trading day, `YYYY-MM-DD`; null when the ledger has no "
+        "day at all."
+    )
+    trades_retained: bool = Field(
+        description="The day's raw trades are still kept; false once retention "
+        "pruned them (the daily-row figures still answer)."
+    )
+    trade_count: int | None = Field(
+        description="Trades that day, each once (a participant: its own); null "
+        "when the raw trades are pruned."
+    )
+    traded_qty: int = Field(
+        description="Shares traded that day, each trade once (a participant: "
+        "its buys plus its sells)."
+    )
+    gross_value: float = _display(
+        "Value of the day's trades, each once (a participant: its buys plus "
+        "its sells)"
+    )
+    payment_count: int = Field(description="Gateways left with a non-zero net amount.")
+    net_paid: float = _display("Sum of the positive net amounts")
+    net_received: float = _display("Sum of the negative net amounts, as a positive")
+    gateways: list[NettingGatewayRow] = Field(description="By gateway id.")
 
 
 class ParticipantRow(BaseModel):

@@ -57,6 +57,7 @@ MATRIX: dict[str, dict[str, int | str]] = {
     "/daily": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/close-snapshots": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/symbols": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},
+    "/netting": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/session-events": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},
     "/gateway-sessions": {"ADMIN": 200, "TRADER": 200, "MM": 200},
     "/reconciliation": {"ADMIN": 200, "TRADER": "ROLE_DENIED", "MM": "ROLE_DENIED"},

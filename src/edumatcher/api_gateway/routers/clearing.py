@@ -33,6 +33,7 @@ from edumatcher.api_gateway.params import GatewayIdPath
 from edumatcher.api_gateway.responses import (
     ClearingDaily,
     ClearingHealth,
+    ClearingNetting,
     ClearingPositions,
     ClearingSummary,
     ClearingSymbols,
@@ -57,6 +58,8 @@ from edumatcher.clearing.store import (
     query_feed_gaps,
     query_freshness,
     query_health,
+    query_latest_trade_date,
+    query_netting,
     query_participants,
     query_positions,
     query_reconcile,
@@ -530,6 +533,66 @@ async def clearing_symbols(
 # ---------------------------------------------------------------------------
 # Gateway-scoped (ADMIN, or the caller's own gateway)
 # ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/netting",
+    response_model=ClearingNetting,
+    summary="One day's trades netted per gateway",
+    responses=docs.merge(
+        docs.ok(docs.CLEARING_NETTING_REPLY, "The day's netting."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "CLEARING_DB",
+            "SCOPE_DENIED",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
+    ),
+)
+async def clearing_netting(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    gateway: _Gateway = None,
+    date: Annotated[
+        str | None,
+        Query(
+            description="The trading day, `YYYY-MM-DD`, in the session timezone; "
+            "default the latest day with a daily row."
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """One trading day's trades against the one net amount each gateway is
+    left with: an ADMIN sees every gateway (or the one `gateway` names), a
+    participant only its own.
+
+    Values are in display currency, every symbol converted before the sum.
+    `net_amount` is bought value minus sold value (positive: the gateway
+    pays). The totals count each trade once. Trade counts come from the raw
+    trades and are null once retention has pruned the day. This is the cash
+    the day's trades net to; pm-eod's settlement (`/settlements`) moves the
+    day's change in P&L instead.
+    """
+    scope = await clearing_scope(request, session, gateway)
+    _check_dates(date)
+
+    def _query(conn: sqlite3.Connection) -> dict[str, Any]:
+        day = date or query_latest_trade_date(conn)
+        if day is None:
+            return {
+                "trade_date": None,
+                "trades_retained": True,
+                "trade_count": 0,
+                "traded_qty": 0,
+                "gross_value": 0.0,
+                "payment_count": 0,
+                "net_paid": 0.0,
+                "net_received": 0.0,
+                "gateways": [],
+            }
+        return query_netting(conn, trade_date=day, gateway=scope.gateway)
+
+    return await _in_clearing_db(request, _query)
 
 
 @router.get(

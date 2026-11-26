@@ -2066,6 +2066,10 @@ CLEARING_SYMBOLS_REPLY = _bounded(
                 "traded_notional": 7124000.0,
                 "realized_pnl": 0.0,
                 "open_net_qty": 0,
+                "open_long_qty": 110,
+                "open_short_qty": 110,
+                "long_holders": 1,
+                "short_holders": 1,
                 "open_unrealized_pnl": 0.0,
             },
             "traded_notional",
@@ -2074,6 +2078,33 @@ CLEARING_SYMBOLS_REPLY = _bounded(
         )
     ],
 )
+
+CLEARING_NETTING_REPLY = {
+    "trade_date": "2026-08-28",
+    "trades_retained": True,
+    "trade_count": 3,
+    "traded_qty": 1150,
+    "gross_value": 29185.0,
+    "payment_count": 2,
+    "net_paid": 27015.0,
+    "net_received": 27015.0,
+    "gateways": [
+        {
+            "gateway_id": "MM01",
+            "bought_value": 1085.0,
+            "sold_value": 28100.0,
+            "net_amount": -27015.0,
+            "trade_count": 3,
+        },
+        {
+            "gateway_id": "TRADER01",
+            "bought_value": 28100.0,
+            "sold_value": 1085.0,
+            "net_amount": 27015.0,
+            "trade_count": 3,
+        },
+    ],
+}
 
 _PARTICIPANT = {
     "gateway_id": "TRADER01",

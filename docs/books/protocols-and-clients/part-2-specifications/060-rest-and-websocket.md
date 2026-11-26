@@ -102,7 +102,8 @@ optional parameters.
 | [GET /api/v1/clearing/trades](#get-apiv1clearingtrades) | Admin role, or own gateway | Retained raw executions, keyset-paginated |
 | [GET /api/v1/clearing/daily](#get-apiv1clearingdaily) | Admin role, or own gateway | Daily activity, realized P&L and end-of-day position |
 | [GET /api/v1/clearing/close-snapshots](#get-apiv1clearingclose-snapshots) | Admin role, or own gateway | Position and cumulative P&L at each session close |
-| [GET /api/v1/clearing/symbols](#get-apiv1clearingsymbols) | Admin role | Activity and aggregate net position per symbol |
+| [GET /api/v1/clearing/symbols](#get-apiv1clearingsymbols) | Admin role | Activity, aggregate net position and its long and short sides per symbol |
+| [GET /api/v1/clearing/netting](#get-apiv1clearingnetting) | Admin role, or own gateway | One trading day's trades against the net amount each gateway is left with |
 | [GET /api/v1/clearing/session-events](#get-apiv1clearingsession-events) | Admin role | `PHASE`, `EOD` and `GAP` events clearing observed |
 | [GET /api/v1/clearing/gateway-sessions](#get-apiv1clearinggateway-sessions) | Admin role, or own gateway | Gateway connect/disconnect history |
 | [GET /api/v1/clearing/reconciliation](#get-apiv1clearingreconciliation) | Admin role | Raw trades against daily rows, in an explicit date range |
@@ -2346,7 +2347,7 @@ Purpose: one row per gateway and symbol at every session close, whether or not i
 
 ### `GET /api/v1/clearing/symbols`
 
-Purpose: per symbol traded in the date range: `traded_qty` (counted once per side), traded value and realized P&L, plus the current aggregate signed position (`open_net_qty`) and its open P&L. `open_net_qty` sums signed positions, so it is zero while every holder is a gateway; it is not open interest. Money is converted to the symbol's finest recorded precision.
+Purpose: per symbol traded in the date range: `traded_qty` (counted once per side), traded value and realized P&L, plus the current aggregate signed position (`open_net_qty`) and its open P&L. `open_net_qty` sums signed positions, so it is zero while every holder is a gateway; it is not open interest. The two sides are reported separately: `open_long_qty` and `open_short_qty` (both positive; long − short = `open_net_qty`) and the number of gateways on each, `long_holders` and `short_holders`. Money is converted to the symbol's finest recorded precision.
 
 **Arguments**
 
@@ -2370,6 +2371,32 @@ Purpose: per symbol traded in the date range: `traded_qty` (counted once per sid
 | `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
 | `READ_ONLY` | `403` | Read-only key: no clearing data |
 | `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/netting`
+
+Purpose: one trading day's trades against the one net amount each gateway is left with — an ADMIN sees every gateway (or the one `gateway` names), a `TRADER` or `MARKET_MAKER` only its own. Per gateway: `bought_value`, `sold_value`, `net_amount` (bought − sold: positive is what the gateway pays for the day's trades, negative what it receives) and `trade_count`. Totals count each trade once (a participant: its buys plus its sells): `trade_count`, `traded_qty`, `gross_value`, `payment_count` (gateways with a non-zero net), `net_paid` and `net_received`. Values are in display currency, every symbol converted before the sum. Trade counts come from the raw trades: once retention has pruned the day, `trades_retained` is false and the counts are null, while the daily-row figures still answer. A day without trades is an empty netting; an empty ledger has `trade_date: null`. This is the cash the day's trades net to, not `pm-eod`'s settlement, which moves the day's change in P&L (`/settlements`).
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `date` | `Date` | no | The trading day, session timezone; default the latest day with a daily row |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `ClearingNetting` | The day's netting |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
 | `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
 
 ### `GET /api/v1/clearing/session-events`

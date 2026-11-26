@@ -271,7 +271,8 @@ exist.
    values into a single unqualified number.
 7. Provide `summary` and participant-detail responses only from data that is
    actually stored. They may report P&L and counts but not equity, margin,
-   buying power, or long/short open interest.
+   buying power, or long/short open interest. *(Amended by D8, §9.1, 2026-11-26:
+   `/clearing/symbols` reports each symbol's long and short totals.)*
 
 **Exit criteria.**
 
@@ -1679,7 +1680,7 @@ API WPs come before the screens that need them. Order is the table order.
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 25 | CG25 | Explain mode; "how this number is made" per position; P&L split; words beside signs; teaching empty states | — | 1.5 d | ☑ | 2026-11-26 |
-| 26 | CG26 | API: long/short totals per symbol; `GET /clearing/netting` | — | 1 d | ☐ | |
+| 26 | CG26 | API: long/short totals per symbol; `GET /clearing/netting` | — | 1 d | ☑ | 2026-11-26 |
 | 27 | CG27 | GUI: longs against shorts; netting; money in and out; venue P&L sums to zero | CG25, CG26 | 1.5 d | ☐ | |
 | 28 | CG28 | API: `GET /clearing/position-replay` | — | 1.5 d | ☐ | |
 | 29 | CG29 | GUI: position build-up replay in the drawer and My Positions | CG25, CG28 | 1.5 d | ☐ | |
@@ -1789,6 +1790,29 @@ published spec.
   per-gateway rows; a participant sees only their row; a pruned day gives
   `trades_retained: false`; bad date 400; unknown day an empty reply.
 - **Exit:** as §9.2 for API WPs.
+- **Done 2026-11-26.** `tests/test_api_gateway_clearing_teaching.py` (10)
+  failed first (404 / missing fields). `store.query_symbols` gains
+  `open_long_qty`, `open_short_qty`, `long_holders`, `short_holders` (a flat
+  position is on neither side); new `store.query_latest_trade_date` and
+  `store.query_netting`; route `GET /clearing/netting` with model
+  `ClearingNetting` / `NettingGatewayRow`, example
+  `CLEARING_NETTING_REPLY`. A pruned day is detected as "the day has daily
+  rows and is older than `query_retained_from`". A net below 1e-9 counts as
+  zero (float residue of balanced days). Spec regenerated; REST chapter
+  section + route row, operator-guide and participant-guide route tables;
+  contract matrix and the v1 route layout list gained the route;
+  clearing-gui `schemas.ts` gained `Netting` and the four symbol fields
+  (the GUI contract test requires every route). Full suite 15 589 passed,
+  coverage 91.9%; black, flake8, mypy, pyright, `openapi-check`, `mkdocs
+  build` clean; clearing-gui 274.
+  **Beyond the plan:** (1) a `gateway` filter, as every gateway-scoped
+  route has: the error-code check found `SCOPE_DENIED` reachable through
+  `clearing_scope`, and CG27's drawer needs one gateway's netting for an
+  ADMIN; tested (ADMIN `gateway=TRADER01` equals TRADER01's own reply; a
+  participant naming another is `SCOPE_DENIED`). (2) `trade_count` per
+  gateway. **For CG27:** this is the cash the trades net to, not pm-eod's
+  settlement (which moves the change in P&L); the screen must not call these
+  "settlement payments". The API docs say so.
 
 ### CG27 — GUI: longs against shorts, netting, money in and out, P&L sums to zero
 

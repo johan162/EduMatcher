@@ -767,6 +767,7 @@ your own rows instead. A read-only key reads no clearing data.
 | `GET /api/v1/clearing/exposure` | Net and gross notional and P&L per position |
 | `GET /api/v1/clearing/trades` | Your retained executions, newest first, with `match_type` and the audit `msg_id`; the counterparty's gateway and order id are `null` |
 | `GET /api/v1/clearing/daily` | Per day and symbol: traded quantities and values, realized P&L, end-of-day position |
+| `GET /api/v1/clearing/netting` | One day's trades netted: what you bought and sold, and the one net amount you are left with (bought − sold; positive is what you pay). Not your settlement, which moves your change in P&L |
 | `GET /api/v1/clearing/close-snapshots` | Your position and cumulative P&L at every close (the close-to-close series your settlement is computed from) |
 | `GET /api/v1/clearing/gateway-sessions` | When clearing saw you connect and disconnect |
 | `GET /api/v1/clearing/settlements` | Your daily [end-of-day settlement](020-your-end-of-day-statement.md) amounts and the run status |
