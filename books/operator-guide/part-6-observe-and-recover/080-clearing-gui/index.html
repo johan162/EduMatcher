@@ -3644,6 +3644,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#working-with-the-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with the tables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#diagnosing-what-it-shows" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7930,7 +7941,9 @@ MARKET_MAKER key sees its own gateway — the participants' side is described in
 the Participant Guide's <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/">Clearing GUI</a>
 chapter.</p>
 <p>The browser talks to one service only: <code>pm-api-gwy</code>, through its
-<code>/api/v1/clearing</code> routes (and <code>/api/v1/status</code>, <code>/api/v1/symbols</code>). The
+<code>/api/v1/clearing</code> routes (and <code>/api/v1/status</code>, <code>/api/v1/session</code> for the
+venue's timezone and trading phase, <code>/api/v1/reference/symbols</code> for the
+symbol filters, and <code>/api/v1/symbols</code> for market-maker obligations). The
 gateway opens both databases read-only, enforces who may see what, and
 answers every request; the GUI's own server serves static files and proxies
 <code>/api</code>. No database path, bus address or health socket ever reaches the
@@ -7968,6 +7981,14 @@ browser.</p>
 <tr>
 <td>My Quote Obligations</td>
 <td>The engine's resolved symbol settings (<code>GET /api/v1/symbols</code>)</td>
+</tr>
+<tr>
+<td>Times on the venue's clock; the Overview's session phase</td>
+<td><code>pm-engine</code> answering <code>GET /api/v1/session</code>. Without it, times are shown in UTC (and say so) and the phase reads <em>unknown</em></td>
+</tr>
+<tr>
+<td>The Symbol filters' lists</td>
+<td><code>GET /api/v1/reference/symbols</code> (any key)</td>
 </tr>
 </tbody>
 </table>
@@ -8023,11 +8044,28 @@ beside the other GUIs (<code>edumatcher-clearing-gui</code>, published on
 </tbody>
 </table>
 <h2 id="the-admin-screens">The ADMIN screens<a class="headerlink" href="#the-admin-screens" title="Permanent link">&para;</a></h2>
-<p><strong>Clearing Overview</strong> — the first place to look.</p>
+<p><strong>Clearing Overview</strong> — the first place to look. It shows what needs
+attention; the full lists are on the other screens.</p>
 <ul>
 <li><em>Last clearing write / newest trade</em>: when <code>pm-clearing</code> last committed.
   Fills are written in batches (100 trades or 5 seconds), so up to 5 seconds
   of lag is normal; minutes mean <code>pm-clearing</code> is stalled or not receiving.</li>
+<li><em>Session phase</em> tile: the engine's trading phase now, refreshed every 30
+  seconds.</li>
+<li><em>No new clearing write for at least N s</em> (amber): during continuous
+  trading, the last clearing write has not changed for more than 30 seconds
+  while the page was open. Either no trade has arrived (a quiet market writes
+  nothing) or <code>pm-clearing</code> is not writing; Health tells which. It is never
+  shown outside continuous trading: before the open and during an auction,
+  fills arrive only at the uncross. The time is measured by the browser
+  watching for a change, not by comparing clocks, so a wrong clock on the
+  operator's machine does not trigger it; a ledger that was already stale
+  when the page opened is reported after 30 seconds.</li>
+<li><em>EOD</em> (amber): the last <code>pm-eod</code> run did not end <code>ok</code>, or the market is
+  closed and <code>pm-eod</code> has not yet run for the latest trading day. Right after
+  the close this is expected until <code>pm-eod</code> has run for the day. Once the
+  next day has opened, a day that was never settled is no longer flagged
+  here — check EOD Settlement.</li>
 <li><em>Feed gap</em> (red alert): <code>pm-clearing</code> saw the engine's trade ids jump on
   the latest session date — trades it never received, either lost on the bus
   while it ran, made while it was not running, or lost just before the engine
@@ -8041,11 +8079,21 @@ beside the other GUIs (<code>edumatcher-clearing-gui</code>, published on
   read, its journal mode and row counts. <strong>pm-clearing process</strong> — whether
   its receive loop answered a ping. A readable database with a silent
   process means the data is frozen at the last write.</li>
-<li>Participants (click one to drill down), the last <code>pm-eod</code> run, recent
-  session events.</li>
+<li><em>Needs attention</em>: the participants with the largest losses (up to five,
+  worst first) and the venue's five largest open positions by gross notional
+  (one position's own size, not a venue total). Select a row to open that
+  participant.</li>
+<li>The last <code>pm-eod</code> run, recent session events (<em>All events →</em> for the rest),
+  and a link to Reconciliation in the page header.</li>
 </ul>
-<p><strong>Participants / drill-down</strong> — one gateway's totals and the same tabs a
-participant sees, for that gateway.</p>
+<p><strong>Participants</strong> — every gateway with its P&amp;L. Select a row (click, or Enter
+on a focused row) to open the participant in a drawer over the list: its
+totals and the same tabs a participant sees — Positions, Trades, History,
+Settlement, Sessions. The list stays live behind it. Escape or × closes the
+drawer and returns to the row. Each drawer tab has its own address
+(<code>/participants/TRADER01/trades</code>), so it can be bookmarked or shared. A
+gateway id in any other table — a trade's buyer or seller, a reconciliation
+row, a gateway session, an EOD account — opens the same drawer.</p>
 <p><strong>Symbols</strong> — traded quantity and value per symbol over a date range, and the
 aggregate signed position now. That aggregate is zero while every holder is a
 gateway; it is not open interest.</p>
@@ -8063,6 +8111,25 @@ raw and daily quantities and values.</p>
 <p><strong>EOD Settlement</strong> — every account's daily settlement in minor units, the
 <code>EXCHANGE</code> rounding account, the derived balances, and each <code>pm-eod</code> run with
 its steps.</p>
+<h2 id="working-with-the-tables">Working with the tables<a class="headerlink" href="#working-with-the-tables" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Tooltips.</strong> Every column header and every tile has an explanation:
+  hover a label with a dotted underline.</li>
+<li><strong>Sorting.</strong> A header with ↕ sorts on click (again for the other
+  direction). Trade lists cannot be sorted: they come from the server a page
+  at a time, newest first.</li>
+<li><strong>Pages.</strong> A table of more than 10 rows has a pager underneath — <em>Rows
+  31–60 of 214</em>, previous/next, and 10, 30, 50, 100 or all rows per page. The
+  choice is remembered for every table. In a trade list, <em>of 200+</em> means the
+  server holds more; paging forward fetches them.</li>
+<li><strong>Filters.</strong> Gateway, Symbol and Account filters list the known values as
+  you type (arrow keys and Enter, or click). A value that is not listed still
+  filters; empty means all. Filters apply on <strong>Apply</strong> (or Enter).</li>
+<li><strong>Times</strong> are on the venue's clock — its session timezone, the zone
+  trading days are in — with the date and the zone, e.g. <code>2026-11-26
+  09:00:01 CET</code>. If the engine does not answer the timezone request, times
+  are shown in UTC and labelled so.</li>
+</ul>
 <h2 id="diagnosing-what-it-shows">Diagnosing what it shows<a class="headerlink" href="#diagnosing-what-it-shows" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8113,6 +8180,26 @@ its steps.</p>
 <td>trades lost on the bus between engine and clearing</td>
 <td>reconcile the day; compare with the audit trail</td>
 </tr>
+<tr>
+<td><em>No new clearing write for at least N s</em></td>
+<td>no trades during continuous trading, or <code>pm-clearing</code> not writing</td>
+<td>Health's process line; <code>pm-clearing-cli health</code></td>
+</tr>
+<tr>
+<td><em>The last EOD run … ended failed</em></td>
+<td><code>pm-eod</code> failed for that day</td>
+<td>EOD Settlement's run steps; <code>pm-eod status</code></td>
+</tr>
+<tr>
+<td><em>Trading day … is closed but not settled</em></td>
+<td><code>pm-eod</code> has not run yet for the day</td>
+<td>normal just after the close; otherwise the scheduler and <code>pm-eod</code></td>
+</tr>
+<tr>
+<td>Times end in <em>UTC</em>; phase <em>unknown</em></td>
+<td><code>GET /api/v1/session</code> failed: the engine did not answer</td>
+<td><code>pm-opctl-cli status</code></td>
+</tr>
 </tbody>
 </table>
 <p>The gateway logs every unreadable store as a WARNING (<code>clearing: cannot read
@@ -8120,10 +8207,13 @@ its steps.</p>
 <h2 id="load-on-the-exchange">Load on the exchange<a class="headerlink" href="#load-on-the-exchange" title="Permanent link">&para;</a></h2>
 <p>The GUI is built to stay cheap however long it is left open:</p>
 <ul>
-<li>current state — positions, exposure, participants, the overview summary —
-  is refreshed every 5 seconds, matching the clearing flush, from small
-  aggregate tables;</li>
-<li>health every 30 seconds (each call pings <code>pm-clearing</code> once);</li>
+<li>current state — positions, participants, the overview summary and its
+  five largest positions — is refreshed every 5 seconds, matching the
+  clearing flush, from small aggregate tables;</li>
+<li>health every 30 seconds (each call pings <code>pm-clearing</code> once), and, while
+  the Overview is open, the session phase (one engine request);</li>
+<li>the venue's timezone once per login, and the filters' gateway, symbol and
+  account lists once;</li>
 <li>trades, history, events and settlement only when a screen or filter asks;
   reconciliation only on <strong>Run</strong>, never automatically;</li>
 <li>every list is bounded (<code>limit</code>, at most 5 000 rows); the trade audit pages
@@ -8154,7 +8244,7 @@ its steps.</p>
 <td style="text-align: right;">7 kB</td>
 </tr>
 <tr>
-<td>One gateway's positions / exposure</td>
+<td>One gateway's positions</td>
 <td>5 s</td>
 <td style="text-align: right;">4 ms</td>
 <td style="text-align: right;">10 kB</td>

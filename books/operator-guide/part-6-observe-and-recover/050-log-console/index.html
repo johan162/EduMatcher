@@ -8836,15 +8836,18 @@ message, and the <strong>Copy</strong> and <strong>Filter to this process</stron
 — normalised so that the same fault recurring a thousand times collapses into
 one entry with a count, rather than a thousand lines to scroll past.</p>
 <p>Each issue card carries the level, process and logger, the occurrence count, a
-sample message, and first/last-seen times. Three tabs filter by state:
+sample message, and the date with first/last-seen times. Three tabs filter by state:
 <strong>unacked</strong>, <strong>acked</strong>, <strong>all</strong>.</p>
+<p>An issue covers one calendar day in the session timezone. A fault that keeps
+firing past midnight starts a fresh issue for the new day, so a card never
+mixes days, and an acknowledgement applies only to the day it was given for.</p>
 <p>The acknowledgement model:</p>
 <ul>
 <li><strong>Acknowledge</strong> marks the issue handled, attributed to the name in the
   operator field, with an optional free-text note recording <em>what was done</em>.</li>
 <li><strong>Un-ack</strong> reverses it.</li>
 <li><strong><code>recurred since ack</code></strong> is flagged prominently when a fingerprint fires
-  again after being acknowledged. This is the case that matters most: it means
+  again on the same day after being acknowledged. This is the case that matters most: it means
   the fix did not hold, and it is visually distinct from a fresh issue.</li>
 </ul>
 <div class="admonition warning">
@@ -8861,7 +8864,7 @@ a post-mortem.</p>
 pruned hourly. The index is rebuilt from <code>log.db</code> at startup, so restarting the
 bridge loses nothing except issues that had already aged out.</p>
 <p><img alt="Alerts on the all tab, with an issue that recurred after it was acknowledged." src="../../../../assets/log-gui/log-alerts.png" /></p>
-<p><em>Each card is one fingerprint: level, process and logger, the occurrence count, a sample
+<p><em>Each card is one fingerprint on one day: level, process and logger, the occurrence count, a sample
 message and first/last seen. The second card was acknowledged by <code>instructor</code> with a note,
 then fired again — hence <code>recurred since ack</code> and <strong>Un-ack</strong> instead of <strong>Acknowledge</strong>.
 The operator name is set once, top right.</em></p>

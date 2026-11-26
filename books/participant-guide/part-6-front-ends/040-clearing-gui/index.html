@@ -2094,6 +2094,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#working-with-the-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with the tables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-the-numbers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7962,13 +7973,16 @@ browser: asking it for another gateway's data is refused with
 <code>SCOPE_DENIED</code>, and typing an ADMIN address into the address bar just takes
 you back to My Positions.</p>
 <h2 id="the-screens">The screens<a class="headerlink" href="#the-screens" title="Permanent link">&para;</a></h2>
-<p><strong>My Positions</strong> — each symbol you hold: signed quantity (negative is short),
-average cost, mark, realized and unrealized P&amp;L, what you bought and sold,
-and, below it, the same positions valued at their marks (net and gross
-notional). The line above the table says when clearing last committed your
-data. It refreshes every 5 seconds.</p>
-<p><strong>My Trades</strong> — every execution clearing still holds for you, newest first,
-200 at a time (<strong>Load more</strong> for the next page). <em>Exchange time</em> is when the
+<p><strong>My Positions</strong> — one table, one row per symbol you have traded: signed
+quantity (negative is short), average cost, mark, the position's value at
+the mark (<em>net notional</em>, negative when short, and <em>gross notional</em>, its
+size), realized, unrealized and total P&amp;L, and what you bought and sold. The
+line above the table says when clearing last committed your data. It
+refreshes every 5 seconds.</p>
+<p><strong>My Trades</strong> — every execution clearing still holds for you, newest first.
+The server sends them a page at a time; the pager under the table fetches the
+next page when you move past the ones loaded (<em>Rows 1–30 of 200+</em> means more
+are waiting), and the columns do not sort. <em>Exchange time</em> is when the
 exchange printed the trade; <em>Clearing ingest</em> is when clearing wrote it. You
 see your own side of each trade: the other side's gateway and order id are
 blank. <em>Match type</em> says how the trade came about (continuous trading, an
@@ -7987,6 +8001,23 @@ disconnect, and why it disconnected.</p>
 engine enforces a quoting obligation for you, the widest spread and the
 smallest size that satisfy it. This is the configuration the engine checks
 your quotes against, not a score of how you quoted.</p>
+<h2 id="working-with-the-tables">Working with the tables<a class="headerlink" href="#working-with-the-tables" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Tooltips.</strong> Every column header and tile explains itself: hover a label
+  with a dotted underline.</li>
+<li><strong>Sorting.</strong> Click a header marked ↕ to sort by it; click again for the
+  other direction.</li>
+<li><strong>Pages.</strong> A table of more than 10 rows has a pager underneath, with 10,
+  30, 50, 100 or all rows per page. Your choice is remembered for every
+  table.</li>
+<li><strong>Symbol filters</strong> list the venue's symbols as you type; pick one with
+  the arrow keys and Enter, or click it. A symbol that is not listed still
+  filters. <strong>Apply</strong> (or Enter) applies the filters.</li>
+<li><strong>Times</strong> are on the exchange's clock — the venue's session timezone,
+  the same zone your trading days are in — with the date and the zone, e.g.
+  <code>2026-11-26 09:00:01 CET</code>. If the exchange does not tell the GUI its
+  timezone, times are shown in UTC and say so.</li>
+</ul>
 <h2 id="reading-the-numbers">Reading the numbers<a class="headerlink" href="#reading-the-numbers" title="Permanent link">&para;</a></h2>
 <p><strong>Ticks and decimals.</strong> Clearing stores money in ticks of each symbol's
 precision: 18 750 ticks of a 2-decimal symbol is 187.50, while 10 862 ticks
