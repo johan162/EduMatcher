@@ -12,6 +12,7 @@ import { QueryState } from "@/components/shared/QueryState";
 import { useSymbolOptions, useTrades } from "@/api/queries";
 import type { TradeRowT } from "@/api/schemas";
 import { gatewayColumn, qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
+import { subject, teachingHint } from "./teaching";
 
 const COLUMNS: Column<TradeRowT>[] = [
   textColumn("trade_id", "Trade id", (r) => r.trade_id, "The engine's trade id: run number and sequence within the run"),
@@ -58,7 +59,10 @@ export function TradesView({ gateway, label }: { gateway?: string; label: string
         query={trades}
         isEmpty={(d) => d.pages.every((p) => p.trades.length === 0)}
         emptyTitle="No trades"
-        emptyHint="No retained trade matches the filters."
+        emptyHint={teachingHint(
+          `No retained trade matches the filters: a trade appears here when one of ${subject(gateway).your} orders is filled.`,
+          "Positions and P&L",
+        )}
       >
         {(d) => {
           const rows = d.pages.flatMap((p) => p.trades);

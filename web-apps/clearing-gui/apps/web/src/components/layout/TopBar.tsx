@@ -4,12 +4,13 @@ import { HelpCircle, LogOut } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useConnectionStore } from "@/store/useConnectionStore";
 import { SettingsPopover } from "@/components/shared/SettingsPopover";
+import { ExplainToggle } from "@/components/shared/Explain";
 import { HelpDrawer } from "@/components/help/HelpDrawer";
 import appVersion from "../../version.json";
 
 const ROLE_LABEL = { ADMIN: "Admin", TRADER: "Trader", MARKET_MAKER: "Market maker" } as const;
 
-/** Brand, who is logged in, whether the API gateway answers, settings, help and log out -- trader-gui's layout. */
+/** Brand, who is logged in, whether the API gateway answers, Explain mode, settings, help and log out -- trader-gui's layout. */
 export function TopBar() {
   const navigate = useNavigate();
   const gatewayId = useAuthStore((s) => s.gatewayId);
@@ -30,6 +31,8 @@ export function TopBar() {
       <div className="flex-1 flex justify-center items-center text-xs text-fg-dim">read-only</div>
 
       <div className="flex items-center gap-3 justify-end text-xs">
+        <ExplainToggle />
+
         <SettingsPopover />
 
         <button

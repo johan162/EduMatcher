@@ -15,7 +15,7 @@ import { SessionsView } from "@/components/views/SessionsView";
 import { SettlementView } from "@/components/views/SettlementView";
 import { TradesView } from "@/components/views/TradesView";
 import { useParticipant } from "@/api/queries";
-import { formatCurrency } from "@/lib/money";
+import { formatPnlCurrency } from "@/lib/money";
 import { Time } from "@/components/shared/Time";
 import { participantPath } from "./GatewayId";
 
@@ -35,9 +35,9 @@ export function ParticipantDrawer({ gatewayId, onClose }: { gatewayId: string; o
       <QueryState query={detail} skeletonColumns={5}>
         {(d) => (
           <div className="mb-4 flex flex-wrap gap-3">
-            <Stat label="Realized P&L" value={formatCurrency(d.realized_pnl)} title="Realized P&L of all the gateway's positions, in display currency" />
-            <Stat label="Unrealized P&L" value={formatCurrency(d.unrealized_pnl)} title="Unrealized P&L of its open positions at their marks, in display currency" />
-            <Stat label="Total P&L" value={formatCurrency(d.total_pnl)} title="Realized + unrealized P&L, in display currency" />
+            <Stat label="Realized P&L" value={formatPnlCurrency(d.realized_pnl)} title="Realized P&L of all the gateway's positions, in display currency" />
+            <Stat label="Unrealized P&L" value={formatPnlCurrency(d.unrealized_pnl)} title="Unrealized P&L of its open positions at their marks, in display currency" />
+            <Stat label="Total P&L" value={formatPnlCurrency(d.total_pnl)} title="Realized + unrealized P&L, in display currency" />
             <Stat
               label="Open positions"
               value={`${d.open_position_count} of ${d.position_count}`}

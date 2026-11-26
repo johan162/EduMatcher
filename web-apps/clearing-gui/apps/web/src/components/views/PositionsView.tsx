@@ -16,7 +16,10 @@ import { usePositions, type Params } from "@/api/queries";
 import type { PositionRowT } from "@/api/schemas";
 import { useFormatNs } from "@/components/shared/Time";
 import type { Ticks } from "@/lib/money";
-import { qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
+import { useExplain } from "@/components/shared/Explain";
+import { positionColumn, qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
+import { PositionExplain } from "./PositionExplain";
+import { subject, teachingHint } from "./teaching";
 
 /** Net qty × mark, in the row's ticks; none without a mark. */
 export function netNotional(r: PositionRowT): Ticks | null {
@@ -30,7 +33,7 @@ function grossNotional(r: PositionRowT): Ticks | null {
 
 const POSITION_COLUMNS: Column<PositionRowT>[] = [
   textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
-  qtyColumn("net_qty", "Net qty", (r) => r.net_qty, "Shares held now: bought minus sold. Negative is short."),
+  positionColumn("net_qty", "Net qty", (r) => r.net_qty, "Shares held now: bought minus sold. Negative is short."),
   tickColumn("avg_cost", "Avg cost", (r) => r.avg_cost_ticks, {
     extra: 2,
     title: "Volume-weighted price of the open position, in the symbol's currency",
@@ -46,15 +49,15 @@ const POSITION_COLUMNS: Column<PositionRowT>[] = [
     title: "|Net qty × mark|: the size of the position at the mark, long or short",
   }),
   tickColumn("realized", "Realized P&L", (r) => r.realized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "Cumulative profit or loss locked in by trades that reduced or closed the position",
   }),
   tickColumn("unrealized", "Unrealized P&L", (r) => r.unrealized_pnl_ticks, {
-    signed: true,
+    pnl: true,
     title: "Profit or loss of the open quantity if it were closed at the mark",
   }),
   tickColumn("total", "Total P&L", (r) => (r.realized_pnl_ticks + r.unrealized_pnl_ticks) as Ticks, {
-    signed: true,
+    pnl: true,
     title: "Realized + unrealized P&L",
   }),
   qtyColumn("buy_qty", "Bought", (r) => r.buy_qty, "Cumulative shares bought in this symbol"),
@@ -87,6 +90,8 @@ export function FreshnessNote({ committedNs }: { committedNs: number | null }) {
 export function PositionsView({ gateway, label }: { gateway?: string; label: string }) {
   const params: Params = gateway ? { gateway } : {};
   const positions = usePositions(params);
+  const explain = useExplain();
+  const who = subject(gateway);
   return (
     <>
       <FreshnessNote committedNs={positions.data ? newestWrite(positions.data.positions) : null} />
@@ -95,7 +100,10 @@ export function PositionsView({ gateway, label }: { gateway?: string; label: str
           query={positions}
           isEmpty={(d) => d.positions.length === 0}
           emptyTitle="No positions"
-          emptyHint="Clearing has no position rows for this gateway: it has not traded."
+          emptyHint={teachingHint(
+            `Nothing traded yet: a position appears when one of ${who.your} orders trades.`,
+            "Positions and P&L",
+          )}
         >
           {(d) => (
             <>
@@ -104,6 +112,11 @@ export function PositionsView({ gateway, label }: { gateway?: string; label: str
                 columns={POSITION_COLUMNS}
                 rows={d.positions}
                 rowKey={(r) => `${r.gateway_id}/${r.symbol}`}
+                detail={
+                  explain
+                    ? { name: (r) => `Explain ${r.symbol}`, render: (r) => <PositionExplain row={r} /> }
+                    : undefined
+                }
               />
               <MoreRows hasMore={d.has_more} count={d.count} />
             </>

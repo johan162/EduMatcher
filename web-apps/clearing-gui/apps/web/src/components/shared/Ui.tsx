@@ -4,6 +4,7 @@
  * conveyed by colour alone), and the "more rows" note for bounded lists.
  */
 import type { ReactNode } from "react";
+import { ExplainLine } from "./Explain";
 
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
@@ -26,7 +27,11 @@ export function Panel({ title, children, actions }: { title: string; children: R
   );
 }
 
-/** A labelled figure; `title` explains it as the label's tooltip (dotted underline). Required: no figure goes unexplained. */
+/**
+ * A labelled figure; `title` explains it as the label's tooltip (dotted
+ * underline), and under it in Explain mode. Required: no figure goes
+ * unexplained.
+ */
 export function Stat({ label, value, sub, title }: { label: string; value: ReactNode; sub?: ReactNode; title: string }) {
   return (
     <div className="flex min-w-[10rem] flex-col gap-0.5 rounded border border-line bg-panel px-3 py-2">
@@ -40,6 +45,7 @@ export function Stat({ label, value, sub, title }: { label: string; value: React
       </span>
       <span className="num text-base">{value}</span>
       {sub && <span className="text-[11px] text-fg-faint">{sub}</span>}
+      <ExplainLine>{title}</ExplainLine>
     </div>
   );
 }

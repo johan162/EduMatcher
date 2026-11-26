@@ -12,7 +12,7 @@ import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows } from "@/components/shared/Ui";
 import { useParticipants } from "@/api/queries";
 import type { ParticipantRowT } from "@/api/schemas";
-import { formatCurrency, signClass } from "@/lib/money";
+import { formatPnlCurrency, signClass } from "@/lib/money";
 import { qtyColumn, textColumn, timeColumn } from "./columns";
 import { participantPath } from "./GatewayId";
 
@@ -27,7 +27,7 @@ function currencyColumn(
     header,
     title,
     align: "right",
-    cell: (r) => <span className={signClass(value(r))}>{formatCurrency(value(r))}</span>,
+    cell: (r) => <span className={signClass(value(r))}>{formatPnlCurrency(value(r))}</span>,
     sortValue: value,
   };
 }

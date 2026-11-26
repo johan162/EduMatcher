@@ -79,6 +79,32 @@ export function formatQty(qty: number | null): string {
   return qty === null ? DASH : qty.toLocaleString("en-US");
 }
 
+/**
+ * "gain" or "loss" for a P&L amount as shown at `decimals` (CG25: a sign is
+ * never the only carrier of the meaning); none for an amount that shows as 0.
+ */
+function pnlWord(value: number, decimals: number): string {
+  const shown = Number(value.toFixed(decimals));
+  return shown > 0 ? " gain" : shown < 0 ? " loss" : "";
+}
+
+/** A P&L tick value with its word: "73.33 gain", "-12.00 loss", "0.00". */
+export function formatPnlTicks(ticks: Ticks | null, tickDecimals: number): string {
+  if (ticks === null) return formatTicks(ticks, tickDecimals);
+  return formatTicks(ticks, tickDecimals) + pnlWord(ticksToDisplay(ticks, tickDecimals), tickDecimals);
+}
+
+/** A display-currency P&L amount with its word. */
+export function formatPnlCurrency(value: number | null): string {
+  return value === null ? DASH : formatCurrency(value) + pnlWord(value, 2);
+}
+
+/** A signed position with its word: "110 long", "-20 short", "0 flat". */
+export function formatPosition(qty: number | null): string {
+  if (qty === null) return DASH;
+  return `${formatQty(qty)} ${qty > 0 ? "long" : qty < 0 ? "short" : "flat"}`;
+}
+
 /** Text colour for a signed amount: green up, red down, neutral at zero. */
 export function signClass(value: number | null): string {
   if (value === null || value === 0) return "";
