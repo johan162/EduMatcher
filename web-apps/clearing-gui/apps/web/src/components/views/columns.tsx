@@ -8,21 +8,23 @@
  */
 import type { Column } from "@/components/shared/DataTable";
 import { formatQty, formatTicks, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
-import { formatNs } from "@/lib/time";
+import { Time } from "@/components/shared/Time";
+import { GatewayId } from "./GatewayId";
 
 interface TickOptions {
   /** Extra decimals beyond the symbol's precision (averages). */
   extra?: number;
   /** Colour by sign (P&L). */
   signed?: boolean;
-  title?: string;
+  /** The header's tooltip. */
+  title: string;
 }
 
 export function tickColumn<R extends { tick_decimals: number }>(
   id: string,
   header: string,
   value: (row: R) => Ticks | null,
-  { extra = 0, signed = false, title }: TickOptions = {},
+  { extra = 0, signed = false, title }: TickOptions,
 ): Column<R> {
   return {
     id,
@@ -40,7 +42,7 @@ export function tickColumn<R extends { tick_decimals: number }>(
   };
 }
 
-export function qtyColumn<R>(id: string, header: string, value: (row: R) => number | null, title?: string): Column<R> {
+export function qtyColumn<R>(id: string, header: string, value: (row: R) => number | null, title: string): Column<R> {
   return {
     id,
     header,
@@ -51,7 +53,7 @@ export function qtyColumn<R>(id: string, header: string, value: (row: R) => numb
   };
 }
 
-export function textColumn<R>(id: string, header: string, value: (row: R) => string | null, title?: string): Column<R> {
+export function textColumn<R>(id: string, header: string, value: (row: R) => string | null, title: string): Column<R> {
   return {
     id,
     header,
@@ -61,13 +63,24 @@ export function textColumn<R>(id: string, header: string, value: (row: R) => str
   };
 }
 
-/** An epoch-nanosecond time, shown in UTC. */
-export function timeColumn<R>(id: string, header: string, value: (row: R) => number | null, title?: string): Column<R> {
+/** A gateway id; for ADMIN a link that opens that participant's drawer. */
+export function gatewayColumn<R>(id: string, header: string, value: (row: R) => string | null, title: string): Column<R> {
   return {
     id,
     header,
     title,
-    cell: (row) => <span className="num">{formatNs(value(row))}</span>,
+    cell: (row) => <GatewayId id={value(row)} />,
+    sortValue: value,
+  };
+}
+
+/** An epoch-nanosecond time, shown on the venue's clock. */
+export function timeColumn<R>(id: string, header: string, value: (row: R) => number | null, title: string): Column<R> {
+  return {
+    id,
+    header,
+    title,
+    cell: (row) => <Time ns={value(row)} />,
     sortValue: value,
   };
 }

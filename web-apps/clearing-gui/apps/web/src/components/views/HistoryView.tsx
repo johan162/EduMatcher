@@ -11,11 +11,11 @@
  */
 import { lazy, Suspense, useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
-import { FilterForm, filterDate, filterText, type FilterValues } from "@/components/shared/Filters";
+import { FilterForm, filterDate, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows, Panel } from "@/components/shared/Ui";
 import { Skeleton } from "@/components/shared/Skeleton";
-import { useCloseSnapshots, useDaily, useHistoryRevalidation } from "@/api/queries";
+import { useCloseSnapshots, useDaily, useHistoryRevalidation, useSymbolOptions } from "@/api/queries";
 import type { CloseSnapshotRowT, DailyRowT } from "@/api/schemas";
 import { formatCurrency, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
 import { qtyColumn, textColumn, tickColumn } from "./columns";
@@ -23,26 +23,48 @@ import { qtyColumn, textColumn, tickColumn } from "./columns";
 const CloseChart = lazy(() => import("./CloseChart"));
 
 const DAILY_COLUMNS: Column<DailyRowT>[] = [
-  textColumn("date", "Date", (r) => r.trade_date),
-  textColumn("symbol", "Symbol", (r) => r.symbol),
-  qtyColumn("traded", "Traded qty", (r) => r.traded_qty),
-  qtyColumn("bought", "Bought", (r) => r.buy_qty),
-  qtyColumn("sold", "Sold", (r) => r.sell_qty),
-  tickColumn("traded_value", "Traded value", (r) => r.traded_notional_ticks),
-  tickColumn("net", "Net amount", (r) => r.net_amount_ticks, { signed: true, title: "Bought value − sold value" }),
-  tickColumn("realized", "Realized P&L", (r) => r.realized_pnl_ticks, { signed: true, title: "Realized that day" }),
+  textColumn("date", "Date", (r) => r.trade_date, "The trading day, in the venue's session timezone"),
+  textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
+  qtyColumn("traded", "Traded qty", (r) => r.traded_qty, "Shares traded that day: bought + sold"),
+  qtyColumn("bought", "Bought", (r) => r.buy_qty, "Shares bought that day"),
+  qtyColumn("sold", "Sold", (r) => r.sell_qty, "Shares sold that day"),
+  tickColumn("traded_value", "Traded value", (r) => r.traded_notional_ticks, {
+    title: "Quantity × price of every trade that day, buys and sells",
+  }),
+  tickColumn("net", "Net amount", (r) => r.net_amount_ticks, {
+    signed: true,
+    title: "Bought value − sold value that day: what was spent net",
+  }),
+  tickColumn("realized", "Realized P&L", (r) => r.realized_pnl_ticks, {
+    signed: true,
+    title: "Profit or loss locked in that day by trades that reduced or closed the position",
+  }),
   qtyColumn("end_qty", "End qty", (r) => r.end_net_qty, "Position after the day's last trade"),
-  tickColumn("end_cost", "End avg cost", (r) => r.end_avg_cost_ticks, { extra: 2 }),
-  tickColumn("end_unrealized", "End unrealized", (r) => r.end_unrealized_pnl_ticks, { signed: true }),
+  tickColumn("end_cost", "End avg cost", (r) => r.end_avg_cost_ticks, {
+    extra: 2,
+    title: "Average cost of the position after the day's last trade",
+  }),
+  tickColumn("end_unrealized", "End unrealized", (r) => r.end_unrealized_pnl_ticks, {
+    signed: true,
+    title: "Unrealized P&L of the open position after the day's last trade",
+  }),
 ];
 
 const SNAPSHOT_COLUMNS: Column<CloseSnapshotRowT>[] = [
-  textColumn("date", "Close", (r) => r.trade_date),
-  textColumn("symbol", "Symbol", (r) => r.symbol),
-  qtyColumn("qty", "Net qty", (r) => r.net_qty),
-  tickColumn("mark", "Closing mark", (r) => r.mark_price_ticks),
-  tickColumn("realized", "Cumulative realized", (r) => r.realized_pnl_ticks, { signed: true }),
-  tickColumn("unrealized", "Unrealized at close", (r) => r.unrealized_pnl_ticks, { signed: true }),
+  textColumn("date", "Close", (r) => r.trade_date, "The trading day whose session close this snapshot is"),
+  textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
+  qtyColumn("qty", "Net qty", (r) => r.net_qty, "Shares held at the close; negative is short"),
+  tickColumn("mark", "Closing mark", (r) => r.mark_price_ticks, {
+    title: "The price the position was valued at when the session closed",
+  }),
+  tickColumn("realized", "Cumulative realized", (r) => r.realized_pnl_ticks, {
+    signed: true,
+    title: "All realized P&L of the position up to this close",
+  }),
+  tickColumn("unrealized", "Unrealized at close", (r) => r.unrealized_pnl_ticks, {
+    signed: true,
+    title: "Profit or loss of the open quantity at the closing mark",
+  }),
 ];
 
 export interface CloseTotal {
@@ -66,8 +88,8 @@ export function closeTotals(rows: CloseSnapshotRowT[]): CloseTotal[] {
 }
 
 const TOTAL_COLUMNS: Column<CloseTotal>[] = [
-  textColumn("date", "Close", (r) => r.date),
-  qtyColumn("positions", "Positions", (r) => r.positions),
+  textColumn("date", "Close", (r) => r.date, "The trading day whose session close this is"),
+  qtyColumn("positions", "Positions", (r) => r.positions, "Position rows in that close's snapshot"),
   {
     id: "pnl",
     header: "Cumulative P&L",
@@ -78,14 +100,15 @@ const TOTAL_COLUMNS: Column<CloseTotal>[] = [
   },
 ];
 
-const FIELDS = [
-  { name: "symbol", label: "Symbol", placeholder: "e.g. AAPL" },
-  { name: "from", label: "From", type: "date" as const },
-  { name: "to", label: "To", type: "date" as const },
+const DATE_FIELDS: FilterField[] = [
+  { name: "from", label: "From", type: "date" },
+  { name: "to", label: "To", type: "date" },
 ];
 
 export function HistoryView({ gateway }: { gateway?: string }) {
   const [filters, setFilters] = useState<FilterValues>({});
+  const symbols = useSymbolOptions();
+  const fields: FilterField[] = [{ name: "symbol", label: "Symbol", type: "combobox", suggestions: symbols }, ...DATE_FIELDS];
   useHistoryRevalidation(gateway);
   const params = {
     gateway,
@@ -99,7 +122,7 @@ export function HistoryView({ gateway }: { gateway?: string }) {
 
   return (
     <>
-      <FilterForm fields={FIELDS} onApply={setFilters} />
+      <FilterForm fields={fields} onApply={setFilters} />
       <Panel title="Close-to-close cumulative P&L">
         <p className="text-xs text-fg-dim">
           One point per session close; there is no intraday history. Each point is the cumulative realized plus

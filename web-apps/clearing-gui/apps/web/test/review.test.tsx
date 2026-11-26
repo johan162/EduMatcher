@@ -41,7 +41,7 @@ describe("review regressions", () => {
 
   it("F15: logging out empties the query cache", async () => {
     signIn("TRADER", "TRADER01");
-    stubApi({ [`${C}/positions`]: example(`${C}/positions`), [`${C}/exposure`]: example(`${C}/exposure`) });
+    stubApi({ [`${C}/positions`]: example(`${C}/positions`) });
     const client = newQueryClient();
     renderApp("/me/positions", client);
     await screen.findByRole("table", { name: "My positions" });

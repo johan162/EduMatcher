@@ -53,6 +53,14 @@ describe("Clearing Overview", () => {
     expect(eod.closest("div")!.textContent).toMatch(/2026-08-28.*ok/);
   });
 
+  it("CG20: links its recent events to the full Events screen", async () => {
+    stubApi(overview());
+    renderApp("/overview");
+    const events = await screen.findByRole("region", { name: "Recent session events" });
+    const link = within(events).getByRole("link", { name: /All events/ });
+    expect(link.getAttribute("href")).toBe("/events");
+  });
+
   it("raises an unmistakable GAP alarm with the interval and missing count", async () => {
     stubApi(overview());
     renderApp("/overview");
@@ -83,14 +91,6 @@ describe("Clearing Overview", () => {
     expect(panel.textContent).toMatch(/pm-clearing process.*not answering.*no reply within 500ms/);
   });
 
-  it("lists participants with links to their drill-down", async () => {
-    stubApi(overview());
-    renderApp("/overview");
-    const table = await screen.findByRole("table", { name: "Participants" });
-    const link = within(table).getByRole("link", { name: "TRADER01" });
-    expect(link.getAttribute("href")).toBe("/participants/TRADER01");
-  });
-
   it("shows recent PHASE and EOD events", async () => {
     stubApi(overview());
     renderApp("/overview");
@@ -103,7 +103,7 @@ describe("Clearing Overview", () => {
     try {
       const api = stubApi(overview());
       renderApp("/overview");
-      await screen.findByRole("table", { name: "Participants" });
+      await screen.findByRole("table", { name: "Largest losses" });
       await vi.advanceTimersByTimeAsync(31_000);
       expect(api.calls(SUMMARY).length).toBeGreaterThanOrEqual(6);
       expect(api.calls(HEALTH).length).toBe(2);
@@ -115,12 +115,14 @@ describe("Clearing Overview", () => {
   });
 
   it("names no venue-wide exposure, equity, margin or open interest", async () => {
-    stubApi(overview());
+    stubApi({ ...overview(), [`${C}/exposure`]: example(`${C}/exposure`) });
     renderApp("/overview");
-    await screen.findByRole("table", { name: "Participants" });
+    const largest = await screen.findByRole("table", { name: "Largest positions" });
+    // One position's own gross notional (CG23) is not a venue figure; every
+    // other heading, column and tile is held to the rule.
     const named = [
       ...screen.getAllByRole("heading"),
-      ...screen.getAllByRole("columnheader"),
+      ...screen.getAllByRole("columnheader").filter((h) => !largest.contains(h)),
       ...document.querySelectorAll("[data-stat-label]"),
     ]
       .map((e) => e.textContent)
@@ -134,7 +136,6 @@ describe("Participant drill-down", () => {
     const api = stubApi({
       [`${C}/participants/TRADER01`]: example(`${C}/participants/{gateway_id}`),
       [`${C}/positions`]: example(`${C}/positions`),
-      [`${C}/exposure`]: example(`${C}/exposure`),
     });
     renderApp("/participants/TRADER01");
     expect(await screen.findByRole("heading", { name: "Participant TRADER01" })).toBeTruthy();

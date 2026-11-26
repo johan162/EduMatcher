@@ -28,14 +28,54 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: "Roles",
         bullets: [
-          "ADMIN — the venue: overview, participants and drill-down, symbols, events, gateway sessions, reconciliation, EOD settlement.",
-          "TRADER — its own gateway: positions and exposure, retained trades, daily and close history, EOD settlement and balance, gateway sessions.",
+          "ADMIN — the venue: overview, participants (each opens in a drawer over the list), symbols, events, gateway sessions, reconciliation, EOD settlement.",
+          "TRADER — its own gateway: positions at their marks, retained trades, daily and close history, EOD settlement and balance, gateway sessions.",
           "MARKET_MAKER — the trader views plus My Quote Obligations.",
         ],
       },
       {
         paragraphs: [
           "There is no margin, equity, collateral, buying power or open interest anywhere: nothing in the system computes them.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "tables",
+    title: "Tables and filters",
+    blocks: [
+      {
+        bullets: [
+          "Hover a column header or tile label with a dotted underline for what it shows.",
+          "Click a header marked ↕ to sort; click again for the other direction. Trade lists are newest first and do not sort: the server sends them a page at a time.",
+          "Tables of more than 10 rows have a pager: 10, 30, 50, 100 or all rows per page, remembered for every table. \"of 200+\" means the server holds more; paging forward fetches them.",
+          "Gateway, Symbol and Account filters list the known values as you type (arrow keys and Enter, or click). An unlisted value still filters; empty means all.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "times",
+    title: "Times",
+    blocks: [
+      {
+        paragraphs: [
+          "Every time is on the venue's clock — its session timezone, the zone trading days are in — with the date and the zone, e.g. 2026-11-26 09:00:01 CET.",
+          "If the engine does not answer the timezone request, times are shown in UTC and labelled UTC.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "overview",
+    title: "Overview warnings (ADMIN)",
+    blocks: [
+      {
+        bullets: [
+          "No new clearing write for at least N s — during continuous trading only, when the last clearing write has not changed for 30 s while this page was open: no trade has arrived, or pm-clearing is not writing. Health tells which.",
+          "The last EOD run ended failed — pm-eod failed for that day; see EOD Settlement.",
+          "Trading day … is closed but not settled — pm-eod has not run for it yet; expected right after the close.",
+          "Needs attention lists the largest losses and the five largest open positions; select a row to open the participant.",
         ],
       },
     ],

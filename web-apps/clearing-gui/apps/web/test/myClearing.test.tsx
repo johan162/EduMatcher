@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { usePageSizeStore } from "@/store/usePageSizeStore";
 import { apiError, example, renderApp, signIn, stubApi } from "./helpers";
 
 /**
@@ -18,10 +19,7 @@ const DAILY = "/api/v1/clearing/daily";
 const CLOSES = "/api/v1/clearing/close-snapshots";
 
 function current() {
-  return {
-    [POSITIONS]: example(POSITIONS),
-    [EXPOSURE]: example(EXPOSURE),
-  };
+  return { [POSITIONS]: example(POSITIONS) };
 }
 
 beforeEach(() => {
@@ -66,11 +64,40 @@ describe("My Positions", () => {
     const aapl = rowCells("My positions", "AAPL");
     expect(aapl).toEqual(expect.arrayContaining(["110", "187.3333", "188.00", "26.67", "73.33"]));
     expect(rowCells("My positions", "MSFT")).toContain("-20");
-    const exposure = await screen.findByRole("table", { name: "My exposure" });
-    expect(within(exposure).getAllByText("20,680.00").length).toBe(2); // net and gross
-    expect(within(exposure).getByText("-8,230.00")).toBeTruthy();
     noForeignGateway(api.requests);
     expect(api.calls(POSITIONS).length).toBeGreaterThan(0);
+  });
+
+  it("CG20: one table, with each row's notional and total P&L, and no separate exposure", async () => {
+    const api = stubApi(current());
+    renderApp("/me/positions");
+    await screen.findByRole("table", { name: "My positions" });
+    expect(screen.queryByRole("table", { name: "My exposure" })).toBeNull();
+    // Net qty × mark, its absolute value, realized + unrealized -- as the
+    // exposure query computes them from the same row.
+    const aapl = rowCells("My positions", "AAPL");
+    expect(aapl.filter((c) => c === "20,680.00")).toHaveLength(2);
+    expect(aapl).toContain("100.00");
+    const msft = rowCells("My positions", "MSFT");
+    expect(msft).toEqual(expect.arrayContaining(["-8,230.00", "8,230.00", "12.00"]));
+    const headers = within(screen.getByRole("table", { name: "My positions" }))
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent);
+    expect(headers).toEqual(
+      expect.arrayContaining(["Net notional", "Gross notional", "Total P&L"]),
+    );
+    expect(api.calls(EXPOSURE)).toHaveLength(0);
+  });
+
+  it("CG20: a position without a mark has no notional, not a zero", async () => {
+    const body = example<{ positions: Record<string, unknown>[] }>(POSITIONS);
+    body.positions[1] = { ...body.positions[1], mark_price: null, mark_price_ticks: null };
+    stubApi({ [POSITIONS]: body });
+    renderApp("/me/positions");
+    await screen.findByRole("table", { name: "My positions" });
+    const msft = rowCells("My positions", "MSFT");
+    expect(msft).not.toContain("-8,230.00");
+    expect(msft.filter((c) => c === "—").length).toBeGreaterThanOrEqual(3); // mark, net, gross
   });
 
   it("says when the data was committed and that fills lag by a flush", async () => {
@@ -82,20 +109,14 @@ describe("My Positions", () => {
   });
 
   it("no positions is a true zero", async () => {
-    stubApi({
-      [POSITIONS]: { positions: [], count: 0, has_more: false },
-      [EXPOSURE]: { exposure: [], count: 0, has_more: false },
-    });
+    stubApi({ [POSITIONS]: { positions: [], count: 0, has_more: false } });
     renderApp("/me/positions");
     expect(await screen.findByText("No positions")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("an unavailable ledger is an error, never an empty table", async () => {
-    stubApi({
-      [POSITIONS]: apiError(503, "CLEARING_DB", "Clearing ledger unavailable: not found"),
-      [EXPOSURE]: apiError(503, "CLEARING_DB", "Clearing ledger unavailable: not found"),
-    });
+    stubApi({ [POSITIONS]: apiError(503, "CLEARING_DB", "Clearing ledger unavailable: not found") });
     renderApp("/me/positions");
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
     expect(screen.getAllByRole("alert")[0]!.textContent).toContain("CLEARING_DB");
@@ -105,7 +126,7 @@ describe("My Positions", () => {
   it("shows no margin, equity or buying-power measure", async () => {
     stubApi(current());
     renderApp("/me/positions");
-    await screen.findByRole("table", { name: "My exposure" });
+    await screen.findByRole("table", { name: "My positions" });
     expect(namedMeasures()).not.toMatch(/margin|equity|buying power|collateral/i);
   });
 });
@@ -137,16 +158,45 @@ describe("My Trades", () => {
     noForeignGateway(api.requests);
   });
 
-  it("loads the next page with the server's cursor", async () => {
-    const page = example<{ next_cursor: string }>(TRADES);
-    const api = stubApi({ ...current(), [TRADES]: page });
-    renderApp("/me/trades");
-    fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
-    await waitFor(() =>
-      expect(api.calls(TRADES).some((u) => u.searchParams.get("after") === page.next_cursor)).toBe(
-        true,
-      ),
-    );
+  describe("CG20 pager over the server's pages", () => {
+    /** 200 trades and a cursor, then 30 more and none: newest first. */
+    function serverPages() {
+      const page = example<{ trades: Record<string, unknown>[]; next_cursor: string | null }>(TRADES);
+      const one = page.trades[0]!;
+      const trades = (from: number, n: number) =>
+        Array.from({ length: n }, (_, i) => ({ ...one, trade_id: `T${String(from + i).padStart(4, "0")}` }));
+      return (url: URL) =>
+        url.searchParams.get("after") === "c1"
+          ? { ...page, trades: trades(201, 30), next_cursor: null }
+          : { ...page, trades: trades(1, 200), next_cursor: "c1" };
+    }
+
+    beforeEach(() => usePageSizeStore.setState({ pageSize: 100 }));
+
+    it("fetches the next server page only when Next needs it, and then shows it", async () => {
+      const api = stubApi({ ...current(), [TRADES]: serverPages() });
+      renderApp("/me/trades");
+      await screen.findByText("Page 1/2+");
+      expect(screen.getByText("Rows 1–100 of 200+")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(screen.getByText("Page 2/2+")).toBeTruthy();
+      expect(api.calls(TRADES).some((u) => u.searchParams.has("after"))).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      await screen.findByText("Rows 201–230 of 230");
+      expect(screen.getByText("Page 3/3")).toBeTruthy();
+      expect(rowCells("My retained trades", "T0201")).toBeTruthy();
+      expect(api.calls(TRADES).filter((u) => u.searchParams.get("after") === "c1")).toHaveLength(1);
+      expect((screen.getByRole("button", { name: "Next page" }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("keeps the server's newest-first order: no header sorts, and says so", async () => {
+      stubApi({ ...current(), [TRADES]: serverPages() });
+      renderApp("/me/trades");
+      const table = await screen.findByRole("table", { name: "My retained trades" });
+      expect(within(table).queryAllByRole("button")).toHaveLength(0);
+      expect(screen.getByText(/Newest first/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    });
   });
 });
 

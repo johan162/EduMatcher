@@ -16,10 +16,12 @@ import { useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterForm, filterDate, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
+import { Time } from "@/components/shared/Time";
 import { Badge, MoreRows, Panel, Stat } from "@/components/shared/Ui";
-import { useBalances, useSettlements } from "@/api/queries";
+import { useAccountOptions, useBalances, useSettlements } from "@/api/queries";
 import type { BalanceRowT, EodRunT, SettlementRowT } from "@/api/schemas";
 import { formatMinor, signClass } from "@/lib/money";
+import { GatewayId } from "./GatewayId";
 import { textColumn } from "./columns";
 
 const EXCHANGE = "EXCHANGE";
@@ -55,50 +57,68 @@ function runTone(status: string | null): "ok" | "bad" | "neutral" {
 
 function settlementColumns(mode: Mode): Column<SettlementRowT>[] {
   return [
-    textColumn("date", "Date", (r) => r.trade_date),
+    textColumn("date", "Date", (r) => r.trade_date, "The trading day settled"),
     {
       id: "account",
       header: "Account",
-      cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : r.account),
+      title: "The participant gateway settled with; EXCHANGE holds the rounding residual",
+      cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : <GatewayId id={r.account} />),
       sortValue: (r) => r.account,
     },
     {
       id: "amount",
       header: "Amount",
-      title: "Minor units of the display currency, shown with 2 decimals",
+      title: "The day's change in close-to-close P&L, rounded to 2 decimals of the display currency; positive: the exchange owes the account",
       align: "right",
       cell: (r) => <span className={signClass(r.amount_minor)}>{formatMinor(r.amount_minor)}</span>,
       sortValue: (r) => r.amount_minor,
     },
-    textColumn("direction", "Direction", (r) => direction(r.account, r.amount_minor, mode)),
+    textColumn("direction", "Direction", (r) => direction(r.account, r.amount_minor, mode), "Who owes whom, from the amount's sign"),
     {
       id: "run",
       header: "Run",
+      title: "The status of the pm-eod run that settled the day",
       cell: (r) => <Badge tone={runTone(r.run_status)}>{r.run_status ?? "no run recorded"}</Badge>,
       sortValue: (r) => r.run_status,
     },
-    textColumn("detail", "Per symbol (unrounded)", (r) => detailText(r.detail)),
+    textColumn("detail", "Per symbol (unrounded)", (r) => detailText(r.detail), "Each symbol's share of the amount, before rounding"),
   ];
 }
 
 const RUN_COLUMNS: Column<EodRunT>[] = [
-  textColumn("date", "Trading day", (r) => r.trade_date),
+  textColumn("date", "Trading day", (r) => r.trade_date, "The trading day pm-eod ran for"),
   {
     id: "status",
     header: "Status",
+    title: "How the run ended: ok, or the failure pm-eod recorded",
     cell: (r) => <Badge tone={runTone(r.status)}>{r.status}</Badge>,
     sortValue: (r) => r.status,
   },
-  textColumn("finished", "Finished (UTC)", (r) => r.finished_at),
-  textColumn("steps", "Steps", (r) =>
-    r.steps ? r.steps.map((s) => `${s.step}: ${s.status}${s.message ? ` — ${s.message}` : ""}`).join("; ") : null,
+  {
+    id: "finished",
+    header: "Finished",
+    title: "When the run finished, on the venue's clock",
+    cell: (r) => <Time iso={r.finished_at} />,
+    sortValue: (r) => Date.parse(r.finished_at),
+  },
+  textColumn(
+    "steps",
+    "Steps",
+    (r) => (r.steps ? r.steps.map((s) => `${s.step}: ${s.status}${s.message ? ` — ${s.message}` : ""}`).join("; ") : null),
+    "Each step of the run with its outcome (ADMIN only)",
   ),
 ];
 
-function minorColumn(id: string, header: string, value: (r: BalanceRowT) => BalanceRowT["balance_minor"]): Column<BalanceRowT> {
+function minorColumn(
+  id: string,
+  header: string,
+  value: (r: BalanceRowT) => BalanceRowT["balance_minor"],
+  title: string,
+): Column<BalanceRowT> {
   return {
     id,
     header,
+    title,
     align: "right",
     cell: (r) => <span className={signClass(value(r))}>{formatMinor(value(r))}</span>,
     sortValue: value,
@@ -109,12 +129,13 @@ const BALANCE_COLUMNS: Column<BalanceRowT>[] = [
   {
     id: "account",
     header: "Account",
-    cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : r.account),
+    title: "The participant gateway; EXCHANGE holds the rounding residual",
+    cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : <GatewayId id={r.account} />),
     sortValue: (r) => r.account,
   },
-  minorColumn("opening", "Opening balance", (r) => r.opening_balance_minor),
-  minorColumn("settled", "Settlements to date", (r) => r.settlement_total_minor),
-  minorColumn("balance", "Derived balance", (r) => r.balance_minor),
+  minorColumn("opening", "Opening balance", (r) => r.opening_balance_minor, "From pm-eod's roster; 0 when the account is not on it"),
+  minorColumn("settled", "Settlements to date", (r) => r.settlement_total_minor, "Sum of the account's settlements up to the last settled day"),
+  minorColumn("balance", "Derived balance", (r) => r.balance_minor, "Opening balance + settlements to date: derived here, not a stored balance"),
 ];
 
 function SingleBalance({ gateway }: { gateway?: string }) {
@@ -137,9 +158,9 @@ function SingleBalance({ gateway }: { gateway?: string }) {
           const b = d.balances[0]!;
           return (
             <div className="flex flex-wrap gap-3">
-              <Stat label="Opening balance" value={formatMinor(b.opening_balance_minor)} sub="from the roster" />
-              <Stat label="Settlements to date" value={formatMinor(b.settlement_total_minor)} sub={`to ${d.last_settled_date ?? "—"}`} />
-              <Stat label="Derived balance" value={formatMinor(b.balance_minor)} sub={d.as_of ? `as of ${d.as_of}` : "all settled days"} />
+              <Stat label="Opening balance" value={formatMinor(b.opening_balance_minor)} sub="from the roster" title="The account's starting balance in pm-eod's roster; 0 when it is not on it" />
+              <Stat label="Settlements to date" value={formatMinor(b.settlement_total_minor)} sub={`to ${d.last_settled_date ?? "—"}`} title="Sum of the account's daily settlements up to the date" />
+              <Stat label="Derived balance" value={formatMinor(b.balance_minor)} sub={d.as_of ? `as of ${d.as_of}` : "all settled days"} title="Opening balance + settlements to date: derived here, not a stored account balance, margin or collateral" />
             </div>
           );
         }}
@@ -179,7 +200,9 @@ export function SettlementView({ mode, gateway, caption }: SettlementViewProps) 
     from: filterDate(filters["from"]),
     to: filterDate(filters["to"]),
   });
-  const fields = mode === "venue" ? [{ name: "account", label: "Account" }, ...DATE_FIELDS] : DATE_FIELDS;
+  const accounts = useAccountOptions(mode === "venue");
+  const fields: FilterField[] =
+    mode === "venue" ? [{ name: "account", label: "Account", type: "combobox", suggestions: accounts }, ...DATE_FIELDS] : DATE_FIELDS;
   return (
     <>
       <p className="mb-3 text-xs text-fg-dim">

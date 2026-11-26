@@ -48,7 +48,7 @@ const logDb = new LogDb(config.logDb.path);
 logDb.open();
 
 const ackStore = new AckStore(config.ackStore.path);
-const issueIndex = new IssueIndex(ackStore, config.issues.minLevel);
+const issueIndex = new IssueIndex(ackStore, config.issues.minLevel, config.sessionTimezone);
 const counters = new RollingCounters();
 const wsHub = new WsHub();
 

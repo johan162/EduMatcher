@@ -40,6 +40,26 @@ export function formatClock(ts: string, timeZone: string): string {
   return `${p["hour"]}:${p["minute"]}:${p["second"]}`;
 }
 
+const dayFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+/**
+ * A calendar day the bridge already resolved in the session timezone,
+ * "2026-11-24" -> "Tue 24 Nov 2026". Formatted in UTC because the string is
+ * a date, not an instant: no zone may shift it.
+ */
+export function formatDay(day: string): string {
+  const p = Object.fromEntries(
+    dayFormat.formatToParts(new Date(`${day}T00:00:00Z`)).map((x) => [x.type, x.value]),
+  );
+  return `${p["weekday"]} ${p["day"]} ${p["month"]} ${p["year"]}`;
+}
+
 /** "2026-04-09T07:00:14.469Z" in Europe/Stockholm -> "09:00". */
 export function formatHm(ts: string, timeZone: string): string {
   const p = parts(ts, timeZone);

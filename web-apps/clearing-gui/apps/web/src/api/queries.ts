@@ -3,7 +3,7 @@
  *
  * Request discipline (workplan CG5-CG9) lives here, in one place:
  *
- * - Current state (positions, exposure, participants, summary) refreshes every
+ * - Current state (positions, participants, summary) refreshes every
  *   `POLL_CURRENT_MS` = 5 s: pm-clearing commits fills in batches at most that
  *   often, so polling faster shows nothing new. These are small aggregate
  *   tables.
@@ -33,6 +33,7 @@ import type { z } from "zod";
 import { apiFetch } from "@/api/apiFetch";
 import * as S from "@/api/schemas";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useVenueTimeZoneStore } from "@/store/useVenueTimeZoneStore";
 
 export const POLL_CURRENT_MS = 5_000;
 export const POLL_HEALTH_MS = 30_000;
@@ -89,8 +90,19 @@ const cached: ReadOptions = { staleTime: CACHE_MS };
 export const usePositions = (params: Params = {}) =>
   useRead("/api/v1/clearing/positions", S.Positions, params, current);
 
-export const useExposure = (params: Params = {}) =>
-  useRead("/api/v1/clearing/exposure", S.Exposure, params, current);
+/**
+ * The venue's largest positions, as the server ranks them: gross notional
+ * in display currency (each row's own precision), all gateways (ADMIN).
+ */
+export const useLargestPositions = () =>
+  useRead("/api/v1/clearing/exposure", S.Exposure, { limit: 5, sort: "gross_notional" }, current);
+
+/**
+ * The session phase, refreshed at the health cadence (30 s) while a screen
+ * shows it -- the same request the shell makes once for the timezone.
+ */
+export const useSession = () =>
+  useRead("/api/v1/session", S.SessionInfo, {}, { refetchInterval: POLL_HEALTH_MS });
 
 export const useParticipants = () =>
   useRead("/api/v1/clearing/participants", S.Participants, {}, current);
@@ -127,6 +139,49 @@ export const useSettlements = (params: Params) =>
 
 export const useBalances = (params: Params) =>
   useRead("/api/v1/clearing/balances", S.Balances, params, cached);
+
+/**
+ * The venue's session timezone, from `GET /api/v1/session`, into
+ * `useVenueTimeZoneStore` for every time on screen. Fetched once per login:
+ * the zone is configuration and does not change while the venue runs. The
+ * route asks the engine and can fail; the store then stays `null` and times
+ * stay in labelled UTC.
+ */
+export function useVenueTimeZone(): void {
+  const session = useRead("/api/v1/session", S.SessionInfo, {}, { staleTime: Number.POSITIVE_INFINITY });
+  const zone = session.data?.session_timezone ?? null;
+  const setTimeZone = useVenueTimeZoneStore((s) => s.setTimeZone);
+  useEffect(() => setTimeZone(zone), [zone, setTimeZone]);
+}
+
+// ── Filter lists (CG22): fetched once, never polled ─────────────────────────
+
+const NO_OPTIONS: string[] = [];
+
+/** Every symbol of the venue, for a Symbol filter (any key may read it). */
+export function useSymbolOptions(): string[] {
+  const q = useRead("/api/v1/reference/symbols", S.ReferenceSymbolList, {}, { staleTime: Number.POSITIVE_INFINITY });
+  return q.data ? q.data.symbols.map((s) => s.symbol).sort() : NO_OPTIONS;
+}
+
+/**
+ * Every participant gateway, for a Gateway filter (ADMIN). The same request
+ * as the Participants list, but cached rather than polled when only a filter
+ * asks for it.
+ */
+export function useGatewayOptions(enabled = true): string[] {
+  const q = useRead("/api/v1/clearing/participants", S.Participants, {}, { ...cached, enabled });
+  return q.data ? q.data.participants.map((p) => p.gateway_id).sort() : NO_OPTIONS;
+}
+
+/**
+ * Every settlement account, EXCHANGE included, for the EOD Account filter
+ * (ADMIN): the venue balances reply the EOD screen already shows.
+ */
+export function useAccountOptions(enabled = true): string[] {
+  const q = useRead("/api/v1/clearing/balances", S.Balances, {}, { ...cached, enabled });
+  return q.data ? q.data.balances.map((b) => b.account).sort() : NO_OPTIONS;
+}
 
 /** The caller's own symbol settings, including market-maker obligations. */
 export const useSymbolSettings = () =>

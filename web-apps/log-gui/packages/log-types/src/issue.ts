@@ -6,7 +6,10 @@
 import type { LogLevel, LogRow } from "./log-row.js";
 
 export interface Issue {
+  /** The issue key: the message fingerprint qualified by its day, `<sha1[:16]>.<YYYY-MM-DD>`. */
   fingerprint: string;
+  /** The session-timezone calendar day (YYYY-MM-DD) every occurrence in this issue falls on. */
+  day: string;
   level: LogLevel;
   process: string;
   logger: string;

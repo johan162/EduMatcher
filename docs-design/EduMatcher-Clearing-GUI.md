@@ -241,7 +241,7 @@ need.
 | Role | Landing page | Permitted navigation |
 |---|---|---|
 | `ADMIN` | Clearing Overview | Overview, Participants, Symbols, Events, Reconciliation, EOD Settlement, Gateway Sessions. |
-| `TRADER` | My Clearing | My positions, exposure, retained trades, daily/close history, my EOD settlement and balance. |
+| `TRADER` | My Clearing | My positions (marked, with notional), retained trades, daily/close history, my EOD settlement and balance. |
 | `MARKET_MAKER` | My Clearing | The trader self-view plus My Quote Obligations. |
 
 A route that receives a gateway ID must run through the API scope check even
@@ -254,7 +254,13 @@ The overview is an operational dashboard, not a margin dashboard. It contains:
 - latest clearing flush and trade timestamps, database/process health, and the
   five-second committed-data qualifier;
 - an unmistakable GAP alarm with observed sequence interval and missing count;
-- participant table with current P&L, open position count, and latest update;
+- the session phase (`GET /session`), with a warning when continuous trading
+  has gone 30 s without a new clearing write (observed by the browser, not
+  by comparing clocks), and one when the last EOD run
+  failed or a closed trading day is not yet settled (usability round, CG23);
+- *Needs attention*: the largest losses (up to five participants) and the
+  five largest open positions by gross notional, each opening the
+  participant — not a copy of the Participants list;
 - recent `PHASE` and `EOD` events;
 - latest EOD run status and the daily zero-sum settlement result; and
 - a link to reconciliation discrepancies.
@@ -265,10 +271,14 @@ notionals across symbols with different `tick_decimals` into a venue amount.
 
 ### 7.3 Participant and My Clearing
 
-A participant page is scoped to one gateway and uses tabs or panels for:
+A participant page is scoped to one gateway and uses tabs for the views below.
+For ADMIN it opens in a wide drawer over the live Participants list, with one URL
+per tab (`/participants/:gatewayId[/tab]`); gateway ids in other tables open
+it too (CG21).
 
-1. **Current positions** — signed quantity, average cost, mark, realized and
-   unrealized P&L, gross/net exposure, and update time.
+1. **Current positions** — one table: signed quantity, average cost, mark,
+   net/gross notional and total P&L (derived per row as the exposure query
+   does), realized and unrealized P&L, and update time.
 2. **Trades** — retained execution audit, with date/symbol filters and clearly
    labelled exchange time versus clearing ingest time.
 3. **Daily and close history** — daily summary table and a daily close chart
@@ -309,7 +319,13 @@ separate minor-unit formatter.
 
 Every table supports explicit filtering, sort direction, a visible applied
 scope, bounded pagination, skeleton loading, empty state, retryable error
-state, and accessible keyboard focus. The trade audit table must make its
+state, and accessible keyboard focus. Since the usability round (workplan §8):
+every header and tile has a tooltip (required by type); sortable headers show
+a sort icon; tables page client-side (10/30/50/100/all, one remembered
+choice), except the trade audit, which pages over the server cursor and does
+not sort; gateway/symbol/account filters are searchable comboboxes; and every
+time is shown in the venue's session timezone with its date and zone (UTC,
+labelled, when `GET /session` fails). The trade audit table must make its
 retention date and result count visible. Any CSV export added later must export
 the API response's explicit units and precision; it must not scrape formatted
 screen values.

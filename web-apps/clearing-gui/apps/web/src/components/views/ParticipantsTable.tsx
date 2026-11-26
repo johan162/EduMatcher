@@ -2,20 +2,30 @@
  * Every participant gateway with its P&L totals. The totals are display
  * currency as the API computed them, each position converted with its own
  * precision before the sum; they are not tick values.
+ *
+ * Each row opens that participant's drawer (`/participants/:id`); the open
+ * one is marked selected.
  */
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows } from "@/components/shared/Ui";
 import { useParticipants } from "@/api/queries";
 import type { ParticipantRowT } from "@/api/schemas";
 import { formatCurrency, signClass } from "@/lib/money";
-import { qtyColumn, timeColumn } from "./columns";
+import { qtyColumn, textColumn, timeColumn } from "./columns";
+import { participantPath } from "./GatewayId";
 
-function currencyColumn(id: string, header: string, value: (r: ParticipantRowT) => number): Column<ParticipantRowT> {
+function currencyColumn(
+  id: string,
+  header: string,
+  value: (r: ParticipantRowT) => number,
+  title: string,
+): Column<ParticipantRowT> {
   return {
     id,
     header,
+    title,
     align: "right",
     cell: (r) => <span className={signClass(value(r))}>{formatCurrency(value(r))}</span>,
     sortValue: value,
@@ -23,26 +33,23 @@ function currencyColumn(id: string, header: string, value: (r: ParticipantRowT) 
 }
 
 const COLUMNS: Column<ParticipantRowT>[] = [
-  {
-    id: "gateway",
-    header: "Gateway",
-    cell: (r) => (
-      <Link to={`/participants/${encodeURIComponent(r.gateway_id)}`} className="text-link hover:underline">
-        {r.gateway_id}
-      </Link>
-    ),
-    sortValue: (r) => r.gateway_id,
-  },
-  currencyColumn("realized", "Realized P&L", (r) => r.realized_pnl),
-  currencyColumn("unrealized", "Unrealized P&L", (r) => r.unrealized_pnl),
-  currencyColumn("total", "Total P&L", (r) => r.total_pnl),
-  qtyColumn("positions", "Positions", (r) => r.position_count),
+  textColumn(
+    "gateway",
+    "Gateway",
+    (r) => r.gateway_id,
+    "The participant's gateway id; select the row for its positions, trades, history, settlement and sessions",
+  ),
+  currencyColumn("realized", "Realized P&L", (r) => r.realized_pnl, "Realized P&L of all the gateway's positions, in display currency"),
+  currencyColumn("unrealized", "Unrealized P&L", (r) => r.unrealized_pnl, "Unrealized P&L of all its open positions at their marks, in display currency"),
+  currencyColumn("total", "Total P&L", (r) => r.total_pnl, "Realized + unrealized P&L, in display currency"),
+  qtyColumn("positions", "Positions", (r) => r.position_count, "Symbols the gateway has a position row for: every symbol it has traded"),
   qtyColumn("open", "Open", (r) => r.open_position_count, "Positions with a non-zero quantity"),
-  timeColumn("updated", "Last update", (r) => r.last_update_ts_ns),
+  timeColumn("updated", "Last update", (r) => r.last_update_ts_ns, "When clearing last wrote any of the gateway's positions"),
 ];
 
-export function ParticipantsTable() {
+export function ParticipantsTable({ selected }: { selected?: string }) {
   const participants = useParticipants();
+  const navigate = useNavigate();
   return (
     <QueryState
       query={participants}
@@ -52,12 +59,17 @@ export function ParticipantsTable() {
     >
       {(d) => (
         <>
+          <p className="mb-1 text-xs text-fg-dim">
+            Select a participant to open its positions, trades, history, settlement and sessions.
+          </p>
           <DataTable
             caption="Participants"
             columns={COLUMNS}
             rows={d.participants}
             rowKey={(r) => r.gateway_id}
             initialSort={{ id: "gateway", dir: "asc" }}
+            onRowClick={(r) => navigate(participantPath(r.gateway_id))}
+            selectedKey={selected}
           />
           <MoreRows hasMore={d.has_more} count={d.count} />
         </>

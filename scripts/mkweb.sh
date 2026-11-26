@@ -73,54 +73,6 @@ for f in index.html docs/index.html; do
     fi
 done
 
-echo -e "${CYAN}-------------------------------------------${NC}"
-echo -e "${CYAN}---       Copy to GitHub Pages          ---${NC}"
-echo -e "${CYAN}-------------------------------------------${NC}"
-
-# Check if local git repository exists for GitHub Pages
-if [ ! -d "$LOCAL_GITHUB_PAGES" ]; then
-    echo -e "${RED}✗ Local GitHub Pages repository not found at $LOCAL_GITHUB_PAGES${NC}"
-    exit 1
-fi
-
-# Clean old files in the local GitHub Pages repository
-rm -rf "$LOCAL_GITHUB_PAGES"/*
-echo -e "${GREEN}✓ Cleaned old files in $LOCAL_GITHUB_PAGES${NC}"
-
-# Copy from SITE_DIR to LOCAL_GITHUB_PAGES
-cp -ra "$SITE_DIR"/* "$LOCAL_GITHUB_PAGES"
-rm -f "$LOCAL_GITHUB_PAGES/.gitignore"
-rm -rf "$LOCAL_GITHUB_PAGES/__pycache__"
-rm -f "$LOCAL_GITHUB_PAGES/README.md"
-touch "$LOCAL_GITHUB_PAGES/.nojekyll"
-
-echo -e "${GREEN}✓ Copied site to $LOCAL_GITHUB_PAGES${NC}"
-
-echo ""
-echo -e "${CYAN}-------------------------------------------${NC}"
-echo -e "${CYAN}---   Adding and pushing to GitHub      ---${NC}"
-echo -e "${CYAN}-------------------------------------------${NC}"
-
-cd "$LOCAL_GITHUB_PAGES"
-
-if [ -z "$(git status --porcelain)" ]; then
-    echo -e "${GREEN}✓ No changes to commit in $LOCAL_GITHUB_PAGES${NC}"
-    exit 0
-fi
-
-git add .
-git commit -m "chore: Market simulator site updated"
-git push origin main
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}✗ Failed to push changes to GitHub Pages${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Changes committed and pushed to GitHub Pages${NC}"
-
-echo ""
-
 command -v expect >/dev/null || { echo -e "${RED}✗ 'expect' is required${NC}" >&2; exit 1; }
 
 BATCH="$(mktemp)"
@@ -282,4 +234,65 @@ exit $status
 EOF
 
 echo "✓ Upload to external site complete"
+echo ""
+
+
+
+#
+# Note: the github git-auth helper needs to be configured as otherwise the git push will fail
+# unless you recently pushed from VSCode which will have cached your credentials.
+# gh auth status
+# If not logged in:
+#
+# gh auth login --hostname github.com --git-protocol https --web
+# gh auth setup-git --hostname github.com
+#
+#
+
+echo -e "${CYAN}-------------------------------------------${NC}"
+echo -e "${CYAN}---       Copy to GitHub Pages          ---${NC}"
+echo -e "${CYAN}-------------------------------------------${NC}"
+
+# Check if local git repository exists for GitHub Pages
+if [ ! -d "$LOCAL_GITHUB_PAGES" ]; then
+    echo -e "${RED}✗ Local GitHub Pages repository not found at $LOCAL_GITHUB_PAGES${NC}"
+    exit 1
+fi
+
+# Clean old files in the local GitHub Pages repository
+rm -rf "$LOCAL_GITHUB_PAGES"/*
+echo -e "${GREEN}✓ Cleaned old files in $LOCAL_GITHUB_PAGES${NC}"
+
+# Copy from SITE_DIR to LOCAL_GITHUB_PAGES
+cp -ra "$SITE_DIR"/* "$LOCAL_GITHUB_PAGES"
+rm -f "$LOCAL_GITHUB_PAGES/.gitignore"
+rm -rf "$LOCAL_GITHUB_PAGES/__pycache__"
+rm -f "$LOCAL_GITHUB_PAGES/README.md"
+touch "$LOCAL_GITHUB_PAGES/.nojekyll"
+
+echo -e "${GREEN}✓ Copied site to $LOCAL_GITHUB_PAGES${NC}"
+
+echo ""
+echo -e "${CYAN}-------------------------------------------${NC}"
+echo -e "${CYAN}---   Adding and pushing to GitHub      ---${NC}"
+echo -e "${CYAN}-------------------------------------------${NC}"
+
+cd "$LOCAL_GITHUB_PAGES"
+
+if [ -z "$(git status --porcelain)" ]; then
+    echo -e "${GREEN}✓ No changes to commit in $LOCAL_GITHUB_PAGES${NC}"
+    exit 0
+fi
+
+git add .
+git commit -m "chore: Market simulator site updated"
+git push origin main
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}✗ Failed to push changes to GitHub Pages${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Changes committed and pushed to GitHub Pages${NC}"
+
 echo ""

@@ -342,10 +342,54 @@ export const SymbolInfo = z.object({
 });
 export const SymbolList = z.object({ symbols: z.array(SymbolInfo), count: int });
 
+/**
+ * `GET /api/v1/reference/symbols`: every symbol's static configuration, for
+ * any key (the symbol filters' list, CG22). Declared in full so the contract
+ * test holds it, although the GUI reads only `symbol`.
+ */
+export const ReferenceSymbolList = z.object({
+  count: int,
+  config_version: z.string(),
+  symbols: z.array(
+    z.object({
+      symbol: z.string(),
+      tick_decimals: int,
+      level: z.string().nullable().optional(),
+      collar: z.object({ static_band_pct: z.number(), dynamic_band_pct: z.number() }).nullable().optional(),
+      order_limits: z
+        .object({ max_order_qty: int.nullable().optional(), max_order_value: z.number().nullable().optional() })
+        .nullable()
+        .optional(),
+      circuit_breaker: z
+        .object({
+          reference_window_ns: int,
+          levels: z.array(
+            z.object({ name: z.string(), price_shift_pct: z.number(), halt_duration_ns: int.nullable() }),
+          ),
+        })
+        .nullable()
+        .optional(),
+    }),
+  ),
+});
+
 /** Each route the GUI calls, with the schema of its 200 body. */
+/** `GET /api/v1/session`: the trading phase and the venue's session timezone. */
+export const SessionInfo = z.object({
+  state: z.string(),
+  state_since: z.string(),
+  sessions_enabled: z.boolean(),
+  next: z.object({ state: z.string(), at: z.string() }).nullable().optional(),
+  last_trade_id: z.string().nullable(),
+  session_timezone: z.string(),
+  session_date: z.string(),
+});
+
 export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/status": Status,
+  "/api/v1/session": SessionInfo,
   "/api/v1/symbols": SymbolList,
+  "/api/v1/reference/symbols": ReferenceSymbolList,
   "/api/v1/clearing/summary": Summary,
   "/api/v1/clearing/participants": Participants,
   "/api/v1/clearing/participants/{gateway_id}": ParticipantDetail,
