@@ -5377,6 +5377,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#get-apiv1clearingposition-replay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/clearing/position-replay
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#get-apiv1clearingexposure" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5425,6 +5436,28 @@
     <span class="md-ellipsis">
       
         GET /api/v1/clearing/symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1clearingflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/clearing/flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1clearingnetting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/clearing/netting
       
     </span>
   </a>
@@ -9476,6 +9509,11 @@ optional parameters.</p>
 <td>Current positions at their marks</td>
 </tr>
 <tr>
+<td><a href="#get-apiv1clearingposition-replay">GET /api/v1/clearing/position-replay</a></td>
+<td>Admin role, or own gateway</td>
+<td>One position replayed fill by fill through one day, checked against the ledger</td>
+</tr>
+<tr>
 <td><a href="#get-apiv1clearingexposure">GET /api/v1/clearing/exposure</a></td>
 <td>Admin role, or own gateway</td>
 <td>Net/gross notional and P&amp;L per position</td>
@@ -9498,7 +9536,17 @@ optional parameters.</p>
 <tr>
 <td><a href="#get-apiv1clearingsymbols">GET /api/v1/clearing/symbols</a></td>
 <td>Admin role</td>
-<td>Activity and aggregate net position per symbol</td>
+<td>Activity, aggregate net position and its long and short sides per symbol</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1clearingflows">GET /api/v1/clearing/flows</a></td>
+<td>Admin role</td>
+<td>Who bought from whom on one trading day, per gateway pair</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1clearingnetting">GET /api/v1/clearing/netting</a></td>
+<td>Admin role, or own gateway</td>
+<td>One trading day's trades against the net amount each gateway is left with</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1clearingsession-events">GET /api/v1/clearing/session-events</a></td>
@@ -14405,6 +14453,88 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 </tr>
 </tbody>
 </table>
+<h3 id="get-apiv1clearingposition-replay"><code>GET /api/v1/clearing/position-replay</code><a class="headerlink" href="#get-apiv1clearingposition-replay" title="Permanent link">&para;</a></h3>
+<p>Purpose: how one gateway's position in one symbol was built through one trading day, fill by fill, by <code>pm-clearing</code>'s own position rules. <code>start</code> is the position before the day's first fill (the previous daily row's end, or flat). Each step is one of the gateway's fills in the order clearing applied it, with <code>kind</code> (<code>open</code> from flat, <code>add</code>, <code>reduce</code>, <code>close</code> to flat, <code>flip</code> through flat to the other side) and, after the fill, <code>net_qty</code>, <code>avg_cost</code>, <code>realized_delta</code>, <code>realized_day</code> (the day's so far) and <code>unrealized</code> at the fill's price; money as display value and <code>_ticks</code> beside the step's <code>tick_decimals</code>. <code>matches_daily_row</code> says whether the replay ends on the day's stored daily row (net quantity, average cost, realized P&amp;L, which is echoed as <code>daily_row</code>), and on the pair's latest day <code>matches_position</code> whether it ends on the stored position; null when there is nothing to compare or the replay was cut (<code>has_more</code>, beyond 5 000 fills). A mismatch is reported, never corrected. A day whose raw trades retention has pruned has <code>trades_retained: false</code> and no steps; a pair that never traded has <code>trade_date: null</code>.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>The symbol</td>
+</tr>
+<tr>
+<td><code>gateway</code></td>
+<td><code>GatewayId</code></td>
+<td>no</td>
+<td>This gateway. ADMIN only; a participant may name only itself and is scoped to itself without it</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>The trading day, session timezone; default the latest day the pair traded</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>PositionReplay</code></td>
+<td>The day's fills, step by step</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A filter is malformed (date, range, <code>limit</code>, cursor, <code>sort</code>); <code>field</code> names it</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only key: no clearing data</td>
+</tr>
+<tr>
+<td><code>SCOPE_DENIED</code></td>
+<td><code>403</code></td>
+<td>A <code>TRADER</code> or <code>MARKET_MAKER</code> key named another gateway</td>
+</tr>
+<tr>
+<td><code>CLEARING_DB</code></td>
+<td><code>503</code></td>
+<td><code>clearing.db</code> missing, locked or unreadable</td>
+</tr>
+</tbody>
+</table>
 <h3 id="get-apiv1clearingexposure"><code>GET /api/v1/clearing/exposure</code><a class="headerlink" href="#get-apiv1clearingexposure" title="Permanent link">&para;</a></h3>
 <p>Purpose: each position valued at its mark: <code>net_notional</code> (signed), <code>gross_notional</code>, realized, unrealized and total P&amp;L. A position without a mark has null notionals. Ranked by <code>sort</code> in display currency, so symbols of different precision compare correctly.</p>
 <p><strong>Arguments</strong></p>
@@ -14800,7 +14930,7 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 </tbody>
 </table>
 <h3 id="get-apiv1clearingsymbols"><code>GET /api/v1/clearing/symbols</code><a class="headerlink" href="#get-apiv1clearingsymbols" title="Permanent link">&para;</a></h3>
-<p>Purpose: per symbol traded in the date range: <code>traded_qty</code> (counted once per side), traded value and realized P&amp;L, plus the current aggregate signed position (<code>open_net_qty</code>) and its open P&amp;L. <code>open_net_qty</code> sums signed positions, so it is zero while every holder is a gateway; it is not open interest. Money is converted to the symbol's finest recorded precision.</p>
+<p>Purpose: per symbol traded in the date range: <code>traded_qty</code> (counted once per side), traded value and realized P&amp;L, plus the current aggregate signed position (<code>open_net_qty</code>) and its open P&amp;L. <code>open_net_qty</code> sums signed positions, so it is zero while every holder is a gateway; it is not open interest. The two sides are reported separately: <code>open_long_qty</code> and <code>open_short_qty</code> (both positive; long − short = <code>open_net_qty</code>) and the number of gateways on each, <code>long_holders</code> and <code>short_holders</code>. Money is converted to the symbol's finest recorded precision.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -14879,6 +15009,158 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 <td><code>ROLE_DENIED</code></td>
 <td><code>403</code></td>
 <td>The key's gateway is not <code>ADMIN</code></td>
+</tr>
+<tr>
+<td><code>CLEARING_DB</code></td>
+<td><code>503</code></td>
+<td><code>clearing.db</code> missing, locked or unreadable</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1clearingflows"><code>GET /api/v1/clearing/flows</code><a class="headerlink" href="#get-apiv1clearingflows" title="Permanent link">&para;</a></h3>
+<p>Purpose: who bought from whom on one trading day — per buyer/seller gateway pair, its <code>trades</code>, <code>quantity</code> and <code>value</code> (display currency, each trade converted with its own precision), largest value first. ADMIN only: it names every trade's counterparty, which a participant never sees. Read from the raw trades, so a day whose raw trades retention has pruned has <code>trades_retained: false</code> and no pairs; an empty ledger has <code>trade_date: null</code>.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>The trading day, session timezone; default the latest day with a daily row</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Only this symbol</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>ClearingFlows</code></td>
+<td>Buyer/seller pairs, largest first</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A filter is malformed (date, range, <code>limit</code>, cursor, <code>sort</code>); <code>field</code> names it</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only key: no clearing data</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>The key's gateway is not <code>ADMIN</code></td>
+</tr>
+<tr>
+<td><code>CLEARING_DB</code></td>
+<td><code>503</code></td>
+<td><code>clearing.db</code> missing, locked or unreadable</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1clearingnetting"><code>GET /api/v1/clearing/netting</code><a class="headerlink" href="#get-apiv1clearingnetting" title="Permanent link">&para;</a></h3>
+<p>Purpose: one trading day's trades against the one net amount each gateway is left with — an ADMIN sees every gateway (or the one <code>gateway</code> names), a <code>TRADER</code> or <code>MARKET_MAKER</code> only its own. Per gateway: <code>bought_value</code>, <code>sold_value</code>, <code>net_amount</code> (bought − sold: positive is what the gateway pays for the day's trades, negative what it receives) and <code>trade_count</code>. Totals count each trade once (a participant: its buys plus its sells): <code>trade_count</code>, <code>traded_qty</code>, <code>gross_value</code>, <code>payment_count</code> (gateways with a non-zero net), <code>net_paid</code> and <code>net_received</code>. Values are in display currency, every symbol converted before the sum. Trade counts come from the raw trades: once retention has pruned the day, <code>trades_retained</code> is false and the counts are null, while the daily-row figures still answer. A day without trades is an empty netting; an empty ledger has <code>trade_date: null</code>. This is the cash the day's trades net to, not <code>pm-eod</code>'s settlement, which moves the day's change in P&amp;L (<code>/settlements</code>).</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway</code></td>
+<td><code>GatewayId</code></td>
+<td>no</td>
+<td>Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>The trading day, session timezone; default the latest day with a daily row</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>ClearingNetting</code></td>
+<td>The day's netting</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A filter is malformed (date, range, <code>limit</code>, cursor, <code>sort</code>); <code>field</code> names it</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only key: no clearing data</td>
+</tr>
+<tr>
+<td><code>SCOPE_DENIED</code></td>
+<td><code>403</code></td>
+<td>A <code>TRADER</code> or <code>MARKET_MAKER</code> key named another gateway</td>
 </tr>
 <tr>
 <td><code>CLEARING_DB</code></td>

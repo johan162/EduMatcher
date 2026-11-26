@@ -3644,6 +3644,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#explain-mode-and-the-teaching-pictures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explain mode and the teaching pictures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#working-with-the-tables" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7928,6 +7939,7 @@
 <li>How to start it with the stack, on its own, or for development</li>
 <li>How to use the ADMIN screens: freshness, feed gaps, health,
   reconciliation and EOD settlement</li>
+<li>What Explain mode and its teaching pictures add, and what they cost</li>
 <li>How to diagnose an error it shows</li>
 <li>What load it puts on the exchange, and what it deliberately leaves out</li>
 </ul>
@@ -8096,7 +8108,8 @@ gateway id in any other table — a trade's buyer or seller, a reconciliation
 row, a gateway session, an EOD account — opens the same drawer.</p>
 <p><strong>Symbols</strong> — traded quantity and value per symbol over a date range, and the
 aggregate signed position now. That aggregate is zero while every holder is a
-gateway; it is not open interest.</p>
+gateway; it is not open interest. In Explain mode, <em>Longs against shorts</em>
+shows the long and the short side of each symbol separately (below).</p>
 <p><strong>Events</strong> — <code>PHASE</code>, <code>EOD</code> and <code>GAP</code> events with their content. Times are
 when clearing observed the event.</p>
 <p><strong>Gateway Sessions</strong> — connect/disconnect history, filterable by gateway and
@@ -8111,6 +8124,72 @@ raw and daily quantities and values.</p>
 <p><strong>EOD Settlement</strong> — every account's daily settlement in minor units, the
 <code>EXCHANGE</code> rounding account, the derived balances, and each <code>pm-eod</code> run with
 its steps.</p>
+<h2 id="explain-mode-and-the-teaching-pictures">Explain mode and the teaching pictures<a class="headerlink" href="#explain-mode-and-the-teaching-pictures" title="Permanent link">&para;</a></h2>
+<p>The GUI is first a teaching tool. The <strong>Explain</strong> button in the top bar —
+on by default, remembered per browser — adds how each figure is made; off,
+the screens above are exactly as described, and nothing extra is requested.</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What Explain mode adds</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Every tile</td>
+<td>Its explanation under it</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Positions (drawer, My Positions)</td>
+<td>A card per row: the unrealized P&amp;L written out, average cost and mark on a price line, realized + unrealized = total; and the position's replay</td>
+<td>the row; <code>/clearing/position-replay</code></td>
+</tr>
+<tr>
+<td>History</td>
+<td><em>Money in and out by day</em>; each daily row replays its day</td>
+<td>daily rows; <code>/clearing/position-replay</code></td>
+</tr>
+<tr>
+<td>Trades</td>
+<td>Each trade followed: matched, received, each side's position change, the day's row, <code>pm-eod</code>'s settlement</td>
+<td>the trade; replay; <code>/clearing/settlements</code></td>
+</tr>
+<tr>
+<td>Settlement (drawer, My Settlement)</td>
+<td><em>Netting</em>: one gateway's latest day, bought and sold against the amount left</td>
+<td><code>/clearing/netting?gateway=</code></td>
+</tr>
+<tr>
+<td>Overview</td>
+<td><em>Netting</em> for the venue; <em>Who traded with whom</em>, a buyer × seller grid (20 gateways, the rest as <em>others</em>) with the pair list</td>
+<td><code>/clearing/netting</code>, <code>/clearing/flows</code></td>
+</tr>
+<tr>
+<td>Participants</td>
+<td><em>Gains and losses add up to zero</em>: each gateway's total P&amp;L, and their sum</td>
+<td>the participants list</td>
+</tr>
+<tr>
+<td>Symbols</td>
+<td><em>Longs against shorts</em>: each symbol's long and short quantities and holders</td>
+<td><code>/clearing/symbols</code></td>
+</tr>
+</tbody>
+</table>
+<p>Every picture has its numbers in a table. <em>Netting</em> is the cash the day's
+trades net to (buys against sells), not <code>pm-eod</code>'s settlement, which moves
+the change in P&L; the texts say so wherever both appear.</p>
+<p>The <strong>position replay</strong> is computed by the gateway with <code>pm-clearing</code>'s own
+position code, from the previous day's stored row through the day's raw
+trades, and checked against the stored daily row and position. A red
+<em>The replay ends at …, but clearing's daily row holds …: report this</em> means
+the ledger disagrees with its own trades: rebuild the ledger from the audit
+trail into a new file and compare (<code>pm-clearing-cli rebuild --from-audit
+DATA_DIR --output NEW.db</code>). Days whose raw trades have been pruned cannot be
+replayed or followed, and say so.</p>
 <h2 id="working-with-the-tables">Working with the tables<a class="headerlink" href="#working-with-the-tables" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Tooltips.</strong> Every column header and every tile has an explanation:
@@ -8200,6 +8279,11 @@ its steps.</p>
 <td><code>GET /api/v1/session</code> failed: the engine did not answer</td>
 <td><code>pm-opctl-cli status</code></td>
 </tr>
+<tr>
+<td><em>The replay ends at …, but clearing's daily row holds …</em></td>
+<td>the stored position disagrees with a replay of its own trades</td>
+<td><code>pm-clearing-cli rebuild --from-audit DATA_DIR --output NEW.db</code></td>
+</tr>
 </tbody>
 </table>
 <p>The gateway logs every unreadable store as a WARNING (<code>clearing: cannot read
@@ -8214,6 +8298,9 @@ its steps.</p>
   the Overview is open, the session phase (one engine request);</li>
 <li>the venue's timezone once per login, and the filters' gateway, symbol and
   account lists once;</li>
+<li>in Explain mode, while the Overview or a Settlement screen is open, the
+  latest day's netting and (Overview) who traded with whom every 30 seconds;
+  a position replay and a trade's settlements only when opened, then cached;</li>
 <li>trades, history, events and settlement only when a screen or filter asks;
   reconciliation only on <strong>Run</strong>, never automatically;</li>
 <li>every list is bounded (<code>limit</code>, at most 5 000 rows); the trade audit pages
@@ -8279,13 +8366,38 @@ its steps.</p>
 <td style="text-align: right;">0.12 s / 1.2 s</td>
 <td style="text-align: right;">—</td>
 </tr>
+<tr>
+<td>Netting, venue / one gateway (Explain mode)</td>
+<td>30 s</td>
+<td style="text-align: right;">9 ms / 3 ms</td>
+<td style="text-align: right;">5 kB / 0.3 kB</td>
+</tr>
+<tr>
+<td>Who traded with whom (Explain mode, ADMIN)</td>
+<td>30 s</td>
+<td style="text-align: right;">19 ms</td>
+<td style="text-align: right;">89 kB</td>
+</tr>
+<tr>
+<td>A position replay (one gateway, one symbol, one day)</td>
+<td>on demand</td>
+<td style="text-align: right;">4 ms</td>
+<td style="text-align: right;">3 kB</td>
+</tr>
 </tbody>
 </table>
+<p>On a busier day — 100 000 trades in one day, 40 gateways — the venue
+netting and who traded with whom take about 0.1 s each (130 kB for the
+latter, which grows with the number of buyer/seller pairs), a gateway's own
+netting 7 ms, and a replay of 250 fills 16 ms. Only an ADMIN's Overview in
+Explain mode polls the two venue-wide ones; switching Explain off stops
+them.</p>
 <h2 id="what-it-leaves-out">What it leaves out<a class="headerlink" href="#what-it-leaves-out" title="Permanent link">&para;</a></h2>
 <p>Release 1.0 shows only what the system records. There is no margin,
-collateral, equity, buying power, credit limit, open interest, intraday P&amp;L
-history, client (sub-)account, or market-maker presence/compliance figure,
-and no way to change anything. The design and the conditions for any of
+collateral, equity, buying power, credit limit, intraday P&amp;L history, client
+(sub-)account, or market-maker presence/compliance figure, and no way to
+change anything. The one open-interest-like figure, the long and short
+totals per symbol in Explain mode, is a sum of stored positions. The design and the conditions for any of
 these are in <code>docs-design/EduMatcher-Clearing-GUI.md</code> §10 and §13.</p>
 
 

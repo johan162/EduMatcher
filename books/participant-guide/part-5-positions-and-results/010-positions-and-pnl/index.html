@@ -9844,6 +9844,10 @@ your own rows instead. A read-only key reads no clearing data.</p>
 <td>Your current positions at their marks</td>
 </tr>
 <tr>
+<td><code>GET /api/v1/clearing/position-replay</code></td>
+<td>How one of your positions was built through a day (<code>symbol</code> required, <code>date</code> optional): each fill, what it did (<code>open</code>, <code>add</code>, <code>reduce</code>, <code>close</code>, <code>flip</code>) and the average cost and realized P&amp;L after it, by clearing's own rules</td>
+</tr>
+<tr>
 <td><code>GET /api/v1/clearing/exposure</code></td>
 <td>Net and gross notional and P&amp;L per position</td>
 </tr>
@@ -9854,6 +9858,10 @@ your own rows instead. A read-only key reads no clearing data.</p>
 <tr>
 <td><code>GET /api/v1/clearing/daily</code></td>
 <td>Per day and symbol: traded quantities and values, realized P&amp;L, end-of-day position</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/clearing/netting</code></td>
+<td>One day's trades netted: what you bought and sold, and the one net amount you are left with (bought − sold; positive is what you pay). Not your settlement, which moves your change in P&amp;L</td>
 </tr>
 <tr>
 <td><code>GET /api/v1/clearing/close-snapshots</code></td>

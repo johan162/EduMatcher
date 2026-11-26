@@ -2105,6 +2105,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#explain-mode-where-each-number-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explain mode: where each number comes from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-the-numbers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7918,6 +7929,7 @@
 <li>Why a fill can take a few seconds to appear, and how far back trades go</li>
 <li>What an EOD settlement and the derived balance are — and are not</li>
 <li>How to tell "nothing there" from "could not be read"</li>
+<li>How Explain mode shows where each number comes from</li>
 </ul>
 </div>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
@@ -8018,6 +8030,38 @@ your quotes against, not a score of how you quoted.</p>
   <code>2026-11-26 09:00:01 CET</code>. If the exchange does not tell the GUI its
   timezone, times are shown in UTC and say so.</li>
 </ul>
+<h2 id="explain-mode-where-each-number-comes-from">Explain mode: where each number comes from<a class="headerlink" href="#explain-mode-where-each-number-comes-from" title="Permanent link">&para;</a></h2>
+<p>The <strong>Explain</strong> button in the top bar is on when you first log in, and the
+GUI remembers your choice. It adds, beside the tables, how each figure is
+made. Switch it off for the plain tables.</p>
+<ul>
+<li><strong>Under every tile</strong>, its explanation in words.</li>
+<li><strong>My Positions.</strong> The arrow at the start of a row opens a card that writes
+  out the row's unrealized P&amp;L with its own numbers — <em>Long 110 at average
+  187.3333, mark 188.00: (188.00 − 187.3333) × 110 = 73.33 gain</em> — draws the
+  average cost and the mark on a price line, and splits the total into
+  realized and unrealized. <strong>Show how this position was built</strong> replays the
+  position's latest trading day fill by fill: a small chart of the position
+  and of the fill prices against the average cost, and a table of the fills.
+  Select a fill to have it written out — <em>Sold 40 of a 150 long at 188.00:
+  realized (188.00 − 187.3333) × 40 = 26.67 gain; average cost unchanged,
+  now 110 long.</em> The replay is made by the clearing server with
+  <code>pm-clearing</code>'s own rules, so it ends exactly where your position is; if
+  it ever does not, a red warning shows both values — report it.</li>
+<li><strong>My Trades.</strong> The arrow on a trade follows it: when the exchange matched
+  it, when clearing received it, what it did to your position, your day's
+  row, and <code>pm-eod</code>'s settlement of that day (or <em>not settled yet</em>).</li>
+<li><strong>Daily &amp; Close History.</strong> <em>Money in and out by day</em>: what you bought
+  (money out) and sold (money in) each day, and the net left to pay or
+  receive. The arrow on a daily row replays that day.</li>
+<li><strong>EOD Settlement.</strong> <em>Netting</em>: on the latest trading day, what you bought
+  and sold and the one amount your trades net to — <em>you pay 27,015.00</em>. That
+  is cash, buys set against sells. It is <strong>not</strong> your settlement, which moves
+  the day's change in P&L; the two are on the same screen to tell them apart.</li>
+</ul>
+<p>Whatever the setting, a position says <em>long</em>, <em>short</em> or <em>flat</em> beside its
+quantity, a P&amp;L says <em>gain</em> or <em>loss</em> beside its amount, and an empty table
+says what would fill it and which chapter explains it.</p>
 <h2 id="reading-the-numbers">Reading the numbers<a class="headerlink" href="#reading-the-numbers" title="Permanent link">&para;</a></h2>
 <p><strong>Ticks and decimals.</strong> Clearing stores money in ticks of each symbol's
 precision: 18 750 ticks of a 2-decimal symbol is 187.50, while 10 862 ticks
@@ -8102,6 +8146,11 @@ settlement. See <a href="../../part-5-positions-and-results/020-your-end-of-day-
 <td>A fill is missing</td>
 <td>It may not be committed yet</td>
 <td>Wait 5 seconds</td>
+</tr>
+<tr>
+<td><em>The replay ends at …, but clearing's daily row holds …: report this.</em></td>
+<td>Clearing's replay of the day disagrees with its own stored row: a ledger fault</td>
+<td>Tell the operator, with the symbol and the date</td>
 </tr>
 </tbody>
 </table>

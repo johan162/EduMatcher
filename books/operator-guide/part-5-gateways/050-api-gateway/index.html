@@ -8910,6 +8910,11 @@ chapter.</p>
 <td>Current positions at their marks</td>
 </tr>
 <tr>
+<td><code>/clearing/position-replay</code></td>
+<td>ADMIN, or own</td>
+<td>One position replayed fill by fill through one day, checked against the ledger</td>
+</tr>
+<tr>
 <td><code>/clearing/exposure</code></td>
 <td>ADMIN, or own</td>
 <td>Net/gross notional and P&amp;L per position</td>
@@ -8932,7 +8937,17 @@ chapter.</p>
 <tr>
 <td><code>/clearing/symbols</code></td>
 <td>ADMIN</td>
-<td>Activity and aggregate net position per symbol</td>
+<td>Activity, aggregate net position and its long and short sides per symbol</td>
+</tr>
+<tr>
+<td><code>/clearing/flows</code></td>
+<td>ADMIN</td>
+<td>Who bought from whom on one day, per gateway pair</td>
+</tr>
+<tr>
+<td><code>/clearing/netting</code></td>
+<td>ADMIN, or own</td>
+<td>One day's trades against the net amount each gateway is left with</td>
 </tr>
 <tr>
 <td><code>/clearing/session-events</code></td>

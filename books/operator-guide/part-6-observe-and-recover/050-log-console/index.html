@@ -3796,6 +3796,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Issues">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting-the-levels-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting the levels in .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -8651,7 +8668,7 @@ See <code>web-apps/log-gui/README.md</code> for the full explanation.</p>
 <p>The window is a fixed shell: a <strong>top bar</strong> carrying global state, a <strong>six-item
 navigation rail</strong> on the left, and the active view filling the rest.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>┌────────────────────────────────────────────────────────────────────┐
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>│ EduMatcher pm-log v1.0  ● log-srv up   ⚠ 3 unacked        ☾        │
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>│ EduMatcher pm-log v1.0  ● log-srv up   ⚠ 3 unacked errors ☾        │
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>├──────┬─────────────────────────────────────────────────────────────┤
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>│ ▣ Dash│                                                             │
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>│ ▤ Logs│                                                             │
@@ -8667,7 +8684,11 @@ navigation rail</strong> on the left, and the active view filling the rest.</p>
 <li><strong>Source state dot</strong> — green <em>log-srv up</em>, yellow <em>reconnecting…</em>, red
   <em>log server down</em> or <em>log.db unavailable</em>. The two red states are distinct
   because they mean different things and have different fixes.</li>
-<li><strong>Unacked count</strong> — a link to Alerts, styled red when non-zero. Also
+<li><strong>Unacked count</strong> — a link to Alerts, styled red when non-zero. It counts
+  only issues at <code>ISSUES_ALERT_LEVEL</code> or above and says so: <code>⚠ 3 unacked
+  errors</code> at the default <code>ERROR</code>, <code>unacked warnings+errors</code> at <code>WARNING</code>.
+  The Alerts list shows <code>ISSUES_MIN_LEVEL</code> and above (default <code>WARNING</code>),
+  so it can hold more. Also
   mirrored as a badge on the Alerts rail item.</li>
 <li><strong>Session indicator</strong> — the exchange session phase as a coloured badge, the
   next phase and the time left to it (<code>Continuous → Closing Auction in 03:08</code>),
@@ -9116,7 +9137,7 @@ instead; it reads the same database with no HTTP layer in between.</p>
 <tr>
 <td><code>ISSUES_ALERT_LEVEL</code></td>
 <td><code>ERROR</code></td>
-<td>Minimum issue level counted as "unacked" in the top bar and the Alerts badge</td>
+<td>Minimum issue level counted in the top-bar <code>⚠ N unacked …</code> link and the Alerts rail badge; the link's last word names it (<code>errors</code>, <code>warnings+errors</code>, …)</td>
 </tr>
 </tbody>
 </table>
@@ -9132,6 +9153,18 @@ what is <em>counted as demanding attention</em>. Setting <code>ISSUES_ALERT_LEVE
 below <code>ISSUES_MIN_LEVEL</code> is legal but pointless — nothing below the
 tracking floor exists to be counted.</p>
 </div>
+<h4 id="setting-the-levels-in-env">Setting the levels in <code>.env</code><a class="headerlink" href="#setting-the-levels-in-env" title="Permanent link">&para;</a></h4>
+<p>In the container stack both levels come from the stack's <code>.env</code> file (next to
+<code>compose.yaml</code>; <code>~/.edumatcher/.env</code> after the one-line installer). The
+compose file passes them to the log-gui container, and the bridge reads them
+once at startup. To count warnings in the top bar as well:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># in .env</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">ISSUES_ALERT_LEVEL</span><span class="o">=</span>WARNING
+</code></pre></div>
+<p>Then recreate the containers (<code>./edumatcher.sh restart</code>, or <code>make up-all</code> in a
+source checkout) and reload the page. The top-bar link now reads
+<code>⚠ N unacked warnings+errors</code>. If the line is missing from <code>.env</code>, the
+defaults (<code>WARNING</code> / <code>ERROR</code>) apply.</p>
 <h3 id="thresholds">Thresholds<a class="headerlink" href="#thresholds" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -9356,8 +9389,8 @@ read-only — enforced by the <code>:ro</code> mount in the container deployment
 </tr>
 <tr>
 <td><strong>Top-bar unacked count differs from the Alerts list</strong></td>
-<td>Expected — the badge counts <code>ISSUES_ALERT_LEVEL</code> and above; Alerts lists <code>WARNING</code> and above</td>
-<td>Set <code>ISSUES_ALERT_LEVEL=WARNING</code> if you want them to agree.</td>
+<td>Expected — the badge counts <code>ISSUES_ALERT_LEVEL</code> and above (default <code>ERROR</code>); Alerts lists <code>ISSUES_MIN_LEVEL</code> and above (default <code>WARNING</code>)</td>
+<td>Set <code>ISSUES_ALERT_LEVEL</code> to the same level as <code>ISSUES_MIN_LEVEL</code> in <code>.env</code> if you want them to agree (see <a href="#setting-the-levels-in-env">Setting the levels in <code>.env</code></a>).</td>
 </tr>
 <tr>
 <td><strong>Warnings never appear in Alerts</strong></td>
