@@ -9,7 +9,8 @@ import { useAuthStore } from "@/store/useAuthStore";
 /*
  * Routes, by role (design §7.1):
  *
- *   ADMIN                 /overview, /participants[/:gatewayId/*], /symbols,
+ *   ADMIN                 /overview, /participants[/:gatewayId/*] (drawer),
+ *                         /symbols,
  *                         /events, /gateway-sessions, /reconciliation, /eod
  *   TRADER, MARKET_MAKER  /me/positions, /me/trades, /me/history,
  *                         /me/settlement, /me/sessions
@@ -29,7 +30,6 @@ const SessionsPage = named(() => import("@/pages/me/MyPages"), "MySessionsPage")
 const ObligationsPage = named(() => import("@/pages/me/ObligationsPage"), "ObligationsPage");
 const OverviewPage = named(() => import("@/pages/admin/OverviewPage"), "OverviewPage");
 const ParticipantsPage = named(() => import("@/pages/admin/ParticipantsPage"), "ParticipantsPage");
-const ParticipantDetailPage = named(() => import("@/pages/admin/ParticipantDetailPage"), "ParticipantDetailPage");
 const SymbolsPage = named(() => import("@/pages/admin/SymbolsPage"), "SymbolsPage");
 const EventsPage = named(() => import("@/pages/admin/EventsPage"), "EventsPage");
 const GatewaySessionsPage = named(() => import("@/pages/admin/GatewaySessionsPage"), "GatewaySessionsPage");
@@ -64,7 +64,7 @@ export default function App() {
         <Route element={<RoleGuard roles={["ADMIN"]} />}>
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/participants" element={<ParticipantsPage />} />
-          <Route path="/participants/:gatewayId/*" element={<ParticipantDetailPage />} />
+          <Route path="/participants/:gatewayId/*" element={<ParticipantsPage />} />
           <Route path="/symbols" element={<SymbolsPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/gateway-sessions" element={<GatewaySessionsPage />} />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { PAGE_SIZES, usePageSizeStore } from "@/store/usePageSizeStore";
 import { pagination, TablePager } from "./TablePager";
@@ -33,6 +33,10 @@ interface DataTableProps<R> {
   sortable?: boolean;
   /** The server holds rows beyond `rows` (a cursor-paged list, e.g. Trades). */
   more?: MoreRowsSource;
+  /** Makes each row open something: clickable, and Enter/Space when focused. */
+  onRowClick?: (row: R) => void;
+  /** The `rowKey` of the row whose item is open (marked `aria-selected`). */
+  selectedKey?: string;
 }
 
 /** The next server page of a cursor-paged list, fetched when paging needs it. */
@@ -60,7 +64,17 @@ export interface MoreRowsSource {
  * the loaded rows asks for the next server page, and the page shows once it
  * has arrived. "All" means all loaded rows.
  */
-export function DataTable<R>({ caption, columns, rows, rowKey, initialSort, sortable = true, more }: DataTableProps<R>) {
+export function DataTable<R>({
+  caption,
+  columns,
+  rows,
+  rowKey,
+  initialSort,
+  sortable = true,
+  more,
+  onRowClick,
+  selectedKey,
+}: DataTableProps<R>) {
   const [sort, setSort] = useState<SortState | null>(sortable ? (initialSort ?? null) : null);
   const [requestedPage, setRequestedPage] = useState(0);
   const pageSize = usePageSizeStore((s) => s.pageSize);
@@ -147,7 +161,24 @@ export function DataTable<R>({ caption, columns, rows, rowKey, initialSort, sort
           </thead>
           <tbody>
             {shown.map((row) => (
-              <tr key={rowKey(row)} className="border-t border-line hover:bg-raised">
+              <tr
+                key={rowKey(row)}
+                className={`border-t border-line hover:bg-raised ${onRowClick ? "cursor-pointer" : ""} ${
+                  onRowClick && rowKey(row) === selectedKey ? "bg-accent/15" : ""
+                }`}
+                {...(onRowClick && {
+                  "data-row-key": rowKey(row),
+                  tabIndex: 0,
+                  "aria-selected": rowKey(row) === selectedKey,
+                  onClick: () => onRowClick(row),
+                  onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onRowClick(row);
+                    }
+                  },
+                })}
+              >
                 {columns.map((c) => (
                   <td key={c.id} className={`px-2 py-1 ${c.align === "right" ? "num text-right" : ""}`}>
                     {c.cell(row)}

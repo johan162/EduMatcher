@@ -11,7 +11,7 @@ import { FilterForm, filterDate, filterText, type FilterValues } from "@/compone
 import { QueryState } from "@/components/shared/QueryState";
 import { useTrades } from "@/api/queries";
 import type { TradeRowT } from "@/api/schemas";
-import { qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
+import { gatewayColumn, qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
 
 const COLUMNS: Column<TradeRowT>[] = [
   textColumn("trade_id", "Trade id", (r) => r.trade_id, "The engine's trade id: run number and sequence within the run"),
@@ -21,8 +21,8 @@ const COLUMNS: Column<TradeRowT>[] = [
   textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument traded"),
   qtyColumn("qty", "Qty", (r) => r.quantity, "Shares traded"),
   tickColumn("price", "Price", (r) => r.price_ticks, { title: "The execution price" }),
-  textColumn("buyer", "Buyer", (r) => r.buy_gateway_id, "The buying gateway; a dash when it is not you (a participant sees only its own side)"),
-  textColumn("seller", "Seller", (r) => r.sell_gateway_id, "The selling gateway; a dash when it is not you (a participant sees only its own side)"),
+  gatewayColumn("buyer", "Buyer", (r) => r.buy_gateway_id, "The buying gateway; a dash when it is not you (a participant sees only its own side)"),
+  gatewayColumn("seller", "Seller", (r) => r.sell_gateway_id, "The selling gateway; a dash when it is not you (a participant sees only its own side)"),
   textColumn("aggressor", "Aggressor", (r) => r.aggressor_side, "The side whose order took liquidity, as the engine sent it; not meaningful for auctions"),
   textColumn("match", "Match type", (r) => r.match_type, "How the trade matched: continuous trading, or an auction uncross"),
   textColumn("msg", "Audit msg id", (r) => r.msg_id, "The id of the trade message in the audit trail, for looking it up there"),

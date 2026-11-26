@@ -9,6 +9,7 @@
 import type { Column } from "@/components/shared/DataTable";
 import { formatQty, formatTicks, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
 import { Time } from "@/components/shared/Time";
+import { GatewayId } from "./GatewayId";
 
 interface TickOptions {
   /** Extra decimals beyond the symbol's precision (averages). */
@@ -58,6 +59,17 @@ export function textColumn<R>(id: string, header: string, value: (row: R) => str
     header,
     title,
     cell: (row) => value(row) ?? "—",
+    sortValue: value,
+  };
+}
+
+/** A gateway id; for ADMIN a link that opens that participant's drawer. */
+export function gatewayColumn<R>(id: string, header: string, value: (row: R) => string | null, title: string): Column<R> {
+  return {
+    id,
+    header,
+    title,
+    cell: (row) => <GatewayId id={value(row)} />,
     sortValue: value,
   };
 }

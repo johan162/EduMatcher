@@ -10,10 +10,10 @@ import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows } from "@/components/shared/Ui";
 import { useGatewaySessions } from "@/api/queries";
 import type { GatewaySessionRowT } from "@/api/schemas";
-import { textColumn, timeColumn } from "./columns";
+import { gatewayColumn, textColumn, timeColumn } from "./columns";
 
 const COLUMNS: Column<GatewaySessionRowT>[] = [
-  textColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway that connected"),
+  gatewayColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway that connected"),
   timeColumn("connected", "Connected", (r) => r.connected_at_ns, "When clearing saw the gateway log in"),
   timeColumn("disconnected", "Disconnected", (r) => r.disconnected_at_ns, "When clearing saw it leave; a dash: still connected, or the disconnect was not seen"),
   textColumn("reason", "Reason", (r) => r.disconnect_reason, "Why the session ended, as the gateway reported it"),

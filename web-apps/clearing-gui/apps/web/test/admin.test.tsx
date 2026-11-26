@@ -91,12 +91,12 @@ describe("Clearing Overview", () => {
     expect(panel.textContent).toMatch(/pm-clearing process.*not answering.*no reply within 500ms/);
   });
 
-  it("lists participants with links to their drill-down", async () => {
+  it("lists participants whose rows open their drill-down", async () => {
     stubApi(overview());
     renderApp("/overview");
     const table = await screen.findByRole("table", { name: "Participants" });
-    const link = within(table).getByRole("link", { name: "TRADER01" });
-    expect(link.getAttribute("href")).toBe("/participants/TRADER01");
+    fireEvent.click(within(table).getByText("TRADER01").closest("tr")!);
+    expect(currentPath()).toBe("/participants/TRADER01");
   });
 
   it("shows recent PHASE and EOD events", async () => {

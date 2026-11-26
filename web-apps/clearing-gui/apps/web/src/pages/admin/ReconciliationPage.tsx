@@ -13,14 +13,14 @@ import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterForm, filterText, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows, PageHeader } from "@/components/shared/Ui";
-import { qtyColumn, textColumn, tickColumn } from "@/components/views/columns";
+import { gatewayColumn, qtyColumn, textColumn, tickColumn } from "@/components/views/columns";
 import { useReconciliation, type Params } from "@/api/queries";
 import type { ReconciliationRowT } from "@/api/schemas";
 
 const COLUMNS: Column<ReconciliationRowT>[] = [
   textColumn("date", "Date", (r) => r.trade_date, "The trading day compared"),
   textColumn("side", "Side", (r) => r.side, "BUY or SELL: each side is compared on its own"),
-  textColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway"),
+  gatewayColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway"),
   textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
   qtyColumn("raw_qty", "Raw qty", (r) => r.raw_qty, "Shares counted from the retained raw trades"),
   qtyColumn("summary_qty", "Daily-row qty", (r) => r.summary_qty, "Shares in clearing's daily row for the day"),

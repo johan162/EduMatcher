@@ -1,11 +1,14 @@
 /**
- * One participant gateway (ADMIN drill-down): its totals, and the same
- * views a participant sees of itself, here for the named gateway. Every
- * request carries `gateway`, which the API allows only for ADMIN.
+ * One participant gateway (ADMIN drill-down), in a drawer over the
+ * Participants list (CG21): its totals, and the same views a participant sees
+ * of itself, here for the named gateway. Every request carries `gateway`,
+ * which the API allows only for ADMIN. The tabs are routes under
+ * `/participants/:gatewayId`, so each is a link that can be shared.
  */
-import { NavLink, Route, Routes, useParams } from "react-router-dom";
+import { NavLink, Route, Routes } from "react-router-dom";
+import { Drawer } from "@/components/shared/Drawer";
 import { QueryState } from "@/components/shared/QueryState";
-import { PageHeader, Stat } from "@/components/shared/Ui";
+import { Stat } from "@/components/shared/Ui";
 import { HistoryView } from "@/components/views/HistoryView";
 import { PositionsView } from "@/components/views/PositionsView";
 import { SessionsView } from "@/components/views/SessionsView";
@@ -14,6 +17,7 @@ import { TradesView } from "@/components/views/TradesView";
 import { useParticipant } from "@/api/queries";
 import { formatCurrency } from "@/lib/money";
 import { Time } from "@/components/shared/Time";
+import { participantPath } from "./GatewayId";
 
 const TABS = [
   { to: "", label: "Positions" },
@@ -23,12 +27,11 @@ const TABS = [
   { to: "sessions", label: "Sessions" },
 ];
 
-export function ParticipantDetailPage() {
-  const gatewayId = (useParams()["gatewayId"] ?? "").toUpperCase();
+export function ParticipantDrawer({ gatewayId, onClose }: { gatewayId: string; onClose: () => void }) {
   const detail = useParticipant(gatewayId);
   return (
-    <>
-      <PageHeader title={`Participant ${gatewayId}`}>Current totals in display currency; the tabs read the same gateway.</PageHeader>
+    <Drawer kind="Participant" title={gatewayId} onClose={onClose}>
+      <p className="mb-3 text-xs text-fg-dim">Current totals in display currency; the tabs read the same gateway.</p>
       <QueryState query={detail} skeletonColumns={5}>
         {(d) => (
           <div className="mb-4 flex flex-wrap gap-3">
@@ -49,7 +52,7 @@ export function ParticipantDetailPage() {
         {TABS.map((t) => (
           <NavLink
             key={t.label}
-            to={`/participants/${encodeURIComponent(gatewayId)}${t.to ? `/${t.to}` : ""}`}
+            to={`${participantPath(gatewayId)}${t.to ? `/${t.to}` : ""}`}
             end
             className={({ isActive }) =>
               `px-3 py-1.5 text-sm ${isActive ? "border-b-2 border-accent text-fg" : "text-fg-dim hover:text-fg"}`
@@ -66,6 +69,6 @@ export function ParticipantDetailPage() {
         <Route path="settlement" element={<SettlementView mode="gateway" gateway={gatewayId} caption={`${gatewayId} settlements`} />} />
         <Route path="sessions" element={<SessionsView gateway={gatewayId} label={`${gatewayId} gateway sessions`} />} />
       </Routes>
-    </>
+    </Drawer>
   );
 }

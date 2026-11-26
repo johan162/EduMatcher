@@ -1270,7 +1270,7 @@ Suggested order is the table order: CG18 is the foundation the others use.
 | 18 | CG18 | Shared table: pager, sort affordance, required tooltips; `Stat` tooltip | — | 1 d | ☑ | 2026-11-26 |
 | 19 | CG19 | Venue session timezone on every timestamp | — | 0.5 d | ☑ | 2026-11-26 |
 | 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☑ | 2026-11-26 |
-| 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☐ | |
+| 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☑ | 2026-11-26 |
 | 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☐ | |
 | 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☐ | |
 | 24 | CG24 | Help drawer and the operator/participant guide chapters | CG18–CG23 | 0.5 d | ☐ | |
@@ -1447,6 +1447,29 @@ typecheck and `a11y.test.tsx` green.
   the drawer open.
 - **Exit:** `routing.test.tsx` and `admin.test.tsx` updated; no route renders
   the old page.
+- **Done 2026-11-26.** `test/participantDrawer.test.tsx` (13) failed first.
+  `components/shared/Drawer.tsx` (dash-gui's pattern) is portalled into a
+  drawer layer that `AppShell` now has beside the scrolling `main`, so the
+  drawer sits under the top bar and does not scroll with the page;
+  `w-[90%] max-w-[110rem]`. `ParticipantDetailPage` became
+  `components/views/ParticipantDrawer.tsx` (git mv); both participant routes
+  render `ParticipantsPage`, which draws the list and, with `:gatewayId`, the
+  drawer. `DataTable` got `onRowClick`/`selectedKey` (`tabIndex=0`,
+  Enter/Space, `aria-selected`, highlight, `data-row-key`); closing returns
+  focus to the row via `data-row-key` (only if that row is on the shown
+  page). `GatewayId`/`gatewayColumn` link ids for ADMIN only, never
+  `EXCHANGE`: Trades buyer/seller, Reconciliation, Gateway Sessions, EOD
+  settlement and balance accounts.
+  **Found and fixed:** the shell's error boundary was keyed by the full path,
+  so opening or closing a drawer remounted the list (losing sort and page).
+  It is now keyed by screen (`screenKey`: every `/participants/...` is one
+  screen); a test proves the sort survives, and fails with the old key.
+  **Axe:** `role="dialog"` is not allowed on `aside`, and a `header` in the
+  drawer is a second banner; both are `div`s (dash-gui's drawer has the same
+  two, but dash-gui runs no axe on it). `aria-selected` on table rows passes.
+  The drawer heading reads "Participant TRADER01" (kind as a small label), so
+  the dialog's name and the existing heading-based tests are unchanged.
+  Suite 226 (was 213), typecheck and build green.
 
 ### CG22 — Searchable Gateway / Symbol / Account filters
 

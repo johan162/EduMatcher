@@ -21,6 +21,7 @@ import { Badge, MoreRows, Panel, Stat } from "@/components/shared/Ui";
 import { useBalances, useSettlements } from "@/api/queries";
 import type { BalanceRowT, EodRunT, SettlementRowT } from "@/api/schemas";
 import { formatMinor, signClass } from "@/lib/money";
+import { GatewayId } from "./GatewayId";
 import { textColumn } from "./columns";
 
 const EXCHANGE = "EXCHANGE";
@@ -61,7 +62,7 @@ function settlementColumns(mode: Mode): Column<SettlementRowT>[] {
       id: "account",
       header: "Account",
       title: "The participant gateway settled with; EXCHANGE holds the rounding residual",
-      cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : r.account),
+      cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : <GatewayId id={r.account} />),
       sortValue: (r) => r.account,
     },
     {
@@ -129,7 +130,7 @@ const BALANCE_COLUMNS: Column<BalanceRowT>[] = [
     id: "account",
     header: "Account",
     title: "The participant gateway; EXCHANGE holds the rounding residual",
-    cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : r.account),
+    cell: (r) => (r.account === EXCHANGE ? `${EXCHANGE} (rounding residual account)` : <GatewayId id={r.account} />),
     sortValue: (r) => r.account,
   },
   minorColumn("opening", "Opening balance", (r) => r.opening_balance_minor, "From pm-eod's roster; 0 when the account is not on it"),
