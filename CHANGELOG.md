@@ -1,3 +1,34 @@
+## [v0.84.3] - 2026-11-26
+
+Release Type: minor
+
+### 📋 Summary
+This release improves Clearing GUI navigation, tables, and operational overview. It also makes log alerts easier to distinguish across dates.
+
+### ⚠️ Breaking Changes
+- Changed log-alert issue keys to include the session date; existing acknowledgements no longer match the new keys, and integrations using stored keys must use the new format
+
+### ✨ Additions
+- Added a Clearing Overview section highlighting conditions that need attention
+- Added searchable Gateway, Symbol, and Account filters and a participant-details drawer
+
+### 🚀 Improvements
+- Improved Clearing GUI tables with paging, page-size choices, sorting indicators, and explanatory tooltips
+- Consolidated the Positions view and improved Trades paging
+- Displayed Clearing GUI times on the venue's session clock
+- Added dates to log-alert cards and grouped recurring issues by session-calendar day
+
+### 🐛 Bug Fixes
+- Fixed Clearing Overview stale-write warnings being affected by browser clock differences or failing to update when data remains unchanged
+
+### 📚 Documentation
+- Updated the Clearing GUI operator and front-end guides and in-app help for the new workflows
+- Updated the log-console guide for daily alert grouping and acknowledgements
+
+### 🛠 Internal
+- Added regression coverage for Clearing GUI tables, filters, time zones, participant details, and overview checks, and for daily log-alert grouping
+- Updated website deployment tooling to upload to the external site before GitHub Pages
+
 ## [v0.84.2] - 2026-11-25
 
 Release Type: patch
