@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { PAGE_SIZES, usePageSizeStore } from "@/store/usePageSizeStore";
 import { pagination, TablePager } from "./TablePager";
@@ -9,8 +9,8 @@ const SMALLEST_PAGE = Math.min(...PAGE_SIZES.filter((n) => n > 0));
 export interface Column<R> {
   id: string;
   header: string;
-  /** Longer explanation, shown as the header's tooltip. */
-  title?: string;
+  /** What the column shows and where it comes from: the header's tooltip. */
+  title: string;
   cell: (row: R) => ReactNode;
   /** The value sorting compares; a column without one is not sortable. */
   sortValue?: (row: R) => number | string | null;
@@ -31,6 +31,15 @@ interface DataTableProps<R> {
   initialSort?: SortState;
   /** False keeps the rows in the API's order: no header sorts. */
   sortable?: boolean;
+  /** The server holds rows beyond `rows` (a cursor-paged list, e.g. Trades). */
+  more?: MoreRowsSource;
+}
+
+/** The next server page of a cursor-paged list, fetched when paging needs it. */
+export interface MoreRowsSource {
+  available: boolean;
+  loading: boolean;
+  load: () => void;
 }
 
 /**
@@ -46,8 +55,12 @@ interface DataTableProps<R> {
  * goes back to the first on a new sort or page size. A new filter is a new
  * query, which `QueryState` shows as a skeleton first, so the table remounts
  * on page 1. A table that fits the smallest page has no pager.
+ *
+ * With `more`, the rows are the loaded part of a server-paged list: Next past
+ * the loaded rows asks for the next server page, and the page shows once it
+ * has arrived. "All" means all loaded rows.
  */
-export function DataTable<R>({ caption, columns, rows, rowKey, initialSort, sortable = true }: DataTableProps<R>) {
+export function DataTable<R>({ caption, columns, rows, rowKey, initialSort, sortable = true, more }: DataTableProps<R>) {
   const [sort, setSort] = useState<SortState | null>(sortable ? (initialSort ?? null) : null);
   const [requestedPage, setRequestedPage] = useState(0);
   const pageSize = usePageSizeStore((s) => s.pageSize);
@@ -68,9 +81,20 @@ export function DataTable<R>({ caption, columns, rows, rowKey, initialSort, sort
     });
   }, [rows, columns, sort]);
 
-  const paged = sorted.length > SMALLEST_PAGE;
+  const moreAvailable = more?.available ?? false;
+  const paged = sorted.length > SMALLEST_PAGE || moreAvailable;
   const { pageCount, pageIndex } = pagination(sorted.length, paged ? pageSize : 0, requestedPage);
   const shown = paged && pageSize ? sorted.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize) : sorted;
+
+  // A requested page beyond the loaded rows: fetch the next server page.
+  // Keyed on the flag alone: one request each time it turns true, whatever
+  // object the caller passes on each render.
+  const needMore = moreAvailable && !more!.loading && pageSize > 0 && requestedPage * pageSize >= rows.length;
+  const load = useRef(more?.load);
+  load.current = more?.load;
+  useEffect(() => {
+    if (needMore) load.current?.();
+  }, [needMore]);
 
   function toggle(id: string) {
     setSort((prev) =>
@@ -141,6 +165,8 @@ export function DataTable<R>({ caption, columns, rows, rowKey, initialSort, sort
           pageIndex={pageIndex}
           pageCount={pageCount}
           pageSize={pageSize}
+          more={moreAvailable}
+          loading={more?.loading ?? false}
           onPage={setRequestedPage}
           onPageSize={changePageSize}
         />

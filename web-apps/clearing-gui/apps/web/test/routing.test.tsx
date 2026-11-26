@@ -34,7 +34,6 @@ describe("login", () => {
     stubApi({
       "/api/v1/status": example("/api/v1/status"),
       "/api/v1/clearing/positions": example("/api/v1/clearing/positions"),
-      "/api/v1/clearing/exposure": example("/api/v1/clearing/exposure"),
     });
     renderApp("/login");
     await logIn("key-trader");

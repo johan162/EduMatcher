@@ -1269,7 +1269,7 @@ Suggested order is the table order: CG18 is the foundation the others use.
 |---|---|---|---|---|---|---|
 | 18 | CG18 | Shared table: pager, sort affordance, required tooltips; `Stat` tooltip | — | 1 d | ☑ | 2026-11-26 |
 | 19 | CG19 | Venue session timezone on every timestamp | — | 0.5 d | ☑ | 2026-11-26 |
-| 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☐ | |
+| 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☑ | 2026-11-26 |
 | 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☐ | |
 | 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☐ | |
 | 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☐ | |
@@ -1392,6 +1392,31 @@ typecheck and `a11y.test.tsx` green.
   rows triggers the second request and shows row 201.
 - **Exit:** `Column.title` and `Stat.title` are required and the build is
   green.
+- **Done 2026-11-26.** First failing: `test/tooltips.test.tsx` (17 screens
+  plus a Reconciliation run: every `columnheader` and `[data-stat-label]`
+  has a non-empty title), the merged-Positions and Trades-pager tests in
+  `myClearing.test.tsx`, and the "All events →" link in `admin.test.tsx`.
+  `Column.title` and `Stat.title` are required; the column builders take the
+  title as a required argument; texts follow the published contract's field
+  descriptions.
+  **Deviation (merged Positions):** not joined with `/exposure`. The API's
+  exposure query is pure arithmetic on the same ledger row
+  (`store.query_exposure`: `net_qty * mark_price`, `ABS(...)`,
+  `realized + unrealized`), so the table derives net/gross notional and total
+  P&L from each position row in its own ticks (`netNotional` in
+  `PositionsView.tsx`). Same numbers, no two polls to line up, one 5 s
+  request fewer; the "row missing from `/exposure`" case cannot arise. No
+  mark → dashes, not zeros (tested). `useExposure` and its test stubs are
+  removed; the `Exposure` schema stays for the contract test.
+  **Trades:** `DataTable` takes `more: {available, loading, load}`; Next past
+  the loaded rows sets the requested page, an effect keyed on that need calls
+  `fetchNextPage` once, and the page shows when it lands (the CG18 clamp holds
+  the view on the last loaded page meanwhile). Counts read "Rows 1–100 of
+  200+", "Page 1/2+"; Next is off while loading. `sortable={false}`, the order
+  is stated above the table, "Load more" is gone.
+  Also: the Overview's custom "Last EOD run" tile got its tooltip; the help
+  drawer's "positions and exposure" now says "positions at their marks".
+  Suite 213 (was 191), typecheck and build green.
 
 ### CG21 — Participant detail in a wide drawer
 
@@ -1450,8 +1475,10 @@ typecheck and `a11y.test.tsx` green.
 - **Needs attention:** two small tables side by side. *Largest losses*: the
   5 participants with the lowest total P&L below zero (from
   `/clearing/participants`, already polled). *Largest positions*: the 5
-  gateway/symbol rows with the highest gross notional (from `/exposure` without
-  a gateway, the ADMIN venue scope). Gross notional is per symbol in that
+  gateway/symbol rows with the highest gross notional (from `/positions`
+  without a gateway, the ADMIN venue scope, with CG20's `netNotional`; or
+  `/exposure?sort=gross_notional` — decide in the WP, whichever needs no
+  1 000-row cap caveat). Gross notional is per symbol in that
   symbol's own precision and converted to display currency before ranking,
   as `tickColumn` sorts; no cross-symbol sum. Rows open the CG21 drawer.
   Empty states: "No participant is at a loss" / "No open positions".

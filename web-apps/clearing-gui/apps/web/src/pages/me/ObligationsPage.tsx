@@ -19,7 +19,7 @@ function obligation(r: SymbolInfoT): string {
 }
 
 const COLUMNS: Column<SymbolInfoT>[] = [
-  textColumn("symbol", "Symbol", (r) => r.symbol),
+  textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
   textColumn("obligation", "Obligation", obligation, "Whether the engine enforces quote obligations for you on this symbol"),
   {
     id: "spread",

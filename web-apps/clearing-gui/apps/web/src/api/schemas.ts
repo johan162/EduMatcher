@@ -376,7 +376,6 @@ export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
 };
 
 export type PositionRowT = z.infer<typeof PositionRow>;
-export type ExposureRowT = z.infer<typeof ExposureRow>;
 export type TradeRowT = z.infer<typeof TradeRow>;
 export type DailyRowT = z.infer<typeof DailyRow>;
 export type CloseSnapshotRowT = z.infer<typeof CloseSnapshotRow>;

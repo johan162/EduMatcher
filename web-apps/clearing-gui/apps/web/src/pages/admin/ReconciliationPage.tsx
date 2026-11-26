@@ -18,16 +18,19 @@ import { useReconciliation, type Params } from "@/api/queries";
 import type { ReconciliationRowT } from "@/api/schemas";
 
 const COLUMNS: Column<ReconciliationRowT>[] = [
-  textColumn("date", "Date", (r) => r.trade_date),
-  textColumn("side", "Side", (r) => r.side),
-  textColumn("gateway", "Gateway", (r) => r.gateway_id),
-  textColumn("symbol", "Symbol", (r) => r.symbol),
-  qtyColumn("raw_qty", "Raw qty", (r) => r.raw_qty, "Counted from the retained raw trades"),
-  qtyColumn("summary_qty", "Daily-row qty", (r) => r.summary_qty),
-  qtyColumn("qty_diff", "Qty diff", (r) => r.qty_diff),
-  tickColumn("raw_value", "Raw value", (r) => r.raw_notional_ticks),
-  tickColumn("summary_value", "Daily-row value", (r) => r.summary_notional_ticks),
-  tickColumn("value_diff", "Value diff", (r) => r.notional_diff_ticks, { signed: true }),
+  textColumn("date", "Date", (r) => r.trade_date, "The trading day compared"),
+  textColumn("side", "Side", (r) => r.side, "BUY or SELL: each side is compared on its own"),
+  textColumn("gateway", "Gateway", (r) => r.gateway_id, "The participant gateway"),
+  textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
+  qtyColumn("raw_qty", "Raw qty", (r) => r.raw_qty, "Shares counted from the retained raw trades"),
+  qtyColumn("summary_qty", "Daily-row qty", (r) => r.summary_qty, "Shares in clearing's daily row for the day"),
+  qtyColumn("qty_diff", "Qty diff", (r) => r.qty_diff, "Raw qty − daily-row qty; anything but 0 is a discrepancy"),
+  tickColumn("raw_value", "Raw value", (r) => r.raw_notional_ticks, { title: "Quantity × price summed from the retained raw trades" }),
+  tickColumn("summary_value", "Daily-row value", (r) => r.summary_notional_ticks, { title: "The value in clearing's daily row for the day" }),
+  tickColumn("value_diff", "Value diff", (r) => r.notional_diff_ticks, {
+    signed: true,
+    title: "Raw value − daily-row value; anything but 0 is a discrepancy",
+  }),
 ];
 
 const FIELDS = [

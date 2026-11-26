@@ -26,10 +26,10 @@ import { formatCurrency } from "@/lib/money";
 import { useFormatNs } from "@/components/shared/Time";
 
 const RECENT_EVENT_COLUMNS: Column<SessionEventRowT>[] = [
-  timeColumn("ts", "Observed", (r) => r.ts_ns),
-  textColumn("date", "Trade date", (r) => r.trade_date),
-  textColumn("type", "Type", (r) => r.event_type),
-  textColumn("detail", "Detail", eventDetail),
+  timeColumn("ts", "Observed", (r) => r.ts_ns, "When clearing observed it; for a GAP, the trade after the gap"),
+  textColumn("date", "Trade date", (r) => r.trade_date, "The trading day the event belongs to"),
+  textColumn("type", "Type", (r) => r.event_type, "PHASE: a session phase change; EOD: the engine's end of day; GAP: trade ids jumped"),
+  textColumn("detail", "Detail", eventDetail, "The event's own payload, in words"),
 ];
 
 /** `1 trade`, `2 trades`. */
@@ -107,16 +107,36 @@ export function OverviewPage() {
             </p>
             <FeedGaps summary={s} />
             <div className="mb-5 flex flex-wrap gap-3">
-              <Stat label="Participants" value={s.participant_count} sub="gateways with a position row" />
-              <Stat label="Open positions" value={s.open_position_count} />
+              <Stat
+                label="Participants"
+                value={s.participant_count}
+                sub="gateways with a position row"
+                title="Gateways clearing holds a position row for: every gateway that has traded"
+              />
+              <Stat
+                label="Open positions"
+                value={s.open_position_count}
+                title="Gateway/symbol positions with a non-zero quantity, all gateways"
+              />
               <Stat
                 label="Venue realized P&L"
                 value={formatCurrency(s.realized_pnl)}
                 sub="all gateways, display currency"
+                title="Realized P&L of every position of every gateway, each converted with its own precision"
               />
-              <Stat label="Venue unrealized P&L" value={formatCurrency(s.unrealized_pnl)} sub="at current marks" />
+              <Stat
+                label="Venue unrealized P&L"
+                value={formatCurrency(s.unrealized_pnl)}
+                sub="at current marks"
+                title="Unrealized P&L of every open position at its mark, all gateways. Gateways trade with each other, so this is not a venue profit."
+              />
               <div className="flex min-w-[10rem] flex-col gap-0.5 rounded border border-line bg-panel px-3 py-2 text-xs">
-                <span data-stat-label className="text-[11px] uppercase tracking-wide text-fg-dim">
+                <span
+                  data-stat-label
+                  data-has-tooltip=""
+                  title="The trading day pm-eod last ran for, and how the run ended"
+                  className="cursor-help self-start text-[11px] uppercase tracking-wide text-fg-dim underline decoration-dotted underline-offset-2"
+                >
                   Last EOD run
                 </span>
                 {s.eod_db_available ? (
@@ -147,7 +167,14 @@ export function OverviewPage() {
       >
         <ParticipantsTable />
       </Panel>
-      <Panel title="Recent session events">
+      <Panel
+        title="Recent session events"
+        actions={
+          <Link to="/events" className="text-xs text-link hover:underline">
+            All events →
+          </Link>
+        }
+      >
         <QueryState query={events} isEmpty={(d) => d.events.length === 0} emptyTitle="No session events">
           {(d) => (
             <DataTable

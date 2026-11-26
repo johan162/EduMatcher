@@ -17,7 +17,6 @@ const C = "/api/v1/clearing";
 /** The only routes a screen may request repeatedly. */
 const POLLED = new Set([
   `${C}/positions`,
-  `${C}/exposure`,
   `${C}/summary`,
   `${C}/participants`,
   `${C}/participants/TRADER01`,
@@ -32,7 +31,6 @@ function api() {
     [`${C}/participants`]: example(`${C}/participants`),
     [`${C}/participants/TRADER01`]: example(`${C}/participants/{gateway_id}`),
     [`${C}/positions`]: example(`${C}/positions`),
-    [`${C}/exposure`]: example(`${C}/exposure`),
     [`${C}/trades`]: example(`${C}/trades`),
     [`${C}/daily`]: example(`${C}/daily`),
     [`${C}/close-snapshots`]: example(`${C}/close-snapshots`),

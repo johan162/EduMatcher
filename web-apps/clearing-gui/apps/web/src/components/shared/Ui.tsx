@@ -26,8 +26,8 @@ export function Panel({ title, children, actions }: { title: string; children: R
   );
 }
 
-/** A labelled figure; `title` explains it as the label's tooltip (dotted underline). */
-export function Stat({ label, value, sub, title }: { label: string; value: ReactNode; sub?: ReactNode; title?: string }) {
+/** A labelled figure; `title` explains it as the label's tooltip (dotted underline). Required: no figure goes unexplained. */
+export function Stat({ label, value, sub, title }: { label: string; value: ReactNode; sub?: ReactNode; title: string }) {
   return (
     <div className="flex min-w-[10rem] flex-col gap-0.5 rounded border border-line bg-panel px-3 py-2">
       <span

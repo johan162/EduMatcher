@@ -32,12 +32,16 @@ export function ParticipantDetailPage() {
       <QueryState query={detail} skeletonColumns={5}>
         {(d) => (
           <div className="mb-4 flex flex-wrap gap-3">
-            <Stat label="Realized P&L" value={formatCurrency(d.realized_pnl)} />
-            <Stat label="Unrealized P&L" value={formatCurrency(d.unrealized_pnl)} />
-            <Stat label="Total P&L" value={formatCurrency(d.total_pnl)} />
-            <Stat label="Open positions" value={`${d.open_position_count} of ${d.position_count}`} />
-            <Stat label="Last update" value={<Time ns={d.last_update_ts_ns} />} />
-            <Stat label="Latest close" value={d.latest_close_date ?? "—"} />
+            <Stat label="Realized P&L" value={formatCurrency(d.realized_pnl)} title="Realized P&L of all the gateway's positions, in display currency" />
+            <Stat label="Unrealized P&L" value={formatCurrency(d.unrealized_pnl)} title="Unrealized P&L of its open positions at their marks, in display currency" />
+            <Stat label="Total P&L" value={formatCurrency(d.total_pnl)} title="Realized + unrealized P&L, in display currency" />
+            <Stat
+              label="Open positions"
+              value={`${d.open_position_count} of ${d.position_count}`}
+              title="Positions with a non-zero quantity, of all symbols the gateway has traded"
+            />
+            <Stat label="Last update" value={<Time ns={d.last_update_ts_ns} />} title="When clearing last wrote any of the gateway's positions" />
+            <Stat label="Latest close" value={d.latest_close_date ?? "—"} title="The latest session close with a snapshot of the gateway's positions" />
           </div>
         )}
       </QueryState>

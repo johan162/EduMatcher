@@ -3,7 +3,7 @@
  *
  * Request discipline (workplan CG5-CG9) lives here, in one place:
  *
- * - Current state (positions, exposure, participants, summary) refreshes every
+ * - Current state (positions, participants, summary) refreshes every
  *   `POLL_CURRENT_MS` = 5 s: pm-clearing commits fills in batches at most that
  *   often, so polling faster shows nothing new. These are small aggregate
  *   tables.
@@ -89,9 +89,6 @@ const cached: ReadOptions = { staleTime: CACHE_MS };
 
 export const usePositions = (params: Params = {}) =>
   useRead("/api/v1/clearing/positions", S.Positions, params, current);
-
-export const useExposure = (params: Params = {}) =>
-  useRead("/api/v1/clearing/exposure", S.Exposure, params, current);
 
 export const useParticipants = () =>
   useRead("/api/v1/clearing/participants", S.Participants, {}, current);

@@ -20,7 +20,7 @@ interface Row {
 
 const COLUMNS: Column<Row>[] = [
   { id: "id", header: "Id", title: "The row number", cell: (r) => String(r.id), sortValue: (r) => r.id },
-  { id: "name", header: "Name", cell: (r) => r.name },
+  { id: "name", header: "Name", title: "", cell: (r) => r.name },
 ];
 
 function rows(n: number): Row[] {

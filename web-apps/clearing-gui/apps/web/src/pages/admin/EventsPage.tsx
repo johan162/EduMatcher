@@ -14,9 +14,9 @@ import { eventDetail } from "@/components/views/eventDetail";
 
 const COLUMNS: Column<SessionEventRowT>[] = [
   timeColumn("ts", "Observed", (r) => r.ts_ns, "When clearing observed it; for a GAP, the trade after the gap"),
-  textColumn("date", "Trade date", (r) => r.trade_date),
-  textColumn("type", "Type", (r) => r.event_type),
-  textColumn("detail", "Detail", eventDetail),
+  textColumn("date", "Trade date", (r) => r.trade_date, "The trading day the event belongs to"),
+  textColumn("type", "Type", (r) => r.event_type, "PHASE: a session phase change; EOD: the engine's end of day; GAP: trade ids jumped"),
+  textColumn("detail", "Detail", eventDetail, "The event's own payload, in words"),
 ];
 
 const FIELDS = [

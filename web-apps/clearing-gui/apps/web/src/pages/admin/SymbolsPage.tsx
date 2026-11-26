@@ -13,12 +13,12 @@ import { useClearingSymbols } from "@/api/queries";
 import type { ClearingSymbolRowT } from "@/api/schemas";
 
 const COLUMNS: Column<ClearingSymbolRowT>[] = [
-  textColumn("symbol", "Symbol", (r) => r.symbol),
+  textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument"),
   qtyColumn("traded", "Traded qty", (r) => r.traded_qty, "Counted once per side: a 100-share trade is 200"),
-  tickColumn("value", "Traded value", (r) => r.traded_notional_ticks, { title: "Both sides" }),
-  tickColumn("realized", "Realized P&L", (r) => r.realized_pnl_ticks, { signed: true }),
-  qtyColumn("net", "Aggregate net qty", (r) => r.open_net_qty, "Sum of all current signed positions"),
-  tickColumn("open_pnl", "Unrealized P&L", (r) => r.open_unrealized_pnl_ticks, { signed: true }),
+  tickColumn("value", "Traded value", (r) => r.traded_notional_ticks, { title: "Quantity × price of every trade in the range, both sides" }),
+  tickColumn("realized", "Realized P&L", (r) => r.realized_pnl_ticks, { signed: true, title: "Realized P&L of all gateways in the range" }),
+  qtyColumn("net", "Aggregate net qty", (r) => r.open_net_qty, "Sum of all gateways' current signed positions: zero while every holder is a gateway. Not open interest."),
+  tickColumn("open_pnl", "Unrealized P&L", (r) => r.open_unrealized_pnl_ticks, { signed: true, title: "Open P&L of all current positions at their marks, now" }),
 ];
 
 const FIELDS = [

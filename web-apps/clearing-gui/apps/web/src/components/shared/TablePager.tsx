@@ -18,20 +18,34 @@ export interface TablePagerProps {
   pageIndex: number;
   pageCount: number;
   pageSize: number;
+  /** The server holds more rows than `total`: counts read "200+". */
+  more?: boolean;
+  /** The next server page is on its way. */
+  loading?: boolean;
   onPage: (index: number) => void;
   onPageSize: (size: number) => void;
 }
 
-export function TablePager({ label, total, pageIndex, pageCount, pageSize, onPage, onPageSize }: TablePagerProps) {
+export function TablePager({
+  label,
+  total,
+  pageIndex,
+  pageCount,
+  pageSize,
+  more = false,
+  loading = false,
+  onPage,
+  onPageSize,
+}: TablePagerProps) {
   const first = pageSize ? pageIndex * pageSize + 1 : 1;
   const last = pageSize ? Math.min(total, first + pageSize - 1) : total;
+  const plus = more ? "+" : "";
   return (
     <nav aria-label={label} className="mt-1.5 flex items-center justify-between gap-3 text-xs text-fg-dim">
-      <span className="num">{`Rows ${first}–${last} of ${total}`}</span>
+      <span className="num">{`Rows ${first}–${last} of ${total}${plus}`}</span>
       <div className="flex items-center gap-3">
-        <span className="num">
-          Page {pageIndex + 1}/{pageCount}
-        </span>
+        {loading && <span role="status">Loading more…</span>}
+        <span className="num">{`Page ${pageIndex + 1}/${pageCount}${plus}`}</span>
         <button
           type="button"
           disabled={pageIndex === 0}
@@ -43,7 +57,7 @@ export function TablePager({ label, total, pageIndex, pageCount, pageSize, onPag
         </button>
         <button
           type="button"
-          disabled={pageIndex >= pageCount - 1}
+          disabled={loading || (pageIndex >= pageCount - 1 && !more)}
           onClick={() => onPage(pageIndex + 1)}
           aria-label="Next page"
           className="rounded p-1 hover:bg-raised hover:text-fg disabled:opacity-40"

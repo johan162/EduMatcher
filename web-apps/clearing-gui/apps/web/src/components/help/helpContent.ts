@@ -29,7 +29,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: "Roles",
         bullets: [
           "ADMIN — the venue: overview, participants and drill-down, symbols, events, gateway sessions, reconciliation, EOD settlement.",
-          "TRADER — its own gateway: positions and exposure, retained trades, daily and close history, EOD settlement and balance, gateway sessions.",
+          "TRADER — its own gateway: positions at their marks, retained trades, daily and close history, EOD settlement and balance, gateway sessions.",
           "MARKET_MAKER — the trader views plus My Quote Obligations.",
         ],
       },

@@ -15,14 +15,15 @@ interface TickOptions {
   extra?: number;
   /** Colour by sign (P&L). */
   signed?: boolean;
-  title?: string;
+  /** The header's tooltip. */
+  title: string;
 }
 
 export function tickColumn<R extends { tick_decimals: number }>(
   id: string,
   header: string,
   value: (row: R) => Ticks | null,
-  { extra = 0, signed = false, title }: TickOptions = {},
+  { extra = 0, signed = false, title }: TickOptions,
 ): Column<R> {
   return {
     id,
@@ -40,7 +41,7 @@ export function tickColumn<R extends { tick_decimals: number }>(
   };
 }
 
-export function qtyColumn<R>(id: string, header: string, value: (row: R) => number | null, title?: string): Column<R> {
+export function qtyColumn<R>(id: string, header: string, value: (row: R) => number | null, title: string): Column<R> {
   return {
     id,
     header,
@@ -51,7 +52,7 @@ export function qtyColumn<R>(id: string, header: string, value: (row: R) => numb
   };
 }
 
-export function textColumn<R>(id: string, header: string, value: (row: R) => string | null, title?: string): Column<R> {
+export function textColumn<R>(id: string, header: string, value: (row: R) => string | null, title: string): Column<R> {
   return {
     id,
     header,
@@ -62,7 +63,7 @@ export function textColumn<R>(id: string, header: string, value: (row: R) => str
 }
 
 /** An epoch-nanosecond time, shown on the venue's clock. */
-export function timeColumn<R>(id: string, header: string, value: (row: R) => number | null, title?: string): Column<R> {
+export function timeColumn<R>(id: string, header: string, value: (row: R) => number | null, title: string): Column<R> {
   return {
     id,
     header,

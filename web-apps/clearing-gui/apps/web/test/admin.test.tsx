@@ -53,6 +53,14 @@ describe("Clearing Overview", () => {
     expect(eod.closest("div")!.textContent).toMatch(/2026-08-28.*ok/);
   });
 
+  it("CG20: links its recent events to the full Events screen", async () => {
+    stubApi(overview());
+    renderApp("/overview");
+    const events = await screen.findByRole("region", { name: "Recent session events" });
+    const link = within(events).getByRole("link", { name: /All events/ });
+    expect(link.getAttribute("href")).toBe("/events");
+  });
+
   it("raises an unmistakable GAP alarm with the interval and missing count", async () => {
     stubApi(overview());
     renderApp("/overview");
@@ -134,7 +142,6 @@ describe("Participant drill-down", () => {
     const api = stubApi({
       [`${C}/participants/TRADER01`]: example(`${C}/participants/{gateway_id}`),
       [`${C}/positions`]: example(`${C}/positions`),
-      [`${C}/exposure`]: example(`${C}/exposure`),
     });
     renderApp("/participants/TRADER01");
     expect(await screen.findByRole("heading", { name: "Participant TRADER01" })).toBeTruthy();

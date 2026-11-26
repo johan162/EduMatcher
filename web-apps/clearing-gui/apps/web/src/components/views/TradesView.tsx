@@ -14,18 +14,18 @@ import type { TradeRowT } from "@/api/schemas";
 import { qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
 
 const COLUMNS: Column<TradeRowT>[] = [
-  textColumn("trade_id", "Trade id", (r) => r.trade_id),
+  textColumn("trade_id", "Trade id", (r) => r.trade_id, "The engine's trade id: run number and sequence within the run"),
   timeColumn("ts", "Exchange time", (r) => r.ts_ns, "When the exchange printed the trade"),
   timeColumn("ingest", "Clearing ingest", (r) => r.ingest_ts_ns, "When clearing wrote it; not an exchange time"),
-  textColumn("date", "Trade date", (r) => r.trade_date),
-  textColumn("symbol", "Symbol", (r) => r.symbol),
-  qtyColumn("qty", "Qty", (r) => r.quantity),
-  tickColumn("price", "Price", (r) => r.price_ticks),
-  textColumn("buyer", "Buyer", (r) => r.buy_gateway_id, "Null when the buyer is not you"),
-  textColumn("seller", "Seller", (r) => r.sell_gateway_id, "Null when the seller is not you"),
-  textColumn("aggressor", "Aggressor", (r) => r.aggressor_side, "As the engine sent it; not meaningful for auctions"),
-  textColumn("match", "Match type", (r) => r.match_type),
-  textColumn("msg", "Audit msg id", (r) => r.msg_id),
+  textColumn("date", "Trade date", (r) => r.trade_date, "The trading day the trade belongs to, in the venue's session timezone"),
+  textColumn("symbol", "Symbol", (r) => r.symbol, "The instrument traded"),
+  qtyColumn("qty", "Qty", (r) => r.quantity, "Shares traded"),
+  tickColumn("price", "Price", (r) => r.price_ticks, { title: "The execution price" }),
+  textColumn("buyer", "Buyer", (r) => r.buy_gateway_id, "The buying gateway; a dash when it is not you (a participant sees only its own side)"),
+  textColumn("seller", "Seller", (r) => r.sell_gateway_id, "The selling gateway; a dash when it is not you (a participant sees only its own side)"),
+  textColumn("aggressor", "Aggressor", (r) => r.aggressor_side, "The side whose order took liquidity, as the engine sent it; not meaningful for auctions"),
+  textColumn("match", "Match type", (r) => r.match_type, "How the trade matched: continuous trading, or an auction uncross"),
+  textColumn("msg", "Audit msg id", (r) => r.msg_id, "The id of the trade message in the audit trail, for looking it up there"),
 ];
 
 const FIELDS = [
@@ -63,20 +63,22 @@ export function TradesView({ gateway, label }: { gateway?: string; label: string
           const rows = d.pages.flatMap((p) => p.trades);
           return (
             <>
-              <DataTable caption={`${label} retained trades`} columns={COLUMNS} rows={rows} rowKey={(r) => r.trade_id} />
-              <div className="mt-2 flex items-center gap-3 text-xs text-fg-dim">
-                <span>{rows.length} trades shown</span>
-                {trades.hasNextPage && (
-                  <button
-                    type="button"
-                    disabled={trades.isFetchingNextPage}
-                    onClick={() => void trades.fetchNextPage()}
-                    className="rounded bg-elevated px-3 py-1 font-semibold text-fg hover:brightness-110 disabled:opacity-50"
-                  >
-                    Load more
-                  </button>
-                )}
-              </div>
+              <p className="mb-1 text-xs text-fg-dim">
+                Newest first, as the exchange printed them. The server sends the trades a page at a time, so the
+                columns do not sort; filter by symbol or date to narrow them.
+              </p>
+              <DataTable
+                caption={`${label} retained trades`}
+                columns={COLUMNS}
+                rows={rows}
+                rowKey={(r) => r.trade_id}
+                sortable={false}
+                more={{
+                  available: trades.hasNextPage,
+                  loading: trades.isFetchingNextPage,
+                  load: () => void trades.fetchNextPage(),
+                }}
+              />
             </>
           );
         }}
