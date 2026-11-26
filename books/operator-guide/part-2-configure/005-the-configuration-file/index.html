@@ -10371,7 +10371,7 @@ audiences different keys on different ports.</p>
 <tr>
 <td><code>eod_db</code></td>
 <td><code>data/eod.db</code></td>
-<td><code>pm-eod</code> settlement ledger, read-only, for <code>/clearing/settlements</code> and <code>/clearing/balances</code> (<code>503 EOD_DB</code> if absent); opening balances come from <code>ref_data/roster.yaml</code> beside it.</td>
+<td><code>pm-eod</code> settlement ledger, read-only, for <code>/clearing/settlements</code> and <code>/clearing/balances</code> (absent before pm-eod's first run: <code>eod_db_available: false</code>; unreadable: <code>503 EOD_DB</code>); opening balances come from <code>ref_data/roster.yaml</code> beside it.</td>
 </tr>
 <tr>
 <td><code>order_retention_sec</code></td>

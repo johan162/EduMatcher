@@ -9981,7 +9981,7 @@ the OpenAPI document lists all of them per operation.</p>
 <td><code>EOD_DB</code></td>
 <td style="text-align: right;"><code>503</code></td>
 <td><code>UNKNOWN</code></td>
-<td>The <code>pm-eod</code> ledger is missing or unreadable, or its roster is malformed. A day without settlement is an empty list, not this</td>
+<td>The <code>pm-eod</code> ledger is unreadable, or its roster is malformed. A missing ledger (pm-eod has not run yet) is <code>eod_db_available: false</code>, and a day without settlement an empty list, not this</td>
 </tr>
 </tbody>
 </table>
@@ -14167,7 +14167,7 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 <code>to</code>, is <code>400 VALIDATION</code>. A missing, locked or unreadable <code>clearing.db</code> is
 <code>503 CLEARING_DB</code>, never an empty list; an empty list is a true zero.</p>
 <h3 id="get-apiv1clearingsummary"><code>GET /api/v1/clearing/summary</code><a class="headerlink" href="#get-apiv1clearingsummary" title="Permanent link">&para;</a></h3>
-<p>Purpose: the venue's clearing state — participant and open-position counts, realized/unrealized P&amp;L in display currency, the latest trade and flush times, feed gaps on the latest session date (<code>gap_count</code>, <code>latest_gap</code>), and <code>pm-eod</code>'s newest run (<code>last_eod_run</code>; <code>eod_db_available: false</code> when the EOD ledger cannot be read, which is not an error here).</p>
+<p>Purpose: the venue's clearing state — participant and open-position counts, realized/unrealized P&amp;L in display currency, the latest trade and flush times, feed gaps on the latest session date (<code>gap_count</code>, <code>latest_gap</code>), and <code>pm-eod</code>'s newest run (<code>last_eod_run</code>; <code>eod_db_status</code>: <code>ok</code>, <code>not_run</code> when there is no ledger yet because <code>pm-eod</code> has not run here, or <code>unreadable</code>; none of them is an error here).</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -15562,8 +15562,8 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td>bounded list envelope (<code>settlements</code>) + <code>runs</code></td>
-<td>Settlement rows and <code>pm-eod</code> runs</td>
+<td>bounded list envelope (<code>settlements</code>) + <code>runs</code> + <code>eod_db_available</code></td>
+<td>Settlement rows and <code>pm-eod</code> runs; <code>eod_db_available</code> is false before pm-eod's first run (no ledger, nothing settled)</td>
 </tr>
 </tbody>
 </table>
@@ -15595,7 +15595,7 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 <tr>
 <td><code>EOD_DB</code></td>
 <td><code>503</code></td>
-<td><code>eod.db</code> missing or unreadable, or its roster malformed</td>
+<td><code>eod.db</code> unreadable, or its roster malformed. A missing <code>eod.db</code> (pm-eod has not run yet) is a <code>200</code> with <code>eod_db_available: false</code></td>
 </tr>
 </tbody>
 </table>
@@ -15638,7 +15638,7 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "balances", "count", "as_of", "last_settled_date" }</code></td>
+<td><code>{ "balances", "count", "as_of", "last_settled_date", "eod_db_available" }</code></td>
 <td>Derived balance per account</td>
 </tr>
 </tbody>
@@ -15671,7 +15671,7 @@ trading days in the session timezone; a malformed date, or a <code>from</code> a
 <tr>
 <td><code>EOD_DB</code></td>
 <td><code>503</code></td>
-<td><code>eod.db</code> missing or unreadable, or its roster malformed</td>
+<td><code>eod.db</code> unreadable, or its roster malformed. A missing <code>eod.db</code> (pm-eod has not run yet) is a <code>200</code> with <code>eod_db_available: false</code></td>
 </tr>
 </tbody>
 </table>

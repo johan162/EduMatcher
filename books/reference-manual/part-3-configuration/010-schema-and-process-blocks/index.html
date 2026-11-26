@@ -9361,7 +9361,7 @@ engine reply waits are applied. In the current implementation:</p>
   route; optional: those three fields report <code>null</code>, and <code>/clearing</code> answers
   <code>503 CLEARING_DB</code>, when the file is absent</li>
 <li><code>eod_db</code> is <code>pm-eod</code>'s read-only settlement ledger, used by
-  <code>/clearing/settlements</code> and <code>/clearing/balances</code> (<code>503 EOD_DB</code> when absent);
+  <code>/clearing/settlements</code> and <code>/clearing/balances</code> (absent: <code>eod_db_available: false</code>);
   the opening balances come from <code>ref_data/roster.yaml</code> in the same directory</li>
 <li><code>order_retention_sec</code> bounds how long a terminal order stays in the
   in-memory order cache; <code>0</code> disables eviction</li>

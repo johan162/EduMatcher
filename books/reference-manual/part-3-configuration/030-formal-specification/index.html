@@ -10168,7 +10168,7 @@ schema tree (§3).</p>
 <td><code>Path</code></td>
 <td style="text-align: center;">–</td>
 <td>resolved <code>eod.db</code></td>
-<td><code>~</code> expanded. Read-only; <code>pm-eod</code>'s ledger for <code>/clearing/settlements</code> and <code>/clearing/balances</code> (<code>503 EOD_DB</code> when absent). The roster with the opening balances is <code>ref_data/roster.yaml</code> in the same directory</td>
+<td><code>~</code> expanded. Read-only; <code>pm-eod</code>'s ledger for <code>/clearing/settlements</code> and <code>/clearing/balances</code> (absent: they answer <code>eod_db_available: false</code>; unreadable: <code>503 EOD_DB</code>). The roster with the opening balances is <code>ref_data/roster.yaml</code> in the same directory</td>
 </tr>
 <tr>
 <td><code>order_retention_sec</code></td>
