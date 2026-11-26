@@ -1180,6 +1180,24 @@ def query_latest_trade_date(conn: sqlite3.Connection) -> str | None:
     return row[0] if row else None
 
 
+def _day_trade_count(conn: sqlite3.Connection, trade_date: str, gateway: str) -> int:
+    """Trades *gateway* was a side of on *trade_date*, a trade with itself once,
+    read from the buyer and seller indexes."""
+    p = {"day": trade_date, "gateway": gateway}
+    bought, sold, itself = (
+        conn.execute(
+            f"SELECT COUNT(*) FROM trade_events WHERE {where} AND trade_date = :day",
+            p,
+        ).fetchone()[0]
+        for where in (
+            "buy_gateway_id = :gateway",
+            "sell_gateway_id = :gateway",
+            "buy_gateway_id = :gateway AND sell_gateway_id = :gateway",
+        )
+    )
+    return int(bought) + int(sold) - int(itself)
+
+
 def query_netting(
     conn: sqlite3.Connection, *, trade_date: str, gateway: str | None = None
 ) -> dict[str, Any]:
@@ -1214,17 +1232,15 @@ def query_netting(
     counts: dict[str, int] = {}
     total_count: int | None = None
     if retained:
-        counts = dict(
-            conn.execute(
-                "SELECT gateway_id, COUNT(DISTINCT id) FROM ("
-                "  SELECT id, buy_gateway_id AS gateway_id FROM trade_events"
-                "  WHERE trade_date = :day"
-                "  UNION ALL"
-                "  SELECT id, sell_gateway_id FROM trade_events WHERE trade_date = :day"
-                ") GROUP BY gateway_id",
-                {"day": trade_date},
-            ).fetchall()
-        )
+        # Each gateway's count from its own index entries: this is polled,
+        # and walking the whole day's trades instead cost 150 ms on a
+        # 100 000-trade day (review of CG25-CG32, P1).
+        counts = {
+            str(r["gateway_id"]): _day_trade_count(
+                conn, trade_date, str(r["gateway_id"])
+            )
+            for r in rows
+        }
         if gateway is None:
             total_count = conn.execute(
                 "SELECT COUNT(*) FROM trade_events WHERE trade_date = ?", (trade_date,)

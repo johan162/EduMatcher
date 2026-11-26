@@ -29,7 +29,8 @@ from typing import Any
 import pytest
 
 from edumatcher.clearing import replay
-from edumatcher.clearing.store import apply_schema
+from edumatcher.clearing.query import open_readonly_connection
+from edumatcher.clearing.store import apply_schema, query_netting
 from tests.api_gateway_harness import call
 from tests.clearing_api_fixture import (
     ADMIN_KEY,
@@ -157,6 +158,65 @@ async def test_the_venue_nets_a_day_of_trades_to_one_amount_per_gateway(
     assert body["payment_count"] == 2
     assert body["net_paid"] == pytest.approx(AAPL_BOUGHT_DAY1 - EURUSD_DAY1)
     assert body["net_received"] == pytest.approx(AAPL_BOUGHT_DAY1 - EURUSD_DAY1)
+
+
+def _plans(db: Path, work: Any) -> list[str]:
+    """The query plan of every statement *work* runs against ``trade_events``."""
+    with closing(open_readonly_connection(db, 5000)) as conn:
+        statements: list[str] = []
+        conn.set_trace_callback(statements.append)
+        work(conn)
+        conn.set_trace_callback(None)
+        return [
+            " | ".join(r[3] for r in conn.execute(f"EXPLAIN QUERY PLAN {sql}"))
+            for sql in statements
+            if "trade_events" in sql and sql.lstrip().upper().startswith("SELECT")
+            # query_retained_from: one look at the index's first entry.
+            and "MIN(trade_date)" not in sql
+        ]
+
+
+def test_netting_counts_trades_from_the_gateway_indexes(venue: Venue) -> None:
+    # Review of CG25-CG32 (P1): netting is polled every 30 s on every open
+    # Settlement and Overview in Explain mode. Counting a gateway's trades
+    # must read its own index entries, never walk the whole day's trades:
+    # on a 100 000-trade day that walk cost 150 ms per call.
+    def own(conn: sqlite3.Connection) -> None:
+        query_netting(conn, trade_date=DAY1, gateway="TRADER01")
+
+    def venue_wide(conn: sqlite3.Connection) -> None:
+        query_netting(conn, trade_date=DAY1)
+
+    for plan in _plans(venue.clearing_db, own):
+        assert (
+            "ix_trade_events_buy_gw_date" in plan
+            or "ix_trade_events_sell_gw_date" in plan
+        ), plan
+    venue_plans = _plans(venue.clearing_db, venue_wide)
+    # One count of the day's trades; every per-gateway count from its index.
+    assert sum("ix_trade_events_date_ts" in p for p in venue_plans) <= 1, venue_plans
+    assert not any("TEMP B-TREE" in p for p in venue_plans), venue_plans
+
+
+@pytest.mark.anyio
+async def test_netting_counts_a_trade_with_itself_once(
+    venue: Venue, tmp_path: Path
+) -> None:
+    db = _copy(venue.clearing_db, tmp_path / "clearing.db")
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute(
+            "INSERT INTO trade_events (id, ts_ns, trade_date, symbol, quantity,"
+            " price, tick_decimals, buy_gateway_id, sell_gateway_id, ingest_ts_ns)"
+            " VALUES ('SELF1', 1, ?, 'AAPL', 1, 18700, 2, 'TRADER01', 'TRADER01', 1)",
+            (DAY1,),
+        )
+        conn.commit()
+    _, own = await _get(venue, f"/netting?date={DAY1}", TRADER_KEY, clearing_db=db)
+    assert own["trade_count"] == 4
+    _, whole = await _get(venue, f"/netting?date={DAY1}", clearing_db=db)
+    assert whole["trade_count"] == 4
+    trader = next(g for g in whole["gateways"] if g["gateway_id"] == "TRADER01")
+    assert trader["trade_count"] == 4
 
 
 @pytest.mark.anyio
@@ -584,3 +644,16 @@ async def test_flows_are_admin_only(venue: Venue) -> None:
         assert (status, _code(body)) == (403, code)
     status, body = await _get(venue, "/flows?date=2026-13-01")
     assert (status, body["error"]["field"]) == (400, "date")
+
+
+@pytest.mark.anyio
+async def test_a_participant_may_name_itself_where_the_gui_does(venue: Venue) -> None:
+    # CG31's trade timeline and CG29's replay pass the participant's own
+    # gateway explicitly (the row's gateway id); the API must accept it.
+    for path in (
+        f"/position-replay?gateway=TRADER01&symbol=AAPL&date={DAY2}",
+        f"/settlements?gateway=TRADER01&date={DAY2}",
+        "/netting?gateway=TRADER01",
+    ):
+        status, body = await _get(venue, path, TRADER_KEY)
+        assert status == 200, (path, body)

@@ -272,6 +272,16 @@ Measured with `tools/clearing_api_bench.py` on a 180 000-trade ledger (90 days,
 | One gateway's daily rows (1 000) | on demand | 19–45 ms | 585 kB |
 | Symbol activity, 90 days | on demand | 93 ms | 5 kB |
 | Reconciliation, 7 days / 90 days | on Run | 0.12 s / 1.2 s | — |
+| Netting, venue / one gateway (Explain mode) | 30 s | 9 ms / 3 ms | 5 kB / 0.3 kB |
+| Who traded with whom (Explain mode, ADMIN) | 30 s | 19 ms | 89 kB |
+| A position replay (one gateway, one symbol, one day) | on demand | 4 ms | 3 kB |
+
+On a busier day — 100 000 trades in one day, 40 gateways — the venue
+netting and who traded with whom take about 0.1 s each (130 kB for the
+latter, which grows with the number of buyer/seller pairs), a gateway's own
+netting 7 ms, and a replay of 250 fills 16 ms. Only an ADMIN's Overview in
+Explain mode polls the two venue-wide ones; switching Explain off stops
+them.
 
 
 ## What it leaves out

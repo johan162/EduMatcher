@@ -2057,7 +2057,7 @@ build and `mkdocs build` green; no Python changed in CG32.
 | # | Sev | Finding | Fix |
 |---|---|---|---|
 | R5 | Low | *Money in and out by day* (CG27) sums the daily rows it is given; they come newest first, bounded at 1 000, so when more match the oldest day can be cut and its total silently short. | `MoneyByDay` takes `hasMore` and leaves the oldest day out, saying so ("… is left out: more daily rows match than were sent"). Test. |
-| R6 | Low (latent) | `DataTable`'s row Enter/Space handler (CG21) also caught keys pressed on a button inside the row — CG25's disclosure — and in a table nested in a detail row (CG29, CG31): Enter on the disclosure would open the row instead. No table has both today. | The row handles only its own keys (`e.target === e.currentTarget`). Test with a table that has both. |
+| R6 | Low (latent) | `DataTable`'s row Enter/Space handler (CG21) also caught keys pressed on a button inside the row — CG25's disclosure: Enter on the disclosure would open the row instead. No table has both today. *(Corrected by §9.4: keys in a table nested in a detail row never reach the item row, which is its sibling.)* | The row handles only its own keys (`e.target === e.currentTarget`). Test with a table that has both. |
 | D1 | Doc | Help *Getting Started* and the operator guide's *What it leaves out* still said there is no open interest anywhere; the design doc said long/short totals were not implemented. | Reworded to D8 (part of CG32's doc work). |
 
 Checked and found sound (no change):
@@ -2093,4 +2093,49 @@ Accepted limits (documented, not changed):
 
 Lesson: a summary computed from a bounded list must know whether the list
 was cut — the same `has_more` that drives the "more rows" note.
+
+### 9.4 Holistic review of CG25–CG32 (2026-11-26)
+
+The committed range `086b13b3..ce658de1` (CG25–CG32, including §9.3's own
+fixes) was reviewed again, this time with measurements: the teaching round
+added polled routes, and Explain mode is on by default, so every open
+Overview and Settlement screen polls them. `tools/clearing_api_bench.py`
+now includes the new routes. One defect was found and fixed test-first;
+one statement of §9.3 was wrong and is corrected.
+
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| P1 | Medium | `/clearing/netting` (CG26) counted each gateway's trades with `COUNT(DISTINCT id)` over a `UNION ALL` of the whole day's trades, even for one gateway. On a 100 000-trade day: 160–220 ms per call, polled every 30 s by every participant's My Settlement in Explain mode — about a quarter of a core for 40 participants. | `_day_trade_count`: buys + sells − trades with itself, each a count on the buyer/seller index. One gateway: 174 → 7 ms on that day (3 ms on the standard 90-day bench). Venue: 160 → ~100 ms, ADMIN Overview only (the trades-with-itself count needs row lookups; a partial index would cost clearing's write path, not done). Test: the query plans of `query_netting` read the gateway indexes, never the day's walk with a temporary B-tree (mutation-checked: the old union fails it); a trade with itself counts once. |
+| C1 | Doc | §9.3 R6 said keys pressed in a table nested in a detail row reached the item row. They do not: the detail row is the item row's sibling. The fix stands for the real case, a button inside the row. | §9.3 corrected. |
+
+Measured with the bench (in-process, real gateway app):
+
+| Route | 90 days × 2 000 trades | 1 day of 100 000 trades |
+|---|---:|---:|
+| netting, venue (ADMIN, 30 s) | 9 ms | ~100 ms |
+| netting, one gateway (30 s) | 3 ms | 7 ms |
+| flows (ADMIN, 30 s) | 19 ms, 89 kB | ~110 ms, 130 kB |
+| position-replay (on demand) | 4 ms | 16 ms (250 fills, 112 kB) |
+
+Checked and found sound (no change):
+
+- A participant naming its own gateway — as the trade timeline and the
+  replay do with the row's gateway id — is accepted by `/position-replay`,
+  `/settlements` and `/netting` (new test against the real routes; the
+  CG31 tests used stubs).
+- The replay's store order (`INSERT OR IGNORE`, rowid) and its check
+  against the daily row: a precision change is compared in display values.
+- Docs: every command and route named in the CG32 texts exists as written
+  (`pm-clearing-cli rebuild --from-audit … --output …`).
+
+Accepted limits (in addition to §9.3's N4–N6):
+
+- N7: the venue netting (~0.1 s on a 100 000-trade day) and who traded with
+  whom (~0.1 s; its payload grows with the number of buyer/seller pairs,
+  130 kB for 40 gateways) are polled every 30 s by an ADMIN Overview in
+  Explain mode. The operator guide's load table gives the numbers and says
+  that Explain off stops them.
+
+Lesson: when a mode is on by default, its polls are the default load —
+measure them on a busy day, not only on the bench's average one.
 
