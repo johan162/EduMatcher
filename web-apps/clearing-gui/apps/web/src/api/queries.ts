@@ -33,6 +33,7 @@ import type { z } from "zod";
 import { apiFetch } from "@/api/apiFetch";
 import * as S from "@/api/schemas";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useVenueTimeZoneStore } from "@/store/useVenueTimeZoneStore";
 
 export const POLL_CURRENT_MS = 5_000;
 export const POLL_HEALTH_MS = 30_000;
@@ -127,6 +128,20 @@ export const useSettlements = (params: Params) =>
 
 export const useBalances = (params: Params) =>
   useRead("/api/v1/clearing/balances", S.Balances, params, cached);
+
+/**
+ * The venue's session timezone, from `GET /api/v1/session`, into
+ * `useVenueTimeZoneStore` for every time on screen. Fetched once per login:
+ * the zone is configuration and does not change while the venue runs. The
+ * route asks the engine and can fail; the store then stays `null` and times
+ * stay in labelled UTC.
+ */
+export function useVenueTimeZone(): void {
+  const session = useRead("/api/v1/session", S.SessionInfo, {}, { staleTime: Number.POSITIVE_INFINITY });
+  const zone = session.data?.session_timezone ?? null;
+  const setTimeZone = useVenueTimeZoneStore((s) => s.setTimeZone);
+  useEffect(() => setTimeZone(zone), [zone, setTimeZone]);
+}
 
 /** The caller's own symbol settings, including market-maker obligations. */
 export const useSymbolSettings = () =>

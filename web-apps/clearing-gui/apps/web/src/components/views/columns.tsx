@@ -8,7 +8,7 @@
  */
 import type { Column } from "@/components/shared/DataTable";
 import { formatQty, formatTicks, signClass, ticksToDisplay, type Ticks } from "@/lib/money";
-import { formatNs } from "@/lib/time";
+import { Time } from "@/components/shared/Time";
 
 interface TickOptions {
   /** Extra decimals beyond the symbol's precision (averages). */
@@ -61,13 +61,13 @@ export function textColumn<R>(id: string, header: string, value: (row: R) => str
   };
 }
 
-/** An epoch-nanosecond time, shown in UTC. */
+/** An epoch-nanosecond time, shown on the venue's clock. */
 export function timeColumn<R>(id: string, header: string, value: (row: R) => number | null, title?: string): Column<R> {
   return {
     id,
     header,
     title,
-    cell: (row) => <span className="num">{formatNs(value(row))}</span>,
+    cell: (row) => <Time ns={value(row)} />,
     sortValue: value,
   };
 }

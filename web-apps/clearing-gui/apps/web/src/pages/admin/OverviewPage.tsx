@@ -23,7 +23,7 @@ import { eventDetail } from "@/components/views/eventDetail";
 import { useHealth, useSessionEvents, useSummary } from "@/api/queries";
 import type { SessionEventRowT, SummaryT } from "@/api/schemas";
 import { formatCurrency } from "@/lib/money";
-import { formatClock, formatNs } from "@/lib/time";
+import { useFormatNs } from "@/components/shared/Time";
 
 const RECENT_EVENT_COLUMNS: Column<SessionEventRowT>[] = [
   timeColumn("ts", "Observed", (r) => r.ts_ns),
@@ -38,6 +38,7 @@ function plural(n: number, noun: string): string {
 }
 
 function FeedGaps({ summary }: { summary: SummaryT }) {
+  const formatNs = useFormatNs();
   const caveat =
     "A gap is a jump clearing saw in the trade ids it received. Seeing none does not prove the feed was complete.";
   const gap = summary.latest_gap;
@@ -92,6 +93,7 @@ function Health() {
 }
 
 export function OverviewPage() {
+  const formatNs = useFormatNs();
   const summary = useSummary();
   const events = useSessionEvents({ limit: 10 });
   return (
@@ -101,7 +103,7 @@ export function OverviewPage() {
         {(s) => (
           <>
             <p className="mb-3 text-xs text-fg-dim">
-              {`Last clearing write ${formatClock(s.last_flush_ts_ns)}; newest trade ${formatClock(s.last_trade_ts_ns)}. Committed data only: a fill can take up to 5 s (one clearing flush) to appear.`}
+              {`Last clearing write ${formatNs(s.last_flush_ts_ns)}; newest trade ${formatNs(s.last_trade_ts_ns)}. Committed data only: a fill can take up to 5 s (one clearing flush) to appear.`}
             </p>
             <FeedGaps summary={s} />
             <div className="mb-5 flex flex-wrap gap-3">

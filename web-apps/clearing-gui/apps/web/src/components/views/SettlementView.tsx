@@ -16,6 +16,7 @@ import { useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterForm, filterDate, filterText, type FilterField, type FilterValues } from "@/components/shared/Filters";
 import { QueryState } from "@/components/shared/QueryState";
+import { Time } from "@/components/shared/Time";
 import { Badge, MoreRows, Panel, Stat } from "@/components/shared/Ui";
 import { useBalances, useSettlements } from "@/api/queries";
 import type { BalanceRowT, EodRunT, SettlementRowT } from "@/api/schemas";
@@ -89,7 +90,12 @@ const RUN_COLUMNS: Column<EodRunT>[] = [
     cell: (r) => <Badge tone={runTone(r.status)}>{r.status}</Badge>,
     sortValue: (r) => r.status,
   },
-  textColumn("finished", "Finished (UTC)", (r) => r.finished_at),
+  {
+    id: "finished",
+    header: "Finished",
+    cell: (r) => <Time iso={r.finished_at} />,
+    sortValue: (r) => Date.parse(r.finished_at),
+  },
   textColumn("steps", "Steps", (r) =>
     r.steps ? r.steps.map((s) => `${s.step}: ${s.status}${s.message ? ` — ${s.message}` : ""}`).join("; ") : null,
   ),

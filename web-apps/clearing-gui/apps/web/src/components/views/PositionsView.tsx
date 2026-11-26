@@ -8,7 +8,7 @@ import { QueryState } from "@/components/shared/QueryState";
 import { MoreRows, Panel } from "@/components/shared/Ui";
 import { useExposure, usePositions, type Params } from "@/api/queries";
 import type { ExposureRowT, PositionRowT } from "@/api/schemas";
-import { formatClock } from "@/lib/time";
+import { useFormatNs } from "@/components/shared/Time";
 import { qtyColumn, textColumn, tickColumn, timeColumn } from "./columns";
 
 const POSITION_COLUMNS: Column<PositionRowT>[] = [
@@ -43,9 +43,10 @@ export function newestWrite(rows: PositionRowT[]): number | null {
 }
 
 export function FreshnessNote({ committedNs }: { committedNs: number | null }) {
+  const formatNs = useFormatNs();
   return (
     <p className="mb-3 text-xs text-fg-dim">
-      {committedNs === null ? "Nothing committed by clearing yet" : `Committed by clearing at ${formatClock(committedNs)}`}
+      {committedNs === null ? "Nothing committed by clearing yet" : `Committed by clearing at ${formatNs(committedNs)}`}
       {"; a fill can take up to 5 s (one clearing flush) to appear here."}
     </p>
   );

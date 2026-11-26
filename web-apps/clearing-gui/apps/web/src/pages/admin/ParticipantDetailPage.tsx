@@ -13,7 +13,7 @@ import { SettlementView } from "@/components/views/SettlementView";
 import { TradesView } from "@/components/views/TradesView";
 import { useParticipant } from "@/api/queries";
 import { formatCurrency } from "@/lib/money";
-import { formatNs } from "@/lib/time";
+import { Time } from "@/components/shared/Time";
 
 const TABS = [
   { to: "", label: "Positions" },
@@ -36,7 +36,7 @@ export function ParticipantDetailPage() {
             <Stat label="Unrealized P&L" value={formatCurrency(d.unrealized_pnl)} />
             <Stat label="Total P&L" value={formatCurrency(d.total_pnl)} />
             <Stat label="Open positions" value={`${d.open_position_count} of ${d.position_count}`} />
-            <Stat label="Last update" value={formatNs(d.last_update_ts_ns)} />
+            <Stat label="Last update" value={<Time ns={d.last_update_ts_ns} />} />
             <Stat label="Latest close" value={d.latest_close_date ?? "—"} />
           </div>
         )}

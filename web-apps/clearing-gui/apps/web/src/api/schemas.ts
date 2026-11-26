@@ -343,8 +343,20 @@ export const SymbolInfo = z.object({
 export const SymbolList = z.object({ symbols: z.array(SymbolInfo), count: int });
 
 /** Each route the GUI calls, with the schema of its 200 body. */
+/** `GET /api/v1/session`: the trading phase and the venue's session timezone. */
+export const SessionInfo = z.object({
+  state: z.string(),
+  state_since: z.string(),
+  sessions_enabled: z.boolean(),
+  next: z.object({ state: z.string(), at: z.string() }).nullable().optional(),
+  last_trade_id: z.string().nullable(),
+  session_timezone: z.string(),
+  session_date: z.string(),
+});
+
 export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/status": Status,
+  "/api/v1/session": SessionInfo,
   "/api/v1/symbols": SymbolList,
   "/api/v1/clearing/summary": Summary,
   "/api/v1/clearing/participants": Participants,

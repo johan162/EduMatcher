@@ -1268,7 +1268,7 @@ Suggested order is the table order: CG18 is the foundation the others use.
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 18 | CG18 | Shared table: pager, sort affordance, required tooltips; `Stat` tooltip | — | 1 d | ☑ | 2026-11-26 |
-| 19 | CG19 | Venue session timezone on every timestamp | — | 0.5 d | ☐ | |
+| 19 | CG19 | Venue session timezone on every timestamp | — | 0.5 d | ☑ | 2026-11-26 |
 | 20 | CG20 | Every table: tooltip texts, paging; Trades pager; Positions + Exposure merged | CG18 | 1.5 d | ☐ | |
 | 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☐ | |
 | 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☐ | |
@@ -1342,6 +1342,23 @@ typecheck and `a11y.test.tsx` green.
   failed `/session` gives the UTC form; the Overview freshness line contains
   a date.
 - **Exit:** no `UTC` literal left outside the fallback.
+- **Done 2026-11-26.** `test/time.test.ts` (7) and `test/timeZone.test.tsx`
+  (5) failed first. `lib/time.ts` is now `formatNs(ns, zone)` and
+  `formatIso(iso, zone)`; `formatClock` is gone (every time has its date).
+  The zone name comes from en-GB, or from en-US when en-GB gives only an
+  offset: CET/CEST, EDT, HST — and "GMT+9" for Tokyo, which has no
+  abbreviation in either locale. An unknown zone falls back to labelled UTC.
+  The zone flows `GET /api/v1/session` → `useVenueTimeZone` (in a new
+  `SignedInShell` inside `AppShell`, so it is asked for only when signed in,
+  once per login) → `useVenueTimeZoneStore` → `<Time>` / `useFormatNs`
+  (`components/shared/Time.tsx`), which re-render when the zone arrives.
+  `SessionInfo` schema added to `ROUTE_SCHEMAS`, so the contract test holds it
+  to the published `Session` model; CG23 reads its `state`. The EOD runs
+  column is "Finished" and sorts by instant. `eod.test.tsx`'s Obligations
+  test now leaves out the shell's session request when checking that the page
+  reads only `/symbols`. Existing tests without a `/session` stub keep their
+  UTC assertions, which is the fallback working. Suite 191 (was 177),
+  typecheck and build green.
 
 ### CG20 — Every table: tooltip texts, paging, Trades pager, merged Positions
 

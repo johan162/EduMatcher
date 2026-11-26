@@ -194,7 +194,9 @@ describe("My Quote Obligations", () => {
     expect(tsla.textContent).toContain("20 ticks (0.20)");
     expect(tsla.textContent).toContain("100");
     expect(row(table, "AAPL").textContent).toMatch(/Not configured/);
-    expect(api.requests.every((r) => r.startsWith(SYMBOLS))).toBe(true);
+    // Besides the shell's one session request (the venue timezone, CG19).
+    const page = api.requests.filter((r) => r !== "/api/v1/session");
+    expect(page.every((r) => r.startsWith(SYMBOLS))).toBe(true);
     expect(api.requests.every((r) => !r.includes("gateway="))).toBe(true);
   });
 
