@@ -388,7 +388,7 @@ navigation rail** on the left, and the active view filling the rest.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│ EduMatcher pm-log v1.0  ● log-srv up   ⚠ 3 unacked        ☾        │
+│ EduMatcher pm-log v1.0  ● log-srv up   ⚠ 3 unacked errors ☾        │
 ├──────┬─────────────────────────────────────────────────────────────┤
 │ ▣ Dash│                                                             │
 │ ▤ Logs│                                                             │
@@ -405,7 +405,11 @@ The top bar is deliberately sparse. After the name and version
 - **Source state dot** — green *log-srv up*, yellow *reconnecting…*, red
   *log server down* or *log.db unavailable*. The two red states are distinct
   because they mean different things and have different fixes.
-- **Unacked count** — a link to Alerts, styled red when non-zero. Also
+- **Unacked count** — a link to Alerts, styled red when non-zero. It counts
+  only issues at `ISSUES_ALERT_LEVEL` or above and says so: `⚠ 3 unacked
+  errors` at the default `ERROR`, `unacked warnings+errors` at `WARNING`.
+  The Alerts list shows `ISSUES_MIN_LEVEL` and above (default `WARNING`),
+  so it can hold more. Also
   mirrored as a badge on the Alerts rail item.
 - **Session indicator** — the exchange session phase as a coloured badge, the
   next phase and the time left to it (`Continuous → Closing Auction in 03:08`),
@@ -723,7 +727,7 @@ All bridge configuration is environment variables.
 |---|---|---|
 | `ISSUES_RETENTION_DAYS` | `7` | How long an inactive issue is kept, and how far back the startup scan reaches |
 | `ISSUES_MIN_LEVEL` | `WARNING` | Minimum level that becomes an issue — applied identically to the startup scan and to live rows |
-| `ISSUES_ALERT_LEVEL` | `ERROR` | Minimum issue level counted as "unacked" in the top bar and the Alerts badge |
+| `ISSUES_ALERT_LEVEL` | `ERROR` | Minimum issue level counted in the top-bar `⚠ N unacked …` link and the Alerts rail badge; the link's last word names it (`errors`, `warnings+errors`, …) |
 
 Both level variables are validated against the real log-level enum, so a typo
 yields the default rather than a silently broken filter. Setting
@@ -736,6 +740,23 @@ empties them from Alerts.
     what is *counted as demanding attention*. Setting `ISSUES_ALERT_LEVEL`
     below `ISSUES_MIN_LEVEL` is legal but pointless — nothing below the
     tracking floor exists to be counted.
+
+#### Setting the levels in `.env`
+
+In the container stack both levels come from the stack's `.env` file (next to
+`compose.yaml`; `~/.edumatcher/.env` after the one-line installer). The
+compose file passes them to the log-gui container, and the bridge reads them
+once at startup. To count warnings in the top bar as well:
+
+```bash
+# in .env
+ISSUES_ALERT_LEVEL=WARNING
+```
+
+Then recreate the containers (`./edumatcher.sh restart`, or `make up-all` in a
+source checkout) and reload the page. The top-bar link now reads
+`⚠ N unacked warnings+errors`. If the line is missing from `.env`, the
+defaults (`WARNING` / `ERROR`) apply.
 
 ### Thresholds
 
@@ -826,7 +847,7 @@ read-only — enforced by the `:ro` mount in the container deployment.
 | **A client route 404s in production** | Static host with no SPA fallback | Let the bridge serve the UI via `STATIC_DIR`; it falls back to `index.html`. |
 | **Explorer shows fewer rows than expected** | `QUERY_MAX_ROWS` cap (5 000) | Narrow the filter, use a time range, or export instead. |
 | **An export looks complete but is short** | `EXPORT_MAX_ROWS` cap reached | Check for `X-Export-Truncated: true` on the response. Narrow the filter, raise the cap, or use `pm-log-cli query`. |
-| **Top-bar unacked count differs from the Alerts list** | Expected — the badge counts `ISSUES_ALERT_LEVEL` and above; Alerts lists `WARNING` and above | Set `ISSUES_ALERT_LEVEL=WARNING` if you want them to agree. |
+| **Top-bar unacked count differs from the Alerts list** | Expected — the badge counts `ISSUES_ALERT_LEVEL` and above (default `ERROR`); Alerts lists `ISSUES_MIN_LEVEL` and above (default `WARNING`) | Set `ISSUES_ALERT_LEVEL` to the same level as `ISSUES_MIN_LEVEL` in `.env` if you want them to agree (see [Setting the levels in `.env`](#setting-the-levels-in-env)). |
 | **Warnings never appear in Alerts** | `ISSUES_MIN_LEVEL` raised above `WARNING` | Lower it. Note it gates tracking, so raising it also empties existing warnings on restart. |
 | **Numbers on the Dashboard briefly disagree** | Live counters update at 1 Hz; aggregates poll at 15–30 s | Expected. Health and the Explorer are authoritative. |
 
