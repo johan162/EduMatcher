@@ -50,14 +50,17 @@ you back to My Positions.
 
 ## The screens
 
-**My Positions** — each symbol you hold: signed quantity (negative is short),
-average cost, mark, realized and unrealized P&L, what you bought and sold,
-and, below it, the same positions valued at their marks (net and gross
-notional). The line above the table says when clearing last committed your
-data. It refreshes every 5 seconds.
+**My Positions** — one table, one row per symbol you have traded: signed
+quantity (negative is short), average cost, mark, the position's value at
+the mark (*net notional*, negative when short, and *gross notional*, its
+size), realized, unrealized and total P&L, and what you bought and sold. The
+line above the table says when clearing last committed your data. It
+refreshes every 5 seconds.
 
-**My Trades** — every execution clearing still holds for you, newest first,
-200 at a time (**Load more** for the next page). *Exchange time* is when the
+**My Trades** — every execution clearing still holds for you, newest first.
+The server sends them a page at a time; the pager under the table fetches the
+next page when you move past the ones loaded (*Rows 1–30 of 200+* means more
+are waiting), and the columns do not sort. *Exchange time* is when the
 exchange printed the trade; *Clearing ingest* is when clearing wrote it. You
 see your own side of each trade: the other side's gateway and order id are
 blank. *Match type* says how the trade came about (continuous trading, an
@@ -80,6 +83,24 @@ disconnect, and why it disconnected.
 engine enforces a quoting obligation for you, the widest spread and the
 smallest size that satisfy it. This is the configuration the engine checks
 your quotes against, not a score of how you quoted.
+
+
+## Working with the tables
+
+- **Tooltips.** Every column header and tile explains itself: hover a label
+  with a dotted underline.
+- **Sorting.** Click a header marked ↕ to sort by it; click again for the
+  other direction.
+- **Pages.** A table of more than 10 rows has a pager underneath, with 10,
+  30, 50, 100 or all rows per page. Your choice is remembered for every
+  table.
+- **Symbol filters** list the venue's symbols as you type; pick one with
+  the arrow keys and Enter, or click it. A symbol that is not listed still
+  filters. **Apply** (or Enter) applies the filters.
+- **Times** are on the exchange's clock — the venue's session timezone,
+  the same zone your trading days are in — with the date and the zone, e.g.
+  `2026-11-26 09:00:01 CET`. If the exchange does not tell the GUI its
+  timezone, times are shown in UTC and say so.
 
 
 ## Reading the numbers

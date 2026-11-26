@@ -1273,7 +1273,7 @@ Suggested order is the table order: CG18 is the foundation the others use.
 | 21 | CG21 | Participant detail in a wide drawer; row click; gateway ids open it | CG18 | 1.5 d | ☑ | 2026-11-26 |
 | 22 | CG22 | Searchable Gateway / Symbol / Account filters | — | 1 d | ☑ | 2026-11-26 |
 | 23 | CG23 | New Overview: needs attention, phase + staleness, EOD lag | CG18, CG19, CG21 | 1 d | ☑ | 2026-11-26 |
-| 24 | CG24 | Help drawer and the operator/participant guide chapters | CG18–CG23 | 0.5 d | ☐ | |
+| 24 | CG24 | Help drawer and the operator/participant guide chapters | CG18–CG23 | 0.5 d | ☑ | 2026-11-26 |
 
 Every WP is test-first in clearing-gui's vitest suite
 (`web-apps/clearing-gui/apps/web/test/`) and exits with the suite, the
@@ -1586,3 +1586,21 @@ typecheck and `a11y.test.tsx` green.
   as the 2026-11-19 guide reviews did.
 - **Exit:** `mkdocs build` clean; no text says "UTC", "Exposure table" or
   "Load more" for the clearing GUI.
+- **Done 2026-11-26.** Operator chapter: routes (`/session`,
+  `/reference/symbols`), what-must-run rows (timezone/phase, symbol lists),
+  the new Overview (phase, stale-write and EOD warnings with their limits,
+  Needs attention), the Participants drawer and gateway-id links, a new
+  "Working with the tables" section, four diagnosis rows, and the load
+  section (no per-gateway exposure poll; Overview phase at 30 s; timezone and
+  filter lists once). Participant chapter: merged My Positions, the Trades
+  pager, a new "Working with the tables" section with times. Help drawer:
+  new topics Tables and filters, Times, Overview warnings; ADMIN role line
+  mentions the drawer. Design doc §7.1–7.3 and §8 brought in line. No
+  screenshots exist in either chapter, so none to retake. "UTC" remains only
+  where the fallback is described, which is intended. `mkdocs build` clean;
+  suite 251, typecheck green.
+  **Not done:** the live-sim check of every statement. The texts were checked
+  against the code and the tests, not against a running GUI; do that on the
+  next sim run (drawer under the top bar at each font size, the staleness
+  warning in a quiet continuous session, the EOD-lag warning after the
+  close).

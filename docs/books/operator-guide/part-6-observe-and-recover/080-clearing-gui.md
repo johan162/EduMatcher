@@ -23,7 +23,9 @@ the Participant Guide's [Clearing GUI](../../participant-guide/part-6-front-ends
 chapter.
 
 The browser talks to one service only: `pm-api-gwy`, through its
-`/api/v1/clearing` routes (and `/api/v1/status`, `/api/v1/symbols`). The
+`/api/v1/clearing` routes (and `/api/v1/status`, `/api/v1/session` for the
+venue's timezone and trading phase, `/api/v1/reference/symbols` for the
+symbol filters, and `/api/v1/symbols` for market-maker obligations). The
 gateway opens both databases read-only, enforces who may see what, and
 answers every request; the GUI's own server serves static files and proxies
 `/api`. No database path, bus address or health socket ever reaches the
@@ -46,6 +48,8 @@ browser ──/api──▶ pm-clearing-ui-serve (8096) ──▶ pm-api-gwy (80
 | EOD Settlement, balances | `eod_db` pointing at `pm-eod`'s ledger (default `data/eod.db`); opening balances from `ref_data/roster.yaml` beside it |
 | Health's process line | `pm-clearing` running on the host the gateway reaches as `EDUMATCHER_ENGINE_HOST`, health port `EDUMATCHER_CLEARING_HEALTH_PORT` (5563) — the same check `pm-clearing-cli health` makes |
 | My Quote Obligations | The engine's resolved symbol settings (`GET /api/v1/symbols`) |
+| Times on the venue's clock; the Overview's session phase | `pm-engine` answering `GET /api/v1/session`. Without it, times are shown in UTC (and say so) and the phase reads *unknown* |
+| The Symbol filters' lists | `GET /api/v1/reference/symbols` (any key) |
 
 Keys: participants log in with their trading gateway's key, operators with an
 ADMIN gateway's key (`OPS01` in the bundled configurations). A read-only key
@@ -87,11 +91,24 @@ make dev                                             # Vite on :8196, /api → l
 
 ## The ADMIN screens
 
-**Clearing Overview** — the first place to look.
+**Clearing Overview** — the first place to look. It shows what needs
+attention; the full lists are on the other screens.
 
 - *Last clearing write / newest trade*: when `pm-clearing` last committed.
   Fills are written in batches (100 trades or 5 seconds), so up to 5 seconds
   of lag is normal; minutes mean `pm-clearing` is stalled or not receiving.
+- *Session phase* tile: the engine's trading phase now, refreshed every 30
+  seconds.
+- *No clearing write for N s* (amber): during continuous trading, clearing
+  has not written for more than 30 seconds. Either no trade has arrived (a
+  quiet market writes nothing) or `pm-clearing` is not writing; Health tells
+  which. It is never shown outside continuous trading: before the open and
+  during an auction, fills arrive only at the uncross.
+- *EOD* (amber): the last `pm-eod` run did not end `ok`, or the market is
+  closed and `pm-eod` has not yet run for the latest trading day. Right after
+  the close this is expected until `pm-eod` has run for the day. Once the
+  next day has opened, a day that was never settled is no longer flagged
+  here — check EOD Settlement.
 - *Feed gap* (red alert): `pm-clearing` saw the engine's trade ids jump on
   the latest session date — trades it never received, either lost on the bus
   while it ran, made while it was not running, or lost just before the engine
@@ -105,11 +122,21 @@ make dev                                             # Vite on :8196, /api → l
   read, its journal mode and row counts. **pm-clearing process** — whether
   its receive loop answered a ping. A readable database with a silent
   process means the data is frozen at the last write.
-- Participants (click one to drill down), the last `pm-eod` run, recent
-  session events.
+- *Needs attention*: the participants with the largest losses (up to five,
+  worst first) and the venue's five largest open positions by gross notional
+  (one position's own size, not a venue total). Select a row to open that
+  participant.
+- The last `pm-eod` run, recent session events (*All events →* for the rest),
+  and a link to Reconciliation in the page header.
 
-**Participants / drill-down** — one gateway's totals and the same tabs a
-participant sees, for that gateway.
+**Participants** — every gateway with its P&L. Select a row (click, or Enter
+on a focused row) to open the participant in a drawer over the list: its
+totals and the same tabs a participant sees — Positions, Trades, History,
+Settlement, Sessions. The list stays live behind it. Escape or × closes the
+drawer and returns to the row. Each drawer tab has its own address
+(`/participants/TRADER01/trades`), so it can be bookmarked or shared. A
+gateway id in any other table — a trade's buyer or seller, a reconciliation
+row, a gateway session, an EOD account — opens the same drawer.
 
 **Symbols** — traded quantity and value per symbol over a date range, and the
 aggregate signed position now. That aggregate is zero while every holder is a
@@ -134,6 +161,26 @@ raw and daily quantities and values.
 its steps.
 
 
+## Working with the tables
+
+- **Tooltips.** Every column header and every tile has an explanation:
+  hover a label with a dotted underline.
+- **Sorting.** A header with ↕ sorts on click (again for the other
+  direction). Trade lists cannot be sorted: they come from the server a page
+  at a time, newest first.
+- **Pages.** A table of more than 10 rows has a pager underneath — *Rows
+  31–60 of 214*, previous/next, and 10, 30, 50, 100 or all rows per page. The
+  choice is remembered for every table. In a trade list, *of 200+* means the
+  server holds more; paging forward fetches them.
+- **Filters.** Gateway, Symbol and Account filters list the known values as
+  you type (arrow keys and Enter, or click). A value that is not listed still
+  filters; empty means all. Filters apply on **Apply** (or Enter).
+- **Times** are on the venue's clock — its session timezone, the zone
+  trading days are in — with the date and the zone, e.g. `2026-11-26
+  09:00:01 CET`. If the engine does not answer the timezone request, times
+  are shown in UTC and labelled so.
+
+
 ## Diagnosing what it shows
 
 | The GUI says | Cause | Check |
@@ -146,6 +193,10 @@ its steps.
 | Health: *pm-clearing process: not answering* | `pm-clearing` stopped, or the health address differs | `pm-clearing-cli health` from the gateway's host |
 | *API contract error* | the GUI and the gateway are different versions | deploy matching versions |
 | Feed gap alert | trades lost on the bus between engine and clearing | reconcile the day; compare with the audit trail |
+| *No clearing write for N s* | no trades during continuous trading, or `pm-clearing` not writing | Health's process line; `pm-clearing-cli health` |
+| *The last EOD run … ended failed* | `pm-eod` failed for that day | EOD Settlement's run steps; `pm-eod status` |
+| *Trading day … is closed but not settled* | `pm-eod` has not run yet for the day | normal just after the close; otherwise the scheduler and `pm-eod` |
+| Times end in *UTC*; phase *unknown* | `GET /api/v1/session` failed: the engine did not answer | `pm-opctl-cli status` |
 
 The gateway logs every unreadable store as a WARNING (`clearing: cannot read
 …`), with an explanation in the log ledger (`pm-log-cli explain`).
@@ -155,10 +206,13 @@ The gateway logs every unreadable store as a WARNING (`clearing: cannot read
 
 The GUI is built to stay cheap however long it is left open:
 
-- current state — positions, exposure, participants, the overview summary —
-  is refreshed every 5 seconds, matching the clearing flush, from small
-  aggregate tables;
-- health every 30 seconds (each call pings `pm-clearing` once);
+- current state — positions, participants, the overview summary and its
+  five largest positions — is refreshed every 5 seconds, matching the
+  clearing flush, from small aggregate tables;
+- health every 30 seconds (each call pings `pm-clearing` once), and, while
+  the Overview is open, the session phase (one engine request);
+- the venue's timezone once per login, and the filters' gateway, symbol and
+  account lists once;
 - trades, history, events and settlement only when a screen or filter asks;
   reconciliation only on **Run**, never automatically;
 - every list is bounded (`limit`, at most 5 000 rows); the trade audit pages
@@ -171,7 +225,7 @@ Measured with `tools/clearing_api_bench.py` on a 180 000-trade ledger (90 days,
 |---|---|---:|---:|
 | Overview summary | 5 s | 3 ms | 0.3 kB |
 | Participants | 5 s | 4 ms | 7 kB |
-| One gateway's positions / exposure | 5 s | 4 ms | 10 kB |
+| One gateway's positions | 5 s | 4 ms | 10 kB |
 | Health (bench: a silent process and a 50 ms ping bound; live, at most the 0.5 s ping bound) | 30 s | 52 ms | 0.3 kB |
 | A trade page (200 rows, venue or one gateway) | on demand | 10–12 ms | 75 kB |
 | One gateway's daily rows (1 000) | on demand | 19–45 ms | 585 kB |
