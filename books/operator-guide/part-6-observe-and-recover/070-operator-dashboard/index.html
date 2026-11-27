@@ -3711,6 +3711,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#engine-latency-and-the-hosts-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine latency and the host's CPU
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#drawers-one-process-participant-or-book" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8280,6 +8291,70 @@ worst stalls.</p>
 <p><img alt="The trading activity and participants rows." src="../../../../assets/dash-gui/dashboard-trading.png" /></p>
 <p><em>Per-minute bars count a minute once it is over, so the current minute
 appears at the next refresh after it closes.</em></p>
+<h3 id="engine-latency-and-the-hosts-cpu">Engine latency and the host's CPU<a class="headerlink" href="#engine-latency-and-the-hosts-cpu" title="Permanent link">&para;</a></h3>
+<p>Two things make the engine latency figures larger than you might expect.
+Neither means matching is slow.</p>
+<p><strong>p99 is about ten times p50, and that is normal.</strong> The figures time each
+order-entry message <em>with everything it publishes</em>. A cancel or an order
+that rests publishes one or two messages; a combo, a quote or an order that
+trades through several price levels publishes 10–30 (fills, trades, acks).
+p50 measures the first kind and p99 the second. The ratio changes when the
+order mix changes, not when the engine gets slower.</p>
+<p><strong>On a host left in power-saving mode, every message is 5–7 times slower.</strong>
+Between messages the engine waits for the next one, often for milliseconds.
+In that gap the CPU core it runs on clocks down or goes to sleep, and the
+next message runs on a slow, cold core. In measurements on an Intel Xeon
+workstation, a resting order took about 45 µs back to back but about 250 µs
+with a 1 ms pause before each one. With these power settings the engine's
+p50 sits at 200–300 µs and its p99 at 1–2.5 ms, while <code>engine.busy_pct</code> in
+the engine's <a href="#drawers-one-process-participant-or-book">drawer</a> stays low.
+More load does not help, and a quieter market does not make it worse.</p>
+<p>Check the host (Linux; on a VM, check the physical host):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cat<span class="w"> </span>/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cat<span class="w"> </span>/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference
+</code></pre></div>
+<p><code>powersave</code> with <code>balance_performance</code> (the Fedora and RHEL default) or
+<code>balance_power</code> means the cores save power between messages. <code>performance</code>
+for both means they do not. The second file exists only with the
+<code>intel_pstate</code> or <code>amd-pstate</code> driver.</p>
+<p><strong>Fix 1: a latency profile.</strong> On a distribution with <code>tuned</code> (Fedora,
+RHEL and derivatives):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>tuned-adm<span class="w"> </span>active<span class="w">                              </span><span class="c1"># note the current profile</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>sudo<span class="w"> </span>tuned-adm<span class="w"> </span>profile<span class="w"> </span>latency-performance
+</code></pre></div>
+<p>This sets the <code>performance</code> governor and keeps cores out of their deep sleep
+states. It persists across reboots. To undo it, switch back to the profile
+<code>tuned-adm active</code> showed, for example <code>sudo tuned-adm profile balanced</code>.</p>
+<p>Without <code>tuned</code>, use <code>cpupower</code> (package <code>kernel-tools</code> on Fedora and RHEL,
+<code>linux-cpupower</code> on Debian). These settings last until the next reboot:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>sudo<span class="w"> </span>cpupower<span class="w"> </span>frequency-set<span class="w"> </span>-g<span class="w"> </span>performance
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>sudo<span class="w"> </span>cpupower<span class="w"> </span>idle-set<span class="w"> </span>-D<span class="w"> </span><span class="m">10</span><span class="w">       </span><span class="c1"># disable sleep states with ≥ 10 µs exit latency</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># undo:</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>sudo<span class="w"> </span>cpupower<span class="w"> </span>idle-set<span class="w"> </span>-E
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>sudo<span class="w"> </span>cpupower<span class="w"> </span>frequency-set<span class="w"> </span>-g<span class="w"> </span>powersave
+</code></pre></div>
+<p><strong>The cost is power.</strong> With either fix, idle cores no longer sleep, so the
+machine draws noticeably more power at idle and runs warmer. That is a fair
+trade on a machine that hosts the exchange, but not on a laptop running on
+battery. Leave the host as it is if the exchange is only used for
+demonstrations, where a few hundred microseconds do not matter.</p>
+<p><strong>Fix 2, on a shared host: give the engine a core of its own.</strong> If the
+same machine also runs heavy work, such as a test suite, builds or the AI
+trader swarm, that work evicts the engine's data from the CPU cache and
+pushes it from core to core. The whole exchange runs in one container
+(<a href="../../part-1-install-and-deploy/030-container-deployment-walkthrough/#why-the-whole-exchange-is-one-container">why</a>),
+so pin the engine process itself rather than the container. This example
+pins it to core 3:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>pm-opctl-cli<span class="w"> </span>list<span class="w">          </span><span class="c1"># the engine's PID, here 37</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>taskset<span class="w"> </span>-a<span class="w"> </span>-cp<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">37</span><span class="w">        </span><span class="c1"># all its threads to core 3</span>
+</code></pre></div>
+<p>Then keep the other work off that core, for example
+<code>taskset -c 0-2,4-35 &lt;command&gt;</code> on a 36-thread machine. The pinning ends
+with the process: set it
+again whenever <code>pm-engine</code> starts again, for example after the container is
+recreated.</p>
+<p>After a fix, the dashboard's <em>Engine latency</em> row shows the change within a
+minute. The fan-out ratio between p50 and p99 stays.</p>
 <h3 id="drawers-one-process-participant-or-book">Drawers: one process, participant or book<a class="headerlink" href="#drawers-one-process-participant-or-book" title="Permanent link">&para;</a></h3>
 <p>Click a row in the processes, participants or order books table (or select
 it and press Enter) to open its <strong>drawer</strong> on the right:</p>
@@ -8462,6 +8537,11 @@ needed when you open the GUIs from another machine.</p>
 <td><code>pm-monitor</code> DEGRADED, a <code>metrics_store_errors</code> breach</td>
 <td><code>pm-monitor</code> cannot write its history (read-only or full data directory)</td>
 <td>See <a href="../060-health-monitor/#troubleshooting">Health Monitoring</a>; the live figures are unaffected</td>
+</tr>
+<tr>
+<td>Engine order p50 in the hundreds of microseconds while <code>engine.busy_pct</code> is low</td>
+<td>The host saves CPU power between messages</td>
+<td>See <a href="#engine-latency-and-the-hosts-cpu">Engine latency and the host's CPU</a></td>
 </tr>
 <tr>
 <td>Container cannot read <code>metrics.db</code> on Linux</td>

@@ -8756,7 +8756,10 @@ of red is the signal.</p>
 <p>Below it, five meter tiles: total events, current error rate per minute,
 warnings in the last 60 s, process count, and log-server state. Then two
 charts — events over time (1-minute buckets over the last hour) and top
-processes by error count — and a compact list of the five most recent errors.</p>
+processes by error count (<code>ERROR</code> and <code>CRITICAL</code> over the last hour) — and a
+compact list of the five most recent errors, whatever their age. With no errors
+in the last hour the second chart says so rather than staying blank, so it can
+be empty while older errors still show in the list below.</p>
 <p>The <strong>error-rate tile is banded</strong> — it carries a colour and a word (<code>normal</code>,
 <code>elevated</code>, <code>high</code>, <code>SEVERE</code>) rather than a bare number, because "18 errors a
 minute" means nothing without knowing what this venue considers busy. The
@@ -8774,6 +8777,7 @@ toggled by the <strong>▶ LIVE / history</strong> button.</p>
   <strong>most recent 2 000 rows</strong>, newest first. Rows flash briefly as they arrive.</li>
 <li><strong>history</strong> queries <code>log.db</code> through the bridge and shows a match count.</li>
 </ul>
+<p>The <strong>(?)</strong> beside the button opens a short explanation of the two modes.</p>
 <p>The filter bar applies to both modes, and every filter is <strong>kept in the URL
 query string</strong> — so a filtered view is a link you can paste into a ticket or a
 chat message and a colleague opens exactly what you were looking at.</p>
@@ -8917,7 +8921,8 @@ connection, with a status glyph:</p>
 <p>The <code>⚠</code> state is the one to watch. A process that connected and then went
 quiet is not obviously broken from any single log line — there is nothing to
 see, which is precisely the problem. Alongside each row: pid, host, connect
-time, idle time, total log count and error count.</p>
+time, idle time, total log count and error count.
+Idle time is shown as <code>HH:MM:SS ago</code>, with total hours even after a day.</p>
 <p>The threshold is <code>PROCESS_SILENCE_SEC</code> (30 s by default) and is stated in the
 legend above the table, so the glyph is never ambiguous.</p>
 <p><strong>Hide probes</strong> (on by default) hides each process's start-up probe: before it
