@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useAdminGatewaysQuery, useDisconnectGatewayMutation } from "@/queries/index.js";
 import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
@@ -9,10 +9,10 @@ import type { AdminGateway } from "@/types/index.js";
 import { GatewayDrawer } from "@/components/admin/GatewayDrawer.js";
 import { HeaderTip } from "@/components/shared/HeaderTip.js";
 import { formatNsTimestamp } from "@/lib/formatters.js";
-import { PAGE_SIZES, usePrefsStore } from "@/store/usePrefsStore.js";
+import { usePrefsStore } from "@/store/usePrefsStore.js";
+import { pagination, TablePager } from "@/components/shared/TablePager.js";
 
 const fieldCls = "rounded border border-line bg-raised px-2 py-0.5 text-xs";
-const pageBtnCls = "rounded p-1 text-fg-dim hover:bg-raised hover:text-fg disabled:opacity-40";
 
 /**
  * Gateway Management (§15.7) — the roster from `GET /admin/gateways` with a
@@ -42,9 +42,7 @@ export function AdminGatewaysPage() {
     const needle = search.trim().toUpperCase();
     return gateways.filter((g) => (!activeRole || g.role === activeRole) && (!needle || g.id.toUpperCase().includes(needle)));
   }, [gateways, activeRole, search]);
-  // The requested page is held inside the page count: rows come and go under a viewer.
-  const pageCount = pageSize ? Math.max(1, Math.ceil(shown.length / pageSize)) : 1;
-  const pageIndex = Math.min(requestedPage, pageCount - 1);
+  const { pageCount, pageIndex } = pagination(shown.length, pageSize, requestedPage);
   const pageRows = pageSize ? shown.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize) : shown;
 
   const doKick = (id: string) => {
@@ -114,43 +112,17 @@ export function AdminGatewaysPage() {
           {shown.length} participant{shown.length === 1 ? "" : "s"}
           {shown.length !== gateways.length && ` of ${gateways.length}`}
         </span>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="tabular-nums text-fg-dim">
-            Page {pageIndex + 1}/{pageCount}
-          </span>
-          <button
-            type="button"
-            disabled={pageIndex === 0}
-            onClick={() => setRequestedPage(pageIndex - 1)}
-            aria-label="Previous page"
-            className={pageBtnCls}
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <button
-            type="button"
-            disabled={pageIndex >= pageCount - 1}
-            onClick={() => setRequestedPage(pageIndex + 1)}
-            aria-label="Next page"
-            className={pageBtnCls}
-          >
-            <ChevronRight size={14} />
-          </button>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
+        <div className="ml-auto">
+          <TablePager
+            pageIndex={pageIndex}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            onPage={setRequestedPage}
+            onPageSize={(n) => {
+              setPageSize(n);
               setRequestedPage(0);
             }}
-            aria-label="Rows per page"
-            className={`${fieldCls} text-fg-dim`}
-          >
-            {PAGE_SIZES.map((n) => (
-              <option key={n} value={n}>
-                {n ? `${n} rows` : "All rows"}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 

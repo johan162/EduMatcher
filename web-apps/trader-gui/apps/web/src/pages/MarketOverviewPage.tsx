@@ -12,6 +12,8 @@ import { useHaltStore } from "@/store/useHaltStore.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useWatchlistStore } from "@/store/useWatchlistStore.js";
+import { usePrefsStore } from "@/store/usePrefsStore.js";
+import { pagination, TablePager } from "@/components/shared/TablePager.js";
 import { buildMarketRows, filterRows, isAuctionPhase } from "@/lib/marketRows.js";
 
 /**
@@ -38,6 +40,9 @@ export function MarketOverviewPage() {
 
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "symbol", desc: false }]);
+  const pageSize = usePrefsStore((s) => s.marketPageSize);
+  const setPageSize = usePrefsStore((s) => s.setMarketPageSize);
+  const [requestedPage, setRequestedPage] = useState(0);
 
   // `GET /symbols` carries tick_decimals and prev_close per caller; merge it
   // over whatever the login bootstrap seeded from the reference bundle so the
@@ -79,6 +84,9 @@ export function MarketOverviewPage() {
     [symbols, books, dailyQuery.data, halts, watchlist, query],
   );
 
+  // The filter covers every symbol, not just the page on show.
+  const { pageCount, pageIndex } = pagination(rows.length, pageSize, requestedPage);
+
   const loading = symbolsQuery.isLoading;
   const empty = !loading && symbols.length === 0;
 
@@ -92,7 +100,10 @@ export function MarketOverviewPage() {
           <input
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setRequestedPage(0);
+            }}
             placeholder="Filter symbols…"
             aria-label="Filter symbols"
             className="bg-raised border border-line rounded pl-7 pr-2 py-1 text-xs font-mono w-48 focus:outline-none focus:border-[#3a3a60]"
@@ -101,6 +112,7 @@ export function MarketOverviewPage() {
 
         <span className="text-xs text-fg-faint">
           {rows.length} {rows.length === 1 ? "symbol" : "symbols"}
+          {rows.length !== symbols.length && ` of ${symbols.length}`}
         </span>
 
         {/* The rollup is optional data: a venue with no stats database still
@@ -109,13 +121,26 @@ export function MarketOverviewPage() {
           <span className="text-xs text-halt">Daily rollup unavailable — Chg %/Volume hidden</span>
         )}
 
+        <div className="ml-auto">
+          <TablePager
+            pageIndex={pageIndex}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            onPage={setRequestedPage}
+            onPageSize={(n) => {
+              setPageSize(n);
+              setRequestedPage(0);
+            }}
+          />
+        </div>
+
         <button
           type="button"
           onClick={() => {
             void symbolsQuery.refetch();
             void dailyQuery.refetch();
           }}
-          className="ml-auto flex items-center gap-1 text-xs text-fg-dim hover:text-fg"
+          className="flex items-center gap-1 text-xs text-fg-dim hover:text-fg"
         >
           <RefreshCw size={12} />
           Refresh
@@ -149,6 +174,7 @@ export function MarketOverviewPage() {
           showAuction={isAuctionPhase(phase)}
           onSelect={openDetail}
           onToggleWatch={toggleWatch}
+          page={pageSize ? { index: pageIndex, size: pageSize } : undefined}
         />
       )}
     </div>

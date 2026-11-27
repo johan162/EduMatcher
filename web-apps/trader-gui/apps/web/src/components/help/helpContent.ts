@@ -461,7 +461,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         terms: [
           { term: "Bid / Ask", text: "The best price a buyer is willing to pay / a seller is willing to accept. The gap between them is the spread." },
           { term: "Last", text: "The price of the latest trade." },
-          { term: "Chg %", text: "Change of the last price against the previous close." },
+          { term: "Chg %", text: "Change of the last price against the day's opening price, in percent. Blank until the symbol has an opening price." },
           { term: "Volume", text: "Quantity traded today." },
           { term: "Status", text: "Whether the symbol is trading, in an auction, or halted." },
         ],
