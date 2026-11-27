@@ -36,7 +36,7 @@ from edumatcher.api_gateway.config import (
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
 from edumatcher.api_gateway.sim_client import SimClient
-from edumatcher.audit.service.session import AuditService
+from edumatcher.audit.service.session import AuditService, WorkerLauncher
 from edumatcher.config import AUDIT_GUI_DIR, REF_DATA_DIR, SIM_PUB_ADDR
 from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME, load_sectors
 from edumatcher.api_gateway.rate_limit import RateLimiter
@@ -237,6 +237,8 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
             heartbeat_task.cancel()
             if sweeper is not None:
                 sweeper.cancel()
+            if app.state.audit.launcher is not None:
+                await asyncio.to_thread(app.state.audit.launcher.stop)
             for gateway_id in engine.active_gateways():
                 # Best-effort: a 503 raised here would skip the two
                 # stop_listener calls below and leak the reader threads, and
@@ -272,7 +274,11 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
     # eviction disabled (0) they still expire, so the store stays bounded.
     app.state.idempotency = IdempotencyStore(config.order_retention_sec or 3600)
     # The Audit GUI's reads: no process, no socket, nothing read until asked.
-    app.state.audit = AuditService(config.audit_collections, AUDIT_GUI_DIR)
+    # The audit GUI's worker process: started on the first job, stopped with
+    # the gateway (it also exits when this process goes).
+    app.state.audit = AuditService(
+        config.audit_collections, AUDIT_GUI_DIR, WorkerLauncher(AUDIT_GUI_DIR)
+    )
 
     default_openapi = app.openapi
 

@@ -1333,8 +1333,69 @@ class AuditSymbol(BaseModel):
     )
 
 
+class AuditJobProgress(BaseModel):
+    done: int = Field(ge=0)
+    total: int = Field(ge=0)
+
+
+class AuditJob(BaseModel):
+    job_id: str
+    kind: Literal["prepare", "verify", "forensics_import"]
+    snapshot_id: str
+    options: dict[str, Any]
+    state: Literal[
+        "queued", "running", "succeeded", "failed", "cancelled", "unavailable"
+    ]
+    stage: str | None = Field(description="What the worker is doing now.")
+    progress: AuditJobProgress | None = Field(
+        description="Measured progress, once the total is known; null before."
+    )
+    heartbeat_at: str | None = Field(description="The worker's last beat (UTC).")
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    reason: str | None = Field(
+        description="Why it ended other than by succeeding (`WORKER_LOST`, "
+        "`TIMEOUT`, `CANCELLED`, `JOB_ERROR`, `DISK_LOW`, `NOT_ATTACHED`, or a "
+        "source reason)."
+    )
+    detail: str | None
+    result_id: str | None = Field(description="`GET /results/{id}` once it succeeded.")
+
+
+class AuditJobOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    force: bool = Field(
+        default=False, description="`prepare` only: rebuild a prepared snapshot."
+    )
+
+
+class AuditJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["prepare", "verify", "forensics_import"]
+    snapshot_id: str = Field(min_length=1, max_length=64)
+    options: AuditJobOptions = Field(default_factory=AuditJobOptions)
+
+
+class AuditResult(BaseModel):
+    job_id: str
+    kind: Literal["prepare", "verify", "forensics_import"]
+    snapshot_id: str
+    finished_at: str | None
+    content: dict[str, Any] = Field(description="The kind's typed result.")
+
+
 class AuditSnapshot(BaseModel):
     snapshot_id: str
+    generation: int | None = Field(
+        description="The published read-model generation; null until its "
+        "`prepare` job has succeeded (reads answer `409 NOT_PREPARED` before)."
+    )
+    prepare: AuditJob | None = Field(
+        description="The latest `prepare` job of the snapshot; null when none was needed."
+    )
     collection_id: str
     created_at: str = Field(description="When it was first pinned (UTC).")
     entries: int = Field(ge=0, description="Audit records it holds.")
@@ -1399,6 +1460,7 @@ class AuditRecord(BaseModel):
 
 class AuditEventPage(_Page):
     snapshot_id: str
+    generation: int = Field(description="The read-model generation this page is from.")
     events: list[AuditRecord] = Field(description="In canonical order.")
 
 
@@ -1523,6 +1585,7 @@ class AuditForensicsSummary(BaseModel):
 
 class AuditFindingPage(_Page):
     snapshot_id: str
+    generation: int = Field(description="The read-model generation this page is from.")
     lanes: dict[str, AuditLane]
     forensics: AuditForensicsSummary
     findings: list[AuditFinding] = Field(description="Worst first, then by time.")

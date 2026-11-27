@@ -886,6 +886,14 @@ class _RoleEngine:
         return ROLES.get(gateway_id)
 
 
+def run_jobs(app: Any) -> int:
+    """Run every queued audit job in this process, as the worker would (the
+    test app starts no worker process); the number run."""
+    from edumatcher.audit.service.worker import run_pending
+
+    return run_pending(app.state.audit.store)
+
+
 def make_audit_app(world: World, audit_db: Path | None = None) -> Any:
     """The pm-api-gwy app over *world* (its one audit collection is
     ``world``), with a key for every role (see tests/api_gateway_harness.py

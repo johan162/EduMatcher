@@ -39,6 +39,23 @@ export const Collections = z.object({
   count: int,
 });
 
+export const Job = z.object({
+  job_id: z.string(),
+  kind: z.enum(["prepare", "verify", "forensics_import"]),
+  snapshot_id: z.string(),
+  options: z.record(z.string(), z.unknown()),
+  state: z.enum(["queued", "running", "succeeded", "failed", "cancelled", "unavailable"]),
+  stage: z.string().nullable(),
+  progress: z.object({ done: int, total: int }).nullable(),
+  heartbeat_at: z.string().nullable(),
+  created_at: z.string(),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  reason: z.string().nullable(),
+  detail: z.string().nullable(),
+  result_id: z.string().nullable(),
+});
+
 const Capability = z.object({
   available: z.boolean(),
   reason: z.string().nullable(),
@@ -47,6 +64,8 @@ const Capability = z.object({
 
 export const Snapshot = z.object({
   snapshot_id: z.string(),
+  generation: int.nullable(),
+  prepare: Job.nullable(),
   collection_id: z.string(),
   created_at: z.string(),
   entries: int,
@@ -146,6 +165,7 @@ export const Finding = z.object({
 
 export const FindingPage = z.object({
   snapshot_id: z.string(),
+  generation: int,
   lanes: z.record(
     z.string(),
     z.object({ available: z.boolean(), reason: z.string().nullable().optional(), count: int.nullable() }),
@@ -262,6 +282,7 @@ const Source = z.object({ file: z.string().nullable(), line: int });
 
 export const EventPage = z.object({
   snapshot_id: z.string(),
+  generation: int,
   events: z.array(
     z.object({
       key: z.string(),
@@ -358,9 +379,11 @@ export const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   "/api/v1/audit/stories/{entity_kind}/{entity_id}": Story,
   "/api/v1/audit/market/{symbol}/heatmap": Heatmap,
   "/api/v1/audit/market/{symbol}/lifelines": Lifelines,
+  "/api/v1/audit/jobs/{job_id}": Job,
 };
 
 export type SnapshotT = z.infer<typeof Snapshot>;
+export type JobT = z.infer<typeof Job>;
 export type HeatmapT = z.infer<typeof Heatmap>;
 export type LifelinesT = z.infer<typeof Lifelines>;
 export type LifelineT = LifelinesT["lifelines"][number];

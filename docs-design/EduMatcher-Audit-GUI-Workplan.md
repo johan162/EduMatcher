@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (R0 complete: AG0-AG7 done; R1: AG8 done). This plan orders the work needed to deliver the
+Status: **In progress** (R0 complete: AG0-AG7 done; R1: AG8-AG9 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -67,7 +67,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | # | WP | Content | Design pkg | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
 | 8 | AG8 | Full source catalogue: legacy, rotation, zstd, retired, torn, run resets, mutation | AU-1 | AG7 | 2.5 d | ☑ | 2026-11-27 |
-| 9 | AG9 | Worker process, job store and job API; `prepare`/`verify`/`forensics_import` | AU-2 | AG8 | 3 d | ☐ | |
+| 9 | AG9 | Worker process, job store and job API; `prepare`/`verify`/`forensics_import` | AU-2 | AG8 | 3 d | ☑ | 2026-11-27 |
 | 10 | AG10 | Typed filter grammar, cursors, counts, bounds and `reproduce` blocks | AU-2 | AG8 | 2 d | ☐ | |
 | 11 | AG11 | Integrity & Coverage workspace | AU-3 | AG9, AG10 | 2 d | ☐ | |
 | 12 | AG12 | Explorer: episodes/raw events, causal graph, Pivot (`/analyze`) | AU-3 | AG10 | 3 d | ☐ | |
@@ -952,7 +952,7 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF1 | AG0 | P3 | The engine publishes no `session.state` at startup; the phase it starts in is only on its STARTUP `system.book_checkpoint.<symbol>` (`phase`). A phase band (AG3/AG6, design §9.4) built from `session.state` alone has no phase before the first transition. | Recorded, with a world test pinning the STARTUP checkpoint phase. AG3 takes the initial phase from the checkpoint, and shows "unknown" where neither exists. |
 | AGF3 | AG1 | P3 | Creating a snapshot parses every record (through `iter_entries`) at about 91,000 records/s: a 52 MB, 92,000-record trail takes 1.0 s to pin and 0.85 s to read. The 10-million-event reference session (design §11.1) would take about 110 s per snapshot. | Acceptable for R0 (synchronous, one session). AG9 moves it into the `prepare` job; AG25 measures it against §11.1 and may switch the scan to `rawlines` (unparsed skipping). |
 | AGF4 | AG2 | P3 | Design §8.1 and this plan say an invalid filter is `422`; the gateway answers every malformed parameter, body or cursor with `400 VALIDATION` (its error registry and the REST chapter's contract). | Code is right: the audit routes use `400 VALIDATION` with `field`. AG10's grammar errors follow it; design §8.1 corrected. |
-| AGF5 | AG2 | P2 | The first read of a snapshot runs the replay pipeline and builds the episode index at about 6,400 records/s (2.9 s for 18,450 records; pages afterwards about 1 ms). The 10-million-event reference (§11.1) would take about 26 minutes in a request. | Acceptable for R0 (one class session, one snapshot cached). AG9's `prepare` job must take this out of the API process before R1; AG25 measures it. |
+| AGF5 | AG2 | P2 | The first read of a snapshot runs the replay pipeline and builds the episode index at about 6,400 records/s (2.9 s for 18,450 records; pages afterwards about 1 ms). The 10-million-event reference (§11.1) would take about 26 minutes in a request. | Resolved in AG9: the reconstruction runs only in the worker's `prepare` job; the API reads published generations (a test poisons the pipeline in the API process). AG25 measures it against §11.1. |
 | AGF6 | AG2 | P3 | `Episode.run_seq` is read from payloads and is unset for most orders, so it cannot keep stories apart across a run reset. The replay's own run is each fact's `publisher_run` (0-based restart epoch). | `/stories` selects and filters by the episodes' `publisher_run`, exposed as `run` (and `run_id`), the same number `/events` reports. An id seen in two runs is `409 AMBIGUOUS_RUN` until `run_id` names one. |
 | AGF7 | AG3 | P3 | `depth.<symbol>` carries only aggregate depth within a tolerance (`bid_depth`, `ask_depth`), no price levels. And the base world's opening uncross published no `book.<symbol>`: the last observation of each symbol before continuous trading is its crossed auction book (BBB's for 29 s). | The heatmap reads `book.*` only. An observation ends at the next one, a phase change, an uncross of its symbol (`auction.result`, so a reopen uncross without a phase change is covered too), an `ESEQ_GAP` or the end of its run; tests pin the opening and a reopen. Whether the engine should publish the book after an uncross is not decided here. |
 | AGF8 | AG3 | P3 | The receipt clock (the only one on every record) has millisecond resolution, and one command's effects share a stamp: two fills in one command are one lifeline segment (base world `stop_bid`), and a mask can start where an observation does. | Recorded. Lifelines and heatmap say `clock: "receipt"`; changes at one instant collapse into one segment, which shows the state they reached. |
@@ -976,6 +976,10 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF26 | AG7 | P3 | Design §9.1's top bar also has a run selector, the venue timezone and filter chips; R0 shows every run (each lifeline names its run) and UTC. | Open, planned: AG10 (time controls, timezone), AG18 (scope chips, run selection). |
 | AGF27 | AG8 | P3 | `audit.manifest.verify` reported every problem as a message only; chain and content results could be told apart only by parsing its English. | `Problem` gained `kind` (`chain`, `content`), set where `verify` knows which check failed (additive; `pm-audit-cli verify` prints the message as before; tested). The descriptor reports `chain_ok` and `content_ok` from it. |
 | AGF28 | AG8 | P3 | AG1's descriptor listed a run only at a `system.startup`, so a trail beginning mid-run had no run, while the replay (and `/events`) numbers that run 0. | Runs follow the replay's rule: a run begins at the first record and at each later startup with `seq` 1, with `started_ts` null when there is no startup; a test holds the catalogue's per-run record counts to `/events`' `run` values. |
+| AGF29 | AG9 | P2 | Pinning stays synchronous: `POST /snapshots` hashes every file, copies the active file and verifies the manifest (archives decompressed) in the request, O(retained bytes): about 1 s per 50 MB. Design §7.3 says not to verify archives in a request handler. | Open for AG25: measured against §11.1 on the reference session; if over target, pinning becomes the first stage of `prepare` (the GUI already follows a job after pinning). |
+| AGF30 | AG9 | P3 | `forensics_import` cannot attach a report to an existing snapshot without changing what the snapshot is: the report's hash is part of the snapshot id (AG4). | `forensics_import` checks a report now beside the collection against the snapshot (match, statuses, the snapshot's own pinned hash) as a typed result; a report is attached by pinning the collection again. Recorded in the REST chapter. |
+| AGF31 | AG9 | P3 | Reads come from the generation, not the sources, so a retained file changed after the pin would no longer be noticed by a read. | Every read checks the retained files by `stat`; a file whose size or mtime changed since it was last hashed is hashed again (`SOURCE_MISSING`/`SOURCE_CHANGED` as before). The full re-hash of everything is the `verify` job. |
+| AGF32 | AG9 | P3 | A generation takes about five times the trail on disk (replay index about 3.5x, events 1.3x after zlib), and two are kept per snapshot; snapshots themselves are never expired. | Event rows are zlib-compressed (halved them). Snapshot and generation retention (design §7.2: explicit expiry, unavailable afterwards) is open for AG25. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1322,3 +1326,55 @@ AGF26.
 - Not in AG8: the Integrity & Coverage workspace that shows the catalogue
   (AG11); per-symbol/topic scope of a gap (AG11); external anchoring (no
   anchor source is configured, gate D1).
+
+### 8.10 AG9 done note (2026-11-27)
+
+- `audit/service/jobs.py`: the job store (`data/audit-gui/jobs.db`):
+  states `queued/running/succeeded/failed/cancelled/unavailable`, stage,
+  progress (`(done, total)` once the total is known, else None), heartbeat,
+  reasons (`WORKER_LOST`, `TIMEOUT`, `CANCELLED`, `JOB_ERROR`, `DISK_LOW`,
+  `NOT_ATTACHED`, source reasons); identical active requests share a job;
+  stranded jobs are failed on the next job read.
+- `audit/service/worker.py`: the worker process (`python -m
+  edumatcher.audit.service.worker STORE`), started by the gateway on the
+  first job and stopped with it (and exiting if its parent goes); one job
+  at a time, a heartbeat every second, an hour per job, 4 GiB address
+  space, 512 MiB free disk; scratch removed on every ending (and by the API
+  for a lost job). Kinds `prepare` (build and publish the next generation;
+  `force` rebuilds), `verify` (re-hash the pinned files, manifest and days
+  now), `forensics_import` (AGF30).
+- `audit/service/build.py` and `generations.py`: a generation holds
+  `events.db` (canonical rows, zlib, with filter columns), `replay.db`,
+  `market.db` (the market model, dumped by the worker, loaded per symbol by
+  the API) and `meta.json`; built in scratch, renamed into place, then
+  `CURRENT` replaced; the current and previous generations are kept.
+- `audit/service/session.py`: `AuditService` reads only through a
+  `GenerationView`; before the first generation every read is
+  `409 NOT_PREPARED` with the job; cursors carry their generation, so a
+  rebuild never moves a listing, and a removed one is
+  `409 GENERATION_EXPIRED` (scenario 8). `POST /snapshots` queues
+  `prepare`; the descriptor reports `generation` and `prepare`.
+- Routes `POST /jobs` (202), `GET /jobs/{id}`, `POST /jobs/{id}/cancel`,
+  `GET /results/{id}`; codes `NOT_PREPARED`, `GENERATION_EXPIRED`,
+  `UNKNOWN_JOB`, `JOB_NOT_SUCCEEDED`; OpenAPI, REST chapter.
+- GUI: the picker follows the `prepare` job (stage and progress, polled
+  each second only while active), opens the snapshot when it succeeds, and
+  offers Retry with the reason when it does not.
+- Tests: the job store's 9 tests were written first; the worker and job API
+  tests (19) after the code, as recorded evidence: each kind 202,
+  de-duplication, 400 for unknown kinds and options, reads wait for
+  `prepare`, rebuilds keep the previous generation, a cursor stays on its
+  generation and an expired one says so (scenario 8), cancel and time-out
+  publish nothing and leave no scratch, a failed rebuild keeps the last
+  generation and a retry is clean (scenario 10), `DISK_LOW`, `verify`
+  finds a changed part, `forensics_import`; with the real worker process:
+  killing it fails the job `WORKER_LOST` and removes its scratch, and with
+  the replay pipeline and market build poisoned in the API process every
+  read still answers (the API never reconstructs). The browser journey
+  runs against the real worker.
+- Measured (base world with a run reset, 425 records): pin and queue
+  13 ms, prepare 61 ms, job read and submit 0.5 ms (acknowledgement well
+  under 1 s; heartbeat every second, a test sees a second beat within
+  3 s). Generation 1.1 MB for a 216 kB trail (AGF32).
+- Not in AG9: pinning as a job (AGF29), snapshot expiry (AGF32), per-job
+  configuration of the limits (constants and worker flags for now).

@@ -87,15 +87,18 @@ class Attachment:
 
 
 def attach(
-    collection_root: Path, pinned: Mapping[str, tuple[int, str]], work: Path
+    collection_root: Path, pinned: Mapping[str, tuple[int, str]], work: Path | None
 ) -> Attachment | None:
-    """Copy the collection's report into *work* and compare its audit inputs
-    with *pinned* (name -> bytes read, SHA-256); None when there is none."""
+    """Compare the collection's report's audit inputs with *pinned* (name ->
+    bytes read, SHA-256), copying the report into *work* when given (a
+    snapshot being pinned; None: the ``forensics_import`` check); None when
+    there is no report."""
     try:
         raw = report_path(collection_root).read_bytes()
     except FileNotFoundError:
         return None
-    (work / PINNED).write_bytes(raw)
+    if work is not None:
+        (work / PINNED).write_bytes(raw)
     sha = hashlib.sha256(raw).hexdigest()
     try:
         report = _parse(raw)

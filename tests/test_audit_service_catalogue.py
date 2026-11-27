@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 from tests import audit_gui_world as aw
-from tests.audit_gui_world import World, build, make_audit_app
+from tests.audit_gui_world import World, build, make_audit_app, run_jobs
 from tests.test_api_gateway_audit import _all_events, _get, _post
 
 ARCHIVE = f"audit/audit-{aw.DAY}.log.zst"
@@ -26,6 +26,7 @@ def _pin(world: World) -> tuple[Any, dict[str, Any]]:
     app = make_audit_app(world)
     status, body = _post(app, "/snapshots", {"collection_id": "world"})
     assert status == 201, body
+    run_jobs(app)
     return app, body
 
 

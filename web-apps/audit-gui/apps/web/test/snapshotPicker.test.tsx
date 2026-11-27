@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useAuthStore } from "@/store/useAuthStore";
+import type { JobT } from "@/api/schemas";
 import { useSnapshotStore } from "@/store/useSnapshotStore";
 import { apiError, example, renderApp, signIn, snapshotExample, stubApi } from "./helpers";
 
@@ -59,6 +60,58 @@ describe("snapshot picker", () => {
     ]);
     expect(useSnapshotStore.getState()).toMatchObject({ collectionId: "world", snapshotId: snapshot.snapshot_id });
     expect(await screen.findByRole("region", { name: "Evidence" })).toBeTruthy();
+  });
+
+  it("a snapshot being prepared shows the job's progress, then opens when it succeeds", async () => {
+    const queued = example<JobT>("/api/v1/audit/jobs/{job_id}");
+    const job = { ...queued, state: "running", stage: "reading", progress: { done: 9000, total: 18450 } };
+    const snapshot = { ...snapshotExample(), collection_id: "world", generation: null, prepare: job };
+    let polls = 0;
+    const api = stubApi({
+      "/api/v1/audit/collections": COLLECTIONS,
+      "POST /api/v1/audit/snapshots": () => new Response(JSON.stringify(snapshot), { status: 201 }),
+      [`/api/v1/audit/jobs/${job.job_id}`]: () =>
+        ++polls < 2 ? job : { ...job, state: "succeeded", stage: "publishing", result_id: job.job_id },
+      [`/api/v1/audit/snapshots/${snapshot.snapshot_id}`]: () => ({ ...snapshot, generation: 1 }),
+      "/api/v1/audit/findings": example("/api/v1/audit/findings"),
+    });
+    renderApp("/overview");
+    await screen.findByRole("option", { name: "world" });
+    pick("world");
+    const status = await screen.findByTestId("preparing");
+    expect(status.textContent).toContain("Preparing snapshot");
+    expect(status.textContent).toContain("reading");
+    expect(status.textContent).toContain("9,000 / 18,450");
+    expect(useSnapshotStore.getState().snapshotId).toBeNull();
+    await waitFor(() => expect(useSnapshotStore.getState().snapshotId).toBe(snapshot.snapshot_id), { timeout: 4000 });
+    expect(await screen.findByTestId("snapshot-label")).toBeTruthy();
+    expect(api.calls(`/api/v1/audit/jobs/${job.job_id}`).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a failed prepare says why and can be retried", async () => {
+    const queued = example<JobT>("/api/v1/audit/jobs/{job_id}");
+    const failed = { ...queued, state: "failed", reason: "WORKER_LOST", detail: "the worker process ended" };
+    const snapshot = { ...snapshotExample(), collection_id: "world", generation: null, prepare: failed };
+    const retried = { ...queued, job_id: "j-ffffffffffffffff", state: "queued", stage: null, progress: null };
+    const api = stubApi({
+      "/api/v1/audit/collections": COLLECTIONS,
+      "POST /api/v1/audit/snapshots": () => new Response(JSON.stringify(snapshot), { status: 201 }),
+      [`/api/v1/audit/jobs/${failed.job_id}`]: failed,
+      "POST /api/v1/audit/jobs": () => new Response(JSON.stringify(retried), { status: 202 }),
+      "/api/v1/audit/jobs/j-ffffffffffffffff": retried,
+    });
+    renderApp("/overview");
+    await screen.findByRole("option", { name: "world" });
+    pick("world");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("WORKER_LOST");
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(api.calls("/api/v1/audit/jobs")).toEqual([
+        { method: "POST", url: "/api/v1/audit/jobs", body: { kind: "prepare", snapshot_id: snapshot.snapshot_id } },
+      ]),
+    );
+    expect((await screen.findByTestId("preparing")).textContent).toContain("queued");
   });
 
   it("a 503 while pinning is an error naming its reason, not an empty snapshot", async () => {

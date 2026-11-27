@@ -152,6 +152,10 @@ optional parameters.
 | [GET /api/v1/audit/findings](#get-apiv1auditfindings) | Admin role | The replay's findings, by lane |
 | [GET /api/v1/audit/market/{symbol}/heatmap](#get-apiv1auditmarketsymbolheatmap) | Admin role | Displayed depth per price level and time bin, from recorded book observations |
 | [GET /api/v1/audit/market/{symbol}/lifelines](#get-apiv1auditmarketsymbollifelines) | Admin role | Each order's life on the book, from admission to its end |
+| [POST /api/v1/audit/jobs](#post-apiv1auditjobs) | Admin role | Queue derivative work: prepare, verify or forensics_import |
+| [GET /api/v1/audit/jobs/{job_id}](#get-apiv1auditjobsjob_id) | Admin role | A job's state, stage, progress and heartbeat |
+| [POST /api/v1/audit/jobs/{job_id}/cancel](#post-apiv1auditjobsjob_idcancel) | Admin role | Cancel derivative work (never an order) |
+| [GET /api/v1/audit/results/{job_id}](#get-apiv1auditresultsjob_id) | Admin role | A succeeded job's typed result |
 
 ### Auth and roles
 
@@ -243,6 +247,10 @@ the OpenAPI document lists all of them per operation.
 | `REBALANCE_REJECTED` | `409` | `UNKNOWN` | `pm-index` refused the rebalance |
 | `REPLACE_REJECTED` | `409` | engine's | The engine refused `replace`'s cancel (for example the order already filled); nothing was sent |
 | `IDEMPOTENCY_KEY_REUSED` | `409` | `UNKNOWN` | The `Idempotency-Key` was already used for a different request |
+| `NOT_PREPARED` | `409` | `UNKNOWN` | The snapshot's read models are not built yet; `job_id` names the `prepare` job building them |
+| `GENERATION_EXPIRED` | `409` | `UNKNOWN` | A cursor's read-model generation was replaced and removed; `generation` names it. Start the listing again |
+| `UNKNOWN_JOB` | `404` | `UNKNOWN` | No audit job has this id |
+| `JOB_NOT_SUCCEEDED` | `409` | `UNKNOWN` | The job has no result: it has not finished or did not succeed; `state` and `reason` say how |
 | `AMBIGUOUS_RUN` | `409` | `UNKNOWN` | An audit id appears in more than one engine run of the snapshot; `runs` lists them, repeat with `run_id` |
 | `CAPABILITY_UNAVAILABLE` | `409` | `UNKNOWN` | The snapshot's evidence cannot support the analysis; `reason` is a stable code. Never an empty result |
 | `RATE_LIMIT` | `429` | `RATE_LIMITED` | Per-key write limit exceeded |
@@ -3323,6 +3331,13 @@ active `audit.log`'s complete lines (a partial last line is reported as
 analysis whether the evidence supports it. The id is derived from that
 content: pinning an unchanged collection again returns the same snapshot.
 
+Pinning also queues the snapshot's `prepare` job (`prepare`, see
+`POST /audit/jobs`), which builds the read models every other read needs, in
+the worker process and never in the gateway. `generation` is null until that
+job has published; until then every read answers `409 NOT_PREPARED` with its
+`job_id`. `GET /audit/snapshots/{snapshot_id}` returns the same descriptor with
+the published `generation` and the latest `prepare` job.
+
 `symbols` lists every symbol a priced record names, with the
 `tick_decimals` its records state (null when none does).
 
@@ -3371,7 +3386,7 @@ capability is available only for a matching report; otherwise its reason is
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "days", "capabilities", "symbols", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
+| `201 Created` | `{ "snapshot_id", "generation", "prepare", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "days", "capabilities", "symbols", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
 
 **Errors**
 
@@ -3416,6 +3431,11 @@ values (`receipt_ts`/`receipt_ns`, the payload's `*_ns` fields as strings),
 every price with its recorded `tick_decimals`, and its `source` file and
 line.
 
+A `next_cursor` carries the read-model generation it was issued from: a
+rebuild (`prepare` with `force`) never moves a listing onto new rows. The
+current and the previous generation are kept; a cursor into an older one is
+`409 GENERATION_EXPIRED`.
+
 **Arguments**
 
 | Name | Type | Req | Description |
@@ -3432,7 +3452,7 @@ line.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | paginated list envelope (`events`) + `snapshot_id` | One page of records |
+| `200 OK` | paginated list envelope (`events`) + `snapshot_id`, `generation` | One page of records, from one read-model generation |
 
 **Errors**
 
@@ -3442,6 +3462,8 @@ line.
 | `READ_ONLY` | `403` | Read-only key |
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
 | `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+| `NOT_PREPARED` | `409` | The snapshot's read models are not built yet; `job_id` names the `prepare` job |
+| `GENERATION_EXPIRED` | `409` | The cursor's generation was replaced and removed |
 | `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
 
 ### `GET /api/v1/audit/stories/{entity_kind}/{entity_id}`
@@ -3479,6 +3501,8 @@ run.
 | `UNKNOWN_ENTITY` | `404` | No episode for this id in the snapshot (or an ambiguous prefix) |
 | `AMBIGUOUS_RUN` | `409` | The id appears in several runs; `runs` lists them |
 | `CAPABILITY_UNAVAILABLE` | `409` | The snapshot holds no audit record (`reason: NO_EVENTS`) |
+| `NOT_PREPARED` | `409` | The snapshot's read models are not built yet; `job_id` names the `prepare` job |
+| `GENERATION_EXPIRED` | `409` | The cursor's generation was replaced and removed |
 | `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
 
 ### `GET /api/v1/audit/findings`
@@ -3518,7 +3542,7 @@ DIFFERENT_INPUTS`).
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | paginated list envelope (`findings`) + `snapshot_id`, `lanes`, `forensics` (`{ "available", "reason", "detail", "statuses" }`) | One page of findings |
+| `200 OK` | paginated list envelope (`findings`) + `snapshot_id`, `generation`, `lanes`, `forensics` (`{ "available", "reason", "detail", "statuses" }`) | One page of findings, from one read-model generation |
 
 **Errors**
 
@@ -3529,6 +3553,8 @@ DIFFERENT_INPUTS`).
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
 | `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
 | `CAPABILITY_UNAVAILABLE` | `409` | The snapshot holds no audit record (`reason: NO_EVENTS`), or `lane=behaviour` (`reason: NOT_IN_RELEASE`) |
+| `NOT_PREPARED` | `409` | The snapshot's read models are not built yet; `job_id` names the `prepare` job |
+| `GENERATION_EXPIRED` | `409` | The cursor's generation was replaced and removed |
 | `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
 
 ### `GET /api/v1/audit/market/{symbol}/heatmap`
@@ -3582,6 +3608,8 @@ nanoseconds (strings) on the receipt clock (`clock: "receipt"`).
 | `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
 | `UNKNOWN_ENTITY` | `404` | The snapshot holds no record of this symbol |
 | `CAPABILITY_UNAVAILABLE` | `409` | No book observation was recorded for the symbol (`NO_BOOK_OBSERVATIONS`) or none states its scale (`NO_TICK_SCALE`) |
+| `NOT_PREPARED` | `409` | The snapshot's read models are not built yet; `job_id` names the `prepare` job |
+| `GENERATION_EXPIRED` | `409` | The cursor's generation was replaced and removed |
 | `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
 
 ### `GET /api/v1/audit/market/{symbol}/lifelines`
@@ -3630,7 +3658,145 @@ have no lifeline. Times are on the receipt clock.
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
 | `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
 | `UNKNOWN_ENTITY` | `404` | The snapshot holds no record of this symbol |
+| `NOT_PREPARED` | `409` | The snapshot's read models are not built yet; `job_id` names the `prepare` job |
+| `GENERATION_EXPIRED` | `409` | The cursor's generation was replaced and removed |
 | `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
+
+### `POST /api/v1/audit/jobs`
+
+Purpose: queue derivative work, run by the audit worker process (one at a
+time, started and watched by the gateway; it never runs in a request):
+
+- `prepare`: build the snapshot's read models (canonical events, the replay
+  episode index, the market model) into scratch and publish them as its next
+  generation in one step. Without `options.force` a prepared snapshot answers
+  with the job that prepared it; with it, a rebuild.
+- `verify`: check every pinned file against its source now (`ok`,
+  `changed`, `missing`) and the manifest and day inventory as they are now.
+- `forensics_import`: check the `pm-sim-forensics` report now beside the
+  collection against the snapshot (`inputs_match`, statuses). A report is
+  attached to a snapshot by pinning it; this job does not change the
+  snapshot. No report: `unavailable` (`NOT_ATTACHED`).
+
+An identical request while one is active returns that job. A job ends
+`succeeded`, `failed`, `cancelled` or `unavailable`; a job ending other than
+by succeeding publishes nothing and leaves the last generation as it was, and
+its scratch directory is removed. A job whose worker died is `failed`
+(`WORKER_LOST`) on the next read of it. Limits: one hour per job, 4 GiB per
+worker, 512 MiB free disk for a build (`DISK_LOW`), `TIMEOUT` beyond.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `kind` | `Str` | yes | `prepare`, `verify` or `forensics_import` |
+| `snapshot_id` | `Str` | yes | The snapshot |
+| `options` | `Object` | no | `{ "force": bool }`, `prepare` only. No other field is accepted |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `202 Accepted` | `{ "job_id", "kind", "snapshot_id", "options", "state", "stage", "progress", "heartbeat_at", "created_at", "started_at", "finished_at", "reason", "detail", "result_id" }` | The job (`progress` is `{ "done", "total" }` once the total is known, else null) |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | An unknown kind or option, `force` on another kind (`field: "options.force"`), an unknown field |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+
+### `GET /api/v1/audit/jobs/{job_id}`
+
+Purpose: a job's state (`queued`, `running`, `succeeded`, `failed`,
+`cancelled`, `unavailable`), stage, measured `progress`, the worker's last
+`heartbeat_at` (it beats every second while running), timestamps, and
+`reason` when it ended other than by succeeding (`WORKER_LOST`, `TIMEOUT`,
+`CANCELLED`, `JOB_ERROR`, `DISK_LOW`, `NOT_ATTACHED`, or a source reason
+such as `SOURCE_CHANGED`). Reading a job also resolves stranded ones. Poll
+it only while a job is active.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `job_id` | `Str` | yes (path) | The job |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "job_id", "kind", "snapshot_id", "options", "state", "stage", "progress", "heartbeat_at", "created_at", "started_at", "finished_at", "reason", "detail", "result_id" }` | The job |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | The id is malformed |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_JOB` | `404` | No job with this id |
+
+### `POST /api/v1/audit/jobs/{job_id}/cancel`
+
+Purpose: cancel derivative work, never an exchange order. A queued job ends
+`cancelled` now; a running one is asked to stop and does so at its next
+progress report, publishing nothing and removing its scratch. An ended job is
+returned unchanged.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `job_id` | `Str` | yes (path) | The job |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `202 Accepted` | `{ "job_id", "kind", "snapshot_id", "options", "state", "stage", "progress", "heartbeat_at", "created_at", "started_at", "finished_at", "reason", "detail", "result_id" }` | The job: cancelled, or asked to stop |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | The id is malformed |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_JOB` | `404` | No job with this id |
+
+### `GET /api/v1/audit/results/{job_id}`
+
+Purpose: a succeeded job's typed result: for `prepare`, the published
+`generation`, whether an existing one was `reused`, and what was built
+(`records`, `built_at`, `detection`, `version`); for `verify`, `checked_at`,
+each pinned file's `state`, the `manifest` and `days` now; for
+`forensics_import`, the report's `sha256`, `inputs_match`, `differing`,
+`statuses` and the snapshot's own `pinned_sha256`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `job_id` | `Str` | yes (path) | The job |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "job_id", "kind", "snapshot_id", "finished_at", "content" }` | The result |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | The id is malformed |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_JOB` | `404` | No job with this id |
+| `JOB_NOT_SUCCEEDED` | `409` | Not finished, or ended other than by succeeding; `state` and `reason` say how |
 
 ## Operational notes
 

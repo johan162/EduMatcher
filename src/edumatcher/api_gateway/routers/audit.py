@@ -20,6 +20,7 @@ import binascii
 import json
 from collections.abc import Callable
 from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Annotated, Any, Literal, NoReturn, TypeVar
 
 from fastapi import (
@@ -39,6 +40,9 @@ from edumatcher.api_gateway.responses import (
     AuditEventPage,
     AuditFindingPage,
     AuditHeatmap,
+    AuditJob,
+    AuditJobRequest,
+    AuditResult,
     AuditLifelines,
     AuditSnapshot,
     AuditSnapshotRequest,
@@ -55,11 +59,15 @@ from edumatcher.audit.service.session import (
     CapabilityUnavailable,
     EmptyWindow,
     EventFilter,
+    GenerationExpired,
+    NotPrepared,
     SnapshotUnavailable,
+    UnknownJob,
     UnknownCollection,
     UnknownEntity,
     require_behaviour_lane,
 )
+from edumatcher.audit.service.jobs import PREPARE, SUCCEEDED, Job
 from edumatcher.audit.service.snapshot import SnapshotDescriptor
 from edumatcher.audit.replay.views import at_least
 
@@ -156,12 +164,27 @@ def _capability_error(exc: CapabilityUnavailable) -> HTTPException:
 
 
 async def _in_snapshot(work: Callable[[], _T]) -> _T:
-    """*work*, which reads a snapshot's records, on a worker thread: an
-    unknown snapshot is 404, missing or changed evidence 503."""
+    """*work*, which reads a snapshot's read models, on a worker thread: an
+    unknown snapshot is 404, missing or changed evidence 503, read models not
+    yet built 409 ``NOT_PREPARED`` (with the job), a cursor's removed
+    generation 409 ``GENERATION_EXPIRED``."""
     try:
         return await asyncio.to_thread(work)
     except SnapshotUnavailable as exc:
         raise _snapshot_error(exc) from exc
+    except NotPrepared as exc:
+        raise _error(
+            409, {"code": "NOT_PREPARED", "message": str(exc), "job_id": exc.job.job_id}
+        ) from exc
+    except GenerationExpired as exc:
+        raise _error(
+            409,
+            {
+                "code": "GENERATION_EXPIRED",
+                "message": str(exc),
+                "generation": exc.generation,
+            },
+        ) from exc
 
 
 async def _analysing(work: Callable[[], _T]) -> _T:
@@ -180,29 +203,68 @@ def _invalid(field: str, message: str) -> NoReturn:
     )
 
 
-def _encode_cursor(snapshot_id: str, digest: str, position: int) -> str:
-    raw = json.dumps([snapshot_id, digest, position]).encode()
+def _encode_cursor(
+    snapshot_id: str, digest: str, position: int, generation: int
+) -> str:
+    raw = json.dumps([snapshot_id, digest, position, generation]).encode()
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
-def _decode_cursor(cursor: str, snapshot_id: str, digest: str) -> int:
-    """The position *cursor* continues from; ``400`` when it was issued for
-    another snapshot or other filters, or is not a cursor at all."""
+def _decode_cursor(cursor: str, snapshot_id: str, digest: str) -> tuple[int, int]:
+    """The position and read-model generation *cursor* continues from (a
+    rebuild never moves a listing); ``400`` when it was issued for another
+    snapshot or other filters, or is not a cursor at all."""
     try:
         raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
-        sid, dig, position = json.loads(raw)
+        sid, dig, position, generation = json.loads(raw)
     except binascii.Error, UnicodeDecodeError, ValueError, TypeError:
         _invalid("after", "Invalid cursor; pass back `next_cursor`")
-    if sid != snapshot_id or dig != digest or not isinstance(position, int):
+    if (
+        sid != snapshot_id
+        or dig != digest
+        or not isinstance(position, int)
+        or not isinstance(generation, int)
+    ):
         _invalid("after", "This cursor belongs to another snapshot or other filters")
-    if position < 0:
+    if position < 0 or generation < 1:
         _invalid("after", "Invalid cursor; pass back `next_cursor`")
-    return position
+    return position, generation
 
 
-def _snapshot_body(d: SnapshotDescriptor) -> dict[str, Any]:
+def _job_body(job: Job) -> dict[str, Any]:
+    progress = job.progress
+    beat = job.heartbeat_at
+    return {
+        "job_id": job.job_id,
+        "kind": job.kind,
+        "snapshot_id": job.snapshot_id,
+        "options": job.options,
+        "state": job.state,
+        "stage": job.stage,
+        "progress": {"done": progress[0], "total": progress[1]} if progress else None,
+        "heartbeat_at": (
+            datetime.fromtimestamp(beat, timezone.utc).isoformat(
+                timespec="milliseconds"
+            )
+            if beat is not None
+            else None
+        ),
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "reason": job.reason,
+        "detail": job.detail,
+        "result_id": job.job_id if job.state == SUCCEEDED else None,
+    }
+
+
+def _snapshot_body(
+    d: SnapshotDescriptor, generation: int | None, prepare: Job | None
+) -> dict[str, Any]:
     return {
         "snapshot_id": d.snapshot_id,
+        "generation": generation,
+        "prepare": _job_body(prepare) if prepare is not None else None,
         "collection_id": d.collection_id,
         "created_at": d.created_at,
         "entries": d.entries,
@@ -297,15 +359,22 @@ async def create_audit_snapshot(
     body: Annotated[AuditSnapshotRequest, Body()],
 ) -> dict[str, Any]:
     """Pin a collection as it is now: every file's size and hash, the active
-    file's complete lines, the runs and what the evidence can support.
+    file's complete lines, the runs and what the evidence can support; and
+    queue its `prepare` job (`prepare`), which builds the read models every
+    other read needs. `generation` is null until that job has published.
 
-    Pinning an unchanged collection again returns the same snapshot. R0 pins
-    synchronously; a large trail takes seconds (about 90,000 records/s).
+    Pinning an unchanged collection again returns the same snapshot. Pinning
+    is synchronous: a large trail takes seconds (about 90,000 records/s).
     """
     await require_admin(request, session)
     service = _service(request)
+
+    def work() -> tuple[SnapshotDescriptor, int | None, Job | None]:
+        descriptor, job = service.create(body.collection_id)
+        return descriptor, service.generation(descriptor.snapshot_id), job
+
     try:
-        descriptor = await asyncio.to_thread(service.create, body.collection_id)
+        descriptor, generation, prepare = await asyncio.to_thread(work)
     except UnknownCollection as exc:
         raise _error(404, {"code": "UNKNOWN_COLLECTION", "message": str(exc)}) from exc
     except SnapshotUnavailable as exc:
@@ -317,7 +386,7 @@ async def create_audit_snapshot(
                 "reason": exc.reason.value,
             },
         ) from exc
-    return _snapshot_body(descriptor)
+    return _snapshot_body(descriptor, generation, prepare)
 
 
 @router.get(
@@ -337,14 +406,23 @@ async def audit_snapshot(
     ],
 ) -> dict[str, Any]:
     """What a snapshot pinned (files, sizes, hashes, cutoffs, runs, extent)
-    and, per analysis, whether its evidence supports it and why not."""
+    and, per analysis, whether its evidence supports it and why not; its
+    published read-model `generation` and its latest `prepare` job."""
     await require_admin(request, session)
     service = _service(request)
+
+    def work() -> tuple[SnapshotDescriptor, int | None, Job | None]:
+        return (
+            service.descriptor(snapshot_id),
+            service.generation(snapshot_id),
+            service.jobs.latest(PREPARE, snapshot_id),
+        )
+
     try:
-        descriptor = await asyncio.to_thread(service.descriptor, snapshot_id)
+        descriptor, generation, prepare = await asyncio.to_thread(work)
     except SnapshotUnavailable as exc:
         raise _error(404, {"code": "UNKNOWN_SNAPSHOT", "message": str(exc)}) from exc
-    return _snapshot_body(descriptor)
+    return _snapshot_body(descriptor, generation, prepare)
 
 
 @router.get(
@@ -358,6 +436,8 @@ async def audit_snapshot(
             "ROLE_DENIED",
             "VALIDATION",
             "UNKNOWN_SNAPSHOT",
+            "NOT_PREPARED",
+            "GENERATION_EXPIRED",
             "AUDIT_SOURCE_UNAVAILABLE",
         ),
     ),
@@ -396,19 +476,24 @@ async def audit_events(
     await require_admin(request, session)
     service = _service(request)
     flt = EventFilter(topic, symbol, gateway, order_id)
-    start = _decode_cursor(after, snapshot_id, flt.digest()) if after else 0
+    start, generation = (
+        _decode_cursor(after, snapshot_id, flt.digest()) if after else (0, None)
+    )
 
-    def work() -> tuple[list[dict[str, Any]], int | None]:
-        return service.session(snapshot_id).events(flt, start, limit)
+    def work() -> tuple[list[dict[str, Any]], int | None, int]:
+        view = service.view(snapshot_id, generation)
+        rows, resume = view.events(flt, start, limit)
+        return rows, resume, view.generation
 
-    rows, resume = await _in_snapshot(work)
+    rows, resume, used = await _in_snapshot(work)
     return {
         "snapshot_id": snapshot_id,
+        "generation": used,
         "events": rows,
         "count": len(rows),
         "has_more": resume is not None,
         "next_cursor": (
-            _encode_cursor(snapshot_id, flt.digest(), resume)
+            _encode_cursor(snapshot_id, flt.digest(), resume, used)
             if resume is not None
             else None
         ),
@@ -429,6 +514,8 @@ async def audit_events(
             "UNKNOWN_ENTITY",
             "AMBIGUOUS_RUN",
             "CAPABILITY_UNAVAILABLE",
+            "NOT_PREPARED",
+            "GENERATION_EXPIRED",
             "AUDIT_SOURCE_UNAVAILABLE",
         ),
     ),
@@ -474,7 +561,7 @@ async def audit_story(
     service = _service(request)
 
     def work() -> dict[str, list[dict[str, Any]]]:
-        return service.session(snapshot_id).story(entity_kind, entity_id, run_id, depth)
+        return service.view(snapshot_id).story(entity_kind, entity_id, run_id, depth)
 
     try:
         story = await _analysing(work)
@@ -506,6 +593,8 @@ async def audit_story(
             "VALIDATION",
             "UNKNOWN_SNAPSHOT",
             "CAPABILITY_UNAVAILABLE",
+            "NOT_PREPARED",
+            "GENERATION_EXPIRED",
             "AUDIT_SOURCE_UNAVAILABLE",
         ),
     ),
@@ -545,14 +634,16 @@ async def audit_findings(
     await require_admin(request, session)
     service = _service(request)
     digest = json.dumps([lane, severity, code])
-    start = _decode_cursor(after, snapshot_id, digest) if after else 0
+    start, generation = (
+        _decode_cursor(after, snapshot_id, digest) if after else (0, None)
+    )
 
     def work() -> (
-        tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]
+        tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any], int]
     ):
         if lane == BEHAVIOUR:
             require_behaviour_lane()
-        replay = service.session(snapshot_id)
+        replay = service.view(snapshot_id, generation)
         everything = replay.findings()
         attached = replay.descriptor.capabilities[Capability.FORENSICS]
         report = replay.descriptor.forensics
@@ -582,20 +673,21 @@ async def audit_findings(
                 and at_least(row["severity"]) <= floor
             ):
                 chosen.append(row)
-        return chosen, lanes, summary
+        return chosen, lanes, summary, replay.generation
 
-    chosen, lanes, summary = await _analysing(work)
+    chosen, lanes, summary, used = await _analysing(work)
     page = chosen[start : start + limit]
     more = start + limit < len(chosen)
     return {
         "snapshot_id": snapshot_id,
+        "generation": used,
         "lanes": lanes,
         "forensics": summary,
         "findings": page,
         "count": len(page),
         "has_more": more,
         "next_cursor": (
-            _encode_cursor(snapshot_id, digest, start + limit) if more else None
+            _encode_cursor(snapshot_id, digest, start + limit, used) if more else None
         ),
     }
 
@@ -617,6 +709,8 @@ def _unknown_symbol(exc: UnknownEntity) -> HTTPException:
             "UNKNOWN_SNAPSHOT",
             "UNKNOWN_ENTITY",
             "CAPABILITY_UNAVAILABLE",
+            "NOT_PREPARED",
+            "GENERATION_EXPIRED",
             "AUDIT_SOURCE_UNAVAILABLE",
         ),
     ),
@@ -654,7 +748,7 @@ async def audit_heatmap(
     service = _service(request)
 
     def work() -> dict[str, Any]:
-        return service.session(snapshot_id).heatmap(symbol, start, to, bins)
+        return service.view(snapshot_id).heatmap(symbol, start, to, bins)
 
     try:
         body = await _analysing(work)
@@ -677,6 +771,8 @@ async def audit_heatmap(
             "VALIDATION",
             "UNKNOWN_SNAPSHOT",
             "UNKNOWN_ENTITY",
+            "NOT_PREPARED",
+            "GENERATION_EXPIRED",
             "AUDIT_SOURCE_UNAVAILABLE",
         ),
     ),
@@ -707,7 +803,7 @@ async def audit_lifelines(
     service = _service(request)
 
     def work() -> dict[str, Any]:
-        return service.session(snapshot_id).lifelines(symbol, start, to, gateway)
+        return service.view(snapshot_id).lifelines(symbol, start, to, gateway)
 
     try:
         body = await _in_snapshot(work)
@@ -716,3 +812,164 @@ async def audit_lifelines(
     except EmptyWindow as exc:
         _invalid("to", str(exc))
     return {"snapshot_id": snapshot_id, "symbol": symbol, **body}
+
+
+# ---------------------------------------------------------------------------
+# Jobs (design §7.3, §8): derivative work, run by the worker process
+# ---------------------------------------------------------------------------
+
+_JobId = Annotated[
+    str,
+    Path(
+        min_length=1, max_length=40, description="The job, as `POST /jobs` returned it."
+    ),
+]
+
+
+def _unknown_job(exc: UnknownJob) -> HTTPException:
+    return _error(404, {"code": "UNKNOWN_JOB", "message": str(exc)})
+
+
+@router.post(
+    "/jobs",
+    response_model=AuditJob,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Queue a derivative job",
+    responses=docs.merge(
+        docs.ok(
+            docs.AUDIT_JOB, "The job (an identical active one when it exists).", 202
+        ),
+        docs.errors(*docs.TRADING_KEY, "ROLE_DENIED", "VALIDATION", "UNKNOWN_SNAPSHOT"),
+    ),
+)
+async def create_audit_job(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    body: Annotated[AuditJobRequest, Body()],
+) -> dict[str, Any]:
+    """Queue `prepare` (build the snapshot's read models as a new
+    generation; `options.force` rebuilds a prepared snapshot), `verify`
+    (check the pinned files and the manifest against the sources now) or
+    `forensics_import` (check the `pm-sim-forensics` report now beside the
+    collection against the snapshot).
+
+    An identical request while one is active returns that job. A `prepare`
+    of a prepared snapshot without `force` returns the job that prepared it.
+    The work runs in the worker process, never in the API: poll
+    `GET /jobs/{job_id}`.
+    """
+    await require_admin(request, session)
+    if body.kind != PREPARE and body.options.force:
+        _invalid(
+            "options.force", f"`force` applies to `prepare` only, not `{body.kind}`"
+        )
+    service = _service(request)
+    options = {"force": True} if body.options.force else {}
+
+    def work() -> Job:
+        job, _ = service.submit(body.kind, body.snapshot_id, options)
+        return job
+
+    try:
+        job = await asyncio.to_thread(work)
+    except SnapshotUnavailable as exc:
+        raise _error(404, {"code": "UNKNOWN_SNAPSHOT", "message": str(exc)}) from exc
+    return _job_body(job)
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=AuditJob,
+    summary="A job's state and progress",
+    responses=docs.merge(
+        docs.ok(docs.AUDIT_JOB, "The job."),
+        docs.errors(*docs.TRADING_KEY, "ROLE_DENIED", "VALIDATION", "UNKNOWN_JOB"),
+    ),
+)
+async def audit_job(
+    request: Request, session: Annotated[Session, Depends(auth)], job_id: _JobId
+) -> dict[str, Any]:
+    """State (`queued`, `running`, `succeeded`, `failed`, `cancelled`,
+    `unavailable`), stage, `progress` (`{done, total}` once the total is
+    known, else null), the worker's last heartbeat, and `reason` when it
+    ended other than by succeeding (`WORKER_LOST`, `TIMEOUT`, `CANCELLED`,
+    `JOB_ERROR`, `DISK_LOW`, ...)."""
+    await require_admin(request, session)
+    service = _service(request)
+    try:
+        job = await asyncio.to_thread(service.job, job_id)
+    except UnknownJob as exc:
+        raise _unknown_job(exc) from exc
+    return _job_body(job)
+
+
+@router.post(
+    "/jobs/{job_id}/cancel",
+    response_model=AuditJob,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Cancel a job",
+    responses=docs.merge(
+        docs.ok(docs.AUDIT_JOB, "The job: cancelled, or asked to stop.", 202),
+        docs.errors(*docs.TRADING_KEY, "ROLE_DENIED", "VALIDATION", "UNKNOWN_JOB"),
+    ),
+)
+async def cancel_audit_job(
+    request: Request, session: Annotated[Session, Depends(auth)], job_id: _JobId
+) -> dict[str, Any]:
+    """Cancel derivative work, never an exchange order. A queued job ends
+    now; a running one stops at its next progress report, publishes nothing
+    and removes its scratch. An ended job is returned unchanged."""
+    await require_admin(request, session)
+    service = _service(request)
+    try:
+        job = await asyncio.to_thread(service.cancel, job_id)
+    except UnknownJob as exc:
+        raise _unknown_job(exc) from exc
+    return _job_body(job)
+
+
+@router.get(
+    "/results/{job_id}",
+    response_model=AuditResult,
+    summary="A job's result",
+    responses=docs.merge(
+        docs.ok(docs.AUDIT_RESULT, "The succeeded job's typed result."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ROLE_DENIED",
+            "VALIDATION",
+            "UNKNOWN_JOB",
+            "JOB_NOT_SUCCEEDED",
+        ),
+    ),
+)
+async def audit_result(
+    request: Request, session: Annotated[Session, Depends(auth)], job_id: _JobId
+) -> dict[str, Any]:
+    """A succeeded job's result: for `prepare` the published `generation`
+    (and whether an existing one was reused); for `verify` each pinned
+    file's state and the manifest now; for `forensics_import` the report's
+    match against the snapshot. `409 JOB_NOT_SUCCEEDED` otherwise."""
+    await require_admin(request, session)
+    service = _service(request)
+    try:
+        job = await asyncio.to_thread(service.job, job_id)
+    except UnknownJob as exc:
+        raise _unknown_job(exc) from exc
+    if job.state != SUCCEEDED or job.result is None:
+        raise _error(
+            409,
+            {
+                "code": "JOB_NOT_SUCCEEDED",
+                "message": f"Job {job.job_id} is {job.state}",
+                "state": job.state,
+                "reason": job.reason,
+            },
+        )
+    return {
+        "job_id": job.job_id,
+        "kind": job.kind,
+        "snapshot_id": job.snapshot_id,
+        "finished_at": job.finished_at,
+        "content": job.result,
+    }

@@ -2414,8 +2414,49 @@ AUDIT_COLLECTIONS: dict[str, Any] = {
     "count": 1,
 }
 
+AUDIT_JOB: dict[str, Any] = {
+    "job_id": "j-5a1f0c9e3b7d2846",
+    "kind": "prepare",
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "options": {},
+    "state": "running",
+    "stage": "reading",
+    "progress": {"done": 96000, "total": 184213},
+    "heartbeat_at": "2026-06-15T15:40:09.512+00:00",
+    "created_at": "2026-06-15T15:40:02.240+00:00",
+    "started_at": "2026-06-15T15:40:02.731+00:00",
+    "finished_at": None,
+    "reason": None,
+    "detail": None,
+    "result_id": None,
+}
+
+AUDIT_RESULT: dict[str, Any] = {
+    "job_id": "j-5a1f0c9e3b7d2846",
+    "kind": "prepare",
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "finished_at": "2026-06-15T15:40:31.006+00:00",
+    "content": {
+        "generation": 1,
+        "reused": False,
+        "built_at": "2026-06-15T15:40:30.988+00:00",
+        "records": 184213,
+        "detection": "strict=0 clock_skew=5",
+        "version": "0.86.0",
+    },
+}
+
 AUDIT_SNAPSHOT: dict[str, Any] = {
     "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "generation": 1,
+    "prepare": {
+        **AUDIT_JOB,
+        "state": "succeeded",
+        "stage": "publishing",
+        "progress": None,
+        "finished_at": "2026-06-15T15:40:31.006+00:00",
+        "result_id": "j-5a1f0c9e3b7d2846",
+    },
     "collection_id": "default",
     "created_at": "2026-06-15T15:40:02.118+00:00",
     "entries": 184213,
@@ -2524,6 +2565,7 @@ AUDIT_SNAPSHOT: dict[str, Any] = {
 
 AUDIT_EVENTS: dict[str, Any] = {
     "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "generation": 1,
     "events": [
         {
             "key": "00000001|0|0000000000000000412|2026-06-15T07:01:12.001000+00:00|000000000412",
@@ -2622,6 +2664,7 @@ AUDIT_STORY: dict[str, Any] = {
 
 AUDIT_FINDINGS: dict[str, Any] = {
     "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "generation": 1,
     "lanes": {
         "evidence": {"available": True, "reason": None, "count": 1},
         "consistency": {"available": True, "reason": None, "count": 2},

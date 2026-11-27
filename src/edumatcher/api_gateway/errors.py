@@ -174,6 +174,33 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "nothing was sent. `reject_code` is the engine's.",
         "Order already filled",
     ),
+    "NOT_PREPARED": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The snapshot's read models are not built yet; `job_id` names the "
+        "`prepare` job building them (`GET /audit/jobs/{job_id}`).",
+        "Snapshot s-0123456789abcdef0123 is being prepared",
+    ),
+    "GENERATION_EXPIRED": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The cursor's read-model generation was replaced and removed; start the "
+        "listing again. `generation` names the one it belonged to.",
+        "Generation 1 of s-0123456789abcdef0123 was replaced and removed",
+    ),
+    "UNKNOWN_JOB": ErrorCode(
+        404,
+        "UNKNOWN",
+        "No audit job has this id.",
+        "No job 'j-0123456789abcdef'",
+    ),
+    "JOB_NOT_SUCCEEDED": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The job has no result: it has not finished, or it ended other than "
+        "by succeeding; `state` and `reason` say how.",
+        "Job j-0123456789abcdef is running",
+    ),
     "AMBIGUOUS_RUN": ErrorCode(
         409,
         "UNKNOWN",

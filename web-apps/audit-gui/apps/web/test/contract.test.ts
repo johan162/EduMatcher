@@ -90,6 +90,7 @@ describe("GUI schemas match the released REST contract", () => {
       "/api/v1/audit/collections",
       "/api/v1/audit/events",
       "/api/v1/audit/findings",
+      "/api/v1/audit/jobs/{job_id}",
       "/api/v1/audit/market/{symbol}/heatmap",
       "/api/v1/audit/market/{symbol}/lifelines",
       "/api/v1/audit/snapshots/{snapshot_id}",

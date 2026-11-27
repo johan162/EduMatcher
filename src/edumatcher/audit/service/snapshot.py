@@ -49,7 +49,7 @@ import os
 import re
 import shutil
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -256,6 +256,27 @@ class Snapshot:
             for f in self.descriptor.files
         ]
 
+    def check_sources(self, verified: set[tuple[str, int, int]]) -> None:
+        """Raise :class:`SnapshotUnavailable` if a retained file went or
+        changed since the pin. A file is re-hashed only when its size or
+        modification time differs from one already verified (``verified``:
+        the caller's ``(path, size, mtime_ns)`` cache, extended here), so a
+        read costs a ``stat`` per file. The full re-hash is the ``verify``
+        job."""
+        for f, path in zip(self.descriptor.files, self.paths(), strict=True):
+            if f.kind == "active":
+                continue  # read from the pinned copy, which no one else writes
+            try:
+                st = path.stat()
+            except FileNotFoundError:
+                raise SnapshotUnavailable(
+                    Reason.SOURCE_MISSING, f"{f.name} was removed after the snapshot"
+                ) from None
+            key = (str(path), st.st_size, st.st_mtime_ns)
+            if key not in verified:
+                _check_retained(path, f)
+                verified.add(key)
+
     def entries(self) -> Iterator[AuditEntry]:
         """The pinned records, oldest first, each naming its source file
         (relative to the collection) and line. Raises
@@ -412,6 +433,46 @@ def _days(
             state, content, names = "missing", None, ()
         out.append(DayInfo(day, state, names, content))
     return tuple(out)
+
+
+def verify_snapshot(
+    snapshot: Snapshot, report: Callable[[str, int | None, int | None], None]
+) -> dict[str, Any]:
+    """Check the snapshot against its sources now (the ``verify`` job): each
+    pinned file still has its size and hash (``ok``, ``changed``,
+    ``missing``), and the manifest and day inventory as they are now."""
+    d = snapshot.descriptor
+    total = sum(f.cutoff for f in d.files)
+    done = 0
+    files = []
+    for f, path in zip(d.files, snapshot.paths(), strict=True):
+        report("hashing", done, total)
+        if not path.is_file():
+            state = "missing"
+        else:
+            digest = hashlib.sha256()
+            size = 0
+            with path.open("rb") as fh:
+                while chunk := fh.read(_CHUNK):
+                    digest.update(chunk)
+                    size += len(chunk)
+            state = (
+                "ok"
+                if (size, digest.hexdigest()) == (f.cutoff, f.sha256)
+                else "changed"
+            )
+        done += f.cutoff
+        files.append({"name": f.name, "state": state})
+    report("hashing", done, total)
+    report("manifest", None, None)
+    audit_dir = Path(d.source_root) / "audit"
+    manifest = _manifest(audit_dir)
+    return {
+        "checked_at": manifest.checked_at,
+        "files": files,
+        "manifest": asdict(manifest),
+        "days": [asdict(day) for day in _days(audit_dir, d.files, manifest)],
+    }
 
 
 def _check_retained(path: Path, pinned: SourceFile) -> None:

@@ -33,6 +33,7 @@ import pytest
 import uvicorn
 
 from edumatcher.audit.rawlines import iso_ns
+from edumatcher.audit.service.session import AuditService, WorkerLauncher
 from tests import audit_gui_world as aw
 from tests.audit_gui_world import World, build, make_audit_app
 from tests.conftest import free_ports
@@ -63,8 +64,14 @@ def world(
 
 @pytest.fixture(scope="module")
 def gateway(world: World) -> Iterator[str]:
-    """The real API app over the recorded world, on a free port."""
+    """The real API app over the recorded world, on a free port, with the
+    real worker process preparing snapshots (AG9)."""
     app = make_audit_app(world)
+    service = app.state.audit
+    launcher = WorkerLauncher(service.store)
+    app.state.audit = AuditService(
+        service.collections.values(), service.store, launcher
+    )
     (port,) = free_ports(1)
     # lifespan off: the app's state is the fixture's; its lifespan would
     # replace it with a real engine client.
@@ -81,6 +88,7 @@ def gateway(world: World) -> Iterator[str]:
     finally:
         server.should_exit = True
         thread.join(timeout=10)
+        launcher.stop()
 
 
 @pytest.fixture(scope="module")

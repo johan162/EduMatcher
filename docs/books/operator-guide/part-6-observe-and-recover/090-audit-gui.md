@@ -104,10 +104,22 @@ A snapshot also pins two optional sources:
   `findings.json` lists the audit files it read, and the report is used only
   if they are exactly the snapshot's.
 
-The first read of a snapshot reconstructs its session (`pm-audit-replay`'s
-pipeline and episode index) inside the gateway: about 6,400 records a
-second, so seconds for a class session and minutes for a very large trail.
-Later reads are fast. One snapshot is kept in memory at a time.
+Pinning also queues the snapshot's **prepare** job. The gateway's audit
+worker, a separate process it starts on the first job, reconstructs the
+session (`pm-audit-replay`'s pipeline and episode index, and the market
+model) and publishes the result as the snapshot's first *generation*; the
+top bar shows "Preparing snapshot" with the stage and progress until then,
+and opens the snapshot when it is done. A class session takes well under a
+second; a very large trail takes minutes (about 6,400 records a second),
+and none of it runs in the gateway's request handling. Pinning itself is
+still synchronous: it hashes every file, about 90,000 records a second.
+
+The worker runs one job at a time, with one hour, 4 GiB of memory and
+512 MiB of free disk per job. A job that fails, times out or is cancelled
+publishes nothing, and the last generation stays in use. If the worker
+process dies, its job is marked failed (`WORKER_LOST`) and the worker is
+started again; choose **Retry** in the top bar to queue the job again.
+The worker stops with the gateway.
 
 
 ## The evidence banner
@@ -171,16 +183,21 @@ same snapshot. The **Help** button explains every mark.
 | `AUDIT_SOURCE_UNAVAILABLE (SOURCE_CHANGED)` | A retained file changed after the snapshot was pinned | Pin the collection again; find out why an archived file changed |
 | `CAPABILITY_UNAVAILABLE (NO_BOOK_OBSERVATIONS)` on the canvas | No `book.<symbol>` record was retained | The lifelines and the drawer still work |
 | Forensics `DIFFERENT_INPUTS` | The report beside the collection read other audit files | Re-run `pm-sim-forensics` on the stopped run |
-| "Gaps: counting…" for a long time | The first read is reconstructing a large session | Wait; later reads are fast |
+| "Preparing snapshot" for a long time | The worker is reconstructing a large session; the stage and count say how far | Wait |
+| "Preparing the snapshot failed: `WORKER_LOST`" | The worker process ended mid-job (killed, out of memory) | **Retry**; check the gateway's host for memory |
+| "Preparing the snapshot failed: `TIMEOUT`" / unavailable: `DISK_LOW` | The job ran over an hour, or the store has under 512 MiB free | Free space under `data/audit-gui/`; Retry |
 
 
 ## Load on the exchange
 
-None on the engine beyond the login check: the gateway reads files. A first
-read of a snapshot costs the gateway one reconstruction (see above); the
-market model of a symbol is built once per snapshot (about 120,000 records a
-second) and its queries take milliseconds for a class session. The browser
-loads its chart library only when Market opens.
+None on the engine beyond the login check: the gateway reads files. The
+reconstruction runs in the worker process (one CPU core while a job runs);
+the gateway itself only hashes files when pinning and reads the prepared
+generation, so a read takes milliseconds for a class session. A generation
+takes about five times the size of the trail on disk (most of it the replay
+index); the current and the previous generation of a snapshot are kept
+under `data/audit-gui/`. The browser loads its chart library only when
+Market opens.
 
 
 ## What it leaves out
@@ -189,5 +206,6 @@ This release is the design's first slice (R0). Not yet: the Findings,
 Participants, Explorer, Integrity & Coverage and Investigations workspaces;
 replay mode and the teaching animations; the venue's timezone (times are
 UTC); a run selector (the canvas shows every run of the snapshot, and each
-lifeline names its run); background preparation of large snapshots; exports.
+lifeline names its run); expiry of old snapshots in `data/audit-gui/`;
+exports.
 There is no trading, no control and no editing, by design.

@@ -1,26 +1,37 @@
-"""The Audit GUI's read service: collections, snapshots and one session's
-reconstruction, as the ``/api/v1/audit`` routes need them.
+"""The Audit GUI's read service: collections, snapshots, jobs, and reads of a
+snapshot's prepared read models, as the ``/api/v1/audit`` routes need them.
 
-R0 (workplan AG2): a snapshot's session is reconstructed in this process on
-first use, and kept for the most recently used snapshot only. The
-reconstruction is the replay library's own (``normalise``, ``ordered``, the
-state model and link resolver, the episode assembler and the detectors), and
-its episodes go into the replay episode index, built once per snapshot in the
-snapshot's directory, so stories and findings are read with the same reader
-``pm-audit-replay story`` uses. AG9 moves the build into a worker job.
+The API process never reconstructs (workplan AG9, design §7.3): a snapshot is
+read only through a *generation* the worker built (:mod:`build`) and
+published (:mod:`generations`). Pinning a snapshot queues its ``prepare``
+job; until a generation exists every read is :class:`NotPrepared`, naming
+that job. A reader resolves one generation and stays on it, so a page, a
+cursor or a story never moves onto a rebuild; a cursor into a generation
+that has since been removed is :class:`GenerationExpired`.
+
+The one worker process is started and watched from here
+(:class:`WorkerLauncher`). A job whose worker died is failed with
+``WORKER_LOST`` on the next job read, and its scratch directory removed.
 
 Nothing here knows HTTP. Failures are typed exceptions the router maps to
 statuses: :class:`SnapshotUnavailable`, :class:`UnknownCollection`,
 :class:`UnknownEntity`, :class:`AmbiguousRun`,
-:class:`CapabilityUnavailable`, :class:`EmptyWindow`.
+:class:`CapabilityUnavailable`, :class:`EmptyWindow`, :class:`NotPrepared`,
+:class:`GenerationExpired`, :class:`UnknownJob`.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import sqlite3
+import subprocess
+import sys
 import threading
+import zlib
+from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 from contextlib import closing
 from pathlib import Path
@@ -31,19 +42,9 @@ from edumatcher.audit.replay import episodes as replay_episodes
 from edumatcher.audit.replay import index as episode_index
 from edumatcher.audit.replay import reader, render_json
 from edumatcher.audit.replay.anomalies import SEVERITY_INFO
-from edumatcher.audit.replay.detect import (
-    DEFAULT_CLOCK_SKEW_WARN,
-    Detector,
-    detected,
-    observed,
-)
-from edumatcher.audit.replay.episodes import assemble
-from edumatcher.audit.replay.facts import Fact, normalise
-from edumatcher.audit.replay.ordering import ordered, pack_sort_key
-from edumatcher.audit.replay.pipeline import Reconstruction
 from edumatcher.audit.replay.render_text import Options
 from edumatcher.audit.replay.views import at_least
-from edumatcher.audit.service import forensics
+from edumatcher.audit.service import forensics, generations
 from edumatcher.audit.service.capabilities import Capability, Reason
 from edumatcher.audit.service.errors import (
     CapabilityUnavailable,
@@ -51,11 +52,16 @@ from edumatcher.audit.service.errors import (
     UnknownEntity,
 )
 from edumatcher.audit.service.findings import BEHAVIOUR, lane_of
-from edumatcher.audit.service.market import MarketModel, epoch_ns
-from edumatcher.models.generated.order import TOPIC_ORDER_NEW
+from edumatcher.audit.service.jobs import (
+    PREPARE,
+    SUCCEEDED,
+    Job,
+    JobStore,
+)
+from edumatcher.audit.service.market import MarketModel
+from edumatcher.audit.service.rows import ns_as_strings
 from edumatcher.audit.service.snapshot import (
     AuditCollection,
-    Snapshot,
     SnapshotDescriptor,
     SnapshotUnavailable,
     create_snapshot,
@@ -72,14 +78,21 @@ ENTITY_KINDS: Mapping[str, str] = {
     "command": replay_episodes.KIND_COMMAND,
 }
 
-#: The detection settings the index is built with: pm-audit-replay's
-#: defaults, spelled as its ``detection_key`` spells them.
-_DETECTION = f"strict=0 clock_skew={DEFAULT_CLOCK_SKEW_WARN:g}"
-_INDEX = "replay.db"
+#: Seconds without a heartbeat after which a running job's worker is presumed
+#: dead (the worker beats every second).
+STALE_AFTER = 10.0
+#: Generation views kept open: the current one and one a cursor still pages.
+_VIEWS = 4
+_JOBS_DB = "jobs.db"
+_SCRATCH = "scratch"
 
 
 class UnknownCollection(LookupError):
     """No configured collection has this id."""
+
+
+class UnknownJob(LookupError):
+    """No job has this id."""
 
 
 class AmbiguousRun(Exception):
@@ -91,6 +104,29 @@ class AmbiguousRun(Exception):
             f"the id appears in runs {', '.join(map(str, runs))}: pass run_id"
         )
         self.runs = runs
+
+
+class NotPrepared(Exception):
+    """The snapshot has no read models yet; `job` builds them."""
+
+    def __init__(self, job: Job) -> None:
+        super().__init__(
+            f"snapshot {job.snapshot_id} is being prepared (job {job.job_id}, "
+            f"{job.state}); read it once the job has succeeded"
+        )
+        self.job = job
+
+
+class GenerationExpired(Exception):
+    """A cursor's generation has been replaced and removed."""
+
+    def __init__(self, snapshot_id: str, generation: int, current: int | None) -> None:
+        super().__init__(
+            f"generation {generation} of {snapshot_id} was replaced (now "
+            f"{current}) and removed; start the listing again"
+        )
+        self.generation = generation
+        self.current = current
 
 
 class EventFilter:
@@ -114,59 +150,54 @@ class EventFilter:
         raw = json.dumps([self.topic, self.symbol, self.gateway, self.order_id])
         return hashlib.sha256(raw.encode()).hexdigest()[:12]
 
-    def matches(self, f: Fact) -> bool:
-        if self.topic and not f.topic.startswith(self.topic):
-            return False
-        if self.symbol and f.symbol != self.symbol:
-            return False
-        p = f.payload
-        if self.gateway and self.gateway not in (f.actor, p.get("gateway_id")):
-            return False
-        if self.order_id and self.order_id not in (
-            p.get("order_id"),
-            p.get("buy_order_id"),
-            p.get("sell_order_id"),
-            p.get("id") if f.kind == TOPIC_ORDER_NEW else None,
-        ):
-            return False
-        return True
+    def where(self, start: int) -> tuple[str, list[Any]]:
+        """The SQL condition over ``events`` (build.py's columns)."""
+        clauses: list[str] = ["pos >= ?"]
+        args: list[Any] = [start]
+        if self.topic:
+            clauses.append("substr(topic, 1, ?) = ?")
+            args += [len(self.topic), self.topic]
+        if self.symbol:
+            clauses.append("symbol = ?")
+            args.append(self.symbol)
+        if self.gateway:
+            clauses.append("(actor = ? OR gateway = ?)")
+            args += [self.gateway, self.gateway]
+        if self.order_id:
+            clauses.append("pos IN (SELECT pos FROM event_orders WHERE order_id = ?)")
+            args.append(self.order_id)
+        return " AND ".join(clauses), args
 
 
-class ReplaySession:
-    """One snapshot, reconstructed: its facts in canonical order and its
-    episode index."""
+class GenerationView:
+    """Reads of one published generation of one snapshot."""
 
-    def __init__(self, snapshot: Snapshot) -> None:
-        self.descriptor = snapshot.descriptor
-        self.facts: list[Fact] = list(ordered(normalise(snapshot.entries())))
-        self._dir = snapshot.directory
-        self._db = snapshot.directory / _INDEX
-        if not self._index_is_current():
-            self._build_index(snapshot)
+    def __init__(
+        self, descriptor: SnapshotDescriptor, snapshot_dir: Path, generation: int
+    ) -> None:
+        self.descriptor = descriptor
+        self.generation = generation
+        self._snapshot_dir = snapshot_dir
+        self._dir = generations.path(snapshot_dir, generation)
         self._findings: list[dict[str, Any]] | None = None
         self._market: MarketModel | None = None
-        #: The GUI asks for the heatmap and the lifelines at once: on a cold
-        #: session they wait for one build instead of running two.
-        self._market_lock = threading.Lock()
+        self._lock = threading.Lock()
 
     # -- events ---------------------------------------------------------
 
     def events(
         self, flt: EventFilter, start: int, limit: int
     ) -> tuple[list[dict[str, Any]], int | None]:
-        """Up to *limit* matching facts from position *start*, and the
+        """Up to *limit* matching rows from position *start*, and the
         position to continue from (None when none follow)."""
-        rows: list[dict[str, Any]] = []
-        pos = start
-        while pos < len(self.facts):
-            fact = self.facts[pos]
-            pos += 1
-            if not flt.matches(fact):
-                continue
-            if len(rows) == limit:
-                return rows, pos - 1
-            rows.append(event_row(fact))
-        return rows, None
+        where, args = flt.where(start)
+        with closing(_readonly(self._dir / "events.db")) as conn:
+            rows = conn.execute(
+                f"SELECT pos, row FROM events WHERE {where} ORDER BY pos LIMIT ?",
+                [*args, limit + 1],
+            ).fetchall()
+        resume = rows[limit][0] if len(rows) > limit else None
+        return [json.loads(zlib.decompress(r)) for _, r in rows[:limit]], resume
 
     # -- stories --------------------------------------------------------
 
@@ -176,7 +207,7 @@ class ReplaySession:
         """The entity's episodes and everything within *depth* links, as the
         replay's JSON objects, never crossing into another engine run."""
         self._require(Capability.STORIES)
-        with closing(episode_index.open_readonly(self._db)) as conn:
+        with closing(episode_index.open_readonly(self._dir / "replay.db")) as conn:
             seeds = reader.episodes_by_anchor(
                 conn, ENTITY_KINDS[entity_kind], entity_id
             )
@@ -192,23 +223,23 @@ class ReplaySession:
                 e for e in reader.walk(conn, seeds, depth=depth) if _run_of(e) == run
             ]
             objects = render_json.objects(walked, reader.actors(conn), Options())
-            out: dict[str, list[dict[str, Any]]] = {
-                "episodes": [],
-                "beats": [],
-                "links": [],
-                "anomalies": [],
-            }
-            for obj in objects:
-                kind = obj.pop("type")
-                if kind == render_json.TYPE_BEAT:
-                    obj["fields"] = ns_as_strings(obj["fields"])
-                out[f"{kind}s" if kind != "anomaly" else "anomalies"].append(obj)
-            runs_by_id = {e.episode_id: _run_of(e) for e in walked}
-            for episode in out["episodes"]:
-                episode["run"] = runs_by_id[episode["id"]]
-            for anomaly in out["anomalies"]:
-                anomaly["lane"] = lane_of(anomaly["code"])
-            return out
+        out: dict[str, list[dict[str, Any]]] = {
+            "episodes": [],
+            "beats": [],
+            "links": [],
+            "anomalies": [],
+        }
+        for obj in objects:
+            kind = obj.pop("type")
+            if kind == render_json.TYPE_BEAT:
+                obj["fields"] = ns_as_strings(obj["fields"])
+            out[f"{kind}s" if kind != "anomaly" else "anomalies"].append(obj)
+        runs_by_id = {e.episode_id: _run_of(e) for e in walked}
+        for episode in out["episodes"]:
+            episode["run"] = runs_by_id[episode["id"]]
+        for anomaly in out["anomalies"]:
+            anomaly["lane"] = lane_of(anomaly["code"])
+        return out
 
     # -- findings -------------------------------------------------------
 
@@ -218,21 +249,24 @@ class ReplaySession:
         skipped checks after the replay's of the same severity; each row in
         its lane."""
         self._require(Capability.STORIES)
-        if self._findings is None:
-            with closing(episode_index.open_readonly(self._db)) as conn:
-                episodes = reader.episodes_in_window(conn)
-            rows = []
-            for obj in render_json.anomalies(episodes, severity=SEVERITY_INFO):
-                obj.pop("type", None)
-                obj.pop("story", None)
-                obj["lane"] = lane_of(obj["code"])
-                obj["origin"] = "replay"
-                rows.append(obj)
-            if self.descriptor.capabilities[Capability.FORENSICS].available:
-                rows += forensics.findings(self._dir)
-            rows.sort(key=lambda row: at_least(row["severity"]))
-            self._findings = rows
-        return self._findings
+        with self._lock:
+            if self._findings is None:
+                with closing(
+                    episode_index.open_readonly(self._dir / "replay.db")
+                ) as conn:
+                    episodes = reader.episodes_in_window(conn)
+                rows = []
+                for obj in render_json.anomalies(episodes, severity=SEVERITY_INFO):
+                    obj.pop("type", None)
+                    obj.pop("story", None)
+                    obj["lane"] = lane_of(obj["code"])
+                    obj["origin"] = "replay"
+                    rows.append(obj)
+                if self.descriptor.capabilities[Capability.FORENSICS].available:
+                    rows += forensics.findings(self._snapshot_dir)
+                rows.sort(key=lambda row: at_least(row["severity"]))
+                self._findings = rows
+            return self._findings
 
     # -- market ---------------------------------------------------------
 
@@ -241,7 +275,9 @@ class ReplaySession:
     ) -> dict[str, Any]:
         """*symbol*'s depth heatmap (:meth:`MarketModel.heatmap`)."""
         self._require(Capability.BOOK)
-        return dict(ns_as_strings(self._market_model().heatmap(symbol, start, end, bins)))  # fmt: skip
+        return dict(
+            ns_as_strings(self._market_model().heatmap(symbol, start, end, bins))
+        )
 
     def lifelines(
         self, symbol: str, start: int | None, end: int | None, gateway: str | None
@@ -254,9 +290,9 @@ class ReplaySession:
     # -- internals ------------------------------------------------------
 
     def _market_model(self) -> MarketModel:
-        with self._market_lock:
+        with self._lock:
             if self._market is None:
-                self._market = MarketModel(self.facts)
+                self._market = MarketModel.load(self._dir / "market.db")
             return self._market
 
     def _require(self, capability: Capability) -> None:
@@ -264,35 +300,73 @@ class ReplaySession:
         if not state.available and state.reason is not None:
             raise CapabilityUnavailable(state.reason, state.detail)
 
-    def _index_is_current(self) -> bool:
-        try:
-            conn = episode_index.open_readonly(self._db)
-        except FileNotFoundError, episode_index.StaleIndexError, sqlite3.Error:
-            return False
-        with closing(conn):
-            return episode_index.read_meta(conn, episode_index.META_DETECTION) == _DETECTION  # fmt: skip
 
-    def _build_index(self, snapshot: Snapshot) -> None:
-        run = Reconstruction()
-        detector = Detector(run.state)
-        episodes = detected(
-            assemble(observed(run.run(self.facts), detector), run.state, run.links),
-            detector,
-        )
-        episode_index.build(
-            self._db, episodes, run.state, snapshot.paths(), detection=_DETECTION
-        )
+class WorkerLauncher:
+    """Starts the one worker process (``python -m
+    edumatcher.audit.service.worker STORE``) and tells whether it lives."""
+
+    def __init__(self, store: Path, args: Iterable[str] = ()) -> None:
+        self.store = store
+        self.args = list(args)
+        self._proc: subprocess.Popen[bytes] | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def pid(self) -> int | None:
+        return self._proc.pid if self._proc is not None else None
+
+    def ensure(self) -> None:
+        """Start the worker unless it runs."""
+        with self._lock:
+            if self._proc is not None and self._proc.poll() is None:
+                return
+            self._proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "edumatcher.audit.service.worker",
+                    str(self.store),
+                    *self.args,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+            )
+
+    def alive(self, pid: int) -> bool:
+        if self._proc is not None and pid == self._proc.pid:
+            return self._proc.poll() is None  # also reaps a killed child
+        return _pid_alive(pid)
+
+    def stop(self) -> None:
+        with self._lock:
+            if self._proc is not None and self._proc.poll() is None:
+                self._proc.terminate()
+                try:
+                    self._proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self._proc.kill()
+                    self._proc.wait(timeout=10)
+            self._proc = None
 
 
 class AuditService:
-    """The configured collections, the derivative store, and the session of
-    the most recently used snapshot (an LRU of one, design R0)."""
+    """The configured collections, the derivative store, the job store, and
+    open views of prepared generations."""
 
-    def __init__(self, collections: Iterable[AuditCollection], store: Path) -> None:
+    def __init__(
+        self,
+        collections: Iterable[AuditCollection],
+        store: Path,
+        launcher: WorkerLauncher | None = None,
+    ) -> None:
         self.collections = {c.id: c for c in collections}
         self.store = store
+        self.jobs = JobStore(store / _JOBS_DB)
+        self.launcher = launcher
         self._lock = threading.Lock()
-        self._cached: ReplaySession | None = None
+        self._views: OrderedDict[tuple[str, int], GenerationView] = OrderedDict()
+        #: Retained files hashed since they last changed: (path, size, mtime_ns).
+        self._verified: set[tuple[str, int, int]] = set()
 
     def collection(self, collection_id: str) -> AuditCollection:
         try:
@@ -307,23 +381,96 @@ class AuditService:
             return False, Reason.SOURCE_MISSING, 0
         return True, None, len(audit_files(collection.path))
 
-    def create(self, collection_id: str) -> SnapshotDescriptor:
-        return create_snapshot(self.collection(collection_id), self.store)
+    # -- snapshots ------------------------------------------------------
+
+    def create(self, collection_id: str) -> tuple[SnapshotDescriptor, Job | None]:
+        """Pin the collection; queue its ``prepare`` unless one is published."""
+        descriptor = create_snapshot(self.collection(collection_id), self.store)
+        return descriptor, self.prepare_job(descriptor.snapshot_id)
 
     def descriptor(self, snapshot_id: str) -> SnapshotDescriptor:
         return open_snapshot(self.store, snapshot_id).descriptor
 
-    def session(self, snapshot_id: str) -> ReplaySession:
-        """The snapshot's reconstruction, built on first use. One at a time:
-        a second snapshot replaces the first."""
+    def generation(self, snapshot_id: str) -> int | None:
+        """The snapshot's published generation, or None."""
+        return generations.current(open_snapshot(self.store, snapshot_id).directory)
+
+    def prepare_job(self, snapshot_id: str) -> Job | None:
+        """None when a generation is published; else the active (or a new)
+        ``prepare`` job."""
+        if self.generation(snapshot_id) is not None:
+            return None
+        job, _ = self.submit(PREPARE, snapshot_id, {})
+        return job
+
+    def view(self, snapshot_id: str, generation: int | None = None) -> GenerationView:
+        """A read view: of `generation`, or of the current one."""
+        snapshot = open_snapshot(self.store, snapshot_id)
+        # The read models are derived from the pinned evidence: a retained
+        # file removed or changed since makes the snapshot unavailable, never
+        # silently different (design §7.2).
         with self._lock:
-            cached = self._cached
-            if cached is not None and cached.descriptor.snapshot_id == snapshot_id:
-                return cached
-            self._cached = None
-            session = ReplaySession(open_snapshot(self.store, snapshot_id))
-            self._cached = session
-            return session
+            snapshot.check_sources(self._verified)
+        current = generations.current(snapshot.directory)
+        if current is None:
+            job = self.prepare_job(snapshot_id)
+            assert job is not None
+            raise NotPrepared(job)
+        wanted = current if generation is None else generation
+        if not generations.exists(snapshot.directory, wanted):
+            raise GenerationExpired(snapshot_id, wanted, current)
+        key = (snapshot_id, wanted)
+        with self._lock:
+            view = self._views.get(key)
+            if view is None:
+                view = GenerationView(snapshot.descriptor, snapshot.directory, wanted)
+                self._views[key] = view
+                while len(self._views) > _VIEWS:
+                    self._views.popitem(last=False)
+            self._views.move_to_end(key)
+            return view
+
+    # -- jobs -----------------------------------------------------------
+
+    def submit(
+        self, kind: str, snapshot_id: str, options: dict[str, Any]
+    ) -> tuple[Job, bool]:
+        """Queue a job (the active identical one if any). A ``prepare`` that
+        is not forced and finds a published generation is answered by the
+        job that published it."""
+        open_snapshot(self.store, snapshot_id)  # SnapshotUnavailable if unknown
+        if kind == PREPARE and not options.get("force") and self.generation(snapshot_id) is not None:  # fmt: skip
+            done = self.jobs.latest(PREPARE, snapshot_id, SUCCEEDED)
+            if done is not None:
+                return done, False
+        job, created = self.jobs.submit(kind, snapshot_id, options)
+        if self.launcher is not None:
+            self.launcher.ensure()
+        return job, created
+
+    def job(self, job_id: str) -> Job:
+        self.reconcile()
+        job = self.jobs.get(job_id)
+        if job is None:
+            raise UnknownJob(f"no job {job_id!r}")
+        return job
+
+    def cancel(self, job_id: str) -> Job:
+        job = self.jobs.cancel(job_id)
+        if job is None:
+            raise UnknownJob(f"no job {job_id!r}")
+        return job
+
+    def reconcile(self) -> list[Job]:
+        """Fail jobs whose worker died; remove their scratch; restart the
+        worker if jobs are waiting."""
+        alive = self.launcher.alive if self.launcher is not None else _pid_alive
+        lost = self.jobs.reconcile(alive, STALE_AFTER)
+        for job in lost:
+            shutil.rmtree(self.store / _SCRATCH / job.job_id, ignore_errors=True)
+        if lost and self.launcher is not None:
+            self.launcher.ensure()
+        return lost
 
 
 def require_behaviour_lane() -> None:
@@ -334,48 +481,18 @@ def require_behaviour_lane() -> None:
     )
 
 
-def event_row(f: Fact) -> dict[str, Any]:
-    """One fact as an ``/events`` row: canonical key, both clocks' raw values,
-    every price with its scale, and where it was read."""
-    return {
-        "key": pack_sort_key(f).replace("\x1f", "|"),
-        "run": f.publisher_run,
-        "eseq": f.eseq,
-        "topic_seq": f.topic_seq,
-        "receipt_ts": f.receipt_raw,
-        "receipt_ns": str(epoch_ns(f.receipt_ts)),
-        "topic": f.topic,
-        "kind": f.kind,
-        "symbol": f.symbol,
-        "actor": f.actor,
-        "msg_id": f.msg_id,
-        "causation_id": f.causation_id,
-        "correlation_id": f.correlation_id,
-        "late": f.late,
-        "fields": ns_as_strings(f.payload),
-        "prices": [
-            {
-                "name": p.name,
-                "raw": p.raw,
-                "display": p.display,
-                "tick_decimals": p.tick_decimals,
-            }
-            for p in f.prices.values()
-        ],
-        "source": {"file": f.file, "line": f.line_no},
-    }
+def _readonly(path: Path) -> sqlite3.Connection:
+    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
 
-def ns_as_strings(value: Any, key: str = "") -> Any:
-    """*value* with every integer under a ``*_ns`` key as a decimal string:
-    nanosecond epochs exceed JavaScript's exact integers (design §3.2)."""
-    if isinstance(value, Mapping):
-        return {k: ns_as_strings(v, str(k)) for k, v in value.items()}
-    if isinstance(value, list):
-        return [ns_as_strings(v, key) for v in value]
-    if key.endswith("_ns") and isinstance(value, int) and not isinstance(value, bool):
-        return str(value)
-    return value
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _run_of(episode: replay_episodes.Episode) -> int:
@@ -392,10 +509,13 @@ __all__ = [
     "ENTITY_KINDS",
     "EmptyWindow",
     "EventFilter",
-    "ReplaySession",
+    "GenerationExpired",
+    "GenerationView",
+    "NotPrepared",
     "SnapshotUnavailable",
     "UnknownCollection",
     "UnknownEntity",
-    "event_row",
+    "UnknownJob",
+    "WorkerLauncher",
     "require_behaviour_lane",
 ]

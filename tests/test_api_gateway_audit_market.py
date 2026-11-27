@@ -22,6 +22,7 @@ from edumatcher.audit.replay.facts import normalise
 from edumatcher.audit.replay.ordering import ordered
 from edumatcher.audit.service import market
 from edumatcher.audit.service.capabilities import Reason
+from edumatcher.audit.service.errors import UnknownEntity
 from edumatcher.audit.service.market import MarketModel
 from edumatcher.audit.service.session import CapabilityUnavailable
 from tests import audit_gui_world as aw
@@ -536,36 +537,55 @@ def test_an_uncross_ends_an_observation(tmp_path: Path) -> None:
     assert [c["covered_ns"] for c in body["columns"]] == [SEC, 0, 0]
 
 
-def test_concurrent_first_reads_build_the_model_once(
+def test_concurrent_first_reads_load_the_model_once(
     base: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The GUI asks for the heatmap and the lifelines at once: on a cold
-    session they must share one build, not run two (AG7 review)."""
+    view they share one load of the stored model (AG7 review, AG9)."""
     import threading
     import time
 
-    from edumatcher.audit.service import session as session_module
     from edumatcher.audit.service.session import AuditService
     from edumatcher.audit.service.snapshot import AuditCollection
+    from edumatcher.audit.service.worker import run_pending
 
-    builds: list[int] = []
+    loads: list[int] = []
+    real = MarketModel.load.__func__  # type: ignore[attr-defined]
 
-    class Slow(MarketModel):
-        def __init__(self, facts: Any) -> None:
-            builds.append(1)
-            time.sleep(0.2)  # widen the window two threads could both enter
-            super().__init__(facts)
+    def slow(cls: type[MarketModel], path: Path) -> MarketModel:
+        loads.append(1)
+        time.sleep(0.2)  # widen the window two threads could both enter
+        return real(cls, path)
 
-    monkeypatch.setattr(session_module, "MarketModel", Slow)
+    monkeypatch.setattr(MarketModel, "load", classmethod(slow))
     service = AuditService([AuditCollection("world", base.data)], tmp_path / "store")
-    sid = service.create("world").snapshot_id
-    replay = service.session(sid)
+    sid = service.create("world")[0].snapshot_id
+    run_pending(service.store)
+    view = service.view(sid)
     threads = [
-        threading.Thread(target=replay.heatmap, args=("AAA", None, None, 10)),
-        threading.Thread(target=replay.lifelines, args=("AAA", None, None, None)),
+        threading.Thread(target=view.heatmap, args=("AAA", None, None, 10)),
+        threading.Thread(target=view.lifelines, args=("AAA", None, None, None)),
     ]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    assert len(builds) == 1
+    assert len(loads) == 1
+
+
+def test_a_stored_model_answers_exactly_as_the_built_one(
+    base: World, tmp_path: Path
+) -> None:
+    """AG9: the worker dumps the model, the API loads it: same answers."""
+    built = MarketModel(_facts(base))
+    built.dump(tmp_path / "market.db")
+    loaded = MarketModel.load(tmp_path / "market.db")
+    for symbol in sorted(aw.TICK_DECIMALS):
+        assert loaded.heatmap(symbol, None, None, 50) == built.heatmap(
+            symbol, None, None, 50
+        )
+        assert loaded.lifelines(symbol, None, None, None) == built.lifelines(
+            symbol, None, None, None
+        )
+    with pytest.raises(UnknownEntity):
+        loaded.lifelines("ZZZ", None, None, None)

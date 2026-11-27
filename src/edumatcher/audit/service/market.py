@@ -45,15 +45,19 @@ Order lifelines
 
 from __future__ import annotations
 
+import json
 import math
+import sqlite3
 import statistics
 from collections import Counter, defaultdict
 from bisect import bisect_right
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from contextlib import closing
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from itertools import islice, pairwise
+from pathlib import Path
 from typing import Any
 
 from edumatcher.audit.replay import kinds
@@ -224,6 +228,9 @@ class MarketModel:
         self._unadmitted: dict[str, set[tuple[int, str]]] = defaultdict(set)
         self.first = 0
         self.last = 0
+        #: A model loaded from a generation reads each symbol on first use.
+        self._db: Path | None = None
+        self._loaded: set[str] = set()
         run: int | None = None
         previous = 0
         for fact in facts:
@@ -249,6 +256,85 @@ class MarketModel:
         for book in self._books.values():
             book.starts = [o.start for o in book.observations]
 
+    # -- storage (the worker dumps, the API loads) ----------------------
+
+    def dump(self, path: Path) -> None:
+        """Write the model to a new SQLite file: globals, then one row per
+        symbol, so a reader loads only the symbols it is asked about."""
+        with closing(sqlite3.connect(path)) as conn:
+            conn.execute(
+                "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            conn.execute(
+                "CREATE TABLE symbols (symbol TEXT PRIMARY KEY, book TEXT, lives TEXT, "
+                "unadmitted TEXT NOT NULL)"
+            )
+            meta = {
+                "first": self.first,
+                "last": self.last,
+                "symbols": sorted(self._symbols),
+                "scales": self._scales,
+                "gaps": [asdict(g) for g in self._gaps],
+                "phases": [asdict(p) for p in self._phases],
+            }
+            conn.executemany("INSERT INTO meta VALUES (?, ?)", [(k, json.dumps(v)) for k, v in meta.items()])  # fmt: skip
+            for symbol in sorted(self._symbols):
+                book = self._books.get(symbol)
+                conn.execute(
+                    "INSERT INTO symbols VALUES (?, ?, ?, ?)",
+                    (
+                        symbol,
+                        json.dumps(_book_dict(book)) if book is not None else None,
+                        json.dumps(
+                            [_life_dict(life) for life in self._lives.get(symbol, ())]
+                        ),
+                        json.dumps(sorted(self._unadmitted.get(symbol, ()))),
+                    ),
+                )
+            conn.commit()
+
+    @classmethod
+    def load(cls, path: Path) -> "MarketModel":
+        """A model over a dumped file; each symbol is read on first use."""
+        model = cls.__new__(cls)
+        model._books = {}
+        model._lives = defaultdict(list)
+        model._unadmitted = defaultdict(set)
+        model._orders = {}
+        model._quotes = {}
+        model._db = path
+        model._loaded = set()
+        with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as conn:
+            meta = {
+                k: json.loads(v) for k, v in conn.execute("SELECT key, value FROM meta")
+            }
+        model.first = int(meta["first"])
+        model.last = int(meta["last"])
+        model._symbols = set(meta["symbols"])
+        model._scales = {str(k): int(v) for k, v in meta["scales"].items()}
+        model._gaps = [_Span(**g) for g in meta["gaps"]]
+        model._phases = [_Span(**p) for p in meta["phases"]]
+        return model
+
+    def _ensure(self, symbol: str) -> None:
+        """Read `symbol`'s rows of a loaded model, once."""
+        if self._db is None or symbol in self._loaded:
+            return
+        with closing(sqlite3.connect(f"file:{self._db}?mode=ro", uri=True)) as conn:
+            row = conn.execute(
+                "SELECT book, lives, unadmitted FROM symbols WHERE symbol = ?",
+                (symbol,),
+            ).fetchone()
+        if row is not None:
+            book, lives, unadmitted = row
+            if book is not None:
+                self._books[symbol] = _book_from(json.loads(book))
+            self._lives[symbol] = [_life_from(d) for d in json.loads(lives)]
+            self._unadmitted[symbol] = {
+                (int(r), str(o)) for r, o in json.loads(unadmitted)
+            }
+        self._loaded.add(symbol)
+
     # -- queries --------------------------------------------------------
 
     def heatmap(
@@ -257,6 +343,7 @@ class MarketModel:
         """Displayed depth per level and bin of [*start*, *end*), with the
         cadence, masks and phases (see the module docstring)."""
         self._known(symbol)
+        self._ensure(symbol)
         book = self._books.get(symbol, _Book())
         if not book.observations:
             if book.unscaled:
@@ -339,6 +426,7 @@ class MarketModel:
         level aggregates instead when they would exceed
         :data:`LIFELINE_SEGMENT_CAP` segments."""
         self._known(symbol)
+        self._ensure(symbol)
         start, end = self._window(start, end)
         rows: list[dict[str, Any]] = []
         for life in self._lives.get(symbol, ()):
@@ -711,6 +799,47 @@ class _Column:
             "bids": cells(self.bids),
             "asks": cells(self.asks),
         }
+
+
+def _book_dict(book: _Book) -> dict[str, Any]:
+    return {
+        "observations": [
+            [o.run, o.start, o.end, o.bids, o.asks] for o in book.observations
+        ],
+        "halts": [asdict(h) for h in book.halts],
+        "tick_decimals": book.tick_decimals,
+        "unscaled": book.unscaled,
+    }
+
+
+def _book_from(d: dict[str, Any]) -> _Book:
+    observations = [
+        _Observation(
+            int(run),
+            int(start),
+            tuple((int(p), int(q)) for p, q in bids),
+            tuple((int(p), int(q)) for p, q in asks),
+            int(end),
+        )
+        for run, start, end, bids, asks in d["observations"]
+    ]
+    return _Book(
+        observations=observations,
+        starts=[o.start for o in observations],
+        halts=[_Span(**h) for h in d["halts"]],
+        tick_decimals=d["tick_decimals"],
+        unscaled=int(d["unscaled"]),
+    )
+
+
+def _life_dict(life: _Life) -> dict[str, Any]:
+    return asdict(life)
+
+
+def _life_from(d: dict[str, Any]) -> _Life:
+    fields = dict(d)
+    fields["segments"] = [_Segment(**seg) for seg in d["segments"]]
+    return _Life(**fields)
 
 
 def _overlaps(span: _Span, start: int, end: int) -> bool:

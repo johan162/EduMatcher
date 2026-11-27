@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { History, Loader2 } from "lucide-react";
-import { useCollections, usePinSnapshot, useSnapshot } from "@/api/queries";
+import { keys, useCollections, useJob, usePinSnapshot, useRetryPrepare, useSnapshot } from "@/api/queries";
 import { describeError } from "@/components/shared/QueryState";
 import { receiptTime } from "@/lib/time";
 import { useSnapshotStore } from "@/store/useSnapshotStore";
@@ -15,6 +17,7 @@ export function SnapshotPicker() {
   const pin = usePinSnapshot();
   const collectionId = useSnapshotStore((s) => s.collectionId);
   const snapshotId = useSnapshotStore((s) => s.snapshotId);
+  const [preparing, setPreparing] = useState<Preparing | null>(null);
 
   return (
     <div className="flex min-w-0 items-center gap-2 text-xs">
@@ -25,7 +28,17 @@ export function SnapshotPicker() {
         id="collection"
         value={pin.isPending ? (pin.variables ?? "") : (collectionId ?? "")}
         disabled={pin.isPending || !collections.data}
-        onChange={(e) => e.target.value && pin.mutate(e.target.value)}
+        onChange={(e) => {
+          if (!e.target.value) return;
+          setPreparing(null);
+          pin.mutate(e.target.value, {
+            onSuccess: (snap) => {
+              if (snap.generation === null && snap.prepare) {
+                setPreparing({ snapshotId: snap.snapshot_id, collectionId: snap.collection_id, jobId: snap.prepare.job_id });
+              }
+            },
+          });
+        }}
         className="rounded border border-line bg-raised px-1.5 py-0.5 font-mono"
       >
         <option value="" disabled>
@@ -48,8 +61,79 @@ export function SnapshotPicker() {
           {describeError(pin.error)}
         </span>
       )}
-      {snapshotId && !pin.isPending && !pin.isError && <SnapshotLabel id={snapshotId} />}
+      {preparing && <PrepareStatus preparing={preparing} onRetry={setPreparing} onDone={() => setPreparing(null)} />}
+      {snapshotId && !preparing && !pin.isPending && !pin.isError && <SnapshotLabel id={snapshotId} />}
     </div>
+  );
+}
+
+interface Preparing {
+  snapshotId: string;
+  collectionId: string;
+  jobId: string;
+}
+
+/**
+ * A snapshot whose read models are being built (its `prepare` job): stage
+ * and measured progress while it runs; the snapshot opens when it succeeds;
+ * a job that ended otherwise says why and can be queued again.
+ */
+function PrepareStatus({
+  preparing,
+  onRetry,
+  onDone,
+}: {
+  preparing: Preparing;
+  onRetry: (next: Preparing) => void;
+  onDone: () => void;
+}) {
+  const job = useJob(preparing.jobId);
+  const retry = useRetryPrepare();
+  const client = useQueryClient();
+  const select = useSnapshotStore((s) => s.select);
+  const state = job.data?.state;
+
+  useEffect(() => {
+    if (state !== "succeeded") return;
+    void client.invalidateQueries({ queryKey: keys.snapshot(preparing.snapshotId) });
+    select(preparing.collectionId, preparing.snapshotId);
+    onDone();
+  }, [state, client, select, preparing, onDone]);
+
+  if (job.isError) {
+    return (
+      <span role="alert" className="text-ask">
+        {describeError(job.error)}
+      </span>
+    );
+  }
+  const data = job.data;
+  if (data && (data.state === "failed" || data.state === "cancelled" || data.state === "unavailable")) {
+    return (
+      <span role="alert" className="flex items-center gap-2 text-ask">
+        Preparing the snapshot {data.state}: {data.reason ?? "no reason given"}
+        {data.detail ? ` (${data.detail})` : ""}
+        <button
+          type="button"
+          onClick={() =>
+            retry.mutate(preparing.snapshotId, {
+              onSuccess: (next) => onRetry({ ...preparing, jobId: next.job_id }),
+            })
+          }
+          className="rounded bg-elevated px-2 py-0.5 text-fg"
+        >
+          Retry
+        </button>
+      </span>
+    );
+  }
+  const progress = data?.progress;
+  return (
+    <span data-testid="preparing" role="status" className="flex items-center gap-1.5 text-fg-dim">
+      <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+      Preparing snapshot: {data?.stage ?? data?.state ?? "queued"}
+      {progress && ` ${progress.done.toLocaleString("en-US")} / ${progress.total.toLocaleString("en-US")}`}
+    </span>
   );
 }
 

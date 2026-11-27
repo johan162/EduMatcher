@@ -5,7 +5,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/api/apiFetch";
-import { Collections, EventPage, FindingPage, Heatmap, Lifelines, Snapshot, Story, type SnapshotT } from "@/api/schemas";
+import { Collections, EventPage, FindingPage, Heatmap, Job, Lifelines, Snapshot, Story, type SnapshotT } from "@/api/schemas";
 import { toTrade, type Trade } from "@/lib/flow";
 import { useSnapshotStore } from "@/store/useSnapshotStore";
 
@@ -22,6 +22,7 @@ export const keys = {
   trades: (id: string, symbol: string) => ["audit", "trades", id, symbol] as const,
   story: (id: string, order: string, run: number | null) => ["audit", "story", id, order, run] as const,
   orderEvents: (id: string, order: string) => ["audit", "order-events", id, order] as const,
+  job: (id: string) => ["audit", "job", id] as const,
 };
 
 export function useCollections() {
@@ -31,7 +32,11 @@ export function useCollections() {
   });
 }
 
-/** Pin a collection (`POST /snapshots`) and make it the current snapshot. */
+/**
+ * Pin a collection (`POST /snapshots`). A prepared snapshot becomes the
+ * current one at once; one still being prepared is left to the caller,
+ * which follows its `prepare` job (reads would answer `NOT_PREPARED`).
+ */
 export function usePinSnapshot() {
   const client = useQueryClient();
   const select = useSnapshotStore((s) => s.select);
@@ -40,8 +45,35 @@ export function usePinSnapshot() {
       apiFetch(`${V1}/snapshots`, Snapshot, { post: { collection_id: collectionId } }),
     onSuccess: (snapshot: SnapshotT) => {
       client.setQueryData(keys.snapshot(snapshot.snapshot_id), snapshot);
-      select(snapshot.collection_id, snapshot.snapshot_id);
+      // The reply carries the prepare job: its first frame is real, not a guess.
+      if (snapshot.prepare) client.setQueryData(keys.job(snapshot.prepare.job_id), snapshot.prepare);
+      if (snapshot.generation !== null) select(snapshot.collection_id, snapshot.snapshot_id);
     },
+  });
+}
+
+/** How often an active job is polled (design §7.3: only while one runs). */
+export const JOB_POLL_MS = 1000;
+
+/** A job, polled while it is queued or running. */
+export function useJob(id: string) {
+  return useQuery({
+    queryKey: keys.job(id),
+    queryFn: ({ signal }) => apiFetch(`${V1}/jobs/${encodeURIComponent(id)}`, Job, { signal }),
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state === "queued" || state === "running" ? JOB_POLL_MS : false;
+    },
+  });
+}
+
+/** Queue a snapshot's `prepare` again (after it failed). */
+export function useRetryPrepare() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (snapshotId: string) =>
+      apiFetch(`${V1}/jobs`, Job, { post: { kind: "prepare", snapshot_id: snapshotId } }),
+    onSuccess: (job) => client.setQueryData(keys.job(job.job_id), job),
   });
 }
 

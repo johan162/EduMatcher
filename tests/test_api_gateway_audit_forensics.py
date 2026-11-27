@@ -17,7 +17,7 @@ import pytest
 
 from edumatcher.sim_forensics.registry import REGISTRY
 from tests import audit_gui_world as aw
-from tests.audit_gui_world import World, build, make_audit_app
+from tests.audit_gui_world import World, build, make_audit_app, run_jobs
 from tests.test_api_gateway_audit import _get, _post, _snapshot
 
 _FORENSICS = "SIM_FORENSICS"
@@ -26,6 +26,7 @@ _FORENSICS = "SIM_FORENSICS"
 def _pin(app: Any) -> dict[str, Any]:
     status, body = _post(app, "/snapshots", {"collection_id": "world"})
     assert status == 201, body
+    run_jobs(app)
     return body
 
 

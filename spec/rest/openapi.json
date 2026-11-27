@@ -20462,7 +20462,7 @@
           "audit"
         ],
         "summary": "Pin a collection as a snapshot",
-        "description": "Pin a collection as it is now: every file's size and hash, the active\nfile's complete lines, the runs and what the evidence can support.\n\nPinning an unchanged collection again returns the same snapshot. R0 pins\nsynchronously; a large trail takes seconds (about 90,000 records/s).",
+        "description": "Pin a collection as it is now: every file's size and hash, the active\nfile's complete lines, the runs and what the evidence can support; and\nqueue its `prepare` job (`prepare`), which builds the read models every\nother read needs. `generation` is null until that job has published.\n\nPinning an unchanged collection again returns the same snapshot. Pinning\nis synchronous: a large trail takes seconds (about 90,000 records/s).",
         "operationId": "create_audit_snapshot",
         "requestBody": {
           "content": {
@@ -20484,6 +20484,23 @@
                 },
                 "example": {
                   "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "generation": 1,
+                  "prepare": {
+                    "job_id": "j-5a1f0c9e3b7d2846",
+                    "kind": "prepare",
+                    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                    "options": {},
+                    "state": "succeeded",
+                    "stage": "publishing",
+                    "progress": null,
+                    "heartbeat_at": "2026-06-15T15:40:09.512+00:00",
+                    "created_at": "2026-06-15T15:40:02.240+00:00",
+                    "started_at": "2026-06-15T15:40:02.731+00:00",
+                    "finished_at": "2026-06-15T15:40:31.006+00:00",
+                    "reason": null,
+                    "detail": null,
+                    "result_id": "j-5a1f0c9e3b7d2846"
+                  },
                   "collection_id": "default",
                   "created_at": "2026-06-15T15:40:02.118+00:00",
                   "entries": 184213,
@@ -20809,7 +20826,7 @@
           "audit"
         ],
         "summary": "Snapshot descriptor and capabilities",
-        "description": "What a snapshot pinned (files, sizes, hashes, cutoffs, runs, extent)\nand, per analysis, whether its evidence supports it and why not.",
+        "description": "What a snapshot pinned (files, sizes, hashes, cutoffs, runs, extent)\nand, per analysis, whether its evidence supports it and why not; its\npublished read-model `generation` and its latest `prepare` job.",
         "operationId": "audit_snapshot",
         "security": [
           {
@@ -20840,6 +20857,23 @@
                 },
                 "example": {
                   "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "generation": 1,
+                  "prepare": {
+                    "job_id": "j-5a1f0c9e3b7d2846",
+                    "kind": "prepare",
+                    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                    "options": {},
+                    "state": "succeeded",
+                    "stage": "publishing",
+                    "progress": null,
+                    "heartbeat_at": "2026-06-15T15:40:09.512+00:00",
+                    "created_at": "2026-06-15T15:40:02.240+00:00",
+                    "started_at": "2026-06-15T15:40:02.731+00:00",
+                    "finished_at": "2026-06-15T15:40:31.006+00:00",
+                    "reason": null,
+                    "detail": null,
+                    "result_id": "j-5a1f0c9e3b7d2846"
+                  },
                   "collection_id": "default",
                   "created_at": "2026-06-15T15:40:02.118+00:00",
                   "entries": 184213,
@@ -21295,6 +21329,7 @@
                 },
                 "example": {
                   "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "generation": 1,
                   "events": [
                     {
                       "key": "00000001|0|0000000000000000412|2026-06-15T07:01:12.001000+00:00|000000000412",
@@ -21462,6 +21497,38 @@
                       "error": {
                         "code": "UNKNOWN_SNAPSHOT",
                         "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`GENERATION_EXPIRED`: The cursor's read-model generation was replaced and removed; start the listing again. `generation` names the one it belonged to. `NOT_PREPARED`: The snapshot's read models are not built yet; `job_id` names the `prepare` job building them (`GET /audit/jobs/{job_id}`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "GENERATION_EXPIRED": {
+                    "summary": "GENERATION_EXPIRED",
+                    "value": {
+                      "error": {
+                        "code": "GENERATION_EXPIRED",
+                        "message": "Generation 1 of s-0123456789abcdef0123 was replaced and removed",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "NOT_PREPARED": {
+                    "summary": "NOT_PREPARED",
+                    "value": {
+                      "error": {
+                        "code": "NOT_PREPARED",
+                        "message": "Snapshot s-0123456789abcdef0123 is being prepared",
                         "reject_code": "UNKNOWN"
                       }
                     }
@@ -21820,7 +21887,7 @@
             }
           },
           "409": {
-            "description": "`AMBIGUOUS_RUN`: The id appears in more than one engine run of the snapshot (a restart reused it); `runs` lists them. Repeat with `run_id`. `CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result.",
+            "description": "`AMBIGUOUS_RUN`: The id appears in more than one engine run of the snapshot (a restart reused it); `runs` lists them. Repeat with `run_id`. `CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result. `GENERATION_EXPIRED`: The cursor's read-model generation was replaced and removed; start the listing again. `generation` names the one it belonged to. `NOT_PREPARED`: The snapshot's read models are not built yet; `job_id` names the `prepare` job building them (`GET /audit/jobs/{job_id}`).",
             "content": {
               "application/json": {
                 "examples": {
@@ -21840,6 +21907,26 @@
                       "error": {
                         "code": "CAPABILITY_UNAVAILABLE",
                         "message": "The snapshot holds no audit record",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "GENERATION_EXPIRED": {
+                    "summary": "GENERATION_EXPIRED",
+                    "value": {
+                      "error": {
+                        "code": "GENERATION_EXPIRED",
+                        "message": "Generation 1 of s-0123456789abcdef0123 was replaced and removed",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "NOT_PREPARED": {
+                    "summary": "NOT_PREPARED",
+                    "value": {
+                      "error": {
+                        "code": "NOT_PREPARED",
+                        "message": "Snapshot s-0123456789abcdef0123 is being prepared",
                         "reject_code": "UNKNOWN"
                       }
                     }
@@ -22018,6 +22105,7 @@
                 },
                 "example": {
                   "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "generation": 1,
                   "lanes": {
                     "evidence": {
                       "available": true,
@@ -22251,7 +22339,7 @@
             }
           },
           "409": {
-            "description": "`CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result.",
+            "description": "`CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result. `GENERATION_EXPIRED`: The cursor's read-model generation was replaced and removed; start the listing again. `generation` names the one it belonged to. `NOT_PREPARED`: The snapshot's read models are not built yet; `job_id` names the `prepare` job building them (`GET /audit/jobs/{job_id}`).",
             "content": {
               "application/json": {
                 "examples": {
@@ -22261,6 +22349,26 @@
                       "error": {
                         "code": "CAPABILITY_UNAVAILABLE",
                         "message": "The snapshot holds no audit record",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "GENERATION_EXPIRED": {
+                    "summary": "GENERATION_EXPIRED",
+                    "value": {
+                      "error": {
+                        "code": "GENERATION_EXPIRED",
+                        "message": "Generation 1 of s-0123456789abcdef0123 was replaced and removed",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "NOT_PREPARED": {
+                    "summary": "NOT_PREPARED",
+                    "value": {
+                      "error": {
+                        "code": "NOT_PREPARED",
+                        "message": "Snapshot s-0123456789abcdef0123 is being prepared",
                         "reject_code": "UNKNOWN"
                       }
                     }
@@ -22645,7 +22753,7 @@
             }
           },
           "409": {
-            "description": "`CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result.",
+            "description": "`CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result. `GENERATION_EXPIRED`: The cursor's read-model generation was replaced and removed; start the listing again. `generation` names the one it belonged to. `NOT_PREPARED`: The snapshot's read models are not built yet; `job_id` names the `prepare` job building them (`GET /audit/jobs/{job_id}`).",
             "content": {
               "application/json": {
                 "examples": {
@@ -22655,6 +22763,26 @@
                       "error": {
                         "code": "CAPABILITY_UNAVAILABLE",
                         "message": "The snapshot holds no audit record",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "GENERATION_EXPIRED": {
+                    "summary": "GENERATION_EXPIRED",
+                    "value": {
+                      "error": {
+                        "code": "GENERATION_EXPIRED",
+                        "message": "Generation 1 of s-0123456789abcdef0123 was replaced and removed",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "NOT_PREPARED": {
+                    "summary": "NOT_PREPARED",
+                    "value": {
+                      "error": {
+                        "code": "NOT_PREPARED",
+                        "message": "Snapshot s-0123456789abcdef0123 is being prepared",
                         "reject_code": "UNKNOWN"
                       }
                     }
@@ -23007,6 +23135,38 @@
               }
             }
           },
+          "409": {
+            "description": "`GENERATION_EXPIRED`: The cursor's read-model generation was replaced and removed; start the listing again. `generation` names the one it belonged to. `NOT_PREPARED`: The snapshot's read models are not built yet; `job_id` names the `prepare` job building them (`GET /audit/jobs/{job_id}`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "GENERATION_EXPIRED": {
+                    "summary": "GENERATION_EXPIRED",
+                    "value": {
+                      "error": {
+                        "code": "GENERATION_EXPIRED",
+                        "message": "Generation 1 of s-0123456789abcdef0123 was replaced and removed",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "NOT_PREPARED": {
+                    "summary": "NOT_PREPARED",
+                    "value": {
+                      "error": {
+                        "code": "NOT_PREPARED",
+                        "message": "Snapshot s-0123456789abcdef0123 is being prepared",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
             "content": {
@@ -23022,6 +23182,870 @@
                       }
                     }
                   },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/jobs": {
+      "post": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Queue a derivative job",
+        "description": "Queue `prepare` (build the snapshot's read models as a new\ngeneration; `options.force` rebuilds a prepared snapshot), `verify`\n(check the pinned files and the manifest against the sources now) or\n`forensics_import` (check the `pm-sim-forensics` report now beside the\ncollection against the snapshot).\n\nAn identical request while one is active returns that job. A `prepare`\nof a prepared snapshot without `force` returns the job that prepared it.\nThe work runs in the worker process, never in the API: poll\n`GET /jobs/{job_id}`.",
+        "operationId": "create_audit_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The job (an identical active one when it exists).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditJob"
+                },
+                "example": {
+                  "job_id": "j-5a1f0c9e3b7d2846",
+                  "kind": "prepare",
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "options": {},
+                  "state": "running",
+                  "stage": "reading",
+                  "progress": {
+                    "done": 96000,
+                    "total": 184213
+                  },
+                  "heartbeat_at": "2026-06-15T15:40:09.512+00:00",
+                  "created_at": "2026-06-15T15:40:02.240+00:00",
+                  "started_at": "2026-06-15T15:40:02.731+00:00",
+                  "finished_at": null,
+                  "reason": null,
+                  "detail": null,
+                  "result_id": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "A job's state and progress",
+        "description": "State (`queued`, `running`, `succeeded`, `failed`, `cancelled`,\n`unavailable`), stage, `progress` (`{done, total}` once the total is\nknown, else null), the worker's last heartbeat, and `reason` when it\nended other than by succeeding (`WORKER_LOST`, `TIMEOUT`, `CANCELLED`,\n`JOB_ERROR`, `DISK_LOW`, ...).",
+        "operationId": "audit_job",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "The job, as `POST /jobs` returned it.",
+              "title": "Job Id"
+            },
+            "description": "The job, as `POST /jobs` returned it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditJob"
+                },
+                "example": {
+                  "job_id": "j-5a1f0c9e3b7d2846",
+                  "kind": "prepare",
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "options": {},
+                  "state": "running",
+                  "stage": "reading",
+                  "progress": {
+                    "done": 96000,
+                    "total": 184213
+                  },
+                  "heartbeat_at": "2026-06-15T15:40:09.512+00:00",
+                  "created_at": "2026-06-15T15:40:02.240+00:00",
+                  "started_at": "2026-06-15T15:40:02.731+00:00",
+                  "finished_at": null,
+                  "reason": null,
+                  "detail": null,
+                  "result_id": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_JOB`: No audit job has this id.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_JOB": {
+                    "summary": "UNKNOWN_JOB",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_JOB",
+                        "message": "No job 'j-0123456789abcdef'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Cancel a job",
+        "description": "Cancel derivative work, never an exchange order. A queued job ends\nnow; a running one stops at its next progress report, publishes nothing\nand removes its scratch. An ended job is returned unchanged.",
+        "operationId": "cancel_audit_job",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "The job, as `POST /jobs` returned it.",
+              "title": "Job Id"
+            },
+            "description": "The job, as `POST /jobs` returned it."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The job: cancelled, or asked to stop.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditJob"
+                },
+                "example": {
+                  "job_id": "j-5a1f0c9e3b7d2846",
+                  "kind": "prepare",
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "options": {},
+                  "state": "running",
+                  "stage": "reading",
+                  "progress": {
+                    "done": 96000,
+                    "total": 184213
+                  },
+                  "heartbeat_at": "2026-06-15T15:40:09.512+00:00",
+                  "created_at": "2026-06-15T15:40:02.240+00:00",
+                  "started_at": "2026-06-15T15:40:02.731+00:00",
+                  "finished_at": null,
+                  "reason": null,
+                  "detail": null,
+                  "result_id": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_JOB`: No audit job has this id.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_JOB": {
+                    "summary": "UNKNOWN_JOB",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_JOB",
+                        "message": "No job 'j-0123456789abcdef'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/results/{job_id}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "A job's result",
+        "description": "A succeeded job's result: for `prepare` the published `generation`\n(and whether an existing one was reused); for `verify` each pinned\nfile's state and the manifest now; for `forensics_import` the report's\nmatch against the snapshot. `409 JOB_NOT_SUCCEEDED` otherwise.",
+        "operationId": "audit_result",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "The job, as `POST /jobs` returned it.",
+              "title": "Job Id"
+            },
+            "description": "The job, as `POST /jobs` returned it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The succeeded job's typed result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditResult"
+                },
+                "example": {
+                  "job_id": "j-5a1f0c9e3b7d2846",
+                  "kind": "prepare",
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "finished_at": "2026-06-15T15:40:31.006+00:00",
+                  "content": {
+                    "generation": 1,
+                    "reused": false,
+                    "built_at": "2026-06-15T15:40:30.988+00:00",
+                    "records": 184213,
+                    "detection": "strict=0 clock_skew=5",
+                    "version": "0.86.0"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_JOB`: No audit job has this id.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_JOB": {
+                    "summary": "UNKNOWN_JOB",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_JOB",
+                        "message": "No job 'j-0123456789abcdef'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`JOB_NOT_SUCCEEDED`: The job has no result: it has not finished, or it ended other than by succeeding; `state` and `reason` say how.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "JOB_NOT_SUCCEEDED": {
+                    "summary": "JOB_NOT_SUCCEEDED",
+                    "value": {
+                      "error": {
+                        "code": "JOB_NOT_SUCCEEDED",
+                        "message": "Job j-0123456789abcdef is running",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
                   "ENGINE_UNAVAILABLE": {
                     "summary": "ENGINE_UNAVAILABLE",
                     "value": {
@@ -23674,6 +24698,11 @@
             "type": "string",
             "title": "Snapshot Id"
           },
+          "generation": {
+            "type": "integer",
+            "title": "Generation",
+            "description": "The read-model generation this page is from."
+          },
           "events": {
             "items": {
               "$ref": "#/components/schemas/AuditRecord"
@@ -23689,6 +24718,7 @@
           "has_more",
           "next_cursor",
           "snapshot_id",
+          "generation",
           "events"
         ],
         "title": "AuditEventPage"
@@ -23843,6 +24873,11 @@
             "type": "string",
             "title": "Snapshot Id"
           },
+          "generation": {
+            "type": "integer",
+            "title": "Generation",
+            "description": "The read-model generation this page is from."
+          },
           "lanes": {
             "additionalProperties": {
               "$ref": "#/components/schemas/AuditLane"
@@ -23868,6 +24903,7 @@
           "has_more",
           "next_cursor",
           "snapshot_id",
+          "generation",
           "lanes",
           "forensics",
           "findings"
@@ -24331,6 +25367,220 @@
           "asks"
         ],
         "title": "AuditHeatmapColumn"
+      },
+      "AuditJob": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "prepare",
+              "verify",
+              "forensics_import"
+            ],
+            "title": "Kind"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "options": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Options"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "unavailable"
+            ],
+            "title": "State"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage",
+            "description": "What the worker is doing now."
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditJobProgress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Measured progress, once the total is known; null before."
+          },
+          "heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat At",
+            "description": "The worker's last beat (UTC)."
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it ended other than by succeeding (`WORKER_LOST`, `TIMEOUT`, `CANCELLED`, `JOB_ERROR`, `DISK_LOW`, `NOT_ATTACHED`, or a source reason)."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Id",
+            "description": "`GET /results/{id}` once it succeeded."
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "kind",
+          "snapshot_id",
+          "options",
+          "state",
+          "stage",
+          "progress",
+          "heartbeat_at",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "reason",
+          "detail",
+          "result_id"
+        ],
+        "title": "AuditJob"
+      },
+      "AuditJobOptions": {
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "description": "`prepare` only: rebuild a prepared snapshot.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AuditJobOptions"
+      },
+      "AuditJobProgress": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "AuditJobProgress"
+      },
+      "AuditJobRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "prepare",
+              "verify",
+              "forensics_import"
+            ],
+            "title": "Kind"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Snapshot Id"
+          },
+          "options": {
+            "$ref": "#/components/schemas/AuditJobOptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "snapshot_id"
+        ],
+        "title": "AuditJobRequest"
       },
       "AuditLane": {
         "properties": {
@@ -25164,6 +26414,53 @@
         ],
         "title": "AuditRecord"
       },
+      "AuditResult": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "prepare",
+              "verify",
+              "forensics_import"
+            ],
+            "title": "Kind"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "content": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Content",
+            "description": "The kind's typed result."
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "kind",
+          "snapshot_id",
+          "finished_at",
+          "content"
+        ],
+        "title": "AuditResult"
+      },
       "AuditRun": {
         "properties": {
           "run": {
@@ -25258,6 +26555,29 @@
           "snapshot_id": {
             "type": "string",
             "title": "Snapshot Id"
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation",
+            "description": "The published read-model generation; null until its `prepare` job has succeeded (reads answer `409 NOT_PREPARED` before)."
+          },
+          "prepare": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditJob"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest `prepare` job of the snapshot; null when none was needed."
           },
           "collection_id": {
             "type": "string",
@@ -25355,6 +26675,8 @@
         "type": "object",
         "required": [
           "snapshot_id",
+          "generation",
+          "prepare",
           "collection_id",
           "created_at",
           "entries",

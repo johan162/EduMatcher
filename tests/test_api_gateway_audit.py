@@ -21,7 +21,7 @@ from edumatcher.audit.replay import anomalies
 from edumatcher.audit.service.findings import CODE_LANES, LANES, lane_of
 from tests import audit_gui_world as aw
 from tests.api_gateway_harness import call
-from tests.audit_gui_world import World, build, make_audit_app
+from tests.audit_gui_world import World, build, make_audit_app, run_jobs
 
 _V1 = "/api/v1/audit"
 _ADMIN = f"Bearer {aw.ADMIN_KEY}"
@@ -44,8 +44,11 @@ def _post(
 
 
 def _snapshot(app: Any) -> str:
+    """Pin the world's collection and run its prepare job (no worker
+    process in tests): its reads are ready."""
     status, body = _post(app, "/snapshots", {"collection_id": "world"})
     assert status == 201, body
+    run_jobs(app)
     return str(body["snapshot_id"])
 
 
@@ -88,6 +91,16 @@ _ROUTES = {
     ("GET", "/findings"): "/findings?snapshot_id={sid}",
     ("GET", "/market/{symbol}/heatmap"): "/market/AAA/heatmap?snapshot_id={sid}",
     ("GET", "/market/{symbol}/lifelines"): "/market/AAA/lifelines?snapshot_id={sid}",
+    ("POST", "/jobs"): "/jobs",
+    ("GET", "/jobs/{job_id}"): "/jobs/j-0123456789abcdef",
+    ("POST", "/jobs/{job_id}/cancel"): "/jobs/j-0123456789abcdef/cancel",
+    ("GET", "/results/{job_id}"): "/results/j-0123456789abcdef",
+}
+
+#: A valid body per POST route, so only the key decides.
+_BODIES = {
+    "/snapshots": {"collection_id": "world"},
+    "/jobs": {"kind": "verify", "snapshot_id": "s-0123456789abcdef0123"},
 }
 
 
@@ -116,7 +129,7 @@ def test_only_admin_may_call_any_audit_route(
     method, _ = route
     path = _ROUTES[route].format(sid=sid, oid=base.orders["layer_1"])
     if method == "POST":
-        status, body = _post(app, path, {"collection_id": "world"}, key=key)
+        status, body = _post(app, path, _BODIES.get(route[1], {}), key=key)
     else:
         status, body = _get(app, path, key=key)
     assert (status, body["error"]["code"]) == (403, code)
