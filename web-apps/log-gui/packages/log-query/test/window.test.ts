@@ -4,13 +4,19 @@ import { isValidWindow, windowToIsoFrom } from "../src/window.js";
 describe("windowToIsoFrom", () => {
   it("subtracts the correct number of seconds for each allow-listed window", () => {
     const now = new Date("2026-07-29T12:00:00.000Z");
-    expect(windowToIsoFrom("1h", now)).toBe("2026-07-29T11:00:00Z");
-    expect(windowToIsoFrom("24h", now)).toBe("2026-07-28T12:00:00Z");
+    expect(windowToIsoFrom("1h", now)).toBe("2026-07-29T11:00:00.000Z");
+    expect(windowToIsoFrom("24h", now)).toBe("2026-07-28T12:00:00.000Z");
   });
 
   it("falls back to 1h for an unknown window", () => {
     const now = new Date("2026-07-29T12:00:00.000Z");
     expect(windowToIsoFrom("bogus", now)).toBe(windowToIsoFrom("1h", now));
+  });
+
+  it("keeps events in the cutoff's own second, compared as client_ts strings", () => {
+    const from = windowToIsoFrom("1h", new Date("2026-07-29T12:00:00.300Z"));
+    expect("2026-07-29T11:00:00.800Z" >= from).toBe(true);
+    expect("2026-07-29T11:00:00.100Z" >= from).toBe(false);
   });
 });
 
@@ -42,8 +48,8 @@ describe("windowToIsoFrom hardening", () => {
 
   it("covers every allow-listed window", () => {
     const now = new Date("2026-07-29T12:00:00.000Z");
-    expect(windowToIsoFrom("5m", now)).toBe("2026-07-29T11:55:00Z");
-    expect(windowToIsoFrom("15m", now)).toBe("2026-07-29T11:45:00Z");
-    expect(windowToIsoFrom("6h", now)).toBe("2026-07-29T06:00:00Z");
+    expect(windowToIsoFrom("5m", now)).toBe("2026-07-29T11:55:00.000Z");
+    expect(windowToIsoFrom("15m", now)).toBe("2026-07-29T11:45:00.000Z");
+    expect(windowToIsoFrom("6h", now)).toBe("2026-07-29T06:00:00.000Z");
   });
 });

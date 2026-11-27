@@ -451,7 +451,10 @@ of red is the signal.
 Below it, five meter tiles: total events, current error rate per minute,
 warnings in the last 60 s, process count, and log-server state. Then two
 charts — events over time (1-minute buckets over the last hour) and top
-processes by error count — and a compact list of the five most recent errors.
+processes by error count (`ERROR` and `CRITICAL` over the last hour) — and a
+compact list of the five most recent errors, whatever their age. With no errors
+in the last hour the second chart says so rather than staying blank, so it can
+be empty while older errors still show in the list below.
 
 The **error-rate tile is banded** — it carries a colour and a word (`normal`,
 `elevated`, `high`, `SEVERE`) rather than a bare number, because "18 errors a

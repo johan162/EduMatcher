@@ -118,7 +118,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       },
       {
         "paragraphs": [
-          "Below: events per minute over the last hour, the processes with most errors, and the five latest errors. A burst in the chart with a high error rate usually points to one process in the second chart."
+          "Below: events per minute over the last hour, the processes with most errors in the last hour, and the five latest errors whatever their age. A burst in the chart with a high error rate usually points to one process in the second chart."
         ]
       }
     ]

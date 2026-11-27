@@ -99,7 +99,7 @@ export function DashboardView() {
     enabled: uiConfig !== undefined,
     refetchInterval: 15_000,
   });
-  const { data: byProcess } = useQuery({
+  const { data: byProcess, error: byProcessError } = useQuery({
     queryKey: ["stats", "by-process", window_, "ERROR"],
     queryFn: () => api.byProcess(window_, "ERROR"),
     refetchInterval: 30_000,
@@ -203,32 +203,42 @@ export function DashboardView() {
         </Panel>
 
         <Panel
-          title="Top processes by error count"
-          help="Which processes logged the most ERROR events in the last hour. The longest bar is the first place to look when the error rate is up."
+          title="Top processes by error count — last hour"
+          help="Which processes logged the most ERROR or CRITICAL events in the last hour. The longest bar is the first place to look when the error rate is up. Older errors are not counted here; Recent errors below lists the latest whatever their age."
         >
           <div style={{ width: "100%", height: 240 }}>
-            <ResponsiveContainer>
-              <BarChart layout="vertical" data={byProcess?.processes ?? []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  type="number"
-                  tick={{ fill: "var(--fg-subtle)", fontSize: 11 }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="process"
-                  width={100}
-                  tick={{ fill: "var(--fg-subtle)", fontSize: 11 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--bg-subtle)",
-                    border: "1px solid var(--border)",
-                  }}
-                />
-                <Bar dataKey="n" fill="var(--level-error)" />
-              </BarChart>
-            </ResponsiveContainer>
+            {byProcessError ? (
+              <div className="flex h-full items-center justify-center text-sm text-level-error">
+                Could not load error counts: {byProcessError.message}
+              </div>
+            ) : byProcess && byProcess.processes.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-fg-subtle">
+                No errors in the last hour.
+              </div>
+            ) : (
+              <ResponsiveContainer>
+                <BarChart layout="vertical" data={byProcess?.processes ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    type="number"
+                    tick={{ fill: "var(--fg-subtle)", fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="process"
+                    width={100}
+                    tick={{ fill: "var(--fg-subtle)", fontSize: 11 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--bg-subtle)",
+                      border: "1px solid var(--border)",
+                    }}
+                  />
+                  <Bar dataKey="n" fill="var(--level-error)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Panel>
       </div>
