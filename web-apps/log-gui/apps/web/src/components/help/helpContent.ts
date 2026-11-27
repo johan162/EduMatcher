@@ -129,7 +129,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The full log. The button in the filter bar switches between two modes."
+          "The full log. The button in the filter bar switches between two modes; the (?) beside it explains them."
         ],
         "terms": [
           {
