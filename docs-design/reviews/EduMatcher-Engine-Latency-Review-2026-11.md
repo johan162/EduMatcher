@@ -29,7 +29,9 @@ medians over 300–4800 messages. Scratch scripts, not in the repo.
 
 Status: **WP-LAT01 done 2026-11-17, uncommitted.** Test-first; full suite
 15 081 passed, 1 skipped (coverage 91.76 %); black, flake8, mypy, pyright and
-`make _check` clean; `make test-e2e` 39 passed. WP-LAT02–04 open.
+`make _check` clean; `make test-e2e` 39 passed. **WP-LAT02 done 2026-11-27,
+uncommitted** (see its section). **WP-LAT03 done 2026-11-27, uncommitted;
+its live check is pending.** WP-LAT04 open.
 
 ---
 
@@ -62,9 +64,9 @@ publication per fill (P2).
 | ID | Finding | Severity | WP |
 |----|---------|----------|----|
 | F1 | p99/p50 ≈ fan-out ratio of order-entry commands | Info | WP-LAT04 (presentation) |
-| E1 | Host CPU power management makes every message 5–7× slower | High | WP-LAT03 (ops docs) |
+| E1 | Host CPU power management makes every message 5–7× slower | High | WP-LAT03 (ops docs) ✅ |
 | P1 | pyzmq `send_multipart` ORs an `IntFlag` per frame | Med | WP-LAT01 ✅ |
-| P2 | Drop copy adds ~23 µs per fill on the order path | Med | WP-LAT02 |
+| P2 | Drop copy adds ~23 µs per fill on the order path | Med | WP-LAT02 ✅ |
 
 ## 3. The sim data
 
@@ -175,8 +177,9 @@ reproduce the effect.
 - `sudo tuned-adm profile latency-performance`: `performance` governor and
   EPP, and holds `/dev/cpu_dma_latency` low so cores stay out of deep
   C-states. Expected: p50 ≈ 40–60 µs, p99 ≈ 300–500 µs. Costs idle power.
-- Give pm-engine a core of its own: `--cpuset-cpus` on the engine container,
-  and keep test runs off it (`taskset`).
+- Give pm-engine a core of its own and keep test runs off it (`taskset`).
+  There is no engine container: the whole exchange is one container, so
+  pin the process (`taskset -a -cp`), not the container. See WP-LAT03.
 - If the host cannot be tuned: busy-poll in the engine loop (Q2).
 
 ### P1. pyzmq `send_multipart` ORs an `IntFlag` per frame *(measured)* — Med
@@ -298,7 +301,7 @@ now accept keyword arguments, and `tests/test_engine_final_gaps.py` asserts
 Status: done 2026-11-17, uncommitted. Verified as in the status line at the
 top.
 
-### WP-LAT02 — Drop copy uses the unchecked builder (P2)
+### WP-LAT02 — Drop copy uses the unchecked builder (P2) ✅
 
 **Tests first:** a cost test in the style of WP-LAT01 asserting that
 `publish_fill` does not call the validating `make_drop_copy_event` (or
@@ -313,7 +316,35 @@ can be served from them; measure first.
 
 **Target:** `publish_fill` ≤ 4 µs pinned (5.8 after WP-LAT01).
 
-### WP-LAT03 — Operator guide: host tuning for latency (E1)
+**Done.** Tests in `tests/test_drop_copy.py::TestPublish`:
+`test_fill_publication_does_not_validate` patches the validating builder and
+`DropCopyEvent.validate` to fail (failed before the change);
+`test_fill_frames_match_the_validating_builder_after_coercion` checks
+byte-identical frames for an int price (goes out as `150.0`) and two
+`trade_ids`. The existing deep-copy test already covered a float price.
+
+`publish_fill` now calls `make_drop_copy_event_unchecked`; `replay` keeps
+`make_drop_copy_replay`. The `DropCopyMessage` buffer stays: replay frames
+carry a different topic (`drop_copy.replay.{recipient_id}`) and an extra
+`recipient_id` field, so stored event frames could not serve replay without
+re-encoding. Not worth measuring further.
+
+**Result (measured, pinned, 3 runs × 15 × 2000 calls, medians):**
+`publish_fill` 6.6–7.2 → 4.0–4.1 µs. Today's "before" is above the 5.8 µs
+recorded after WP-LAT01 (the sim was running on the host), so the saving,
+≈2.7 µs per fill and ≈5.4 µs per trade, is the figure to trust. The target
+is met within noise. What remains is the send (~2.3 µs), `now_ns()` and the
+`DropCopyMessage`.
+
+Verified: full suite 15 619 passed, 1 skipped (coverage 91.89 %); black,
+flake8, mypy, pyright and `make _check` clean. `make test-e2e`: 6 passed,
+32 skipped (the sim held the exchange ports), 1 failed:
+`tests/test_clearing_gui_e2e.py::test_admin_journey` fails identically with
+this change stashed (timeout waiting for the 'Participants' table, page shows
+only "MarketSim"; `FakeEngine` lacks `request_session`). Not caused by this
+WP; rerun e2e with the sim stopped.
+
+### WP-LAT03 — Operator guide: host tuning for latency (E1) ✅
 
 Add a section to the operator guide (run part, near the health monitor
 chapter) that explains why `engine.handle_us_*` reads 5–7× higher on a host
@@ -324,6 +355,38 @@ C-state limit) and a dedicated core for pm-engine (`--cpuset-cpus`). State the
 power cost. No code.
 
 **Check:** next sim run with the profile set; record p50/p99 here.
+
+**Done.** New section *Engine latency and the host's CPU* in
+`operator-guide/part-6-observe-and-recover/070-operator-dashboard.md`,
+directly after *Reading engine latency* (the dashboard chapter is where an
+operator reads these figures), plus a troubleshooting row linking to it. It
+explains the fan-out ratio (F1) in one paragraph, because an operator who
+sees p99 ≈ 10× p50 asks that first. Then come the cold-core effect, the
+check, `tuned-adm` with undo, `cpupower` with undo, the power cost, and
+pinning.
+
+Corrected against the plan: `--cpuset-cpus` on "the engine container" does
+not exist, because the whole exchange is one container. A cpuset there would
+confine every `pm-*` process. The guide pins the engine process with
+`taskset -a -cp` (all threads) and says the pinning is lost whenever
+`pm-engine` starts again.
+
+Verified on this host (Fedora 44, tuned 2.28.0) without changing its
+settings: the sysfs files and their values (`intel_pstate`, `powersave`,
+`balance_performance`, `intel_idle`); `tuned-adm active` and the
+`latency-performance` profile (it sets `governor=performance`,
+`energy_perf_bias=performance` and `force_latency=cstate.id_no_zero:1`,
+which allows C1 only); `cpupower idle-set -D`/`-E` syntax, and that `-D 10`
+leaves POLL and C1 (latencies 0 and 2 µs) and disables C1E (10) and C6
+(133); `pm-opctl-cli list` shows the engine PID inside the container; and
+`podman exec … taskset -a -cp 3 <pid>` works in the running container
+(tried on a throwaway `sleep`). `mkdocs build --strict` is clean with the
+three anchors present, and `make pdf-operator-guide` builds with no new
+missing glyphs.
+
+Not done: the live check. It needs `sudo tuned-adm profile
+latency-performance` on the sim host, then a sim day; record p50/p99 here.
+
 
 ### WP-LAT04 — Optional: a latency figure that tracks the engine, not the mix (F1)
 

@@ -224,6 +224,91 @@ worst stalls.
 *Per-minute bars count a minute once it is over, so the current minute
 appears at the next refresh after it closes.*
 
+### Engine latency and the host's CPU
+
+Two things make the engine latency figures larger than you might expect.
+Neither means matching is slow.
+
+**p99 is about ten times p50, and that is normal.** The figures time each
+order-entry message *with everything it publishes*. A cancel or an order
+that rests publishes one or two messages; a combo, a quote or an order that
+trades through several price levels publishes 10–30 (fills, trades, acks).
+p50 measures the first kind and p99 the second. The ratio changes when the
+order mix changes, not when the engine gets slower.
+
+**On a host left in power-saving mode, every message is 5–7 times slower.**
+Between messages the engine waits for the next one, often for milliseconds.
+In that gap the CPU core it runs on clocks down or goes to sleep, and the
+next message runs on a slow, cold core. In measurements on an Intel Xeon
+workstation, a resting order took about 45 µs back to back but about 250 µs
+with a 1 ms pause before each one. With these power settings the engine's
+p50 sits at 200–300 µs and its p99 at 1–2.5 ms, while `engine.busy_pct` in
+the engine's [drawer](#drawers-one-process-participant-or-book) stays low.
+More load does not help, and a quieter market does not make it worse.
+
+Check the host (Linux; on a VM, check the physical host):
+
+```bash
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference
+```
+
+`powersave` with `balance_performance` (the Fedora and RHEL default) or
+`balance_power` means the cores save power between messages. `performance`
+for both means they do not. The second file exists only with the
+`intel_pstate` or `amd-pstate` driver.
+
+**Fix 1: a latency profile.** On a distribution with `tuned` (Fedora,
+RHEL and derivatives):
+
+```bash
+tuned-adm active                              # note the current profile
+sudo tuned-adm profile latency-performance
+```
+
+This sets the `performance` governor and keeps cores out of their deep sleep
+states. It persists across reboots. To undo it, switch back to the profile
+`tuned-adm active` showed, for example `sudo tuned-adm profile balanced`.
+
+Without `tuned`, use `cpupower` (package `kernel-tools` on Fedora and RHEL,
+`linux-cpupower` on Debian). These settings last until the next reboot:
+
+```bash
+sudo cpupower frequency-set -g performance
+sudo cpupower idle-set -D 10       # disable sleep states with ≥ 10 µs exit latency
+# undo:
+sudo cpupower idle-set -E
+sudo cpupower frequency-set -g powersave
+```
+
+**The cost is power.** With either fix, idle cores no longer sleep, so the
+machine draws noticeably more power at idle and runs warmer. That is a fair
+trade on a machine that hosts the exchange, but not on a laptop running on
+battery. Leave the host as it is if the exchange is only used for
+demonstrations, where a few hundred microseconds do not matter.
+
+**Fix 2, on a shared host: give the engine a core of its own.** If the
+same machine also runs heavy work, such as a test suite, builds or the AI
+trader swarm, that work evicts the engine's data from the CPU cache and
+pushes it from core to core. The whole exchange runs in one container
+([why](../part-1-install-and-deploy/030-container-deployment-walkthrough.md#why-the-whole-exchange-is-one-container)),
+so pin the engine process itself rather than the container. This example
+pins it to core 3:
+
+```bash
+podman exec edumatcher pm-opctl-cli list          # the engine's PID, here 37
+podman exec edumatcher taskset -a -cp 3 37        # all its threads to core 3
+```
+
+Then keep the other work off that core, for example
+`taskset -c 0-2,4-35 <command>` on a 36-thread machine. The pinning ends
+with the process: set it
+again whenever `pm-engine` starts again, for example after the container is
+recreated.
+
+After a fix, the dashboard's *Engine latency* row shows the change within a
+minute. The fan-out ratio between p50 and p99 stays.
+
 ### Drawers: one process, participant or book
 
 Click a row in the processes, participants or order books table (or select
@@ -310,6 +395,7 @@ needed when you open the GUIs from another machine.
 | No "Logs in log-gui" / "Book in book-gui" link | `LOG_GUI_URL` / `BOOK_GUI_URL` unset or not `http(s)://…` | Set them as your browser reaches those GUIs |
 | A pasted link shows "No process … in the latest snapshot" | That process, participant or book is not in this exchange (another host name, a stopped bot) | Open the dashboard and pick it from its table |
 | `pm-monitor` DEGRADED, a `metrics_store_errors` breach | `pm-monitor` cannot write its history (read-only or full data directory) | See [Health Monitoring](060-health-monitor.md#troubleshooting); the live figures are unaffected |
+| Engine order p50 in the hundreds of microseconds while `engine.busy_pct` is low | The host saves CPU power between messages | See [Engine latency and the host's CPU](#engine-latency-and-the-hosts-cpu) |
 | Container cannot read `metrics.db` on Linux | An SELinux-enforcing host and a mount without `:z` | The supplied compose files carry `:ro,z`; keep it in your own |
 
 ## Where to go next
