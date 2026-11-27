@@ -91,6 +91,7 @@ no Node, no checkout. The only requirement is Podman or Docker.
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, session statistics and trade tape — the browser companion to `pm-viewer` |
 | Operator Dashboard (`pm-dash`) | <http://localhost:8095> | The health of every process, trading activity, participants, books and gateways, live and over time — see [Operator Dashboard](../part-6-observe-and-recover/070-operator-dashboard.md) |
 | Clearing GUI (`pm-clearing-ui`) | <http://localhost:8096> | Read-only positions, P&L, trades, close history and EOD settlement — see [Clearing GUI](../part-6-observe-and-recover/080-clearing-gui.md) |
+| Audit GUI (`pm-audit-ui`) | <http://localhost:8097> | Read-only review of the recorded audit trail, ADMIN keys only — see [Audit GUI](../part-6-observe-and-recover/090-audit-gui.md) |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 ### What the installer does
@@ -162,6 +163,7 @@ into this file.
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 | `DASH_GUI_PORT` | `8095` | Host port for the operator dashboard (`pm-dash`) |
 | `CLEARING_GUI_PORT` | `8096` | Host port for the clearing client (`pm-clearing-ui`) |
+| `AUDIT_GUI_PORT` | `8097` | Host port for the audit review client (`pm-audit-ui`) |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine |
 
 Two settings have their own commands, because editing them by hand is easy to
@@ -344,6 +346,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 | `DASH_GUI_PORT` | `8095` | Host port for the operator dashboard (`pm-dash`) |
 | `CLEARING_GUI_PORT` | `8096` | Host port for the clearing client (`pm-clearing-ui`) |
+| `AUDIT_GUI_PORT` | `8097` | Host port for the audit review client (`pm-audit-ui`) |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
@@ -418,16 +421,18 @@ flowchart LR
         BOOK["book-gui\n:8094"]
         DASH["dash-gui\n:8095"]
         CLR["clearing-gui\n:8096"]
+        AUD["audit-gui\n:8097"]
         BE["edumatcher\nengine + all gateways"]
     end
 
-    BROWSER -->|"published 8090-8096\nvia BIND_ADDR"| TERM
+    BROWSER -->|"published 8090-8097\nvia BIND_ADDR"| TERM
     BROWSER --> LOG
     BROWSER --> CFG
     BROWSER --> TRD
     BROWSER --> BOOK
     BROWSER --> DASH
     BROWSER --> CLR
+    BROWSER --> AUD
     CLIENT -->|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM -->|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
@@ -436,6 +441,7 @@ flowchart LR
     BOOK -->|"edumatcher:8081 market-data WebSocket\n+ history"| BE
     DASH -->|"edumatcher:5611 health snapshots"| BE
     CLR -->|"edumatcher:8080 REST"| BE
+    AUD -->|"edumatcher:8080 REST"| BE
 ```
 
 Two things follow, and both are easy to get wrong:
@@ -742,7 +748,7 @@ flowchart LR
             G["terminal · log · trader\nbook · dash · clearing · config"]
         end
     end
-    BROWSER -->|"8090-8096"| G
+    BROWSER -->|"8090-8097"| G
     G -->|"host.docker.internal\n5570 5600-5602 5611 8080 8081"| PM
     PM --- DATA
     G -.->|"read-only mount\nlog.db, metrics.db, config"| DATA
@@ -814,6 +820,7 @@ The addresses are the same as in the container install:
 | <http://localhost:8094> | Order Book Viewer (`pm-book`) |
 | <http://localhost:8095> | Operator Dashboard (`pm-dash`) |
 | <http://localhost:8096> | Clearing GUI (`pm-clearing-ui`) |
+| <http://localhost:8097> | Audit GUI (`pm-audit-ui`) |
 
 `./edumatcher.sh` works as in the container install, with these differences:
 `status` lists the GUI containers and then runs `pm-opctl-cli list` on your own
@@ -871,7 +878,7 @@ needed.
     host firewall.
 
 !!! note "A container exchange on the same machine"
-    The GUI containers use the host ports 8090-8096, the same as the full
+    The GUI containers use the host ports 8090-8097, the same as the full
     container install, so the two cannot run together. If a container exchange
     or simulation is running and publishing 5570, 8080 and the rest on
     `127.0.0.1`, these GUIs cannot reach it either: a port published to

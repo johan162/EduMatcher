@@ -1,5 +1,7 @@
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { HelpCircle, LogOut } from "lucide-react";
+import { HelpDrawer } from "@/components/help/HelpDrawer";
 import { ExplainToggle } from "@/components/shared/Explain";
 import { SettingsPopover } from "@/components/shared/SettingsPopover";
 import { SnapshotPicker } from "@/components/snapshot/SnapshotPicker";
@@ -8,11 +10,13 @@ import { useConnectionStore } from "@/store/useConnectionStore";
 import { AboutButton } from "./AboutButton";
 import appVersion from "../../version.json";
 
-/** Brand, the evidence selector, Explain, settings, the gateway's state and log out (clearing-gui's layout). */
+/** Brand, the evidence selector, Explain, settings, help, the gateway's state and log out (clearing-gui's layout). */
 export function TopBar() {
   const navigate = useNavigate();
   const gatewayId = useAuthStore((s) => s.gatewayId);
   const logout = useAuthStore((s) => s.logout);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
 
   return (
     <header className="z-50 flex h-10 flex-shrink-0 items-center gap-4 border-b border-line bg-panel px-4">
@@ -30,6 +34,15 @@ export function TopBar() {
       <div className="flex items-center justify-end gap-3 text-xs">
         <ExplainToggle />
         <SettingsPopover />
+        <button
+          type="button"
+          onClick={() => setHelpOpen((v) => !v)}
+          aria-label="Help"
+          title="Help"
+          className="text-fg-dim hover:text-fg"
+        >
+          <HelpCircle size={16} />
+        </button>
         <ConnectionBadge />
         <span className="hidden text-fg-faint lg:inline">{gatewayId} · Admin</span>
         <button
@@ -45,6 +58,7 @@ export function TopBar() {
           <LogOut size={16} />
         </button>
       </div>
+      {helpOpen && <HelpDrawer onClose={closeHelp} />}
     </header>
   );
 }

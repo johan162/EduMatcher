@@ -20,6 +20,7 @@
 | **Trading GUI** (trader-gui) | <http://localhost:8093> | Trading as a student desk; the instructor's screens with the `OPS01` key |
 | **Log Operator Console** (log-gui) | <http://localhost:8091> | What every process is doing; warnings and errors |
 | **Operator Dashboard** (dash-gui) | <http://localhost:8095> | Whether the simulation keeps up: every process's health, orders and trades per minute, and the AI traders as participants |
+| **Audit GUI** (audit-gui) | <http://localhost:8097> | After the session: where liquidity sat, how each order lived and ended, and its recorded story (`OPS01` key) |
 
 Each has its own chapter in the Participant or Operator's Guide (see
 [See also](#see-also)); here is what to look at in a simulated market.

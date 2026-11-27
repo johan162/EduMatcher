@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0-AG6 done). This plan orders the work needed to deliver the
+Status: **In progress** (R0 complete: AG0-AG7 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -60,7 +60,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☑ | 2026-11-27 |
 | 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☑ | 2026-11-27 |
 | 6 | AG6 | Market canvas (Analyse, R0 layers), story drawer, raw evidence | AG3, AG4, AG5 | 3 d | ☑ | 2026-11-27 |
-| 7 | AG7 | R0 acceptance, help text and holistic review | AG6 | 1 d | ☐ | |
+| 7 | AG7 | R0 acceptance, help text and holistic review | AG6 | 1 d | ☑ | 2026-11-27 |
 
 ### R1 — explain and verify (design AU-1 … AU-6)
 
@@ -964,6 +964,16 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF14 | AG5 | P3 | The banner's gap count reads `/findings?code=ESEQ_GAP`, so the first view of a snapshot builds its whole replay session (AGF5): seconds for a class session, minutes at the 10-million-event reference. | Acceptable for R0: the banner says "counting…" meanwhile and an error is never a zero. AG9's `prepare` job builds the session before the first view. |
 | AGF15 | AG6 | P3 | Design §2 and §7.1 said the GUIs already chart with ECharts; they use Recharts (SVG), and no GUI had ECharts. | Kept ECharts by decision: it is the project's chart library going forward (pm-trader's OHLC chart is to be rewritten with it), and the canvas, custom series and brush fit dense heatmaps and up to 5,000 lifeline segments. Loaded on demand (one tree-shaken chunk). Design text corrected. |
 | AGF16 | AG6 | P3 | The Market canvas needed two things no route gave: the snapshot's symbols, and trades in a window (`/events` has no time filter). | The descriptor gained `symbols` (`{symbol, tick_decimals}`, from the pass that already found the priced symbols). Trades come from `/events?topic=trade.executed&symbol=` (at most 5 pages of 1,000; the layer says when it is cut) and are clipped to the window in the browser. AG10's typed filters and AG17's `/flows` replace this. |
+| AGF17 | AG7 | P2 | The Market page asks for the heatmap and the lifelines at once; on a cold session both requests built the `MarketModel` in parallel (8 s each on a 1-million-record session). | Fixed: the lazy build is locked, so the second request waits for the first; a test runs both in threads and counts one build. |
+| AGF18 | AG7 | P2 | A click on a lifeline on the canvas did nothing in the browser: with the brush armed as the cursor, ECharts fires neither series nor canvas click events (the jsdom tests stub ECharts and could not see it). | Fixed: the chart listens for the container's DOM click, converts it to time and price, and `pickLifeline` takes the nearest segment or end glyph within 6 px (tested); the AU-0 browser journey now clicks the GTC bid's bar on the real canvas. |
+| AGF19 | AG7 | P2 | The font-size setting zooms `#root` with CSS `zoom` (×1.25 by default); ECharts' pointer mapping does not undo it, so a brush landed about 9 s off on the base world, and click coordinates were wrong. | Fixed: the canvas wrapper is counter-zoomed to 1 (a fixed 420 px instrument at every font size); the browser journey checks a 30-50 % brush lands within 1 %. |
+| AGF20 | AG7 | P3 | ECharts' aria component rewrote the canvas element's `aria-label` with a generated description. | Fixed: the label is on a wrapper, the canvas is `aria-hidden`, the aria component is not loaded; the legend, masks list and lifeline list are the accessible equivalent. |
+| AGF21 | AG7 | P3 | Every zoom replaced the lifeline list with a loading skeleton, losing its keyboard position (design §9.9: lists keep their position); a shrinking list could also leave no row tabbable. | Fixed: a new interval keeps the previous picture of the same symbol (never another symbol's) with an "Updating…" status; the active row is clamped. Tests for both, and for a symbol switch. |
+| AGF22 | AG7 | P3 | A hand-edited `run=abc` in the URL became `run_id=NaN`, which the API refuses. | Fixed: only a number is sent (tested). |
+| AGF23 | AG7 | P3 | Design §9.1 asks the top bar for indexed-through *and snapshot time*; it showed only how far the records reach. | Fixed: "pinned <time>" beside it (tested). |
+| AGF24 | AG7 | P3 | Seventeen documentation pages that list the web GUIs did not name the Audit GUI (8097); the reference manual's ports table also lacked the Clearing GUI. | Fixed: every list names both; `tests/test_docs_gui_lists.py` now fails a GUI list or port range that stops before 8097. New operator guide chapter `090-audit-gui.md`. |
+| AGF25 | AG7 | P3 | Design §8.1's response metadata is not in R0: no `reproduce` block, no index generation or `as_of`, no exact/lower-bound count qualifier beyond `has_more`. | Open, planned: AG9 (generations, `as_of`), AG10 (`reproduce`, counts). Recorded as accepted for R0. |
+| AGF26 | AG7 | P3 | Design §9.1's top bar also has a run selector, the venue timezone and filter chips; R0 shows every run (each lifeline names its run) and UTC. | Open, planned: AG10 (time controls, timezone), AG18 (scope chips, run selection). |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1237,3 +1247,44 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 - Not in AG6: in-app help (AG7); Replay mode and illustrations (AG21/22);
   a chart-bucket drill to its events and the market-context drawer tab
   (AG12); news and true-value layers (AG16).
+
+### 8.8 AG7 done note: R0 acceptance and holistic review (2026-11-27)
+
+**AU-0 acceptance (design §11)**, on the recorded world with a planted gap
+and a `pm-sim-forensics` report, in headless Chrome against the real
+gateway (`tests/test_audit_gui_e2e.py`, `-m e2e`) and the API tests:
+
+| Check | Evidence | Result |
+|---|---|---|
+| Heatmap columns match recorded observations | `test_heatmap_cells_are_the_recorded_displayed_depth` (both scales, cell by cell against the raw `book.*` lines); the browser draws the canvas with the cadence line | met |
+| Gaps hatched | API: gap mask from the last record before to the first after, no cells; browser: "Records lost (gap)" with its reason in the masks list and hatched on the canvas | met |
+| The halt hatched | API and browser: "Halt (ADMIN_SYMBOL)", the observed book kept | met |
+| Each lifeline's start, end and end reason match the recorded lifecycle | `test_lifelines_match_each_orders_recorded_life` (all 36 named orders, from the raw lines); browser: owner cancel, expired, still resting and `SELF_MATCH_PREVENTED` read from the list | met |
+| Clicking a lifeline opens the right story and raw lines | Browser: a real mouse click on the GTC bid's bar opens its drawer (AGF18); the list opens `layer_1`'s story and its raw `order.cancelled.TRADER02` with `audit.log:` lines | met |
+| Forensics SKIPPED/ERROR never render as PASS | API: own states in the consistency lane; browser banner: "1 SKIPPED", "1 ERROR", and the banner cannot fold | met |
+
+No P1 finding is open. The P2 findings of this review (AGF17-AGF19) are
+fixed; AGF5 (first-read reconstruction in the API process) stays for AG9.
+
+**Review** of AG0-AG6 against the design and the code: AGF17-AGF26. Five
+came from driving the real canvas in Chrome (AGF18-AGF21 and the AG6
+browser fixes): the jsdom tests stub ECharts, so the browser journey is
+where the canvas's behaviour is tested. Checked and found right: the story
+route's documented prefix rule (`reader.episodes_by_anchor` resolves an
+unambiguous prefix, refuses an ambiguous one); the error envelopes and
+reasons against the REST chapter; no route accepts or returns a path.
+
+**Help**: a Help drawer (clearing-gui's) with Getting Started, Evidence
+banner, Market canvas, Order drawer, and Clocks & units; the mark and mask
+wording comes from the same constants the canvas uses, and a test holds
+every glyph and mask in the help text. The help tests were run first with
+the content in place.
+
+**Docs**: operator guide chapter `090-audit-gui.md` (running, pinning, the
+banner, the canvas and drawer, diagnosis, load, limits); the GUI lists in
+17 pages (AGF24); design corrected where the code is right (the
+observation validity rule with the uncross and the run end, halts keep
+their cells, the two further end glyphs).
+
+**Design updated**: §3.2, §9.4 (above). Still open for R1: AGF5, AGF25,
+AGF26.

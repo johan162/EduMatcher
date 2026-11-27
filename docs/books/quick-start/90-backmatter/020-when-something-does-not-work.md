@@ -29,7 +29,7 @@ The usual causes are:
 - *Permission denied on the Docker socket* (Linux). Your user must be allowed
   to use Docker (see Docker's "post-installation steps for Linux"), or use
   Podman, which needs no special rights.
-- *A port is already in use.* The exchange publishes 8080, 8081, 8090–8096
+- *A port is already in use.* The exchange publishes 8080, 8081, 8090–8097
   and the gateway ports 5560, 5565, 5570, 5580, 5590 and 5600 on your
   computer. Stop whatever else uses them, or change a browser
   application's port in `.env` (for example `TERMINAL_GUI_PORT=8190`) and run

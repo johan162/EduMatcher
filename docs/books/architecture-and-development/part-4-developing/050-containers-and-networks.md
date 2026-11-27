@@ -32,6 +32,7 @@ and `edumatcher-ai-sim` runs in a project of its own):
 | `edumatcher-book-gui` | `web-apps/book-gui/` | Order Book Viewer (`pm-book`), port 8094 |
 | `edumatcher-dash-gui` | `web-apps/dash-gui/` | Operator Dashboard (`pm-dash`), port 8095 |
 | `edumatcher-clearing-gui` | `web-apps/clearing-gui/` | Clearing client (`pm-clearing-ui`), port 8096 |
+| `edumatcher-audit-gui` | `web-apps/audit-gui/` | Audit review client (`pm-audit-ui`, ADMIN keys only), port 8097 |
 | `edumatcher-ai-sim` | `deployment/docker/`, stage `ai-sim` | The `edumatcher` image with the AI-trader simulation's defaults (`s300-sim`, profile `ai-sim`); run by `compose.ai-sim.yaml` with six of the GUIs, in a compose project of its own ([The Simulation Container](../../ai-traders/part-3-run-it/110-the-simulation-container.md)) |
 
 The backend is one container by design — the engine's ZeroMQ bus binds
@@ -219,7 +220,7 @@ flowchart TB
         BR["Browser, curl,\nprotocol clients"]
     end
     subgraph L2["2. Published ports — controlled by BIND_ADDR"]
-        P["127.0.0.1:8090-8096\n127.0.0.1:5560-5600, 8080-8081"]
+        P["127.0.0.1:8090-8097\n127.0.0.1:5560-5600, 8080-8081"]
     end
     subgraph L3["3. The Compose network — one per project"]
         G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui, dash-gui"]

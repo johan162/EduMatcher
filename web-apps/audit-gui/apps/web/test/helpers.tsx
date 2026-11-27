@@ -142,6 +142,8 @@ export function snapshotExample() {
 
 export interface SnapshotFixture {
   snapshot_id: string;
+  collection_id: string;
+  created_at: string;
   first_ts: string | null;
   last_ts: string | null;
   entries: number;

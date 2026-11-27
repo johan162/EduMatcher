@@ -32,6 +32,7 @@ from pathlib import Path
 import pytest
 import uvicorn
 
+from edumatcher.audit.rawlines import iso_ns
 from tests import audit_gui_world as aw
 from tests.audit_gui_world import World, build, make_audit_app
 from tests.conftest import free_ports
@@ -173,6 +174,83 @@ def _login_and_pin(page: Page, gui: str) -> None:
     _contains(page, "Historical snapshot", "the pinned snapshot")
 
 
+#: The main grid of web-apps/audit-gui/.../chartOption.ts (left, right, top
+#: margins and plot height in px) inside its 420 px canvas.
+GRID_LEFT, GRID_RIGHT, GRID_TOP, GRID_HEIGHT = 70, 16, 28, 420 - 28 - 92
+
+
+def _click_canvas(
+    page: Page, gui: str, symbol: str, price_ticks: int, at: float
+) -> None:
+    """A real mouse click on the canvas, at `price_ticks` and fraction `at`
+    of the window. The y axis spans the window's prices -2/+2 ticks, as the
+    option builder sets it; the prices come from the same API reads."""
+    key = json.dumps("Bearer " + aw.ADMIN_KEY)
+    geo = page.js(f"""(async () => {{
+          const sid = document.querySelector('[data-testid=snapshot-label] .font-mono').textContent;
+          const get = async (u) => (await fetch(u, {{headers: {{Authorization: {key}}}}})).json();
+          const h = await get(`/api/v1/audit/market/{symbol}/heatmap?snapshot_id=${{sid}}&bins=300`);
+          const l = await get(`/api/v1/audit/market/{symbol}/lifelines?snapshot_id=${{sid}}`);
+          const e = await get(`/api/v1/audit/events?snapshot_id=${{sid}}&topic=trade.executed&symbol={symbol}&limit=1000`);
+          const prices = [...h.levels.map((v) => v.price_ticks),
+            ...l.lifelines.flatMap((x) => x.segments.map((s) => s.price_ticks)).filter((p) => p !== null),
+            ...e.events.map((x) => x.fields.price_ticks)];
+          const host = document.querySelector('[role=img][aria-label^="{symbol}"]');
+          const r = host.getBoundingClientRect();
+          // The font-size setting zooms #root (CSS zoom): rects are zoomed px.
+          return {{low: Math.min(...prices) - 2, high: Math.max(...prices) + 2, left: r.left, top: r.top,
+                   width: r.width, zoom: r.width / host.clientWidth}};
+        }})()""")
+    zoom = geo["zoom"]
+    plot = geo["width"] / zoom - GRID_LEFT - GRID_RIGHT
+    x = geo["left"] + (GRID_LEFT + at * plot) * zoom
+    price_y = (geo["high"] - price_ticks) / (geo["high"] - geo["low"]) * GRID_HEIGHT
+    y = geo["top"] + (GRID_TOP + price_y) * zoom
+    for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
+        page._call(
+            "Input.dispatchMouseEvent",
+            {"type": kind, "x": x, "y": y, "button": "left", "clickCount": 1},
+            page.session,
+        )
+
+
+def _brush_canvas(page: Page, start: float, end: float) -> None:
+    """Drag across the main grid from fraction `start` to `end` of the window."""
+    geo = page.js(
+        """(() => { const host = document.querySelector('[role=img]');
+          const r = host.getBoundingClientRect();
+          return {left: r.left, top: r.top, width: r.width, zoom: r.width / host.clientWidth}; })()"""
+    )
+    zoom = geo["zoom"]
+    plot = geo["width"] / zoom - GRID_LEFT - GRID_RIGHT
+    y = geo["top"] + (GRID_TOP + GRID_HEIGHT / 2) * zoom
+
+    def x(f: float) -> float:
+        return float(geo["left"] + (GRID_LEFT + f * plot) * zoom)
+
+    def mouse(kind: str, at: float) -> None:
+        page._call(
+            "Input.dispatchMouseEvent",
+            {"type": kind, "x": at, "y": y, "button": "left", "clickCount": 1},
+            page.session,
+        )
+
+    mouse("mousePressed", x(start))
+    for i in range(1, 11):
+        mouse("mouseMoved", x(start + (end - start) * i / 10))
+    mouse("mouseReleased", x(end))
+
+
+def iso_ms(world: World) -> tuple[float, float]:
+    """The whole window the Market opens on: first record to just after the
+    last, in ms (receipt clock), read naively from the trail."""
+    lines = [
+        ln for ln in world.audit_log.read_text().splitlines() if ln.startswith("[")
+    ]
+    first, last = (iso_ns(ln[1 : ln.index("]")]) for ln in (lines[0], lines[-1]))
+    return first / 1e6, (last + 1) / 1e6
+
+
 def _lifeline_rows(page: Page) -> list[str]:
     rows: list[str] = page.wait(
         """(() => { const l = document.querySelector('[role=listbox][aria-label="Order lifelines"]');
@@ -238,6 +316,33 @@ def test_au0_market_journey(page: Page, gui: str, world: World) -> None:
     page.wait("!document.querySelector('[role=dialog]')", "the drawer closed")
     page.js("history.forward()")
     page.wait("!!document.querySelector('[role=dialog]')", "the drawer restored")
+
+    # The canvas itself: a real click on the GTC bid's bar (99.00, resting to
+    # the end) opens its drawer.
+    page.js(
+        "history.pushState({}, '', '/market?symbol=AAA'); dispatchEvent(new PopStateEvent('popstate'))"
+    )
+    page.wait("!document.querySelector('[role=dialog]')", "the drawer closed")
+    _click_canvas(page, gui, "AAA", 9900, 0.85)
+    gtc = world.orders["gtc_bid"]
+    page.wait(
+        f"new URLSearchParams(location.search).get('order') === {json.dumps(gtc)}",
+        "the GTC bid's drawer from a canvas click",
+    )
+    page.js("history.back()")
+    page.wait("!document.querySelector('[role=dialog]')", "Back from the canvas click")
+
+    # A brush lands where it was dragged: from 30% to 50% of the window.
+    _brush_canvas(page, 0.3, 0.5)
+    page.wait(
+        "new URLSearchParams(location.search).has('from')", "the brushed interval"
+    )
+    got = page.js(
+        "[...new URLSearchParams(location.search)].filter(([k]) => k === 'from' || k === 'to').map(([, v]) => Number(v) / 1e6)"
+    )
+    lo, hi = iso_ms(world)
+    assert abs((got[0] - lo) / (hi - lo) - 0.3) < 0.01, (got, lo, hi)
+    assert abs((got[1] - lo) / (hi - lo) - 0.5) < 0.01, (got, lo, hi)
 
     urls = page.js(
         "performance.getEntriesByType('resource').map((e) => e.name)"

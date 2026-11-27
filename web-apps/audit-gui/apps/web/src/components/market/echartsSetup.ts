@@ -4,10 +4,10 @@
  * demand, which puts it in its own chunk.
  */
 import { CustomChart, ScatterChart } from "echarts/charts";
-import { AriaComponent, BrushComponent, GridComponent, TooltipComponent } from "echarts/components";
+import { BrushComponent, GridComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 
-echarts.use([CustomChart, ScatterChart, GridComponent, TooltipComponent, BrushComponent, AriaComponent, CanvasRenderer]);
+echarts.use([CustomChart, ScatterChart, GridComponent, TooltipComponent, BrushComponent, CanvasRenderer]);
 
 export { echarts };

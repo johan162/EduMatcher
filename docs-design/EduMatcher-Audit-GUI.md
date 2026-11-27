@@ -215,8 +215,9 @@ must use the same definitions.
 - **Lifetime:** admission to terminal state on one declared clock; open orders
   are right-censored. Report sample count and excluded/censored count.
 - **Time weighting:** spread, depth and presence metrics are weighted by the
-  time each observation was valid (until the next observation, a gap, or a
-  phase change), not averaged per event. Event-weighting overstates busy
+  time each observation was valid (until the next observation, a gap, a
+  phase change, an uncross of the symbol, or the end of the engine run), not
+  averaged per event. Event-weighting overstates busy
   periods. Report the covered time and the excluded time (gaps, halts,
   one-sided book) next to each value.
 - **Inventory path:** cumulative signed traded shares per gateway and symbol
@@ -762,14 +763,18 @@ interval. Every layer can be toggled and every mark is clickable:
 ```
 
 - **Depth heatmap:** displayed quantity per price level over time, bids and
-  asks in two hues, from recorded `book.*`/`depth.*` observations only. Each
-  column is valid until the next observation; gaps, halts and stale
-  observations are hatched, never interpolated. The observation cadence is
-  shown in the legend.
+  asks in two hues, from recorded `book.*` observations only (`depth.*`
+  carries no levels). Each observation is valid until the next one, a
+  phase change, an uncross of the symbol (the engine need not publish the
+  book it leaves), lost records or the end of its engine run; nothing is
+  interpolated. Gaps are hatched and have no cells; halts are hatched and
+  keep the book observed while halted. The observation cadence is shown
+  beside the canvas.
 - **Order lifelines:** each order as a horizontal bar at its limit price from
   admission to its end, thickness by displayed quantity. Amendments break the
   bar; the end marker encodes the end reason (filled ●, owner cancel ×, system
-  cancel ⊗, expired ◌). Filter by gateway, or highlight one gateway's orders
+  cancel ⊗, expired ◌, still resting ▸, cut by the window …), and the same
+  glyph and words appear in the lifeline list beside the canvas. Filter by gateway, or highlight one gateway's orders
   over everyone else's in grey. This one view shows layering, quote
   replacement, queue jumping by amendment and liquidity withdrawal.
 - **Trades:** markers at price, area by size, colour by aggressor side;

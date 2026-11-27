@@ -411,6 +411,8 @@ uses the web and bridge ports. They follow one scheme: `809N`, `819N`, `519N`.
 | Trading GUI (`pm-trading-ui`) | `8093` | `8193` / – | `pm-api-gwy` `8080` | [Trading Platform GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md) |
 | Order Book Viewer (`pm-book`) | `8094` | `8194` / `5194` | `pm-api-gwy` `8081` | [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md) |
 | Operator Dashboard (`pm-dash`) | `8095` | `8195` / `5195` | `pm-monitor` `5611`, `metrics.db` read-only | [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) |
+| Clearing GUI (`pm-clearing-ui`) | `8096` | `8196` / – | `pm-api-gwy` `8080` | [Clearing GUI](../../operator-guide/part-6-observe-and-recover/080-clearing-gui.md) |
+| Audit GUI (`pm-audit-ui`) | `8097` | `8197` / – | `pm-api-gwy` `8080` (ADMIN keys only) | [Audit GUI](../../operator-guide/part-6-observe-and-recover/090-audit-gui.md) |
 
 **Setup and configuration tools:**
 

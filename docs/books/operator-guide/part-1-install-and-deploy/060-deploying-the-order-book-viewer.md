@@ -185,7 +185,7 @@ make up
     Keep the port when you change the host.
 
 If port 8094 is taken, move the *host* side of it. Pick something outside
-8090–8096, which the other applications use:
+8090–8097, which the other applications use:
 
 ```bash
 BOOK_GUI_PORT=8100 make up

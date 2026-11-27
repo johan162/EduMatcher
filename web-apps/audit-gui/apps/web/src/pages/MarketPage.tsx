@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { useSearchParams } from "react-router-dom";
 import { useHeatmap, useLifelines, useSnapshot, useTrades } from "@/api/queries";
 import type { LifelineT, LifelinesT } from "@/api/schemas";
-import { buildOption, lifelineAt, maskText, type CanvasInput } from "@/components/market/chartOption";
+import { buildOption, maskText, pickLifeline, type CanvasInput } from "@/components/market/chartOption";
 import { EChart } from "@/components/market/EChart";
 import { OrderDrawer, type DrawerTab } from "@/components/market/OrderDrawer";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -103,7 +103,7 @@ function Market({ snapshotId }: { snapshotId: string }) {
         <OrderDrawer
           snapshotId={snapshotId}
           orderId={params.get("order")!}
-          run={params.get("run") === null ? null : Number(params.get("run"))}
+          run={/^\d+$/.test(params.get("run") ?? "") ? Number(params.get("run")) : null}
           tab={(TABS as string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as DrawerTab) : "story"}
           onTab={(tab) => update({ tab })}
           onClose={() => update({ order: null, run: null, tab: null })}
@@ -178,6 +178,11 @@ function Canvas({ snapshotId, symbol, params, update }: CanvasProps) {
             Whole session
           </button>
         )}
+        {(heatmap.isPlaceholderData || lifelines.isPlaceholderData) && (
+          <span role="status" className="text-halt">
+            Updating…
+          </span>
+        )}
         {cadence && (
           <span>
             {cadence.observations} book observations
@@ -199,8 +204,8 @@ function Canvas({ snapshotId, symbol, params, update }: CanvasProps) {
           option={option}
           height={420}
           ariaLabel={`${symbol} depth heatmap, order lifelines and trades`}
-          onItemClick={(seriesId, index) => {
-            const life = lifelineAt(input, seriesId, index);
+          onPlotClick={(ms, price, tolMs, tolPrice) => {
+            const life = pickLifeline(input, ms, price, tolMs, tolPrice);
             if (life) open(life);
           }}
           onBrush={(a, b) => update({ from: msToNs(a), to: msToNs(b) })}
@@ -266,9 +271,11 @@ interface LifelinesProps {
 
 /** The lifelines as a keyboard-navigable list: the canvas's table equivalent. */
 function Lifelines({ body, decimals, selected, onOpen }: LifelinesProps) {
-  const [active, setActive] = useState(0);
+  const [remembered, setActive] = useState(0);
   const refs = useRef<(HTMLLIElement | null)[]>([]);
   const lives = body.lifelines;
+  // A zoom can shrink the list under the remembered row: keep one row tabbable.
+  const active = Math.min(remembered, Math.max(lives.length - 1, 0));
 
   const move = (index: number) => {
     const next = Math.max(0, Math.min(index, lives.length - 1));

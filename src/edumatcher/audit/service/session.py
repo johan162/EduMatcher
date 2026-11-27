@@ -145,6 +145,9 @@ class ReplaySession:
             self._build_index(snapshot)
         self._findings: list[dict[str, Any]] | None = None
         self._market: MarketModel | None = None
+        #: The GUI asks for the heatmap and the lifelines at once: on a cold
+        #: session they wait for one build instead of running two.
+        self._market_lock = threading.Lock()
 
     # -- events ---------------------------------------------------------
 
@@ -251,9 +254,10 @@ class ReplaySession:
     # -- internals ------------------------------------------------------
 
     def _market_model(self) -> MarketModel:
-        if self._market is None:
-            self._market = MarketModel(self.facts)
-        return self._market
+        with self._market_lock:
+            if self._market is None:
+                self._market = MarketModel(self.facts)
+            return self._market
 
     def _require(self, capability: Capability) -> None:
         state = self.descriptor.capabilities[capability]

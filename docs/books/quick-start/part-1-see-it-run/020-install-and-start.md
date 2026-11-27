@@ -96,6 +96,7 @@ Open these addresses on the same computer:
 | <http://localhost:8095> | **Operator Dashboard** | Every process HEALTHY and the exchange OPERATIONAL |
 | <http://localhost:8092> | **Configuration GUI** | A form-based editor for exchange configurations |
 | <http://localhost:8096> | **Clearing GUI** | A login screen for positions, P&L and settlement |
+| <http://localhost:8097> | **Audit GUI** | A login screen for reviewing the recorded session (ADMIN key) |
 | <http://localhost:8080/docs> | **REST API documentation** | The interactive Swagger page of the API gateway |
 
 Then confirm that the exchange itself is healthy:

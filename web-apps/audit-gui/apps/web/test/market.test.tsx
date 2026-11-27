@@ -57,6 +57,13 @@ function api(overrides: Record<string, unknown> = {}): ApiStub {
   });
 }
 
+/** Click the canvas on lifeline `index`'s first segment (data units, as EChart reports). */
+function clickLifeline(index: number) {
+  const seg = lifelines().lifelines[index]!.segments[0]!;
+  const mid = (nsToMs(seg.start_ns) + nsToMs(seg.end_ns)) / 2;
+  chart.props!.onPlotClick(mid, seg.price_ticks!, 1, 0.5);
+}
+
 async function open(path = "/market"): Promise<HTMLElement> {
   renderApp(path);
   return screen.findByRole("listbox", { name: "Order lifelines" });
@@ -105,7 +112,7 @@ describe("market canvas", () => {
     const stub = api();
     await open();
     const id = lifelines().lifelines[0]!.order_id;
-    chart.props!.onItemClick("ends", 0);
+    clickLifeline(0);
     await waitFor(() => expect(param("order")).toBe(id));
     expect(param("tab")).toBe("story");
     const drawer = await screen.findByRole("dialog", { name: /Order 2aeb1046/ });
@@ -126,7 +133,7 @@ describe("market canvas", () => {
   it("the Checks tab says when the order's episodes carry no finding", async () => {
     api();
     await open();
-    chart.props!.onItemClick("lifelines", 0);
+    clickLifeline(0);
     const drawer = await screen.findByRole("dialog");
     fireEvent.click(within(drawer).getByRole("tab", { name: "Checks" }));
     expect(await within(drawer).findByText("No finding on this order's episodes.")).toBeTruthy();
@@ -171,7 +178,7 @@ describe("market canvas", () => {
   it("Back and Forward restore the drawer and the interval", async () => {
     api();
     await open();
-    chart.props!.onItemClick("ends", 0);
+    clickLifeline(0);
     await screen.findByRole("dialog");
     const heatmap = example<HeatmapT>(HEATMAP);
     chart.props!.onBrush(nsToMs(heatmap.from_ns) + 1, nsToMs(heatmap.to_ns) - 1);
@@ -191,7 +198,7 @@ describe("market canvas", () => {
   it("closing the drawer is a step Back can undo", async () => {
     api();
     await open();
-    chart.props!.onItemClick("ends", 0);
+    clickLifeline(0);
     const drawer = await screen.findByRole("dialog");
     fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -248,6 +255,40 @@ describe("market canvas", () => {
     await waitFor(() => expect(param("symbol")).toBe("BBB"));
     history(-1);
     expect(param("symbol")).toBe("AAA");
+  });
+
+  it("after the list shrinks, the keyboard can still enter it", async () => {
+    const one = { ...lifelines(), lifelines: lifelines().lifelines.slice(0, 1) };
+    api({
+      "/api/v1/audit/market/AAA/lifelines": (url: URL) => (url.searchParams.get("from") ? one : lifelines()),
+    });
+    const list = await open();
+    within(list).getAllByRole("option")[0]!.focus();
+    fireEvent.keyDown(list, { key: "End" });
+    const heatmap = example<HeatmapT>(HEATMAP);
+    chart.props!.onBrush(nsToMs(heatmap.from_ns) + 1, nsToMs(heatmap.to_ns) - 1);
+    await waitFor(() => expect(within(list).getAllByRole("option")).toHaveLength(1));
+    expect(within(list).getByRole("option").getAttribute("tabindex")).toBe("0");
+  });
+
+  it("switching symbol never shows the previous symbol's marks while loading", async () => {
+    api({
+      "/api/v1/audit/market/BBB/heatmap": () => new Promise(() => {}),
+      "/api/v1/audit/market/BBB/lifelines": () => new Promise(() => {}),
+    });
+    await open();
+    fireEvent.change(screen.getByLabelText("Symbol"), { target: { value: "BBB" } });
+    await waitFor(() => expect(screen.queryByRole("listbox", { name: "Order lifelines" })).toBeNull());
+    expect(screen.queryByText("Updating…")).toBeNull();
+  });
+
+  it("a malformed run in the URL is not sent to the API", async () => {
+    const id = lifelines().lifelines[0]!.order_id;
+    const stub = api();
+    renderApp(`/market?symbol=AAA&order=${id}&run=abc`);
+    await screen.findByRole("dialog");
+    const asked = new URL(stub.calls(`/api/v1/audit/stories/order/${id}`)[0]!.url, "http://gui.test");
+    expect(asked.searchParams.has("run_id")).toBe(false);
   });
 
   it("without a pinned snapshot it asks for one", () => {

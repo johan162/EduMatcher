@@ -34,7 +34,7 @@ doing. If you are not sure, use the first.
 
 | | What it is | Open | Use it when |
 |---|---|---|---|
-| **The whole stack** | The exchange and the six web applications started by default (`terminal-gui`, `log-gui`, `trader-gui`, `book-gui`, `dash-gui`, `clearing-gui`) — a seventh, `config-gui`, is opt-in (`CONFIG_GUI=1`) since it talks to no exchange — together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
+| **The whole stack** | The exchange and the seven web applications started by default (`terminal-gui`, `log-gui`, `trader-gui`, `book-gui`, `dash-gui`, `clearing-gui`, `audit-gui`) — an eighth, `config-gui`, is opt-in (`CONFIG_GUI=1`) since it talks to no exchange — together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
 | **This app alone, in a container** | Just the Trading GUI, pointed at an exchange you started some other way | <http://localhost:8093> | The exchange runs elsewhere — another machine, a VM, a host install |
 | **Local dev server** | Vite with hot reload, on your machine | <http://localhost:8193> | You are changing this application's code |
 
@@ -64,8 +64,9 @@ Then open **<http://localhost:8093>**. The exchange's REST API is reachable at
 The other applications come up at the same time: the trader terminal on
 [8090](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md), the log console on
 [8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the order book viewer on 8094, the
-[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095 and the
-[Clearing GUI](../../participant-guide/part-6-front-ends/040-clearing-gui.md) on 8096.
+[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095, the
+[Clearing GUI](../../participant-guide/part-6-front-ends/040-clearing-gui.md) on 8096 and the
+[Audit GUI](../../operator-guide/part-6-observe-and-recover/090-audit-gui.md) on 8097.
 
 Everyday commands, from `deployment/docker` (or with `./edumatcher.sh` in a
 released install):

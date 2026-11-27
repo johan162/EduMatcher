@@ -107,12 +107,41 @@ function layout(input: CanvasInput): Layout {
   return { cells, masks: heatmap.masks, segments, ends, maxDisplayed };
 }
 
-/** The lifeline a click on the canvas landed on, if any. */
-export function lifelineAt(input: CanvasInput, seriesId: string, dataIndex: number): LifelineT | null {
+/** The lifeline behind a tooltip, if any. */
+function lifelineAt(input: CanvasInput, seriesId: string, dataIndex: number): LifelineT | null {
   const l = layout(input);
   const index =
     seriesId === "lifelines" ? l.segments[dataIndex]?.life : seriesId === "ends" ? l.ends[dataIndex]?.life : undefined;
   return index === undefined ? null : (input.lifelines.lifelines[index] ?? null);
+}
+
+/**
+ * The lifeline a click at (`ms`, `price`) means: the segment under it or the
+ * end glyph next to it, nearest in price, within `tolMs` and `tolPrice` (a
+ * few pixels, converted by the caller). The brush owns the canvas's mouse,
+ * so clicks are hit-tested here rather than by ECharts' series events --
+ * which also makes thin bars easy to hit.
+ */
+export function pickLifeline(
+  input: CanvasInput,
+  ms: number,
+  price: number,
+  tolMs: number,
+  tolPrice: number,
+): LifelineT | null {
+  const l = layout(input);
+  let best: { life: number; distance: number } | null = null;
+  const consider = (life: number, distance: number) => {
+    if (distance <= tolPrice && (best === null || distance < best.distance)) best = { life, distance };
+  };
+  for (const s of l.segments) {
+    if (ms >= s.x0 - tolMs && ms <= s.x1 + tolMs) consider(s.life, Math.abs(price - s.price));
+  }
+  for (const e of l.ends) {
+    if (Math.abs(ms - e.x) <= tolMs) consider(e.life, Math.abs(price - e.price));
+  }
+  const found = best as { life: number; distance: number } | null;
+  return found === null ? null : (input.lifelines.lifelines[found.life] ?? null);
 }
 
 function sideOf(life: LifelineT | undefined): "BUY" | "SELL" {
@@ -197,7 +226,6 @@ export function buildOption(input: CanvasInput): EChartsOption {
 
   return {
     animation: false,
-    aria: { enabled: true },
     tooltip: { trigger: "item", confine: true, formatter: tooltipText as never },
     grid: [
       { ...GRID, top: 6, height: 14 },

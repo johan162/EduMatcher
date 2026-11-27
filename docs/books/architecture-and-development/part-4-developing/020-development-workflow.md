@@ -64,7 +64,7 @@ make up-all           # the exchange and six GUIs; builds any missing GUI image
 
 The first run is slow (every GUI image runs `npm ci` and a Vite build) and needs
 network access to the npm and PyPI registries. Later starts take seconds. When it
-finishes, the GUIs answer on <http://localhost:8090> to <http://localhost:8096>
+finishes, the GUIs answer on <http://localhost:8090> to <http://localhost:8097>
 (`config-gui` on 8092 only with `CONFIG_GUI=1`). `make status` shows one row per
 backend process.
 
@@ -175,7 +175,7 @@ Three facts make this work with no configuration:
 3. **The stack publishes to `127.0.0.1`** by default (`BIND_ADDR`). The two
    halves meet without either being told about the other.
 
-The containerised GUI keeps running on 8090–8096 the whole time. That is
+The containerised GUI keeps running on 8090–8097 the whole time. That is
 useful rather than confusing: it is your reference. Compare `localhost:8190`
 with `localhost:8090` and you are comparing your change against what is
 currently shipped.
@@ -216,6 +216,7 @@ empty history panels and a 401 in the bridge log.
 | book-gui | 8194 | 5194 | 8094 | 8081 market data, history + read-only key, 5600 log ingest |
 | dash-gui | 8195 | 5195 | 8095 | 5611 `pm-monitor` (needs `ZMQ=1`), `data/metrics.db`, the deployed configuration, 5600 log ingest |
 | clearing-gui | 8196 | — | 8096 | 8080 only, proxied by Vite |
+| audit-gui | 8197 | — | 8097 | 8080 only, proxied by Vite |
 
 The dev ports are deliberately `81xx`/`51xx` against the containers' `80xx`, so
 both can run at once.

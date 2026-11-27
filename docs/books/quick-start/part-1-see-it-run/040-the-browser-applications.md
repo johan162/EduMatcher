@@ -30,6 +30,7 @@ in one — or in a `pm-alf-console` — shows up in the others within a second.
 | <http://localhost:8092> | **Configuration GUI** (`config-gui`) | — | build an exchange configuration with forms instead of YAML |
 | <http://localhost:8095> | **Operator Dashboard** (`pm-dash`) | yes | see at a glance whether every part of the exchange is healthy, and how busy it is |
 | <http://localhost:8096> | **Clearing GUI** (`pm-clearing-ui`) | yes | see your positions, P&L, trades and end-of-day settlement — or, with an ADMIN key, the whole venue's |
+| <http://localhost:8097> | **Audit GUI** (`pm-audit-ui`) | yes | review what the exchange recorded: where liquidity sat, how each order lived and ended, and its story — with an ADMIN key |
 
 The read-only displays need no login, except the Clearing GUI, which shows
 each participant only its own records and so asks for the gateway's key. The

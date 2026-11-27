@@ -55,17 +55,20 @@ export function SnapshotPicker() {
 
 /**
  * Always "historical snapshot", never a live-looking "connected": the
- * snapshot's id and how far its records reach (design §9.1).
+ * snapshot's id, how far its records reach and when it was pinned (design
+ * §9.1).
  */
 function SnapshotLabel({ id }: { id: string }) {
   const snapshot = useSnapshot(id);
   const last = snapshot.data?.last_ts;
+  const pinned = snapshot.data?.created_at;
   return (
     <span data-testid="snapshot-label" className="flex min-w-0 items-center gap-1.5 truncate text-fg-dim" title={id}>
       <History size={14} aria-hidden="true" className="shrink-0 text-halt" />
       <span className="font-semibold text-halt">Historical snapshot</span>
       <span className="font-mono">{id}</span>
       {last && <span>· records to {receiptTime(last)}</span>}
+      {pinned && <span>· pinned {receiptTime(pinned)}</span>}
     </span>
   );
 }

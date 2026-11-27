@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { HeatmapT, LifelinesT } from "@/api/schemas";
-import { buildOption, hatchLines, type CanvasInput } from "@/components/market/chartOption";
+import { buildOption, hatchLines, pickLifeline, type CanvasInput } from "@/components/market/chartOption";
 import { END_MARKS, MASK_EFFECT } from "@/lib/marks";
 import { nsToMs } from "@/lib/ns";
 import type { Trade } from "@/lib/flow";
@@ -128,6 +128,19 @@ describe("market canvas option", () => {
       expect(s.encode?.y, s.id).not.toBe(1);
     }
     expect(custom.map((s) => s.id).sort()).toEqual(["cells", "flow", "lifelines", "masks", "phases"]);
+  });
+
+  it("a click picks the lifeline nearest it within the tolerance, else none", () => {
+    const i = input();
+    const life = i.lifelines.lifelines[0]!;
+    const seg = life.segments[1]!; // 24500 between the two amendments
+    const mid = (nsToMs(seg.start_ns) + nsToMs(seg.end_ns)) / 2;
+    expect(pickLifeline(i, mid, seg.price_ticks! + 0.4, 10, 0.5)?.order_id).toBe(life.order_id);
+    expect(pickLifeline(i, mid, seg.price_ticks! + 3, 10, 0.5)).toBeNull();
+    // Past the end, its end glyph is still a target within the time tolerance.
+    const end = nsToMs(life.end_ns!);
+    expect(pickLifeline(i, end + 5, seg.price_ticks!, 10, 0.5)?.order_id).toBe(life.order_id);
+    expect(pickLifeline(i, end + 50, seg.price_ticks!, 10, 0.5)).toBeNull();
   });
 
   it("a selected lifeline is drawn thicker than the others", () => {

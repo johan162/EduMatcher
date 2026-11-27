@@ -109,6 +109,7 @@ When it finishes you have a complete exchange **and** seven web applications:
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, statistics and trade tape — `pm-viewer` in the browser |
 | Operator Dashboard (`pm-dash`) | <http://localhost:8095> | Whether every part of the exchange is healthy, and how busy it is, live and over time |
 | Clearing GUI (`pm-clearing-ui`) | <http://localhost:8096> | Positions, P&L, trades and end-of-day settlement per participant, read-only |
+| Audit GUI (`pm-audit-ui`) | <http://localhost:8097> | The recorded session reviewed: evidence banner, depth heatmap, order lifelines and stories; ADMIN key only, read-only |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 Open TapeDeck. You should see order books with live quotes: the
@@ -118,7 +119,7 @@ book before anyone has traded.
 
 !!! note "If a port is already taken"
     The REST API ports (`8080`, `8081`) are fixed; the seven web applications use
-    `8090`–`8096` by default, and you can move any of them with the
+    `8090`–`8097` by default, and you can move any of them with the
     `*_GUI_PORT` settings in `.env` (Exercise 4). If another program on your
     machine already uses one of these ports, `./edumatcher.sh start` fails with
     a bind error naming that port. Free it, move the conflicting service, or
@@ -567,6 +568,7 @@ so updating does not discard your edits.
 | `BOOK_GUI_PORT` | `8094` | Host port for the Order Book Viewer (`pm-book`) |
 | `DASH_GUI_PORT` | `8095` | Host port for the Operator Dashboard (`pm-dash`) |
 | `CLEARING_GUI_PORT` | `8096` | Host port for the Clearing GUI (`pm-clearing-ui`) |
+| `AUDIT_GUI_PORT` | `8097` | Host port for the Audit GUI (`pm-audit-ui`) |
 
 Change any of them and run `./edumatcher.sh restart`. Two have their own
 commands, because they need more than an edit — `./edumatcher.sh config` keeps
@@ -627,7 +629,7 @@ handled in full:
 | Symptom | Cause | Fix |
 |---|---|---|
 | Installer exits immediately with "Neither podman nor docker is installed" | No container engine on this machine | Install Podman or Docker Desktop, then re-run the install command |
-| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080`, `8081` or `8090`–`8096` | Free the port or stop the other service, then `./edumatcher.sh start` again |
+| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080`, `8081` or `8090`–`8097` | Free the port or stop the other service, then `./edumatcher.sh start` again |
 | Starting a second install fails, naming another install's data directory | Container names and ports are fixed, so two installs cannot run side by side | Stop the other one (`./edumatcher.sh stop` in its directory), then retry — see the warning in Exercise 1 |
 | `pip install pipx` fails with `externally-managed-environment` | Modern Linux distributions block installing into the system Python | Use `python -m pip install --user pipx` instead, as Route B shows |
 | `command not found: pm-engine` right after `pipx install edumatcher` | `pipx ensurepath` only takes effect in a *new* shell | Open a new terminal (or `exec $SHELL`) and try again |

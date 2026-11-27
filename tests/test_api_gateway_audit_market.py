@@ -534,3 +534,38 @@ def test_an_uncross_ends_an_observation(tmp_path: Path) -> None:
     model = MarketModel(list(ordered(normalise(iter_entries([log])))))
     body = model.heatmap("AAA", None, None, 3)
     assert [c["covered_ns"] for c in body["columns"]] == [SEC, 0, 0]
+
+
+def test_concurrent_first_reads_build_the_model_once(
+    base: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The GUI asks for the heatmap and the lifelines at once: on a cold
+    session they must share one build, not run two (AG7 review)."""
+    import threading
+    import time
+
+    from edumatcher.audit.service import session as session_module
+    from edumatcher.audit.service.session import AuditService
+    from edumatcher.audit.service.snapshot import AuditCollection
+
+    builds: list[int] = []
+
+    class Slow(MarketModel):
+        def __init__(self, facts: Any) -> None:
+            builds.append(1)
+            time.sleep(0.2)  # widen the window two threads could both enter
+            super().__init__(facts)
+
+    monkeypatch.setattr(session_module, "MarketModel", Slow)
+    service = AuditService([AuditCollection("world", base.data)], tmp_path / "store")
+    sid = service.create("world").snapshot_id
+    replay = service.session(sid)
+    threads = [
+        threading.Thread(target=replay.heatmap, args=("AAA", None, None, 10)),
+        threading.Thread(target=replay.lifelines, args=("AAA", None, None, None)),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(builds) == 1

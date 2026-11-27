@@ -137,6 +137,7 @@ seven GUIs in one file.
 | `edumatcher-book-gui` | `web-apps/book-gui/Dockerfile` | 8094 | The order book viewer |
 | `edumatcher-dash-gui` | `web-apps/dash-gui/Dockerfile` | 8095 | The operator dashboard |
 | `edumatcher-clearing-gui` | `web-apps/clearing-gui/Dockerfile` | 8096 | The clearing client (read-only) |
+| `edumatcher-audit-gui` | `web-apps/audit-gui/Dockerfile` | 8097 | The audit review client (read-only, ADMIN keys) |
 
 Locally built images are tagged `edumatcher:local` (from `IMAGE_NAME` and
 `IMAGE_TAG` in `.env`) and `edumatcher-<app>:latest`. Released images are
@@ -569,6 +570,7 @@ flowchart LR
         B["book-gui\n:8094"]
         D["dash-gui\n:8095"]
         CL["clearing-gui\n:8096"]
+        AU["audit-gui\n:8097"]
         E["edumatcher"]
     end
     BR -->|"8090"| T
@@ -577,12 +579,14 @@ flowchart LR
     BR -->|"8094"| B
     BR -->|"8095"| D
     BR -->|"8096"| CL
+    BR -->|"8097"| AU
     T -->|"edumatcher:5570 market data\nedumatcher:8081 history\nedumatcher:5600 own logs"| E
     L -->|"edumatcher:5601 / 5602\nlive log stream\nedumatcher:5570 session phase"| E
     TR -->|"edumatcher:8080\nREST + WebSocket"| E
     B -->|"edumatcher:8081\nmarket data + history\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
     D -->|"edumatcher:5611\nhealth snapshots\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
     CL -->|"edumatcher:8080\nREST"| E
+    AU -->|"edumatcher:8080\nREST"| E
     L -.->|"reads log.db from\n./data, read-only"| DATA[("./data")]
     D -.->|"reads metrics.db and the\nconfiguration, read-only"| DATA
 ```
@@ -708,7 +712,7 @@ exchange's service is called `edumatcher`, so `edumatcher:8081` from inside
 ```mermaid
 flowchart TB
     subgraph host["Your machine (host network)"]
-        LO["127.0.0.1:8090-8096\n127.0.0.1:5560 … 8081\n(published ports)"]
+        LO["127.0.0.1:8090-8097\n127.0.0.1:5560 … 8081\n(published ports)"]
     end
     subgraph net["Private network edumatcher_default"]
         direction LR
@@ -885,6 +889,7 @@ tools to the bus.
 | `BOOK_GUI_PORT` (8094) | 8094 | `book-gui` | Order book viewer |
 | `DASH_GUI_PORT` (8095) | 8095 | `dash-gui` | Operator dashboard |
 | `CLEARING_GUI_PORT` (8096) | 8096 | `clearing-gui` | Clearing client |
+| `AUDIT_GUI_PORT` (8097) | 8097 | `audit-gui` | Audit review client |
 
 Only the host side of a GUI port is configurable. If 8090 is already taken on
 your machine, set `TERMINAL_GUI_PORT=9090` in `.env` and restart; the container
@@ -917,7 +922,7 @@ on a running container.
 | `BIND_ADDR` | `127.0.0.1` | compose `ports:` | no: the host interface ports open on |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | gateways, `pm-log-srv`, `pm-api-gwy`, `pm-monitor` | yes |
 | `SSH_PORT` | `2222` | `compose.ssh.yaml`, `make ssh` | no |
-| `TERMINAL_GUI_PORT` … `CLEARING_GUI_PORT` | `8090` … `8096` | GUI `ports:` | no |
+| `TERMINAL_GUI_PORT` … `AUDIT_GUI_PORT` | `8090` … `8097` | GUI `ports:` | no |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | `dash-gui` | yes: the drawers' links to log-gui and book-gui |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | compose `image:` | no |
 | `CONTAINER_NAME` | `edumatcher` | compose, `Makefile` | no |

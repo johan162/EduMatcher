@@ -84,6 +84,16 @@ function windowQuery(id: string, from: string | null, to: string | null, extra: 
   return q;
 }
 
+/**
+ * A new interval keeps the previous picture of the *same* symbol (and the
+ * list's keyboard position) until it arrives; another symbol never shows
+ * under this one's name.
+ */
+function sameSymbol(symbol: string) {
+  return <T,>(previous: T | undefined, query: { queryKey: readonly unknown[] } | undefined): T | undefined =>
+    query?.queryKey[3] === symbol ? previous : undefined;
+}
+
 export function useHeatmap(id: string, symbol: string, from: string | null, to: string | null) {
   return useQuery({
     queryKey: keys.heatmap(id, symbol, from, to),
@@ -94,6 +104,7 @@ export function useHeatmap(id: string, symbol: string, from: string | null, to: 
         { signal },
       ),
     staleTime: Infinity,
+    placeholderData: sameSymbol(symbol),
   });
 }
 
@@ -103,6 +114,7 @@ export function useLifelines(id: string, symbol: string, from: string | null, to
     queryFn: ({ signal }) =>
       apiFetch(`${V1}/market/${encodeURIComponent(symbol)}/lifelines?${windowQuery(id, from, to)}`, Lifelines, { signal }),
     staleTime: Infinity,
+    placeholderData: sameSymbol(symbol),
   });
 }
 

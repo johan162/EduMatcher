@@ -53,6 +53,7 @@ describe("snapshot picker", () => {
     expect(label.textContent).toContain("Historical snapshot");
     expect(label.textContent).toContain(snapshot.snapshot_id);
     expect(label.textContent).toContain("records to 2026-06-15 15:30:12.874 UTC");
+    expect(label.textContent).toContain(`pinned ${snapshot.created_at.slice(0, 10)}`);
     expect(api.calls("/api/v1/audit/snapshots")).toEqual([
       { method: "POST", url: "/api/v1/audit/snapshots", body: { collection_id: "world" } },
     ]);

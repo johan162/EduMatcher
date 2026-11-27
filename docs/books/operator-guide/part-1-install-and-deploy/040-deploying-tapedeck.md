@@ -86,8 +86,9 @@ make up-all
 Then open **<http://localhost:8090>**. The log console comes up on
 [8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the trading GUI on [8093](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md),
 the [order book viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md) on 8094, the
-[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095 and the
-[Clearing GUI](../../participant-guide/part-6-front-ends/040-clearing-gui.md) on 8096 at the same time.
+[operator dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) on 8095, the
+[Clearing GUI](../../participant-guide/part-6-front-ends/040-clearing-gui.md) on 8096 and the
+[Audit GUI](../../operator-guide/part-6-observe-and-recover/090-audit-gui.md) on 8097 at the same time.
 
 There are no addresses to configure because every container shares one
 Compose network, on which the exchange answers to the hostname `edumatcher`.
@@ -144,7 +145,7 @@ make up
     already defaults to `:8081` — keep the port when you change the host.
 
 If port 8090 is taken, move the *host* side of it. Pick something outside
-8090–8096, which the other applications use:
+8090–8097, which the other applications use:
 
 ```bash
 TERMINAL_GUI_PORT=8100 make up
