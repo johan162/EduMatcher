@@ -155,7 +155,11 @@ export interface SnapshotFixture {
     entries: number;
     head_sha256: string | null;
     anchored: boolean;
-    problems: { day: string | null; message: string }[];
+    problems: { day: string | null; message: string; kind: "chain" | "content" }[];
+    chain_ok: boolean | null;
+    content_ok: boolean | null;
+    anchor: string | null;
+    checked_at: string | null;
   };
   forensics: { statuses: Record<string, number> } | null;
 }

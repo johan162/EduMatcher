@@ -2423,20 +2423,50 @@ AUDIT_SNAPSHOT: dict[str, Any] = {
     "last_ts": "2026-06-15T15:30:12.874+00:00",
     "files": [
         {
+            "name": "audit/audit-2026-06-14.log.zst",
+            "kind": "archive",
+            "size": 4120992,
+            "cutoff": 4120992,
+            "torn_bytes": 0,
+            "sha256": "2c4e6a8b0d1f3e5a7c9b1d3f5e7a9c0b2d4f6e8a1c3b5d7f9e0a2c4b6d8f1e3a",
+            "day": "2026-06-14",
+        },
+        {
             "name": "audit.log",
             "kind": "active",
             "size": 52114006,
             "cutoff": 52113870,
             "torn_bytes": 136,
             "sha256": "9b1e0c4f6a2d8e7b5c3a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a39281706",
-        }
+            "day": None,
+        },
     ],
     "runs": [
         {
+            "run": 0,
             "run_seq": 7,
             "started_ts": "2026-06-15T07:00:00.001+00:00",
             "config_sha256": "4d2a1e9c0b7f6a5e3d8c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2918",
+            "first_ts": "2026-06-15T07:00:00.001+00:00",
+            "last_ts": "2026-06-15T15:30:12.874+00:00",
+            "records": 184213,
+            "with_envelope": 184213,
+            "ordering": "eseq",
         }
+    ],
+    "days": [
+        {
+            "day": "2026-06-13",
+            "state": "retired",
+            "files": [],
+            "content_ok": None,
+        },
+        {
+            "day": "2026-06-14",
+            "state": "retained",
+            "files": ["audit/audit-2026-06-14.log.zst"],
+            "content_ok": True,
+        },
     ],
     "capabilities": {
         "stories": {"available": True, "reason": None, "detail": ""},
@@ -2462,6 +2492,10 @@ AUDIT_SNAPSHOT: dict[str, Any] = {
         "head_sha256": "5b0c4e7f1a2d3c9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c",
         "anchored": False,
         "problems": [],
+        "chain_ok": True,
+        "content_ok": True,
+        "anchor": None,
+        "checked_at": "2026-06-15T15:40:02.240+00:00",
     },
     "forensics": {
         "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",

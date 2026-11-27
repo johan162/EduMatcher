@@ -1219,13 +1219,47 @@ class AuditSourceFile(BaseModel):
         ge=0, description="A partial last line of the active file, left out."
     )
     sha256: str = Field(description="Hash of the bytes the snapshot reads.")
+    day: str | None = Field(
+        description="The trading day of a part or archive; null for the active file."
+    )
 
 
 class AuditRun(BaseModel):
-    run_seq: int | None = Field(description="The engine run (`system.startup`).")
-    started_ts: str = Field(description="Receipt time of its `system.startup`.")
+    run: int = Field(
+        description="Engine restart epoch within the snapshot, as `run` on "
+        "`/events`: 0, then +1 at each later `system.startup`."
+    )
+    run_seq: int | None = Field(description="The engine's run (`system.startup`).")
+    started_ts: str | None = Field(
+        description="Receipt time of its `system.startup`; null when its records "
+        "begin without one (the trail starts mid-run)."
+    )
     config_sha256: str | None = Field(
         description="Hash of the configuration it announced; null when none."
+    )
+    first_ts: str = Field(description="Receipt time of its first record.")
+    last_ts: str = Field(description="Receipt time of its last record.")
+    records: int = Field(ge=0)
+    with_envelope: int = Field(ge=0, description="Records with a causal envelope.")
+    ordering: Literal["eseq", "legacy", "mixed"] = Field(
+        description="`eseq`: every record carries the engine's sequence; "
+        "`legacy`: none does (ordered by envelope time, receipt, position)."
+    )
+
+
+class AuditDay(BaseModel):
+    day: str
+    state: Literal["retained", "unmanifested", "unsealed", "retired", "missing"] = (
+        Field(
+            description="`retained`: archived and entered in the manifest; "
+            "`unmanifested`: archived, no entry; `unsealed`: open day parts; "
+            "`retired`: removed by retention (tombstone); `missing`: entered, but "
+            "its archive is gone."
+        )
+    )
+    files: list[str] = Field(description="The snapshot's files for the day.")
+    content_ok: bool | None = Field(
+        description="Its archive matches its manifest entry; null without an archive."
     )
 
 
@@ -1262,6 +1296,7 @@ class AuditForensicsReport(BaseModel):
 class AuditManifestProblem(BaseModel):
     day: str | None = Field(description="The day concerned; null for the chain itself.")
     message: str
+    kind: Literal["chain", "content"]
 
 
 class AuditManifest(BaseModel):
@@ -1279,6 +1314,15 @@ class AuditManifest(BaseModel):
         "rewritten chain."
     )
     problems: list[AuditManifestProblem]
+    chain_ok: bool | None = Field(description="The hash chain links; null without a manifest.")  # fmt: skip
+    content_ok: bool | None = Field(
+        description="Every current day matches its archive; null without a manifest."
+    )
+    anchor: str | None = Field(
+        description="The independently kept head it was checked against; null "
+        "(no anchor is configured in this release)."
+    )
+    checked_at: str | None = Field(description="When it was verified (UTC).")
 
 
 class AuditSymbol(BaseModel):
@@ -1302,6 +1346,9 @@ class AuditSnapshot(BaseModel):
         description="Each analysis, and why it is unavailable when it is."
     )
     manifest: AuditManifest = Field(description="The evidence manifest when pinned.")
+    days: list[AuditDay] = Field(
+        description="Every day the files or the manifest know of, oldest first."
+    )
     symbols: list[AuditSymbol] = Field(
         description="Every symbol a priced record names, by name."
     )

@@ -40,13 +40,24 @@ function withManifest(state: "absent" | "verified" | "failed"): SnapshotFixture 
   s.forensics = null;
   s.manifest =
     state === "absent"
-      ? { state, entries: 0, head_sha256: null, anchored: false, problems: [] }
+      ? {
+          state,
+          entries: 0,
+          head_sha256: null,
+          anchored: false,
+          problems: [],
+          chain_ok: null,
+          content_ok: null,
+          anchor: null,
+          checked_at: s.manifest.checked_at,
+        }
       : state === "verified"
         ? { ...s.manifest, state }
         : {
             ...s.manifest,
             state,
-            problems: [{ day: "2026-06-15", message: "archive content differs from the manifest entry" }],
+            content_ok: false,
+            problems: [{ day: "2026-06-15", message: "archive content differs from the manifest entry", kind: "content" }],
           };
   return s;
 }

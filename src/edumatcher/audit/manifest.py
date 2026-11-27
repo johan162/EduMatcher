@@ -38,10 +38,15 @@ KIND_RETIRED = "retired"
 
 @dataclass(frozen=True)
 class Problem:
-    """One thing ``verify`` found wrong; ``day`` is None for the chain itself."""
+    """One thing ``verify`` found wrong; ``day`` is None for the chain itself.
+
+    ``kind`` says which check failed: ``chain`` (an entry was edited, torn or
+    removed: the hash chain no longer links) or ``content`` (a day's archive
+    does not match its entry, or is missing or unentered)."""
 
     day: str | None
     message: str
+    kind: str = "content"
 
 
 def _line_hash(line: str) -> str:
@@ -167,7 +172,7 @@ def verify(audit_dir: Path, day: str | None = None) -> list[Problem]:
             parsed = None
             problem = f"manifest line {n} is not valid JSON (torn or edited)"
         if not isinstance(parsed, dict):
-            problems.append(Problem(None, problem))
+            problems.append(Problem(None, problem, "chain"))
             expected = _line_hash(line)
             continue
         item = cast(dict[str, Any], parsed)
@@ -177,6 +182,7 @@ def verify(audit_dir: Path, day: str | None = None) -> list[Problem]:
                     item.get("day"),
                     f"chain broken at manifest line {n}: an earlier entry was "
                     "changed or removed",
+                    "chain",
                 )
             )
         expected = _line_hash(line)

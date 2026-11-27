@@ -220,6 +220,7 @@ def _snapshot_body(d: SnapshotDescriptor) -> dict[str, Any]:
         },
         "manifest": asdict(d.manifest),
         "symbols": [asdict(s) for s in d.symbols],
+        "days": [asdict(day) for day in d.days],
         "forensics": (
             {
                 **asdict(d.forensics),

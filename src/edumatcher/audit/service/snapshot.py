@@ -13,9 +13,18 @@ browser names it by id, never by path (design §7.2).
 * the records' receipt-time extent, the engine runs (each
   ``system.startup``) and every capability's state (``capabilities``);
 * the evidence manifest (``audit/manifest.jsonl``) as ``pm-audit-cli
-  verify`` checks it: ``absent``, ``verified`` or ``failed`` with its
-  problems. No external anchor is configured (gate D1), so a verified chain
-  is "checked, unanchored": it shows edits, not a rewritten chain;
+  verify`` checks it: ``absent``, ``verified`` or ``failed``, with the hash
+  chain and the archives' content as separate results and each problem's
+  kind. No external anchor is configured (gate D1), so a verified chain is
+  "checked, unanchored": it shows edits, not a rewritten chain;
+* the day inventory (workplan AG8, design §9.7): each day the files or the
+  manifest know of is ``retained`` (archived and entered), ``unmanifested``
+  (archived, no entry), ``unsealed`` (open day parts), ``retired``
+  (retention removed it, by tombstone) or ``missing`` (entered, but its
+  archive is gone);
+* each engine run's extent, records and ordering mode (``eseq``, or
+  ``legacy`` lines ordered without sequences), numbered as the replay
+  numbers them (``run`` on ``/events``);
 * the ``pm-sim-forensics`` report beside the collection, when there is one:
   copied, hashed and compared with the pinned audit files
   (:mod:`edumatcher.audit.service.forensics`).
@@ -70,6 +79,8 @@ from edumatcher.audit.service.forensics import (
     attach,
 )
 
+#: A part's or archive's day: ``audit-2026-06-15.3.log``, ``audit-2026-06-15.log.zst``.
+_DAY_RE = re.compile(r"^audit-(\d{4}-\d{2}-\d{2})\.")
 #: A snapshot id: ``s-`` and 20 hex digits of the content hash.
 _SNAPSHOT_ID = re.compile(r"^s-[0-9a-f]{20}$")
 _CHUNK = 1 << 20
@@ -110,6 +121,9 @@ class SourceFile:
     size: int
     cutoff: int
     sha256: str
+    #: The trading day of a part or archive (from its name); None for the
+    #: active file.
+    day: str | None = None
 
     @property
     def torn_bytes(self) -> int:
@@ -118,12 +132,24 @@ class SourceFile:
 
 @dataclass(frozen=True)
 class RunInfo:
-    """One engine run: its ``system.startup``."""
+    """One engine run of the snapshot, numbered as the replay numbers runs
+    (``run``: 0, then +1 at each later ``system.startup``)."""
 
+    run: int
+    #: The engine's ``run_seq`` from its ``system.startup``; None without one.
     run_seq: int | None
-    started_ts: str
+    #: Receipt time of its ``system.startup``; None when the run's records
+    #: begin without one (the trail starts mid-run).
+    started_ts: str | None
     #: The hash of the configuration it announced; None when it carried none.
     config_sha256: str | None
+    first_ts: str
+    last_ts: str
+    records: int
+    with_envelope: int
+    #: ``eseq`` (every record sequenced), ``legacy`` (none: ordered by
+    #: envelope time, receipt and position) or ``mixed``.
+    ordering: str
 
 
 @dataclass(frozen=True)
@@ -139,6 +165,8 @@ class SymbolInfo:
 class ManifestProblem:
     day: str | None
     message: str
+    #: ``chain`` or ``content`` (audit.manifest.Problem.kind).
+    kind: str
 
 
 @dataclass(frozen=True)
@@ -153,6 +181,27 @@ class ManifestState:
     #: Whether the head was checked against an independently kept copy.
     anchored: bool
     problems: tuple[ManifestProblem, ...]
+    #: The hash chain links (None: no manifest).
+    chain_ok: bool | None = None
+    #: Every current day matches its archive (None: no manifest).
+    content_ok: bool | None = None
+    #: The anchor checked against; always None (no anchor is configured).
+    anchor: str | None = None
+    #: When it was verified (UTC).
+    checked_at: str | None = None
+
+
+@dataclass(frozen=True)
+class DayInfo:
+    """One trading day as the files and the manifest know it."""
+
+    day: str
+    #: ``retained``, ``unmanifested``, ``unsealed``, ``retired`` or ``missing``.
+    state: str
+    #: The snapshot's files for the day (relative names), oldest first.
+    files: tuple[str, ...]
+    #: Its archive matches its manifest entry; None without an archive.
+    content_ok: bool | None
 
 
 @dataclass(frozen=True)
@@ -174,6 +223,8 @@ class SnapshotDescriptor:
     manifest: ManifestState = ManifestState("absent", 0, None, False, ())
     #: Every priced symbol, by name.
     symbols: tuple[SymbolInfo, ...] = ()
+    #: Every day the files or the manifest know of, oldest first.
+    days: tuple[DayInfo, ...] = ()
 
 
 class SnapshotUnavailable(Exception):
@@ -275,9 +326,10 @@ def open_snapshot(store: Path, snapshot_id: str) -> Snapshot:
 def _pin(path: Path, root: Path, copy_to: Path) -> SourceFile:
     """Hash *path*; the active file's complete lines are also copied."""
     name = path.relative_to(root).as_posix()
+    day = _DAY_RE.match(path.name)
     if name == "audit.log":
         size, cutoff, sha = _copy_complete_lines(path, copy_to)
-        return SourceFile(name, "active", size, cutoff, sha)
+        return SourceFile(name, "active", size, cutoff, sha, None)
     digest = hashlib.sha256()
     size = 0
     with path.open("rb") as fh:
@@ -285,7 +337,9 @@ def _pin(path: Path, root: Path, copy_to: Path) -> SourceFile:
             digest.update(chunk)
             size += len(chunk)
     kind = "archive" if path.suffix == ".zst" else "part"
-    return SourceFile(name, kind, size, size, digest.hexdigest())
+    return SourceFile(
+        name, kind, size, size, digest.hexdigest(), day.group(1) if day else None
+    )
 
 
 def _copy_complete_lines(path: Path, dest: Path) -> tuple[int, int, str]:
@@ -309,10 +363,12 @@ def _copy_complete_lines(path: Path, dest: Path) -> tuple[int, int, str]:
 def _manifest(audit_dir: Path) -> ManifestState:
     """The manifest under *audit_dir*, verified as ``pm-audit-cli verify``
     does (chain, then each current day against its archive)."""
+    checked = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     if not (audit_dir / evidence_manifest.MANIFEST_NAME).is_file():
-        return ManifestState("absent", 0, None, False, ())
+        return ManifestState("absent", 0, None, False, (), checked_at=checked)
     problems = tuple(
-        ManifestProblem(p.day, p.message) for p in evidence_manifest.verify(audit_dir)
+        ManifestProblem(p.day, p.message, p.kind)
+        for p in evidence_manifest.verify(audit_dir)
     )
     return ManifestState(
         state="failed" if problems else "verified",
@@ -320,7 +376,42 @@ def _manifest(audit_dir: Path) -> ManifestState:
         head_sha256=evidence_manifest.head_hash(audit_dir),
         anchored=False,
         problems=problems,
+        chain_ok=not any(p.kind == "chain" for p in problems),
+        content_ok=not any(p.kind == "content" for p in problems),
+        checked_at=checked,
     )
+
+
+def _days(
+    audit_dir: Path, files: tuple[SourceFile, ...], manifest: ManifestState
+) -> tuple[DayInfo, ...]:
+    """Every day the pinned files or the manifest's current entries name."""
+    current: dict[str, str] = {}
+    for entry in evidence_manifest.read_entries(audit_dir):
+        day, kind = entry.get("day"), entry.get("kind")
+        if isinstance(day, str) and isinstance(kind, str):
+            current[day] = kind  # the latest entry of a day is current
+    archives = {f.day: f.name for f in files if f.kind == "archive" and f.day}
+    parts: dict[str, list[str]] = {}
+    for f in files:
+        if f.kind == "part" and f.day:
+            parts.setdefault(f.day, []).append(f.name)
+    bad = {p.day for p in manifest.problems if p.kind == "content"}
+    out = []
+    for day in sorted(set(current) | set(archives) | set(parts)):
+        if day in archives:
+            entered = current.get(day) == evidence_manifest.KIND_DAY
+            state = "retained" if entered else "unmanifested"
+            content: bool | None = entered and day not in bad
+            names: tuple[str, ...] = (archives[day],)
+        elif day in parts:
+            state, content, names = "unsealed", None, tuple(parts[day])
+        elif current.get(day) == evidence_manifest.KIND_RETIRED:
+            state, content, names = "retired", None, ()
+        else:
+            state, content, names = "missing", None, ()
+        out.append(DayInfo(day, state, names, content))
+    return tuple(out)
 
 
 def _check_retained(path: Path, pinned: SourceFile) -> None:
@@ -356,7 +447,7 @@ def _describe(
     paths = [work / _PINNED if f.kind == "active" else root / f.name for f in files]
     count = with_envelope = books = 0
     first_ts = last_ts = first_topic = None
-    runs: list[RunInfo] = []
+    runs: list[_RunTally] = []
     priced: set[str] = set()
     scales: dict[str, int] = {}
     for e in iter_entries(paths):
@@ -366,21 +457,16 @@ def _describe(
         last_ts = e.timestamp
         with_envelope += e.msg_id is not None
         books += e.topic.startswith(_BOOK)
-        if e.topic == STARTUP:
-            config = e.payload.get("config")
-            sha = e.payload.get("config_sha256")
-            seq = e.payload.get("run_seq")
-            runs.append(
-                RunInfo(
-                    seq if isinstance(seq, int) else None,
-                    e.timestamp,
-                    str(sha) if config and sha else None,
-                )
-            )
+        # The replay's rule (facts.normalise): a run begins at the first
+        # record, and again at each later system.startup with seq 1.
+        if not runs or (e.topic == STARTUP and e.seq == 1):
+            runs.append(_RunTally(len(runs), e.timestamp))
+        runs[-1].add(e)
         if e.topic.startswith(_PRICED) and isinstance(e.payload.get("symbol"), str):
             priced.add(e.payload["symbol"])
             if isinstance(e.payload.get("tick_decimals"), int):
                 scales.setdefault(e.payload["symbol"], e.payload["tick_decimals"])
+    described = tuple(r.info() for r in runs)
     evidence = Evidence(
         entries=count,
         first_topic=first_topic,
@@ -389,7 +475,9 @@ def _describe(
         priced_symbols=frozenset(priced),
         unscaled_symbols=frozenset(priced - scales.keys()),
         runs_without_config=tuple(
-            (r.run_seq, r.started_ts) for r in runs if r.config_sha256 is None
+            (r.run_seq, r.started_ts)
+            for r in described
+            if r.started_ts is not None and r.config_sha256 is None
         ),
         forensics=report.state if report else None,
     )
@@ -402,12 +490,56 @@ def _describe(
         entries=count,
         first_ts=first_ts,
         last_ts=last_ts,
-        runs=tuple(runs),
+        runs=described,
         capabilities=evaluate(evidence),
         forensics=report.pin if report else None,
         manifest=manifest,
         symbols=tuple(SymbolInfo(s, scales.get(s)) for s in sorted(priced)),
+        days=_days(root / "audit", files, manifest),
     )
+
+
+class _RunTally:
+    """One run's records while the describing pass counts them."""
+
+    def __init__(self, run: int, first_ts: str) -> None:
+        self.run = run
+        self.first_ts = self.last_ts = first_ts
+        self.records = self.with_envelope = self.sequenced = 0
+        self.run_seq: int | None = None
+        self.started_ts: str | None = None
+        self.config_sha256: str | None = None
+
+    def add(self, e: AuditEntry) -> None:
+        self.last_ts = e.timestamp
+        self.records += 1
+        self.with_envelope += e.msg_id is not None
+        self.sequenced += e.eseq is not None
+        if e.topic == STARTUP and self.started_ts is None:
+            config = e.payload.get("config")
+            sha = e.payload.get("config_sha256")
+            seq = e.payload.get("run_seq")
+            self.run_seq = seq if isinstance(seq, int) else None
+            self.started_ts = e.timestamp
+            self.config_sha256 = str(sha) if config and sha else None
+
+    def info(self) -> RunInfo:
+        ordering = (
+            "eseq"
+            if self.sequenced == self.records
+            else "legacy" if self.sequenced == 0 else "mixed"
+        )
+        return RunInfo(
+            run=self.run,
+            run_seq=self.run_seq,
+            started_ts=self.started_ts,
+            config_sha256=self.config_sha256,
+            first_ts=self.first_ts,
+            last_ts=self.last_ts,
+            records=self.records,
+            with_envelope=self.with_envelope,
+            ordering=ordering,
+        )
 
 
 def _dump(d: SnapshotDescriptor) -> str:
@@ -446,6 +578,10 @@ def _load(directory: Path) -> SnapshotDescriptor:
         forensics=_load_forensics(raw["forensics"]),
         manifest=_load_manifest(raw["manifest"]),
         symbols=tuple(SymbolInfo(**s) for s in raw["symbols"]),
+        days=tuple(
+            DayInfo(d["day"], d["state"], tuple(d["files"]), d["content_ok"])
+            for d in raw["days"]
+        ),
     )
 
 
@@ -456,6 +592,10 @@ def _load_manifest(raw: dict[str, Any]) -> ManifestState:
         head_sha256=raw["head_sha256"],
         anchored=raw["anchored"],
         problems=tuple(ManifestProblem(**p) for p in raw["problems"]),
+        chain_ok=raw["chain_ok"],
+        content_ok=raw["content_ok"],
+        anchor=raw["anchor"],
+        checked_at=raw["checked_at"],
     )
 
 

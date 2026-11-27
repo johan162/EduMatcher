@@ -3326,13 +3326,31 @@ content: pinning an unchanged collection again returns the same snapshot.
 `symbols` lists every symbol a priced record names, with the
 `tick_decimals` its records state (null when none does).
 
+The source catalogue:
+
+- `files`: each audit file pinned, with its `day` (null for the active file)
+  and `torn_bytes` (a partial last line of the active file, left out).
+- `runs`: each engine run, numbered as `run` on `/audit/events` (0, then +1
+  at each later `system.startup`), with its `run_seq` and `started_ts` (null
+  when the records begin without a startup), first and last receipt time,
+  `records`, `with_envelope` and `ordering`: `eseq` (every record carries
+  the engine's sequence), `legacy` (none does) or `mixed`.
+- `days`: each trading day the files or the manifest know of, as `retained`
+  (archived and entered in the manifest), `unmanifested` (archived, no
+  entry), `unsealed` (open day parts), `retired` (removed by retention, by
+  tombstone) or `missing` (entered, but its archive is gone), with its files
+  and `content_ok` for an archived day.
+
 `manifest` is the evidence manifest (`audit/manifest.jsonl`) as `pm-audit-cli
-verify` checks it when pinned: `state` is `absent`, `verified` (the hash chain
-and every archive match) or `failed` (`problems` lists each, by `day`), with
-its entry count and `head_sha256`. `anchored` is always `false` in this
+verify` checks it when pinned: `state` is `absent`, `verified` or `failed`;
+`chain_ok` (the hash chain links) and `content_ok` (every current day
+matches its archive) are separate results, null without a manifest; each of
+`problems` has its `day` and `kind` (`chain` or `content`); with its entry
+count, `head_sha256` and `checked_at`. `anchored` is always `false` in this
 release: no copy of the head kept elsewhere is checked, so `verified` shows an
-edited entry but not a rewritten chain ("checked, unanchored"). The head is
-part of the snapshot id.
+edited entry but not a rewritten chain ("checked, unanchored"), and `anchor`
+is null. A retired day is `verified`, not a failure. The head is part of the
+snapshot id.
 
 A `pm-sim-forensics` report in `forensics/` beside the collection (the
 tool's default `--out`) is pinned too: copied, hashed (the hash is part of
@@ -3353,7 +3371,7 @@ capability is available only for a matching report; otherwise its reason is
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities", "symbols", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
+| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "days", "capabilities", "symbols", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
 
 **Errors**
 

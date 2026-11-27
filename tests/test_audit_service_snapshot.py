@@ -179,7 +179,14 @@ def test_a_trail_not_starting_at_an_engine_start_cannot_be_rerun(
     world.audit_log.write_text("".join(ln for ln in lines if "[system.startup]" not in ln))  # fmt: skip
     d = create_snapshot(_collection(world), _store(tmp_path))
     assert d.capabilities[Capability.RERUN].reason is Reason.NO_ENGINE_START
-    assert d.runs == ()
+    # The replay's numbering: the records still form run 0, with no startup.
+    (run,) = d.runs
+    assert (run.run, run.run_seq, run.started_ts, run.records) == (
+        0,
+        None,
+        None,
+        d.entries,
+    )
 
 
 def test_a_torn_tail_is_reported_and_left_out(tmp_path: Path) -> None:
@@ -200,7 +207,7 @@ def test_a_run_reset_lists_both_runs(tmp_path: Path) -> None:
     world = build(tmp_path / "w", run_reset=True)
     d = create_snapshot(_collection(world), _store(tmp_path))
     assert [r.run_seq for r in d.runs] == [1, 2]
-    assert d.runs[0].started_ts < d.runs[1].started_ts
+    assert d.runs[0].first_ts < d.runs[1].first_ts
 
 
 def test_an_archived_day_is_read_from_its_archive(tmp_path: Path) -> None:

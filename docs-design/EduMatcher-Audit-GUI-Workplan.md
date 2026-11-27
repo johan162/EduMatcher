@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (R0 complete: AG0-AG7 done). This plan orders the work needed to deliver the
+Status: **In progress** (R0 complete: AG0-AG7 done; R1: AG8 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -66,7 +66,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Design pkg | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 8 | AG8 | Full source catalogue: legacy, rotation, zstd, retired, torn, run resets, mutation | AU-1 | AG7 | 2.5 d | ☐ | |
+| 8 | AG8 | Full source catalogue: legacy, rotation, zstd, retired, torn, run resets, mutation | AU-1 | AG7 | 2.5 d | ☑ | 2026-11-27 |
 | 9 | AG9 | Worker process, job store and job API; `prepare`/`verify`/`forensics_import` | AU-2 | AG8 | 3 d | ☐ | |
 | 10 | AG10 | Typed filter grammar, cursors, counts, bounds and `reproduce` blocks | AU-2 | AG8 | 2 d | ☐ | |
 | 11 | AG11 | Integrity & Coverage workspace | AU-3 | AG9, AG10 | 2 d | ☐ | |
@@ -974,6 +974,8 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF24 | AG7 | P3 | Seventeen documentation pages that list the web GUIs did not name the Audit GUI (8097); the reference manual's ports table also lacked the Clearing GUI. | Fixed: every list names both; `tests/test_docs_gui_lists.py` now fails a GUI list or port range that stops before 8097. New operator guide chapter `090-audit-gui.md`. |
 | AGF25 | AG7 | P3 | Design §8.1's response metadata is not in R0: no `reproduce` block, no index generation or `as_of`, no exact/lower-bound count qualifier beyond `has_more`. | Open, planned: AG9 (generations, `as_of`), AG10 (`reproduce`, counts). Recorded as accepted for R0. |
 | AGF26 | AG7 | P3 | Design §9.1's top bar also has a run selector, the venue timezone and filter chips; R0 shows every run (each lifeline names its run) and UTC. | Open, planned: AG10 (time controls, timezone), AG18 (scope chips, run selection). |
+| AGF27 | AG8 | P3 | `audit.manifest.verify` reported every problem as a message only; chain and content results could be told apart only by parsing its English. | `Problem` gained `kind` (`chain`, `content`), set where `verify` knows which check failed (additive; `pm-audit-cli verify` prints the message as before; tested). The descriptor reports `chain_ok` and `content_ok` from it. |
+| AGF28 | AG8 | P3 | AG1's descriptor listed a run only at a `system.startup`, so a trail beginning mid-run had no run, while the replay (and `/events`) numbers that run 0. | Runs follow the replay's rule: a run begins at the first record and at each later startup with `seq` 1, with `started_ts` null when there is no startup; a test holds the catalogue's per-run record counts to `/events`' `run` values. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1288,3 +1290,35 @@ their cells, the two further end glyphs).
 
 **Design updated**: §3.2, §9.4 (above). Still open for R1: AGF5, AGF25,
 AGF26.
+
+### 8.9 AG8 done note (2026-11-27)
+
+- World variants (AG0 extended): `legacy` (every line without its
+  `[seq= eseq= msg= ...]` section, as pm-audit wrote before envelopes),
+  `rotated` (64 KiB parts: the day closes into `audit/audit-<day>.<n>.log`),
+  `retired` (archived, then pm-audit's `apply_retention`: tombstone, archive
+  gone), `missing` (archived, then the archive deleted by hand).
+- Descriptor catalogue (`audit/service/snapshot.py`): each file's `day`;
+  `days` (`retained`, `unmanifested`, `unsealed`, `retired`, `missing`, with
+  files and `content_ok`); `manifest` with `chain_ok`, `content_ok`,
+  `anchor` (null: no anchor configured), `checked_at` and each problem's
+  `kind` (AGF27); `runs` with `run` (the replay's numbering, AGF28),
+  extent, records, envelopes and `ordering` (`eseq`, `legacy`, `mixed`).
+- Tests (`tests/test_audit_service_catalogue.py`, 15): each manifest state
+  and the four distinct (scenario 5); a changed archive fails content, an
+  edited entry the chain; retired and missing days; rotated parts unsealed
+  and read whole and in order (the same records as the unrotated trail);
+  a part changed after the snapshot is `SOURCE_CHANGED`; the torn tail;
+  per-run extents equal to `/events`; legacy ordering and `NO_ENVELOPES`;
+  a run reset never joins stories (scenario 4); reads never change a byte
+  of the collection (archived and rotated). Five passed on first run: the
+  behaviours (source mutation, torn tail, run separation, read-only reads)
+  existed since AG1-AG2 and are now pinned per variant.
+- API: `days`, the new `runs` and `manifest` fields; OpenAPI example and
+  REST chapter; the GUI's schema follows (contract test).
+- Measured: verifying the archived world's manifest takes 1 ms of a 6 ms
+  pin (15 kB archive). Verification reads every archive (O(retained
+  bytes)); AG9's `verify` job takes it out of the pin.
+- Not in AG8: the Integrity & Coverage workspace that shows the catalogue
+  (AG11); per-symbol/topic scope of a gap (AG11); external anchoring (no
+  anchor source is configured, gate D1).

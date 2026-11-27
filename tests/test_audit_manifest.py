@@ -232,3 +232,22 @@ class TestCli:
         _rewrite_archive(tmp_path / "audit", D1, b'"1-3"', b'"1-9"')
         code, _ = self._run(tmp_path, "--date", D2, capsys=capsys)
         assert code == 0
+
+
+def test_each_problem_says_whether_the_chain_or_the_content_failed(
+    tmp_path: Path,
+) -> None:
+    """A reader (the Audit GUI) reports chain and content verification as
+    separate results: an edited entry breaks the chain after it; a changed
+    archive breaks only its own content."""
+    audit_dir = tmp_path / "audit"
+    _archived(audit_dir, "2026-01-05", "2026-01-06")
+    _rewrite_archive(audit_dir, "2026-01-06", b'"1-0"', b'"1-X"')
+    assert [(p.kind, p.day) for p in verify(audit_dir)] == [("content", "2026-01-06")]
+
+    manifest = audit_dir / MANIFEST_NAME
+    first, second = manifest.read_text().splitlines()
+    manifest.write_text(first.replace('"lines":', '"lines": 9') + "\n" + second + "\n")
+    kinds = {(p.kind, p.day) for p in verify(audit_dir)}
+    assert ("chain", "2026-01-06") in kinds
+    assert ("content", "2026-01-05") in kinds

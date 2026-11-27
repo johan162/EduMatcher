@@ -60,13 +60,28 @@ export const Snapshot = z.object({
       cutoff: int,
       torn_bytes: int,
       sha256: z.string(),
+      day: z.string().nullable(),
     }),
   ),
   runs: z.array(
     z.object({
+      run: int,
       run_seq: int.nullable(),
-      started_ts: z.string(),
+      started_ts: z.string().nullable(),
       config_sha256: z.string().nullable(),
+      first_ts: z.string(),
+      last_ts: z.string(),
+      records: int,
+      with_envelope: int,
+      ordering: z.enum(["eseq", "legacy", "mixed"]),
+    }),
+  ),
+  days: z.array(
+    z.object({
+      day: z.string(),
+      state: z.enum(["retained", "unmanifested", "unsealed", "retired", "missing"]),
+      files: z.array(z.string()),
+      content_ok: z.boolean().nullable(),
     }),
   ),
   capabilities: z.record(z.string(), Capability),
@@ -76,7 +91,11 @@ export const Snapshot = z.object({
     entries: int,
     head_sha256: z.string().nullable(),
     anchored: z.boolean(),
-    problems: z.array(z.object({ day: z.string().nullable(), message: z.string() })),
+    problems: z.array(z.object({ day: z.string().nullable(), message: z.string(), kind: z.enum(["chain", "content"]) })),
+    chain_ok: z.boolean().nullable(),
+    content_ok: z.boolean().nullable(),
+    anchor: z.string().nullable(),
+    checked_at: z.string().nullable(),
   }),
   forensics: z
     .object({

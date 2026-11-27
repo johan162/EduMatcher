@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from collections.abc import Callable, Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -38,7 +39,7 @@ from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.main import create_app
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.sessions import SessionRegistry
-from edumatcher.audit.archive import archive_day, archive_lock
+from edumatcher.audit.archive import apply_retention, archive_day, archive_lock
 from edumatcher.audit.main import _meta_section
 from edumatcher.audit.service.session import AuditService
 from edumatcher.audit.service.snapshot import AuditCollection
@@ -77,7 +78,12 @@ RECEIPT_LATENCY_NS = 1 * MS
 #: ``t - SIM_CLOCK_OFFSET_NS``.
 SIM_CLOCK_OFFSET_NS = 250 * MS
 
-#: Every variant ``build`` accepts.
+#: Variant ``rotated``: the active file's size limit (the base world's
+#: trail is ~220 KiB, so the day closes into several parts).
+ROTATED_PART_BYTES = 64 * 1024
+
+#: Every variant ``build`` accepts. ``retired`` and ``missing`` archive the
+#: day first (as ``zstd_archive``), then retire or delete the archive.
 VARIANTS = frozenset(
     {
         "gap",
@@ -88,6 +94,10 @@ VARIANTS = frozenset(
         "torn_tail",
         "sim_context",
         "forensics_report",
+        "legacy",
+        "rotated",
+        "retired",
+        "missing",
     }
 )
 
@@ -373,10 +383,11 @@ class _Recorder:
     """pm-audit at the far end of the engine's PUB socket: every message the
     publisher stack sends becomes one audit line, stamped on receipt."""
 
-    def __init__(self, path: Path, clock: _Clock) -> None:
+    def __init__(self, path: Path, clock: _Clock, max_bytes: int) -> None:
         self.path = path
         self.clock = clock
-        self.file = AuditFile(path, 10 * 1024 * 1024, TZ)
+        self.max_bytes = max_bytes
+        self.file = AuditFile(path, max_bytes, TZ)
 
     def send_multipart(self, frames: list[bytes]) -> None:
         # As pm-audit's AuditProcess._receive_one_message.
@@ -394,7 +405,7 @@ class _Recorder:
         """pm-audit stops and starts again: its next line is preceded by a
         recorder-start marker."""
         self.file.close()
-        self.file = AuditFile(self.path, 10 * 1024 * 1024, TZ, announce_start=True)
+        self.file = AuditFile(self.path, self.max_bytes, TZ, announce_start=True)
 
     def close(self, linger: int | None = None) -> None:
         """The engine closing its PUB socket at shutdown; pm-audit runs on."""
@@ -677,7 +688,10 @@ def build(tmp_path: Path, **variants: bool) -> World:
     marks: dict[str, int] = {}
     script = _Script(marks)
     with _engine_world(clock):
-        recorder = _Recorder(data / "audit.log", clock)
+        # Variant rotated: pm-audit closes the active file into day parts
+        # (audit/audit-<day>.<n>.log) every ~64 KiB, as at its size limit.
+        max_bytes = ROTATED_PART_BYTES if "rotated" in on else 10 * 1024 * 1024
+        recorder = _Recorder(data / "audit.log", clock, max_bytes)
         try:
             script.session = _Session(data, recorder, clock, engine, 1)
             script.run_1(recorder, restart="restart" in on)
@@ -693,8 +707,16 @@ def build(tmp_path: Path, **variants: bool) -> World:
     gap = _plant_gap(data / "audit.log", script.orders["burst_2"]) if "gap" in on else None  # fmt: skip
     if "torn_tail" in on:
         _tear_tail(data / "audit.log")
-    if "zstd_archive" in on:
+    if "legacy" in on:
+        _strip_envelopes(data)
+    if on & {"zstd_archive", "retired", "missing"}:
         _archive(data)
+    if "retired" in on:
+        # pm-audit's retention: the archive goes, a tombstone stays.
+        apply_retention(data / "audit", keep_days=1, today="2026-06-20")
+    if "missing" in on:
+        # The archive deleted by hand: the manifest still holds the day.
+        (data / "audit" / f"audit-{DAY}.log.zst").unlink()
     return World(
         data=data,
         variants=on,
@@ -753,6 +775,16 @@ def _plant_gap(path: Path, cancelled: str) -> tuple[int, int]:
 
     _rewrite(path, change)
     return eseqs[0], eseqs[-1]
+
+
+def _strip_envelopes(data: Path) -> None:
+    """Every line as a pm-audit from before envelopes and sequences wrote
+    it: `[ts] [topic] {payload}`, no `[seq= eseq= msg= ...]` section."""
+    pattern = re.compile(r"^(\[[^\]]+\] \[[^\]]+\] )\[[^\]]*\] ")
+    files = [data / "audit.log", *sorted((data / "audit").glob("audit-*.log"))]
+    for path in files:
+        if path.exists():
+            _rewrite(path, lambda lines: [pattern.sub(r"\1", ln) for ln in lines])
 
 
 def _tear_tail(path: Path) -> None:

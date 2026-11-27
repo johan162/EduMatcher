@@ -468,7 +468,10 @@ def test_build_is_fast_and_stays_inside_tmp_path(tmp_path: Path) -> None:
 
     before = listing(DATA_DIR)
     started = time.perf_counter()
-    build(tmp_path / "w", **dict.fromkeys(aw.VARIANTS - {"zstd_archive"}, True))
+    # The archive variants exclude each other, and the planted gap is in
+    # the active file, which rotation empties.
+    combined = aw.VARIANTS - {"zstd_archive", "retired", "missing", "rotated"}
+    build(tmp_path / "w", **dict.fromkeys(combined, True))
     elapsed = time.perf_counter() - started
     assert listing(DATA_DIR) == before
     assert elapsed < 3.0

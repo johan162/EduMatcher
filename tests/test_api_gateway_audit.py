@@ -180,7 +180,10 @@ def test_the_snapshot_reports_its_manifest_state(tmp_path: Path, base: World) ->
     """Three separate states: no manifest, checked (no external anchor), failed."""
     app = make_audit_app(base)
     status, body = _post(app, "/snapshots", {"collection_id": "world"})
-    assert body["manifest"] == {
+    assert {
+        k: body["manifest"][k]
+        for k in ("state", "entries", "head_sha256", "anchored", "problems")
+    } == {
         "state": "absent",
         "entries": 0,
         "head_sha256": None,
