@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **Not started.** This plan orders the work needed to deliver the
+Status: **In progress** (AG0 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -53,7 +53,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
-| 0 | AG0 | Shared "audit world" fixtures and API test harness | — | 2 d | ☐ | |
+| 0 | AG0 | Shared "audit world" fixtures and API test harness | — | 2 d | ☑ | 2026-11-27 |
 | 1 | AG1 | Evidence collections, minimal snapshot descriptor and capability model | AG0, D1 | 1.5 d | ☐ | |
 | 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☐ | |
 | 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☐ | |
@@ -949,4 +949,49 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 
 | ID | WP | Sev. | Finding | Resolution |
 |---|---|---|---|---|
-| — | — | — | None yet. | — |
+| AGF1 | AG0 | P3 | The engine publishes no `session.state` at startup; the phase it starts in is only on its STARTUP `system.book_checkpoint.<symbol>` (`phase`). A phase band (AG3/AG6, design §9.4) built from `session.state` alone has no phase before the first transition. | Recorded, with a world test pinning the STARTUP checkpoint phase. AG3 takes the initial phase from the checkpoint, and shows "unknown" where neither exists. |
+| AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
+
+### 8.1 AG0 done note (2026-11-27)
+
+- `tests/audit_gui_world.py`: `build(tmp_path, **variants)` records one
+  trading day through a real in-process Engine, the real publisher stack
+  (`CausalPublisher` over `SequencedPublisher`), pm-audit's `_meta_section`
+  and `AuditFile`. Commands are generated message models with a root
+  envelope, echoed and dispatched as `Engine.run` does, each followed by a
+  real maintenance pass (book/depth/indicative observations). The engine and
+  receipt clocks are pinned (receipt = engine + 1 ms; one second per
+  command). Order ids are fixed (`order_id(name)`).
+- Expectation tables (module constants, each number derived in a comment):
+  17 executions (AAA 2 decimals, BBB 4 decimals), seller→buyer flows, owner
+  cancels by gateway, system cancels by reason (`QUOTE_REPLACED` 6,
+  `CIRCUIT_BREAKER_HALT` 1, `SELF_MATCH_PREVENTED` 1,
+  `INSUFFICIENT_LIQUIDITY` 1), 3 DAY expiries at the close, 2 iceberg
+  refills, MM01's quote after its replacement burst, and 35 named order
+  lifecycles (`LIVES`). All matched the recorded session on the first run.
+- The halt is an instructor halt (`risk.symbol_halt` from OPS01, a fifth,
+  ADMIN gateway that never trades), not a price-triggered breaker: it is
+  deterministic and cancels MM01's live quote leg with
+  `CIRCUIT_BREAKER_HALT`.
+- Variants: `gap` (the second burst cancel's command and effects removed;
+  `World.gap_eseq`), `restart` (pm-audit restarts before the halt; nothing
+  lost), `run_reset` (run 2 from the persisted book, counters from 1 again,
+  TRADER02 reuses `layer_1`'s order id), `no_config` (engine started from
+  YAML: `system.startup` carries no config), `zstd_archive` (day rolled and
+  archived with a manifest entry), `torn_tail`, `sim_context`
+  (`market_sim_news.db`: rumour→confirmed on AAA with a value jump,
+  rumour→retracted on BBB; simulator clock +250 ms), `forensics_report`
+  (written by pm-sim-forensics' own report writer with real check
+  metadata; statuses PASS/FAIL/SKIPPED/ERROR are set by the fixture, not
+  computed).
+- `make_audit_app(world, audit_db=)`: the real app with ADMIN (OPS01),
+  TRADER, MARKET_MAKER and read-only keys; roles come from a stub engine.
+  AG1 adds the `audit_collections` wiring.
+- `tests/test_audit_gui_world.py` (28 tests) checks the tables with a naive
+  line reader, and that pm-audit-replay's own detectors report the planted
+  `ESEQ_GAP` and `RECORDER_RESTART`. Building every variant but
+  `zstd_archive` takes well under 3 s; nothing is written outside
+  `tmp_path`; the module passes with `ResourceWarning` as an error.
+- Facts later WPs need: `auction.indicative.*` carries `eq_price_ticks` and
+  `eq_qty`; the base world's read-only tests share a module-scoped build. A
+  shared session fixture is left until a second test module needs it.
