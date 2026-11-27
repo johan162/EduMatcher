@@ -127,9 +127,24 @@ afterEach(() => {
 describe("top bar", () => {
   it("shows the wordmark, the orange app name and the release version", () => {
     renderAt("/book/AAPL");
-    expect(screen.getByText("EduMatcher")).toBeTruthy();
+    expect(screen.getByText("MarketSim")).toBeTruthy();
     expect(screen.getByText("pm-book").className).toContain("text-accent");
     expect(screen.getByText(`v${appVersion.version}`)).toBeTruthy();
+  });
+
+  it("opens the About popup from the glyph left of the wordmark and closes it on Escape", () => {
+    renderAt("/book/AAPL");
+    fireEvent.click(screen.getByRole("button", { name: "About MarketSim" }));
+    const dialog = screen.getByRole("dialog", { name: "MarketSim" });
+    expect(within(dialog).getByText(appVersion.version)).toBeTruthy();
+    expect(within(dialog).getByText("MIT")).toBeTruthy();
+    expect(within(dialog).getByText("Copyright © 2026 Johan Persson")).toBeTruthy();
+    expect(within(dialog).getByRole("link").getAttribute("href")).toBe(
+      "https://johan162.github.io/market-sim/index.html",
+    );
+    expect(within(dialog).getByText("Exchange Concepts: An Introduction")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows md-gwy's session phase and the countdown to the next one, and Unknown once the bridge drops", () => {

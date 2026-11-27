@@ -9,6 +9,7 @@ import { formatCountdown } from "@/lib/formatters.js";
 import { ConnectionBadge, type ConnectionBadgeState } from "@/components/ConnectionBadge.js";
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
 import { Bell, LogOut, HelpCircle, Moon, Search, Sun } from "lucide-react";
+import { AboutButton } from "./AboutButton.js";
 import appVersion from "../../version.json";
 import { formatClock } from "@/lib/formatters.js";
 
@@ -55,8 +56,9 @@ export function TopBar() {
   return (
     <header className="h-10 flex items-center px-4 bg-panel border-b border-line flex-shrink-0 z-50">
       {/* Left: wordmark */}
-      <div className="flex items-center gap-2 w-56 flex-shrink-0">
-        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+      <div className="flex items-center gap-2 min-w-56 whitespace-nowrap flex-shrink-0">
+        <AboutButton app="pm-trader" version={appVersion.version} />
+        <span className="font-mono font-bold text-sm text-fg">MarketSim</span>
         <span className="font-mono text-xs text-accent">pm-trader</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>

@@ -18,6 +18,7 @@ import { HelpButton } from "../help/HelpButton.js";
 import { HELP_TOPICS } from "../help/helpContent.js";
 import { useLiveStore, type ConnectionState } from "../../store/useLiveStore.js";
 import { DENSITY_LABEL, usePrefsStore } from "../../store/usePrefsStore.js";
+import { AboutButton } from "./AboutButton.js";
 import appVersion from "../../version.json";
 
 const VIEWS = [
@@ -54,7 +55,8 @@ export function TopBar() {
     <>
       <header className="flex h-12 shrink-0 items-center gap-6 border-b border-border bg-bg-subtle px-4 text-sm">
         <div className="flex items-baseline gap-2">
-          <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+          <AboutButton app="pm-terminal" version={appVersion.version} />
+          <span className="font-mono font-bold text-sm text-fg">MarketSim</span>
           <span className="font-mono text-xs text-accent">pm-terminal</span>
           <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
         </div>

@@ -16,6 +16,7 @@ import { RefreshPicker, TimePicker } from "./TimePicker.js";
 import { EXCHANGE_STATUS, UNKNOWN_STATUS } from "../../lib/status.js";
 import { useDashStore, type SocketState } from "../../store/useDashStore.js";
 import { usePrefsStore } from "../../store/usePrefsStore.js";
+import { AboutButton } from "./AboutButton.js";
 import appVersion from "../../version.json";
 
 /** The bridge connection only; pm-monitor's own state is the banner's. */
@@ -67,7 +68,8 @@ export function TopBar() {
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-border bg-bg-subtle px-4 text-sm">
       <div className="flex items-baseline gap-2">
-        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <AboutButton app="pm-dash" version={appVersion.version} />
+        <span className="font-mono font-bold text-sm text-fg">MarketSim</span>
         <span className="font-mono text-xs text-accent">pm-dash</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>

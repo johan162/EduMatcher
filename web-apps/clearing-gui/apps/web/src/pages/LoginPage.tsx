@@ -6,6 +6,7 @@ import { ApiError, NetworkError } from "@/api/errors";
 import { Status } from "@/api/schemas";
 import { landingPath } from "@/router/RoleGuard";
 import { useAuthStore, type Role } from "@/store/useAuthStore";
+import appVersion from "../version.json";
 
 const ROLES: readonly string[] = ["TRADER", "MARKET_MAKER", "ADMIN"];
 
@@ -52,8 +53,12 @@ export function LoginPage() {
   return (
     <main className="flex h-screen items-center justify-center bg-app text-fg">
       <form onSubmit={onSubmit} className="w-[400px] rounded-lg border border-line bg-panel p-6 shadow-xl">
-        <h1 className="font-mono text-lg font-bold">EduMatcher Clearing</h1>
-        <p className="mb-6 text-xs text-fg-dim">Read-only positions, P&amp;L and settlement · pm-clearing-ui</p>
+        <div className="flex items-baseline gap-2">
+          <h1 className="font-mono text-lg font-bold">MarketSim</h1>
+          <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
+        </div>
+        <p className="text-sm text-fg-dim">Financial Market Simulator</p>
+        <p className="mb-6 text-xs text-fg-faint">Read-only positions, P&amp;L and settlement · pm-clearing-ui</p>
         <label htmlFor="api-key" className="mb-1 block text-xs text-fg-dim">
           API key
         </label>

@@ -78,7 +78,7 @@ export function ConnectionsView() {
             <th className="border-b border-border py-1 pr-2">
               Process{" "}
               <InfoTip label="Process">
-                The EduMatcher program that logged, with its instance name in
+                The MarketSim program that logged, with its instance name in
                 brackets when several of the same kind run.
               </InfoTip>
             </th>

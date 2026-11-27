@@ -12,7 +12,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "pm-dash is the operator's dashboard: whether the exchange is healthy, how busy it is, and which part is not. Health data comes from the monitor process (pm-monitor), which every EduMatcher process reports to; the dashboard shows it live and keeps history so you can look back."
+          "pm-dash is the operator's dashboard: whether the exchange is healthy, how busy it is, and which part is not. Health data comes from the monitor process (pm-monitor), which every MarketSim process reports to; the dashboard shows it live and keeps history so you can look back."
         ]
       },
       {
@@ -158,7 +158,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every EduMatcher web app; the text after the word is specific to this one."
+          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every MarketSim web app; the text after the word is specific to this one."
         ],
         "terms": [
           {
@@ -192,7 +192,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every EduMatcher web app."
+          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every MarketSim web app."
         ],
         "terms": [
           {

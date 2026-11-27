@@ -34,9 +34,9 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Getting Started",
     blocks: [
       {
-        heading: "What is EduMatcher?",
+        heading: "What is MarketSim?",
         paragraphs: [
-          "EduMatcher is a teaching exchange. This UI is a graphical trading terminal that connects to the pm-api-gwy gateway over REST and WebSocket.",
+          "MarketSim is a teaching exchange. This UI is a graphical trading terminal that connects to the pm-api-gwy gateway over REST and WebSocket.",
         ],
       },
       {
@@ -61,7 +61,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every EduMatcher web app; the text after the word is specific to this one."
+          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every MarketSim web app; the text after the word is specific to this one."
         ],
         "terms": [
           {
@@ -92,7 +92,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every EduMatcher web app."
+          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every MarketSim web app."
         ],
         "terms": [
           {

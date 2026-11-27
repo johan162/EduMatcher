@@ -13,6 +13,7 @@ import { useUiConfig } from "../../lib/useUiConfig.js";
 import type { LogLevel } from "@edumatcher/log-types";
 import type { ThemePreference } from "../../lib/theme.js";
 import { useLiveStore, type SourceState } from "../../store/useLiveStore.js";
+import { AboutButton } from "./AboutButton.js";
 import appVersion from "../../version.json";
 
 /** Icon shown is the theme a click will switch *to*, not the active one. */
@@ -66,7 +67,8 @@ export function TopBar({
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-bg-subtle px-4 text-sm">
       <span className="flex items-baseline gap-2">
-        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <AboutButton app="pm-log" version={appVersion.version} />
+        <span className="font-mono font-bold text-sm text-fg">MarketSim</span>
         <span className="font-mono text-xs text-accent">pm-log</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </span>

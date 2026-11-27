@@ -171,7 +171,7 @@ export function DashboardView() {
         />
         <MeterTile
           label="Processes"
-          help="The number of distinct EduMatcher processes (matching engine, gateways, monitor, traders and so on) that have logged to the server. See the Connections view for who is connected right now."
+          help="The number of distinct MarketSim processes (matching engine, gateways, monitor, traders and so on) that have logged to the server. See the Connections view for who is connected right now."
           big={summary?.perProcess.length ?? "—"}
         />
       </div>

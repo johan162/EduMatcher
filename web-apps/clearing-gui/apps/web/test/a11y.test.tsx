@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 const SCREENS: [Role | null, string, string][] = [
-  [null, "/login", "EduMatcher Clearing"],
+  [null, "/login", "MarketSim"],
   ["ADMIN", "/overview", "Clearing Overview"],
   ["ADMIN", "/participants/TRADER01", "Participant TRADER01"],
   ["ADMIN", "/symbols", "Symbol Activity"],

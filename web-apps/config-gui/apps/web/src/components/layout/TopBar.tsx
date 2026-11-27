@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/Select";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { HelpButton } from "../help/HelpButton";
 import { HELP_TOPICS } from "../help/helpContent";
+import { AboutButton } from "./AboutButton";
 import appVersion from "../../version.json";
 
 const PERSONA_LABELS: Record<Persona, string> = {
@@ -59,7 +60,8 @@ export function TopBar() {
   return (
     <header className="flex h-12 items-center justify-between gap-4 border-b border-border bg-surface px-4">
       <div className="flex items-baseline gap-2">
-        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <AboutButton app="pm-config" version={appVersion.version} />
+        <span className="font-mono font-bold text-sm text-fg">MarketSim</span>
         <span className="font-mono text-xs text-accent">pm-config</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>
