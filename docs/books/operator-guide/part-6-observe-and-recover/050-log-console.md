@@ -473,6 +473,8 @@ toggled by the **▶ LIVE / history** button.
   **most recent 2 000 rows**, newest first. Rows flash briefly as they arrive.
 - **history** queries `log.db` through the bridge and shows a match count.
 
+The **(?)** beside the button opens a short explanation of the two modes.
+
 The filter bar applies to both modes, and every filter is **kept in the URL
 query string** — so a filtered view is a link you can paste into a ticket or a
 chat message and a colleague opens exactly what you were looking at.
