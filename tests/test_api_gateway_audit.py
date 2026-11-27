@@ -86,6 +86,8 @@ _ROUTES = {
     ("GET", "/events"): "/events?snapshot_id={sid}",
     ("GET", "/stories/{entity_kind}/{entity_id}"): "/stories/order/{oid}?snapshot_id={sid}",  # fmt: skip
     ("GET", "/findings"): "/findings?snapshot_id={sid}",
+    ("GET", "/market/{symbol}/heatmap"): "/market/AAA/heatmap?snapshot_id={sid}",
+    ("GET", "/market/{symbol}/lifelines"): "/market/AAA/lifelines?snapshot_id={sid}",
 }
 
 

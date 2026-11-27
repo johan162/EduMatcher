@@ -38,6 +38,8 @@ from edumatcher.api_gateway.responses import (
     AuditCollections,
     AuditEventPage,
     AuditFindingPage,
+    AuditHeatmap,
+    AuditLifelines,
     AuditSnapshot,
     AuditSnapshotRequest,
     AuditStory,
@@ -46,10 +48,12 @@ from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
 from edumatcher.audit.service.capabilities import Reason
 from edumatcher.audit.service.findings import BEHAVIOUR, LANES
+from edumatcher.audit.service.market import MAX_BINS
 from edumatcher.audit.service.session import (
     AmbiguousRun,
     AuditService,
     CapabilityUnavailable,
+    EmptyWindow,
     EventFilter,
     SnapshotUnavailable,
     UnknownCollection,
@@ -90,6 +94,26 @@ _After = Annotated[
 _Symbol = Annotated[
     str | None,
     Query(min_length=1, max_length=64, description="Records of this symbol."),
+]
+_MarketSymbol = Annotated[
+    str, Path(min_length=1, max_length=64, description="The symbol.")
+]
+_From = Annotated[
+    int | None,
+    Query(
+        alias="from",
+        ge=0,
+        description="Window start, epoch nanoseconds on the receipt clock "
+        "(default: the snapshot's first record).",
+    ),
+]
+_To = Annotated[
+    int | None,
+    Query(
+        ge=0,
+        description="Window end, exclusive (default: just after the snapshot's "
+        "last record).",
+    ),
 ]
 
 
@@ -544,3 +568,121 @@ async def audit_findings(
             _encode_cursor(snapshot_id, digest, start + limit) if more else None
         ),
     }
+
+
+def _unknown_symbol(exc: UnknownEntity) -> HTTPException:
+    return _error(404, {"code": "UNKNOWN_ENTITY", "message": str(exc)})
+
+
+@router.get(
+    "/market/{symbol}/heatmap",
+    response_model=AuditHeatmap,
+    summary="Depth heatmap",
+    responses=docs.merge(
+        docs.ok(docs.AUDIT_HEATMAP, "Displayed depth per price level and time bin."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ROLE_DENIED",
+            "VALIDATION",
+            "UNKNOWN_SNAPSHOT",
+            "UNKNOWN_ENTITY",
+            "CAPABILITY_UNAVAILABLE",
+            "AUDIT_SOURCE_UNAVAILABLE",
+        ),
+    ),
+)
+async def audit_heatmap(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    symbol: _MarketSymbol,
+    snapshot_id: _SnapshotId,
+    start: _From = None,
+    to: _To = None,
+    bins: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=MAX_BINS,
+            description=f"Time bins wanted (1-{MAX_BINS}); never finer than the "
+            "median observation interval.",
+        ),
+    ] = 300,
+) -> dict[str, Any]:
+    """Displayed quantity per price level (integer ticks) and time bin, from
+    the recorded `book.<symbol>` observations only.
+
+    An observation is valid until the next one, a phase change, an uncross
+    of the symbol, lost records or the end of its engine run, and is never
+    interpolated. A cell
+    weights each observation by the time it covered in the bin. `masks`
+    marks lost records (`gap`: no cells) and halts (`halt`: the observed
+    book keeps its cells). `cadence` is measured over the whole snapshot.
+    `phases` starts from the engine's STARTUP checkpoint. Times are on the
+    receipt clock.
+    """
+    await require_admin(request, session)
+    service = _service(request)
+
+    def work() -> dict[str, Any]:
+        return service.session(snapshot_id).heatmap(symbol, start, to, bins)
+
+    try:
+        body = await _analysing(work)
+    except UnknownEntity as exc:
+        raise _unknown_symbol(exc) from exc
+    except EmptyWindow as exc:
+        _invalid("to", str(exc))
+    return {"snapshot_id": snapshot_id, "symbol": symbol, **body}
+
+
+@router.get(
+    "/market/{symbol}/lifelines",
+    response_model=AuditLifelines,
+    summary="Order lifelines",
+    responses=docs.merge(
+        docs.ok(docs.AUDIT_LIFELINES, "Each order's life on the book, in segments."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ROLE_DENIED",
+            "VALIDATION",
+            "UNKNOWN_SNAPSHOT",
+            "UNKNOWN_ENTITY",
+            "AUDIT_SOURCE_UNAVAILABLE",
+        ),
+    ),
+)
+async def audit_lifelines(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    symbol: _MarketSymbol,
+    snapshot_id: _SnapshotId,
+    start: _From = None,
+    to: _To = None,
+    gateway: Annotated[
+        str | None,
+        Query(min_length=1, max_length=32, description="Only this gateway's orders."),
+    ] = None,
+) -> dict[str, Any]:
+    """Every order and quote leg of the symbol, per engine run, from its
+    admission to its end (`filled`, `cancel.owner`, `cancel.system` with
+    the engine's reason, `expired`, `open`, or `censored` where the window
+    ends first), clipped to the window.
+
+    Each segment is one price, displayed quantity and state; an amendment,
+    fill, iceberg refill or stop trigger starts a new one. Over
+    `segment_cap` segments the response holds per-level aggregates instead
+    (`aggregated: true`). Times are on the receipt clock.
+    """
+    await require_admin(request, session)
+    service = _service(request)
+
+    def work() -> dict[str, Any]:
+        return service.session(snapshot_id).lifelines(symbol, start, to, gateway)
+
+    try:
+        body = await _in_snapshot(work)
+    except UnknownEntity as exc:
+        raise _unknown_symbol(exc) from exc
+    except EmptyWindow as exc:
+        _invalid("to", str(exc))
+    return {"snapshot_id": snapshot_id, "symbol": symbol, **body}

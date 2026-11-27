@@ -12,7 +12,7 @@ snapshot's directory, so stories and findings are read with the same reader
 Nothing here knows HTTP. Failures are typed exceptions the router maps to
 statuses: :class:`SnapshotUnavailable`, :class:`UnknownCollection`,
 :class:`UnknownEntity`, :class:`AmbiguousRun`,
-:class:`CapabilityUnavailable`.
+:class:`CapabilityUnavailable`, :class:`EmptyWindow`.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ import sqlite3
 import threading
 from collections.abc import Iterable, Mapping
 from contextlib import closing
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +43,13 @@ from edumatcher.audit.replay.ordering import ordered, pack_sort_key
 from edumatcher.audit.replay.pipeline import Reconstruction
 from edumatcher.audit.replay.render_text import Options
 from edumatcher.audit.service.capabilities import Capability, Reason
+from edumatcher.audit.service.errors import (
+    CapabilityUnavailable,
+    EmptyWindow,
+    UnknownEntity,
+)
 from edumatcher.audit.service.findings import BEHAVIOUR, lane_of
+from edumatcher.audit.service.market import MarketModel, epoch_ns
 from edumatcher.models.generated.order import TOPIC_ORDER_NEW
 from edumatcher.audit.service.snapshot import (
     AuditCollection,
@@ -75,10 +80,6 @@ class UnknownCollection(LookupError):
     """No configured collection has this id."""
 
 
-class UnknownEntity(LookupError):
-    """The snapshot holds no episode for this entity."""
-
-
 class AmbiguousRun(Exception):
     """The entity appears in more than one engine run; name one (``runs``
     are publisher runs, as ``/events`` reports them)."""
@@ -88,14 +89,6 @@ class AmbiguousRun(Exception):
             f"the id appears in runs {', '.join(map(str, runs))}: pass run_id"
         )
         self.runs = runs
-
-
-class CapabilityUnavailable(Exception):
-    """The snapshot's evidence cannot support this analysis."""
-
-    def __init__(self, reason: Reason, message: str) -> None:
-        super().__init__(message)
-        self.reason = reason
 
 
 class EventFilter:
@@ -148,6 +141,7 @@ class ReplaySession:
         if not self._index_is_current():
             self._build_index(snapshot)
         self._findings: list[dict[str, Any]] | None = None
+        self._market: MarketModel | None = None
 
     # -- events ---------------------------------------------------------
 
@@ -227,7 +221,29 @@ class ReplaySession:
             self._findings = rows
         return self._findings
 
+    # -- market ---------------------------------------------------------
+
+    def heatmap(
+        self, symbol: str, start: int | None, end: int | None, bins: int
+    ) -> dict[str, Any]:
+        """*symbol*'s depth heatmap (:meth:`MarketModel.heatmap`)."""
+        self._require(Capability.BOOK)
+        return dict(ns_as_strings(self._market_model().heatmap(symbol, start, end, bins)))  # fmt: skip
+
+    def lifelines(
+        self, symbol: str, start: int | None, end: int | None, gateway: str | None
+    ) -> dict[str, Any]:
+        """*symbol*'s order lifelines (:meth:`MarketModel.lifelines`)."""
+        return dict(
+            ns_as_strings(self._market_model().lifelines(symbol, start, end, gateway))
+        )
+
     # -- internals ------------------------------------------------------
+
+    def _market_model(self) -> MarketModel:
+        if self._market is None:
+            self._market = MarketModel(self.facts)
+        return self._market
 
     def _require(self, capability: Capability) -> None:
         state = self.descriptor.capabilities[capability]
@@ -313,7 +329,7 @@ def event_row(f: Fact) -> dict[str, Any]:
         "eseq": f.eseq,
         "topic_seq": f.topic_seq,
         "receipt_ts": f.receipt_raw,
-        "receipt_ns": str(_epoch_ns(f.receipt_ts)),
+        "receipt_ns": str(epoch_ns(f.receipt_ts)),
         "topic": f.topic,
         "kind": f.kind,
         "symbol": f.symbol,
@@ -355,15 +371,12 @@ def _run_of(episode: replay_episodes.Episode) -> int:
     return episode.events[0].fact.publisher_run if episode.events else 0
 
 
-def _epoch_ns(when: datetime) -> int:
-    return int(when.timestamp()) * 1_000_000_000 + when.microsecond * 1000
-
-
 __all__ = [
     "AmbiguousRun",
     "AuditService",
     "CapabilityUnavailable",
     "ENTITY_KINDS",
+    "EmptyWindow",
     "EventFilter",
     "ReplaySession",
     "SnapshotUnavailable",

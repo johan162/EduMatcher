@@ -49,7 +49,7 @@ from edumatcher.market_sim.news_history import append_news_event, append_value_j
 from edumatcher.messaging.bus import CausalPublisher, SequencedPublisher
 from edumatcher.models.envelope import envelope_frame, new_ulid
 from edumatcher.models.generated.news import NewsEvent
-from edumatcher.models.generated.order import OrderCancel, OrderNew
+from edumatcher.models.generated.order import OrderAmend, OrderCancel, OrderNew
 from edumatcher.models.generated.quote import QuoteNew
 from edumatcher.models.generated.risk import SymbolHalt, SymbolResume
 from edumatcher.models.generated.session import SessionTransition
@@ -175,9 +175,10 @@ FLOWS: dict[tuple[str, str, str], tuple[int, int]] = {
 }
 
 #: Owner cancellations (an ``order.cancel`` from the order's own gateway
-#: that the engine carried out), per gateway: TRADER02 pulls its three
-#: layering offers, TRADER03 its four-bid cancel burst.
-OWNER_CANCELS = {T2: 3, T3: 4}
+#: that the engine carried out), per gateway: TRADER01 its amended bid,
+#: TRADER02 pulls its three layering offers, TRADER03 its four-bid cancel
+#: burst.
+OWNER_CANCELS = {T1: 1, T2: 3, T3: 4}
 
 #: System cancellations by ``cancel_reason``.
 SYSTEM_CANCELS = {
@@ -200,6 +201,12 @@ EXPIRED_AT_CLOSE = 3
 #: Iceberg slices refilled: after the first and the second probe (the third
 #: probe takes the last slice, which leaves nothing to refill).
 ICEBERG_REFILLS = 2
+
+#: ``amend_bid``'s life on the book, one (price ticks, displayed qty) per
+#: segment: TRADER01 bids 100 @ 2.4000 on BBB, amends the price to 2.4500,
+#: then the size to 60, then cancels. BBB never trades below 2.5000, so
+#: nothing touches it.
+AMENDMENTS = {"amend_bid": ((24000, 100), (24500, 100), (24500, 60))}
 
 #: MM01's quote after the replacement burst, as AAA's best bid/ask in ticks.
 QUOTE_AFTER_BURST = (9990, 10010)  # a quoted spread of 20 ticks = 0.20
@@ -251,6 +258,7 @@ LIVES: dict[str, Life] = {
     "cycle_sell_2": Life(T2, "BBB", "SELL", 500, 500, "filled"),
     "cycle_buy_3": Life(T1, "BBB", "BUY", 500, 500, "filled"),
     "cycle_sell_3": Life(T3, "BBB", "SELL", 500, 500, "filled"),
+    "amend_bid": Life(T1, "BBB", "BUY", 100, 0, "cancel.owner"),
     "pair_buy_1": Life(T3, "BBB", "BUY", 200, 200, "filled"),
     "pair_sell_1": Life(T1, "BBB", "SELL", 200, 200, "filled"),
     "pair_buy_2": Life(T1, "BBB", "BUY", 200, 200, "filled"),
@@ -507,6 +515,19 @@ class _Script:
         payload = OrderCancel(order_id=self.orders[name], gateway_id=gateway)
         self.session.send("order.cancel", payload.to_dict())
 
+    def amend(
+        self,
+        name: str,
+        gateway: str,
+        *,
+        price: float | None = None,
+        qty: int | None = None,
+    ) -> None:
+        payload = OrderAmend(
+            order_id=self.orders[name], gateway_id=gateway, price=price, qty=qty
+        )
+        self.session.send("order.amend", payload.to_dict())
+
     def quote(self, bid: int, ask: int, qty: int) -> None:
         payload = QuoteNew(
             gateway_id=MM,
@@ -582,6 +603,11 @@ class _Script:
         for i, (seller, buyer) in enumerate(((T1, T2), (T2, T3), (T3, T1)), start=1):
             self.order(f"cycle_buy_{i}", buyer, "BBB", buy, 500, 25200)
             self.order(f"cycle_sell_{i}", seller, "BBB", sell, 500, 25200)
+        self.mark("amend")
+        self.order("amend_bid", T1, "BBB", buy, 100, 24000)
+        self.amend("amend_bid", T1, price=2.45)
+        self.amend("amend_bid", T1, qty=60)
+        self.cancel("amend_bid", T1)
         self.mark("news_retracted")
         self.session.clock.ns += SEC
         self.mark("round_trip")

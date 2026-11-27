@@ -2595,3 +2595,120 @@ AUDIT_FINDINGS: dict[str, Any] = {
     "has_more": False,
     "next_cursor": None,
 }
+
+AUDIT_HEATMAP: dict[str, Any] = {
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "symbol": "AAA",
+    "clock": "receipt",
+    "tick_decimals": 2,
+    "from_ns": "1781506855001000000",
+    "to_ns": "1781506857001000000",
+    "bin_ns": "1000000000",
+    "bins": 2,
+    "requested_bins": 300,
+    "cadence": {
+        "observations": 34,
+        "median_interval_ns": "1000000000",
+        "min_interval_ns": "1000000000",
+        "max_interval_ns": "31000000000",
+    },
+    "levels": [
+        {"price_ticks": 9900, "price": "99.00"},
+        {"price_ticks": 9985, "price": "99.85"},
+        {"price_ticks": 10010, "price": "100.10"},
+    ],
+    "columns": [
+        {
+            "start_ns": "1781506855001000000",
+            "end_ns": "1781506856001000000",
+            "covered_ns": "1000000000",
+            "observations": 1,
+            "age_ns": "16000000000",
+            "masks": [],
+            "bids": [[9900, 10.0], [9985, 50.0]],
+            "asks": [[10010, 150.0]],
+        },
+        {
+            "start_ns": "1781506856001000000",
+            "end_ns": "1781506857001000000",
+            "covered_ns": "1000000000",
+            "observations": 1,
+            "age_ns": "1000000000",
+            "masks": ["halt"],
+            "bids": [[9900, 10.0], [9985, 50.0]],
+            "asks": [],
+        },
+    ],
+    "masks": [
+        {
+            "kind": "halt",
+            "from_ns": "1781506856001000000",
+            "to_ns": "1781506857001000000",
+            "detail": "ADMIN_SYMBOL",
+        }
+    ],
+    "phases": [
+        {
+            "phase": "CONTINUOUS",
+            "from_ns": "1781506855001000000",
+            "to_ns": "1781506857001000000",
+        }
+    ],
+}
+
+AUDIT_LIFELINES: dict[str, Any] = {
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "symbol": "BBB",
+    "clock": "receipt",
+    "tick_decimals": 4,
+    "from_ns": "1781506800001000000",
+    "to_ns": "1781506893001000001",
+    "gateway": "TRADER01",
+    "aggregated": False,
+    "segment_cap": 5000,
+    "segments": 3,
+    "without_admission": 0,
+    "lifelines": [
+        {
+            "order_id": "2aeb1046782a47229b618d7fd9cd42e6",
+            "run": 0,
+            "gateway": "TRADER01",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "quote_id": None,
+            "start_ns": "1781506851001000000",
+            "start_censored": False,
+            "end": "cancel.owner",
+            "end_ns": "1781506854001000000",
+            "end_reason": None,
+            "filled_qty": 0,
+            "segments": [
+                {
+                    "start_ns": "1781506851001000000",
+                    "end_ns": "1781506852001000000",
+                    "price_ticks": 24000,
+                    "displayed_qty": 100,
+                    "state": "book",
+                    "cause": "admission",
+                },
+                {
+                    "start_ns": "1781506852001000000",
+                    "end_ns": "1781506853001000000",
+                    "price_ticks": 24500,
+                    "displayed_qty": 100,
+                    "state": "book",
+                    "cause": "amend",
+                },
+                {
+                    "start_ns": "1781506853001000000",
+                    "end_ns": "1781506854001000000",
+                    "price_ticks": 24500,
+                    "displayed_qty": 60,
+                    "state": "book",
+                    "cause": "amend",
+                },
+            ],
+        }
+    ],
+    "levels": [],
+}

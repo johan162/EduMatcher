@@ -1382,3 +1382,145 @@ class AuditFindingPage(_Page):
     snapshot_id: str
     lanes: dict[str, AuditLane]
     findings: list[AuditFinding] = Field(description="Worst first, then by time.")
+
+
+class AuditCadence(BaseModel):
+    observations: int = Field(ge=0, description="Book observations of the symbol in the snapshot.")  # fmt: skip
+    median_interval_ns: str | None = Field(
+        description="Median time between consecutive observations in one engine "
+        "run; bins are never finer. Null with fewer than two."
+    )
+    min_interval_ns: str | None
+    max_interval_ns: str | None
+
+
+class AuditPriceLevel(BaseModel):
+    price_ticks: int
+    price: str | None = Field(
+        description="At the recorded `tick_decimals`; null when none is recorded."
+    )
+
+
+class AuditMask(BaseModel):
+    kind: Literal["gap", "halt"] = Field(
+        description="`gap`: records were lost (no cells); `halt`: the symbol was "
+        "halted (the observed book keeps its cells)."
+    )
+    from_ns: str
+    to_ns: str
+    detail: str
+
+
+class AuditPhase(BaseModel):
+    phase: str | None = Field(description="Session phase; null when unknown.")
+    from_ns: str
+    to_ns: str
+
+
+class AuditHeatmapColumn(BaseModel):
+    start_ns: str
+    end_ns: str
+    covered_ns: str = Field(description="Time in the bin some observation was valid.")
+    observations: int = Field(ge=0, description="Observations valid in the bin.")
+    age_ns: str | None = Field(
+        description="Age of the newest observation at the end of its time in the "
+        "bin; null when none."
+    )
+    masks: list[Literal["gap", "halt"]]
+    bids: list[tuple[int, float]] = Field(
+        description="`[price_ticks, displayed qty]`, the quantity weighted by the "
+        "time each observation covered."
+    )
+    asks: list[tuple[int, float]]
+
+
+class AuditHeatmap(BaseModel):
+    snapshot_id: str
+    symbol: str
+    clock: Literal["receipt"] = Field(description="The clock every time is on.")
+    tick_decimals: int | None
+    from_ns: str
+    to_ns: str
+    bin_ns: str
+    bins: int
+    requested_bins: int
+    cadence: AuditCadence
+    levels: list[AuditPriceLevel] = Field(description="Every level with a cell, low to high.")  # fmt: skip
+    columns: list[AuditHeatmapColumn]
+    masks: list[AuditMask]
+    phases: list[AuditPhase]
+
+
+class AuditLifelineSegment(BaseModel):
+    start_ns: str
+    end_ns: str
+    price_ticks: int | None = Field(
+        description="Limit price; the stop price while `stop`; null while `market`."
+    )
+    displayed_qty: int = Field(ge=0, description="Shown on the book; 0 unless `book`.")
+    state: Literal["book", "stop", "market"]
+    cause: Literal["admission", "fill", "refill", "amend", "trigger"] = Field(
+        description="What started this segment."
+    )
+
+
+class AuditLifeline(BaseModel):
+    order_id: str
+    run: int = Field(description="Engine restart epoch, as `run` on `/events`.")
+    gateway: str | None
+    side: str | None
+    order_type: str | None = Field(description="Null for a quote leg.")
+    quote_id: str | None
+    start_ns: str = Field(
+        description="Admission: the accepted `order.ack`/`quote.ack`."
+    )
+    start_censored: bool = Field(description="Admitted before the window.")
+    end: Literal[
+        "filled", "cancel.owner", "cancel.system", "expired", "open", "censored"
+    ] = Field(
+        description="`open`: still resting when its run's records end; "
+        "`censored`: the window ends first."
+    )
+    end_ns: str | None
+    end_reason: str | None = Field(description="The engine's reason for `cancel.system`.")  # fmt: skip
+    filled_qty: int = Field(ge=0)
+    segments: list[AuditLifelineSegment] = Field(
+        description="Clipped to the window; a new one at each amendment, fill, "
+        "iceberg refill or trigger."
+    )
+
+
+class AuditLifelineLevel(BaseModel):
+    side: str | None
+    state: Literal["book", "stop", "market"]
+    price_ticks: int | None
+    orders: int
+    segments: int
+    max_displayed_qty: int
+    from_ns: str
+    to_ns: str
+    ends: dict[str, int] = Field(
+        description="How the lifelines whose last segment is here ended."
+    )
+
+
+class AuditLifelines(BaseModel):
+    snapshot_id: str
+    symbol: str
+    clock: Literal["receipt"]
+    tick_decimals: int | None
+    from_ns: str
+    to_ns: str
+    gateway: str | None
+    aggregated: bool = Field(
+        description="True when `segments` exceeds `segment_cap`: `lifelines` is "
+        "empty and `levels` holds per-level aggregates."
+    )
+    segment_cap: int
+    segments: int = Field(description="Segments in the window (all of them).")
+    without_admission: int = Field(
+        description="Orders of the symbol with events but no admission in their "
+        "run (e.g. restored by a restart): no lifeline."
+    )
+    lifelines: list[AuditLifeline]
+    levels: list[AuditLifelineLevel]

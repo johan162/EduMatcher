@@ -219,6 +219,20 @@ def test_named_orders_live_as_the_table_says(base: World, base_recs: list[Rec]) 
         assert (got, news) == (expected, 1), name
 
 
+def test_amended_order_keeps_each_price_and_size(
+    base: World, base_recs: list[Rec]
+) -> None:
+    for name, expected in aw.AMENDMENTS.items():
+        oid = base.orders[name]
+        new = next(r for r in base_recs if r.topic == "order.new" and r.payload["id"] == oid)  # fmt: skip
+        states = [(new.payload["price_ticks"], new.payload["quantity"])] + [
+            (r.payload["price_ticks"], r.payload["remaining_qty"])
+            for r in base_recs
+            if r.topic.startswith("order.amended.") and r.payload["order_id"] == oid
+        ]
+        assert tuple(states) == expected, name
+
+
 def test_phases_auctions_and_halt(base_recs: list[Rec]) -> None:
     states = [r.payload["state"] for r in base_recs if r.topic == "session.state"]
     entered = tuple(s for i, s in enumerate(states) if i == 0 or s != states[i - 1])

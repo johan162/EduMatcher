@@ -21626,7 +21626,7 @@
             }
           },
           "404": {
-            "description": "`UNKNOWN_ENTITY`: The snapshot holds no episode for this order, trade, quote, OCO, combo or command id (an ambiguous prefix matches none). `UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "description": "`UNKNOWN_ENTITY`: The snapshot holds no episode for this order, trade, quote, OCO, combo or command id (an ambiguous prefix matches none), or no record of this symbol. `UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
             "content": {
               "application/json": {
                 "examples": {
@@ -22101,6 +22101,741 @@
           }
         }
       }
+    },
+    "/api/v1/audit/market/{symbol}/heatmap": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Depth heatmap",
+        "description": "Displayed quantity per price level (integer ticks) and time bin, from\nthe recorded `book.<symbol>` observations only.\n\nAn observation is valid until the next one, a phase change, an uncross\nof the symbol, lost records or the end of its engine run, and is never\ninterpolated. A cell\nweights each observation by the time it covered in the bin. `masks`\nmarks lost records (`gap`: no cells) and halts (`halt`: the observed\nbook keeps its cells). `cadence` is measured over the whole snapshot.\n`phases` starts from the engine's STARTUP checkpoint. Times are on the\nreceipt clock.",
+        "operationId": "audit_heatmap",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The symbol.",
+              "title": "Symbol"
+            },
+            "description": "The symbol."
+          },
+          {
+            "name": "snapshot_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The snapshot every read is pinned to (`POST /audit/snapshots`).",
+              "title": "Snapshot Id"
+            },
+            "description": "The snapshot every read is pinned to (`POST /audit/snapshots`)."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window start, epoch nanoseconds on the receipt clock (default: the snapshot's first record).",
+              "title": "From"
+            },
+            "description": "Window start, epoch nanoseconds on the receipt clock (default: the snapshot's first record)."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window end, exclusive (default: just after the snapshot's last record).",
+              "title": "To"
+            },
+            "description": "Window end, exclusive (default: just after the snapshot's last record)."
+          },
+          {
+            "name": "bins",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "description": "Time bins wanted (1-2000); never finer than the median observation interval.",
+              "default": 300,
+              "title": "Bins"
+            },
+            "description": "Time bins wanted (1-2000); never finer than the median observation interval."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Displayed depth per price level and time bin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHeatmap"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "symbol": "AAA",
+                  "clock": "receipt",
+                  "tick_decimals": 2,
+                  "from_ns": "1781506855001000000",
+                  "to_ns": "1781506857001000000",
+                  "bin_ns": "1000000000",
+                  "bins": 2,
+                  "requested_bins": 300,
+                  "cadence": {
+                    "observations": 34,
+                    "median_interval_ns": "1000000000",
+                    "min_interval_ns": "1000000000",
+                    "max_interval_ns": "31000000000"
+                  },
+                  "levels": [
+                    {
+                      "price_ticks": 9900,
+                      "price": "99.00"
+                    },
+                    {
+                      "price_ticks": 9985,
+                      "price": "99.85"
+                    },
+                    {
+                      "price_ticks": 10010,
+                      "price": "100.10"
+                    }
+                  ],
+                  "columns": [
+                    {
+                      "start_ns": "1781506855001000000",
+                      "end_ns": "1781506856001000000",
+                      "covered_ns": "1000000000",
+                      "observations": 1,
+                      "age_ns": "16000000000",
+                      "masks": [],
+                      "bids": [
+                        [
+                          9900,
+                          10.0
+                        ],
+                        [
+                          9985,
+                          50.0
+                        ]
+                      ],
+                      "asks": [
+                        [
+                          10010,
+                          150.0
+                        ]
+                      ]
+                    },
+                    {
+                      "start_ns": "1781506856001000000",
+                      "end_ns": "1781506857001000000",
+                      "covered_ns": "1000000000",
+                      "observations": 1,
+                      "age_ns": "1000000000",
+                      "masks": [
+                        "halt"
+                      ],
+                      "bids": [
+                        [
+                          9900,
+                          10.0
+                        ],
+                        [
+                          9985,
+                          50.0
+                        ]
+                      ],
+                      "asks": []
+                    }
+                  ],
+                  "masks": [
+                    {
+                      "kind": "halt",
+                      "from_ns": "1781506856001000000",
+                      "to_ns": "1781506857001000000",
+                      "detail": "ADMIN_SYMBOL"
+                    }
+                  ],
+                  "phases": [
+                    {
+                      "phase": "CONTINUOUS",
+                      "from_ns": "1781506855001000000",
+                      "to_ns": "1781506857001000000"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_ENTITY`: The snapshot holds no episode for this order, trade, quote, OCO, combo or command id (an ambiguous prefix matches none), or no record of this symbol. `UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_ENTITY": {
+                    "summary": "UNKNOWN_ENTITY",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_ENTITY",
+                        "message": "No order '9f2c' in this snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CAPABILITY_UNAVAILABLE": {
+                    "summary": "CAPABILITY_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "CAPABILITY_UNAVAILABLE",
+                        "message": "The snapshot holds no audit record",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUDIT_SOURCE_UNAVAILABLE": {
+                    "summary": "AUDIT_SOURCE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "AUDIT_SOURCE_UNAVAILABLE",
+                        "message": "audit/audit-2026-06-15.log.zst was removed after the snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/market/{symbol}/lifelines": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Order lifelines",
+        "description": "Every order and quote leg of the symbol, per engine run, from its\nadmission to its end (`filled`, `cancel.owner`, `cancel.system` with\nthe engine's reason, `expired`, `open`, or `censored` where the window\nends first), clipped to the window.\n\nEach segment is one price, displayed quantity and state; an amendment,\nfill, iceberg refill or stop trigger starts a new one. Over\n`segment_cap` segments the response holds per-level aggregates instead\n(`aggregated: true`). Times are on the receipt clock.",
+        "operationId": "audit_lifelines",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The symbol.",
+              "title": "Symbol"
+            },
+            "description": "The symbol."
+          },
+          {
+            "name": "snapshot_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The snapshot every read is pinned to (`POST /audit/snapshots`).",
+              "title": "Snapshot Id"
+            },
+            "description": "The snapshot every read is pinned to (`POST /audit/snapshots`)."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window start, epoch nanoseconds on the receipt clock (default: the snapshot's first record).",
+              "title": "From"
+            },
+            "description": "Window start, epoch nanoseconds on the receipt clock (default: the snapshot's first record)."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window end, exclusive (default: just after the snapshot's last record).",
+              "title": "To"
+            },
+            "description": "Window end, exclusive (default: just after the snapshot's last record)."
+          },
+          {
+            "name": "gateway",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this gateway's orders.",
+              "title": "Gateway"
+            },
+            "description": "Only this gateway's orders."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Each order's life on the book, in segments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLifelines"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "symbol": "BBB",
+                  "clock": "receipt",
+                  "tick_decimals": 4,
+                  "from_ns": "1781506800001000000",
+                  "to_ns": "1781506893001000001",
+                  "gateway": "TRADER01",
+                  "aggregated": false,
+                  "segment_cap": 5000,
+                  "segments": 3,
+                  "without_admission": 0,
+                  "lifelines": [
+                    {
+                      "order_id": "2aeb1046782a47229b618d7fd9cd42e6",
+                      "run": 0,
+                      "gateway": "TRADER01",
+                      "side": "BUY",
+                      "order_type": "LIMIT",
+                      "quote_id": null,
+                      "start_ns": "1781506851001000000",
+                      "start_censored": false,
+                      "end": "cancel.owner",
+                      "end_ns": "1781506854001000000",
+                      "end_reason": null,
+                      "filled_qty": 0,
+                      "segments": [
+                        {
+                          "start_ns": "1781506851001000000",
+                          "end_ns": "1781506852001000000",
+                          "price_ticks": 24000,
+                          "displayed_qty": 100,
+                          "state": "book",
+                          "cause": "admission"
+                        },
+                        {
+                          "start_ns": "1781506852001000000",
+                          "end_ns": "1781506853001000000",
+                          "price_ticks": 24500,
+                          "displayed_qty": 100,
+                          "state": "book",
+                          "cause": "amend"
+                        },
+                        {
+                          "start_ns": "1781506853001000000",
+                          "end_ns": "1781506854001000000",
+                          "price_ticks": 24500,
+                          "displayed_qty": 60,
+                          "state": "book",
+                          "cause": "amend"
+                        }
+                      ]
+                    }
+                  ],
+                  "levels": []
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_ENTITY`: The snapshot holds no episode for this order, trade, quote, OCO, combo or command id (an ambiguous prefix matches none), or no record of this symbol. `UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_ENTITY": {
+                    "summary": "UNKNOWN_ENTITY",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_ENTITY",
+                        "message": "No order '9f2c' in this snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUDIT_SOURCE_UNAVAILABLE": {
+                    "summary": "AUDIT_SOURCE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "AUDIT_SOURCE_UNAVAILABLE",
+                        "message": "audit/audit-2026-06-15.log.zst was removed after the snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -22450,6 +23185,58 @@
           }
         ]
       },
+      "AuditCadence": {
+        "properties": {
+          "observations": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Observations",
+            "description": "Book observations of the symbol in the snapshot."
+          },
+          "median_interval_ns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Interval Ns",
+            "description": "Median time between consecutive observations in one engine run; bins are never finer. Null with fewer than two."
+          },
+          "min_interval_ns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Interval Ns"
+          },
+          "max_interval_ns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Interval Ns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "observations",
+          "median_interval_ns",
+          "min_interval_ns",
+          "max_interval_ns"
+        ],
+        "title": "AuditCadence"
+      },
       "AuditCapability": {
         "properties": {
           "available": {
@@ -22785,6 +23572,198 @@
         ],
         "title": "AuditFindingPage"
       },
+      "AuditHeatmap": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "clock": {
+            "type": "string",
+            "const": "receipt",
+            "title": "Clock",
+            "description": "The clock every time is on."
+          },
+          "tick_decimals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Decimals"
+          },
+          "from_ns": {
+            "type": "string",
+            "title": "From Ns"
+          },
+          "to_ns": {
+            "type": "string",
+            "title": "To Ns"
+          },
+          "bin_ns": {
+            "type": "string",
+            "title": "Bin Ns"
+          },
+          "bins": {
+            "type": "integer",
+            "title": "Bins"
+          },
+          "requested_bins": {
+            "type": "integer",
+            "title": "Requested Bins"
+          },
+          "cadence": {
+            "$ref": "#/components/schemas/AuditCadence"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/AuditPriceLevel"
+            },
+            "type": "array",
+            "title": "Levels",
+            "description": "Every level with a cell, low to high."
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/AuditHeatmapColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "masks": {
+            "items": {
+              "$ref": "#/components/schemas/AuditMask"
+            },
+            "type": "array",
+            "title": "Masks"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/AuditPhase"
+            },
+            "type": "array",
+            "title": "Phases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "symbol",
+          "clock",
+          "tick_decimals",
+          "from_ns",
+          "to_ns",
+          "bin_ns",
+          "bins",
+          "requested_bins",
+          "cadence",
+          "levels",
+          "columns",
+          "masks",
+          "phases"
+        ],
+        "title": "AuditHeatmap"
+      },
+      "AuditHeatmapColumn": {
+        "properties": {
+          "start_ns": {
+            "type": "string",
+            "title": "Start Ns"
+          },
+          "end_ns": {
+            "type": "string",
+            "title": "End Ns"
+          },
+          "covered_ns": {
+            "type": "string",
+            "title": "Covered Ns",
+            "description": "Time in the bin some observation was valid."
+          },
+          "observations": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Observations",
+            "description": "Observations valid in the bin."
+          },
+          "age_ns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Ns",
+            "description": "Age of the newest observation at the end of its time in the bin; null when none."
+          },
+          "masks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "gap",
+                "halt"
+              ]
+            },
+            "type": "array",
+            "title": "Masks"
+          },
+          "bids": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Bids",
+            "description": "`[price_ticks, displayed qty]`, the quantity weighted by the time each observation covered."
+          },
+          "asks": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Asks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_ns",
+          "end_ns",
+          "covered_ns",
+          "observations",
+          "age_ns",
+          "masks",
+          "bids",
+          "asks"
+        ],
+        "title": "AuditHeatmapColumn"
+      },
       "AuditLane": {
         "properties": {
           "available": {
@@ -22821,6 +23800,438 @@
           "count"
         ],
         "title": "AuditLane"
+      },
+      "AuditLifeline": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "run": {
+            "type": "integer",
+            "title": "Run",
+            "description": "Engine restart epoch, as `run` on `/events`."
+          },
+          "gateway": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "order_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Type",
+            "description": "Null for a quote leg."
+          },
+          "quote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Id"
+          },
+          "start_ns": {
+            "type": "string",
+            "title": "Start Ns",
+            "description": "Admission: the accepted `order.ack`/`quote.ack`."
+          },
+          "start_censored": {
+            "type": "boolean",
+            "title": "Start Censored",
+            "description": "Admitted before the window."
+          },
+          "end": {
+            "type": "string",
+            "enum": [
+              "filled",
+              "cancel.owner",
+              "cancel.system",
+              "expired",
+              "open",
+              "censored"
+            ],
+            "title": "End",
+            "description": "`open`: still resting when its run's records end; `censored`: the window ends first."
+          },
+          "end_ns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Ns"
+          },
+          "end_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Reason",
+            "description": "The engine's reason for `cancel.system`."
+          },
+          "filled_qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Filled Qty"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLifelineSegment"
+            },
+            "type": "array",
+            "title": "Segments",
+            "description": "Clipped to the window; a new one at each amendment, fill, iceberg refill or trigger."
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "run",
+          "gateway",
+          "side",
+          "order_type",
+          "quote_id",
+          "start_ns",
+          "start_censored",
+          "end",
+          "end_ns",
+          "end_reason",
+          "filled_qty",
+          "segments"
+        ],
+        "title": "AuditLifeline"
+      },
+      "AuditLifelineLevel": {
+        "properties": {
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "book",
+              "stop",
+              "market"
+            ],
+            "title": "State"
+          },
+          "price_ticks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Ticks"
+          },
+          "orders": {
+            "type": "integer",
+            "title": "Orders"
+          },
+          "segments": {
+            "type": "integer",
+            "title": "Segments"
+          },
+          "max_displayed_qty": {
+            "type": "integer",
+            "title": "Max Displayed Qty"
+          },
+          "from_ns": {
+            "type": "string",
+            "title": "From Ns"
+          },
+          "to_ns": {
+            "type": "string",
+            "title": "To Ns"
+          },
+          "ends": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Ends",
+            "description": "How the lifelines whose last segment is here ended."
+          }
+        },
+        "type": "object",
+        "required": [
+          "side",
+          "state",
+          "price_ticks",
+          "orders",
+          "segments",
+          "max_displayed_qty",
+          "from_ns",
+          "to_ns",
+          "ends"
+        ],
+        "title": "AuditLifelineLevel"
+      },
+      "AuditLifelineSegment": {
+        "properties": {
+          "start_ns": {
+            "type": "string",
+            "title": "Start Ns"
+          },
+          "end_ns": {
+            "type": "string",
+            "title": "End Ns"
+          },
+          "price_ticks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Ticks",
+            "description": "Limit price; the stop price while `stop`; null while `market`."
+          },
+          "displayed_qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Displayed Qty",
+            "description": "Shown on the book; 0 unless `book`."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "book",
+              "stop",
+              "market"
+            ],
+            "title": "State"
+          },
+          "cause": {
+            "type": "string",
+            "enum": [
+              "admission",
+              "fill",
+              "refill",
+              "amend",
+              "trigger"
+            ],
+            "title": "Cause",
+            "description": "What started this segment."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_ns",
+          "end_ns",
+          "price_ticks",
+          "displayed_qty",
+          "state",
+          "cause"
+        ],
+        "title": "AuditLifelineSegment"
+      },
+      "AuditLifelines": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "clock": {
+            "type": "string",
+            "const": "receipt",
+            "title": "Clock"
+          },
+          "tick_decimals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Decimals"
+          },
+          "from_ns": {
+            "type": "string",
+            "title": "From Ns"
+          },
+          "to_ns": {
+            "type": "string",
+            "title": "To Ns"
+          },
+          "gateway": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway"
+          },
+          "aggregated": {
+            "type": "boolean",
+            "title": "Aggregated",
+            "description": "True when `segments` exceeds `segment_cap`: `lifelines` is empty and `levels` holds per-level aggregates."
+          },
+          "segment_cap": {
+            "type": "integer",
+            "title": "Segment Cap"
+          },
+          "segments": {
+            "type": "integer",
+            "title": "Segments",
+            "description": "Segments in the window (all of them)."
+          },
+          "without_admission": {
+            "type": "integer",
+            "title": "Without Admission",
+            "description": "Orders of the symbol with events but no admission in their run (e.g. restored by a restart): no lifeline."
+          },
+          "lifelines": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLifeline"
+            },
+            "type": "array",
+            "title": "Lifelines"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLifelineLevel"
+            },
+            "type": "array",
+            "title": "Levels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "symbol",
+          "clock",
+          "tick_decimals",
+          "from_ns",
+          "to_ns",
+          "gateway",
+          "aggregated",
+          "segment_cap",
+          "segments",
+          "without_admission",
+          "lifelines",
+          "levels"
+        ],
+        "title": "AuditLifelines"
+      },
+      "AuditMask": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "gap",
+              "halt"
+            ],
+            "title": "Kind",
+            "description": "`gap`: records were lost (no cells); `halt`: the symbol was halted (the observed book keeps its cells)."
+          },
+          "from_ns": {
+            "type": "string",
+            "title": "From Ns"
+          },
+          "to_ns": {
+            "type": "string",
+            "title": "To Ns"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "from_ns",
+          "to_ns",
+          "detail"
+        ],
+        "title": "AuditMask"
+      },
+      "AuditPhase": {
+        "properties": {
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase",
+            "description": "Session phase; null when unknown."
+          },
+          "from_ns": {
+            "type": "string",
+            "title": "From Ns"
+          },
+          "to_ns": {
+            "type": "string",
+            "title": "To Ns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "from_ns",
+          "to_ns"
+        ],
+        "title": "AuditPhase"
       },
       "AuditPrice": {
         "properties": {
@@ -22865,6 +24276,32 @@
           "tick_decimals"
         ],
         "title": "AuditPrice"
+      },
+      "AuditPriceLevel": {
+        "properties": {
+          "price_ticks": {
+            "type": "integer",
+            "title": "Price Ticks"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price",
+            "description": "At the recorded `tick_decimals`; null when none is recorded."
+          }
+        },
+        "type": "object",
+        "required": [
+          "price_ticks",
+          "price"
+        ],
+        "title": "AuditPriceLevel"
       },
       "AuditRecord": {
         "properties": {

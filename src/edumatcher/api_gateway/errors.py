@@ -88,7 +88,8 @@ ERROR_CODES: dict[str, ErrorCode] = {
         404,
         "UNKNOWN",
         "The snapshot holds no episode for this order, trade, quote, OCO, combo "
-        "or command id (an ambiguous prefix matches none).",
+        "or command id (an ambiguous prefix matches none), or no record of this "
+        "symbol.",
         "No order '9f2c' in this snapshot",
     ),
     "UNKNOWN_COMPANY": ErrorCode(

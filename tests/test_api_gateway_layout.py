@@ -127,6 +127,8 @@ REST_ROUTES = {
     ("GET", "/audit/events"),
     ("GET", "/audit/stories/{entity_kind}/{entity_id}"),
     ("GET", "/audit/findings"),
+    ("GET", "/audit/market/{symbol}/heatmap"),
+    ("GET", "/audit/market/{symbol}/lifelines"),
 }
 
 WS_ROUTES = {"/ws/private", "/ws/market-data", "/ws/admin/monitor", "/ws/admin/sim"}

@@ -150,6 +150,8 @@ optional parameters.
 | [GET /api/v1/audit/events](#get-apiv1auditevents) | Admin role | A snapshot's records in canonical order |
 | [GET /api/v1/audit/stories/{entity_kind}/{entity_id}](#get-apiv1auditstoriesentity_kindentity_id) | Admin role | The replay story of one order, trade, quote, OCO, combo or command |
 | [GET /api/v1/audit/findings](#get-apiv1auditfindings) | Admin role | The replay's findings, by lane |
+| [GET /api/v1/audit/market/{symbol}/heatmap](#get-apiv1auditmarketsymbolheatmap) | Admin role | Displayed depth per price level and time bin, from recorded book observations |
+| [GET /api/v1/audit/market/{symbol}/lifelines](#get-apiv1auditmarketsymbollifelines) | Admin role | Each order's life on the book, from admission to its end |
 
 ### Auth and roles
 
@@ -228,7 +230,7 @@ the OpenAPI document lists all of them per operation.
 | `UNKNOWN_SYMBOL` | `404` | `UNKNOWN` | The symbol is not in the venue's reference data (`GET /book/{symbol}`) |
 | `UNKNOWN_COLLECTION` | `404` | `UNKNOWN` | No audit evidence collection with this id is configured |
 | `UNKNOWN_SNAPSHOT` | `404` | `UNKNOWN` | No audit evidence snapshot has this id |
-| `UNKNOWN_ENTITY` | `404` | `UNKNOWN` | The snapshot holds no episode for this order, trade, quote, OCO, combo or command id |
+| `UNKNOWN_ENTITY` | `404` | `UNKNOWN` | The snapshot holds no episode for this order, trade, quote, OCO, combo or command id, or no record of this symbol |
 | `METHOD_NOT_ALLOWED` | `405` | `UNKNOWN` | The path exists but not for this method; the reply carries `Allow` |
 | `TRANSITION_REJECTED` | `409` | `UNKNOWN` | The engine refused the session transition |
 | `RELOAD_REJECTED` | `409` | `UNKNOWN` | The engine refused the reference reload |
@@ -3478,6 +3480,107 @@ severities are the replay's own; window-edge findings such as
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
 | `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
 | `CAPABILITY_UNAVAILABLE` | `409` | The snapshot holds no audit record (`reason: NO_EVENTS`), or `lane=behaviour` (`reason: NOT_IN_RELEASE`) |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
+
+### `GET /api/v1/audit/market/{symbol}/heatmap`
+
+Purpose: displayed quantity per price level and time bin for one symbol,
+from the recorded `book.<symbol>` observations only (`depth.*` carries no
+levels). Each observation is valid from its receipt until the next one, a
+phase change, an uncross of the symbol (`auction.result`), lost records or
+the end of its engine run; nothing is interpolated. A cell is the level's quantity weighted by the time each
+observation covered in the bin. Prices are integer ticks; `levels` gives
+each one as money at the recorded `tick_decimals`. All times are epoch
+nanoseconds (strings) on the receipt clock (`clock: "receipt"`).
+
+- `cadence` is measured over the whole snapshot (observations, median,
+  shortest and longest interval within one run). Bins are never finer than
+  the median interval: `bins` can be fewer than `requested_bins`.
+- `masks`: `gap` where records were lost (an `ESEQ_GAP`, from the last
+  record before it to the first after; no cells), `halt` from the symbol's
+  halt to its resume (the observed book keeps its cells). Each column lists
+  the masks it touches.
+- `phases` is the session-phase band. A run's first phase comes from its
+  STARTUP book checkpoint; `phase: null` where neither a checkpoint nor a
+  `session.state` says.
+- A column with `covered_ns: "0"` had no valid observation (before the
+  first, after a phase change or uncross until the next, inside a gap, or
+  while the engine was down).
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | `Symbol` | yes (path) | The symbol |
+| `snapshot_id` | `Str` | yes | The snapshot |
+| `from` | `Int` | no | Window start, epoch ns (default: the snapshot's first record) |
+| `to` | `Int` | no | Window end, exclusive (default: just after the last record) |
+| `bins` | `Int` | no | Time bins wanted, 1-2000, default 300 |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "snapshot_id", "symbol", "clock", "tick_decimals", "from_ns", "to_ns", "bin_ns", "bins", "requested_bins", "cadence", "levels", "columns", "masks", "phases" }` | The heatmap; each column `{ "start_ns", "end_ns", "covered_ns", "observations", "age_ns", "masks", "bids", "asks" }` with cells as `[price_ticks, qty]` |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | `bins` out of 1-2000, a negative time, or `from` not before `to` (`field: "to"`) |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+| `UNKNOWN_ENTITY` | `404` | The snapshot holds no record of this symbol |
+| `CAPABILITY_UNAVAILABLE` | `409` | No book observation was recorded for the symbol (`NO_BOOK_OBSERVATIONS`) or none states its scale (`NO_TICK_SCALE`) |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
+
+### `GET /api/v1/audit/market/{symbol}/lifelines`
+
+Purpose: every admitted order and quote leg of one symbol, per engine run,
+from its accepted `order.ack` or `quote.ack` to its end, clipped to the
+window. `end` is `filled`, `cancel.owner` (no `cancel_reason`: the owner's
+cancel, quote cancel or OCO cancel), `cancel.system` (with the engine's
+`end_reason`, or an OCO sibling's), `expired`, `open` (still resting when
+its run's records end) or `censored` (the window ends first);
+`start_censored` is true when it was admitted before the window.
+
+Each segment is one price (ticks), displayed quantity and state (`book`;
+`stop`, held at its stop price and not shown; `market`, triggered to
+market). An amendment, fill, iceberg refill or stop trigger starts a new
+one (`cause`); changes at the same instant are one segment. Iceberg slices
+follow the engine's rule: the next slice shows only once the shown one is
+used up. Above `segment_cap` (5000) segments the response is
+`aggregated: true`: `lifelines` is empty and `levels` sums the segments per
+side, state and price. `without_admission` counts the symbol's orders with
+events but no admission in their run (restored by a restart, say), which
+have no lifeline. Times are on the receipt clock.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | `Symbol` | yes (path) | The symbol |
+| `snapshot_id` | `Str` | yes | The snapshot |
+| `from` | `Int` | no | Window start, epoch ns (default: the snapshot's first record) |
+| `to` | `Int` | no | Window end, exclusive (default: just after the last record) |
+| `gateway` | `GatewayId` | no | Only this gateway's orders |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "snapshot_id", "symbol", "clock", "tick_decimals", "from_ns", "to_ns", "gateway", "aggregated", "segment_cap", "segments", "without_admission", "lifelines", "levels" }` | The lifelines, or their per-level aggregates |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A negative time, or `from` not before `to` (`field: "to"`) |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+| `UNKNOWN_ENTITY` | `404` | The snapshot holds no record of this symbol |
 | `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
 
 ## Operational notes

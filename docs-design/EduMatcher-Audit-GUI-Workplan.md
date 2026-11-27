@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0-AG2 done). This plan orders the work needed to deliver the
+Status: **In progress** (AG0-AG3 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -56,7 +56,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 0 | AG0 | Shared "audit world" fixtures and API test harness | — | 2 d | ☑ | 2026-11-27 |
 | 1 | AG1 | Evidence collections, minimal snapshot descriptor and capability model | AG0, D1 | 1.5 d | ☑ | 2026-11-27 |
 | 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☑ | 2026-11-27 |
-| 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☐ | |
+| 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☑ | 2026-11-27 |
 | 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☐ | |
 | 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☐ | |
 | 6 | AG6 | Market canvas (Analyse, R0 layers), story drawer, raw evidence | AG3, AG4, AG5 | 3 d | ☐ | |
@@ -954,6 +954,10 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF4 | AG2 | P3 | Design §8.1 and this plan say an invalid filter is `422`; the gateway answers every malformed parameter, body or cursor with `400 VALIDATION` (its error registry and the REST chapter's contract). | Code is right: the audit routes use `400 VALIDATION` with `field`. AG10's grammar errors follow it; design §8.1 corrected. |
 | AGF5 | AG2 | P2 | The first read of a snapshot runs the replay pipeline and builds the episode index at about 6,400 records/s (2.9 s for 18,450 records; pages afterwards about 1 ms). The 10-million-event reference (§11.1) would take about 26 minutes in a request. | Acceptable for R0 (one class session, one snapshot cached). AG9's `prepare` job must take this out of the API process before R1; AG25 measures it. |
 | AGF6 | AG2 | P3 | `Episode.run_seq` is read from payloads and is unset for most orders, so it cannot keep stories apart across a run reset. The replay's own run is each fact's `publisher_run` (0-based restart epoch). | `/stories` selects and filters by the episodes' `publisher_run`, exposed as `run` (and `run_id`), the same number `/events` reports. An id seen in two runs is `409 AMBIGUOUS_RUN` until `run_id` names one. |
+| AGF7 | AG3 | P3 | `depth.<symbol>` carries only aggregate depth within a tolerance (`bid_depth`, `ask_depth`), no price levels. And the base world's opening uncross published no `book.<symbol>`: the last observation of each symbol before continuous trading is its crossed auction book (BBB's for 29 s). | The heatmap reads `book.*` only. An observation ends at the next one, a phase change, an uncross of its symbol (`auction.result`, so a reopen uncross without a phase change is covered too), an `ESEQ_GAP` or the end of its run; tests pin the opening and a reopen. Whether the engine should publish the book after an uncross is not decided here. |
+| AGF8 | AG3 | P3 | The receipt clock (the only one on every record) has millisecond resolution, and one command's effects share a stamp: two fills in one command are one lifeline segment (base world `stop_bid`), and a mask can start where an observation does. | Recorded. Lifelines and heatmap say `clock: "receipt"`; changes at one instant collapse into one segment, which shows the state they reached. |
+| AGF9 | AG3 | P3 | Three lifeline inputs are not on the order's own records: iceberg refills appear only on `engine.trace` (published before the fill they follow); a quote leg's price and size are only on the causing `quote.new` (`quote.ack` names the legs); an order restored by a restart has no admission in its new run. | Iceberg slices follow the engine's documented rule (a fill uses the slice; the next shows when it is gone), not the trace. Quote legs are joined by `causation_id`, so an unenveloped trail has no quote lifelines. Orders with events but no admission in their run are counted (`without_admission`), not drawn. |
+| AGF10 | AG3 | P3 | Building the market model runs at about 123,000 records/s (8.1 s for a generated 1-million-record session, after the replay's own 36 s normalise and order pass); a whole-session heatmap or lifeline query on it takes about 1.5 s, a 60 s window about 0.3 s. | Acceptable for R0 (built once per cached session). AG9 builds it in the worker with the session (AGF5); AG25 measures against §11.1. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1065,3 +1069,47 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 - Not in AG2: ambiguous id prefixes return 404 (the selection list is
   AG10); story depth is bounded (0-3) but the 200-node graph cap is AG12;
   no `reproduce` blocks yet (AG10).
+
+### 8.4 AG3 done note (2026-11-27)
+
+- D6 default used: the observation cadence is measured per snapshot
+  (count, median, shortest and longest interval within one run) and
+  reported; bins are coarsened to at least the median interval
+  (`requested_bins` vs `bins`).
+- `audit/service/market.py`: `MarketModel`, built once per session from its
+  canonical facts (`ReplaySession.heatmap`/`lifelines`). Heatmap cells come
+  from `book.<symbol>` only (AGF7); an observation ends at the next one, a
+  phase change, an uncross of its symbol, a gap or its run's end. Cells
+  are integer ticks (display text only with the recorded `tick_decimals`;
+  none recorded is `409 NO_TICK_SCALE`, no observation
+  `409 NO_BOOK_OBSERVATIONS`). Each cell is the level's
+  quantity weighted by the time each observation covered in its bin. Masks:
+  `gap` from the replay's own `ESEQ_GAP` (last record before to first
+  after; no cells), `halt` from `circuit_breaker.halt` to `.resume` (the
+  observed book keeps its cells). The phase band starts from the run's
+  STARTUP checkpoint (AGF1); `phase: null` where nothing says. All times are
+  on the receipt clock (AGF8).
+- Lifelines: one per accepted `order.ack` (`request` NEW) or quote leg, per
+  engine run; ends `filled`, `cancel.owner` (no `cancel_reason`, the
+  replay's rule), `cancel.system` with the engine's reason (or an OCO
+  sibling's `oco.cancelled`), `expired`, `open` (resting when its run's
+  records end) or `censored` (the window ends first; `start_censored` for
+  the other edge). Segments break on admission, fill, iceberg refill,
+  amendment and stop trigger (`cause`); states `book`, `stop` (held at its
+  stop price, not shown), `market`. Over `LIFELINE_SEGMENT_CAP` (5,000)
+  segments the response is per (side, state, price) aggregates with
+  `aggregated: true`.
+- Routes `GET /market/{symbol}/heatmap` (`from`, `to`, `bins` 1-2000,
+  default 300) and `GET /market/{symbol}/lifelines` (`from`, `to`,
+  `gateway`); an unknown symbol is `404 UNKNOWN_ENTITY`, an empty window
+  `400 VALIDATION` (`field: "to"`). `make openapi` adds 10 schemas and two
+  paths and changes nothing else; the REST chapter has a section per route.
+- World extended (AG0 tables): `amend_bid`, TRADER01's BBB bid amended in
+  price then size and cancelled (`AMENDMENTS`; `OWNER_CANCELS` gains
+  TRADER01: 1), so lifelines are tested on a recorded amendment.
+- Measured (AGF10): base world, 387 records, model 0.05 s, queries about
+  1 ms. Generated 1-million-record session: model 8.1 s, whole-session
+  heatmap 1.6 s and lifelines 1.5 s, 60 s window lifelines 0.3 s. The
+  heatmap finds its window by bisection and lifelines stop at the first
+  order admitted after it.
+- Not in AG3: trades, the flow strip and news/true-value bands (AG6, AG16).
