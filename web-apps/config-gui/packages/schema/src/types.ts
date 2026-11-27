@@ -510,6 +510,14 @@ export interface ApiCredential {
   description?: string;
 }
 
+/** One `api_gateways.<name>.audit_collections` entry: evidence the Audit GUI reads. */
+export interface AuditCollection {
+  /** 1-32 letters, digits, "_" or "-"; what browsers name it by. */
+  id: string;
+  /** Directory holding audit.log and audit/ (relative paths resolve in data/). */
+  path: string;
+}
+
 export interface ApiGatewayConfig {
   name: string;
   enabled: boolean;
@@ -524,6 +532,8 @@ export interface ApiGatewayConfig {
   clearingDb?: string;
   /** Undefined = key omitted (default data/eod.db, read by /clearing/settlements and /clearing/balances). */
   eodDb?: string;
+  /** Undefined = key omitted (one collection "default": the data directory). */
+  auditCollections?: AuditCollection[];
   /** Undefined = key omitted (default 60 s market-data cache). */
   marketDataCacheSec?: number;
   /** Bus addresses; undefined = key omitted (the local engine/index defaults). */

@@ -76,6 +76,7 @@ def _key_tables() -> dict[str, frozenset[str]]:
         "_API_RATE_LIMIT_KEYS",
         "_API_TIMEOUT_KEYS",
         "_API_CREDENTIAL_KEYS",
+        "_API_COLLECTION_KEYS",
     ):
         tables[name] = getattr(layer2_schema, name)
     return tables

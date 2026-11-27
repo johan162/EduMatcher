@@ -50,6 +50,7 @@ def test_api_gateway_and_log_client_fields_are_shown_and_explained() -> None:
         | layer2_schema._API_RATE_LIMIT_KEYS
         | layer2_schema._API_TIMEOUT_KEYS
         | layer2_schema._API_CREDENTIAL_KEYS
+        | layer2_schema._API_COLLECTION_KEYS
     ):
         assert f"{key}:" in shape, f"api_gateways {key} missing from the shape example"
         assert key in notes, f"api_gateways {key} missing from the field notes"

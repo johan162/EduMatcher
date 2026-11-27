@@ -433,6 +433,9 @@ engine reply waits are applied. In the current implementation:
 - `eod_db` is `pm-eod`'s read-only settlement ledger, used by
   `/clearing/settlements` and `/clearing/balances` (absent: `eod_db_available: false`);
   the opening balances come from `ref_data/roster.yaml` in the same directory
+- `audit_collections` lists the audit evidence directories (`id`, `path`) the
+  Audit GUI routes may read, read-only; omitted, there is one collection,
+  `default`, the data directory
 - `order_retention_sec` bounds how long a terminal order stays in the
   in-memory order cache; `0` disables eviction
 - `market_data_cache_sec` is the TTL for the per-symbol market-data cache

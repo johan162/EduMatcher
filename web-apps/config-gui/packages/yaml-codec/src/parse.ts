@@ -893,6 +893,12 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
         }))
       : [];
     const auditDb = asString(value.audit_db);
+    const auditCollections = Array.isArray(value.audit_collections)
+      ? value.audit_collections.filter(isDict).map((c) => ({
+          id: asString(c.id) ?? "",
+          path: asString(c.path) ?? "",
+        }))
+      : undefined;
     const optional = {
       clearingDb: asString(value.clearing_db),
       eodDb: asString(value.eod_db),
@@ -912,6 +918,7 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
         (asString(value.log_level) as ApiGatewayConfig["logLevel"]) ?? "info",
       statsDb: asString(value.stats_db) ?? "data/stats.db",
       ...(auditDb !== undefined ? { auditDb } : {}),
+      ...(auditCollections !== undefined ? { auditCollections } : {}),
       ...Object.fromEntries(
         Object.entries(optional).filter(([, v]) => v !== undefined),
       ),

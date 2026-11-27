@@ -5,6 +5,7 @@ import {
   DUPLICATE_SESSION_POLICIES,
   POST_TRADE_ROLES,
   DEFAULT_API_BUS,
+  DEFAULT_AUDIT_COLLECTION,
   DEFAULT_LOG_CLIENT,
   createApiGateway,
   type ApiLogLevel,
@@ -449,6 +450,7 @@ function ApiPanel() {
           <TextField label="Audit DB path" value={gw.auditDb ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.auditDb = v || undefined))} help={{ text: "Read-only audit index used by GET /admin/orders/{order_id}. Empty = key omitted; pm-api-gwy then uses its resolved audit_index.db." }} />
           <TextField label="Clearing DB path" value={gw.clearingDb ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.clearingDb = v || undefined))} help={{ text: "Read-only clearing ledger: the source of realized P&L on position rows and of the /clearing routes. A missing ledger blanks that column and answers /clearing with 503. Empty = key omitted; pm-api-gwy then uses data/clearing.db." }} />
           <TextField label="EOD DB path" value={gw.eodDb ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.eodDb = v || undefined))} help={{ text: "Read-only pm-eod settlement ledger behind /clearing/settlements and /clearing/balances; its roster is read from ref_data/roster.yaml beside it. A missing ledger answers those two routes with 503. Empty = key omitted; pm-api-gwy then uses data/eod.db." }} />
+          <AuditCollectionsEditor index={i} />
           <FieldRow
             label="Market-data cache (s)"
             help={{ text: "Seconds of recent trades the gateway keeps per symbol, so a WebSocket client that reconnects can resume without a gap. Empty = key omitted (60)." }}
@@ -593,6 +595,85 @@ function ApiCredentialsEditor({ index }: { index: number }) {
           </button>
         </div>
         <GenerateApiKeysDialog open={generateOpen} onOpenChange={setGenerateOpen} index={index} />
+      </div>
+    </FieldRow>
+  );
+}
+
+/**
+ * `api_gateways.<name>.audit_collections` — the evidence directories the Audit
+ * GUI routes may read. No rows = key omitted (pm-api-gwy's default).
+ */
+function AuditCollectionsEditor({ index }: { index: number }) {
+  const gw = useDraftStore((s) => s.draft.apiGateways[index]!);
+  const update = useDraftStore((s) => s.update);
+  const rows = gw.auditCollections ?? [];
+  const setRow = (ci: number, fn: (c: { id: string; path: string }) => void) =>
+    update((d) => fn(d.apiGateways[index]!.auditCollections![ci]!));
+  const remove = (ci: number) =>
+    update((d) => {
+      const g = d.apiGateways[index]!;
+      g.auditCollections!.splice(ci, 1);
+      if (g.auditCollections!.length === 0) delete g.auditCollections;
+    });
+  const add = () =>
+    update((d) => {
+      const g = d.apiGateways[index]!;
+      const taken = new Set((g.auditCollections ?? []).map((c) => c.id));
+      let n = taken.size + 1;
+      let id = taken.size === 0 ? DEFAULT_AUDIT_COLLECTION.id : `collection-${n}`;
+      while (taken.has(id)) id = `collection-${++n}`;
+      (g.auditCollections ??= []).push({ id, path: taken.size === 0 ? DEFAULT_AUDIT_COLLECTION.path : "" });
+    });
+
+  return (
+    <FieldRow
+      label="Audit collections"
+      path={`apiGateways.${gw.name}.auditCollections`}
+      help={{
+        text:
+          "Directories of audit evidence (audit.log and its audit/ parts and archives) the Audit GUI may read, read-only. " +
+          "Browsers name a collection by its id, never by a path. No rows = key omitted; pm-api-gwy then offers one " +
+          `collection "${DEFAULT_AUDIT_COLLECTION.id}", the data directory.`,
+      }}
+    >
+      <div className="w-full">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs uppercase text-fg-subtle">
+            <tr>
+              <th className="px-2 py-1">Id *</th>
+              <th className="px-2 py-1">Path *</th>
+              <th className="px-2 py-1" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c, ci) => (
+              <tr key={ci}>
+                <td className="px-2 py-1">
+                  <TextInput aria-label={`Audit collection ${ci + 1} id`} value={c.id} onChange={(v) => setRow(ci, (x) => (x.id = v))} className="w-40 font-mono" />
+                </td>
+                <td className="px-2 py-1">
+                  <TextInput aria-label={`Audit collection ${ci + 1} path`} value={c.path} onChange={(v) => setRow(ci, (x) => (x.path = v))} className="w-72 font-mono" />
+                </td>
+                <td className="px-2 py-1 text-right">
+                  <button type="button" aria-label={`Remove audit collection ${ci + 1}`} onClick={() => remove(ci)} className="text-fg-subtle hover:text-error">
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-2 py-2 text-fg-subtle">
+                  Key omitted: the default collection ({DEFAULT_AUDIT_COLLECTION.id} = {DEFAULT_AUDIT_COLLECTION.path}).
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <button type="button" onClick={add} className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">
+          + Add collection
+        </button>
       </div>
     </FieldRow>
   );

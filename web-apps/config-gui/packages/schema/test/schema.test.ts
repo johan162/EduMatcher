@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   COUNTRIES,
   DEFAULT_COUNTRY,
+  apiGatewaySchema,
+  createApiGateway,
   createBlankDraft,
   createGateway,
   createMmQuoteSeed,
@@ -69,6 +71,18 @@ describe("schema", () => {
       CORE: { staticBandPct: 0.18, dynamicBandPct: 0.02 },
     };
     expect(engineConfigDraftSchema.safeParse(draft).success).toBe(true);
+  });
+
+  it("validates audit_collections as the gateway loader does", () => {
+    const gw = createApiGateway("main");
+    const ok = (cols: unknown) => apiGatewaySchema.safeParse({ ...gw, auditCollections: cols }).success;
+    expect(ok(undefined)).toBe(true);
+    expect(ok([{ id: "class-1", path: "data" }, { id: "archive_2026", path: "/srv/a" }])).toBe(true);
+    expect(ok([])).toBe(false); // the key names at least one, or is omitted
+    expect(ok([{ id: "../up", path: "data" }])).toBe(false);
+    expect(ok([{ id: "a".repeat(33), path: "data" }])).toBe(false);
+    expect(ok([{ id: "a", path: "" }])).toBe(false);
+    expect(ok([{ id: "a", path: "x" }, { id: "a", path: "y" }])).toBe(false);
   });
 
   it("preserves per-symbol market_maker_quotes through Zod validation", () => {

@@ -231,6 +231,9 @@ export const DEFAULT_API_BUS = {
   indexPubAddr: "tcp://127.0.0.1:5558",
 } as const;
 
+/** pm-api-gwy's audit_collections when the key is omitted (decision D1). */
+export const DEFAULT_AUDIT_COLLECTION = { id: "default", path: "data" } as const;
+
 export const DEFAULT_API_GATEWAY = {
   name: "default",
   host: "0.0.0.0",

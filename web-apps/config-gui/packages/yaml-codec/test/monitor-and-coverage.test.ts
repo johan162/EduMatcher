@@ -138,6 +138,23 @@ describe("the other sections", () => {
     });
   });
 
+  it("writes audit_collections only when set, and reads them back", () => {
+    const draft = exchange();
+    const gw = createApiGateway("main");
+    draft.apiGateways = [gw];
+    expect((buildConfigDocument(draft).api_gateways as any).main).not.toHaveProperty("audit_collections");
+    gw.auditCollections = [
+      { id: "class-1", path: "data" },
+      { id: "archive_2026", path: "/srv/audit/2026" },
+    ];
+    expect((buildConfigDocument(draft).api_gateways as any).main.audit_collections).toEqual([
+      { id: "class-1", path: "data" },
+      { id: "archive_2026", path: "/srv/audit/2026" },
+    ]);
+    const back = parseYamlToDraft(generateYaml(draft)).draft.apiGateways[0]!;
+    expect(back.auditCollections).toEqual(gw.auditCollections);
+  });
+
   it("has no unmapped section for a file using every block", () => {
     const draft = exchange();
     draft.monitor.include = true;

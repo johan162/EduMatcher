@@ -11,14 +11,17 @@ module.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 
 from edumatcher.config_include import load_config_mapping
+from edumatcher.audit.service.snapshot import AuditCollection
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
+    DATA_DIR,
     CLEARING_DB_FILE,
     EOD_DB_FILE,
     ENGINE_PUB_ADDR,
@@ -93,6 +96,14 @@ class ApiGatewayConfig:
     #: first run: `eod_db_available: false`). The roster with the opening balances is read from beside it,
     #: where `pm-eod` keeps it: see `eod_roster`.
     eod_db: Path = EOD_DB_FILE
+    #: The audit evidence collections the Audit GUI routes (`/audit`) may
+    #: read, by id: each a directory holding `audit.log` and its `audit/`
+    #: parts and archives, read **read-only**. The browser names a
+    #: collection by its id, never by a path. Default (decision D1): one
+    #: collection, `default`, the shared data directory.
+    audit_collections: tuple[AuditCollection, ...] = (
+        AuditCollection("default", DATA_DIR),
+    )
     #: How long a *terminal* order (FILLED, CANCELLED, EXPIRED, REJECTED)
     #: stays in the in-memory order cache before being evicted.
     #:
@@ -171,6 +182,38 @@ def _load_credentials(raw: Any, section_name: str) -> tuple[ApiCredential, ...]:
             )
         )
     return tuple(credentials)
+
+
+#: An audit collection id: what URLs and the browser carry instead of a path.
+_COLLECTION_ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+
+def _load_audit_collections(raw: Any, section_name: str) -> tuple[AuditCollection, ...]:
+    where = f"{section_name}.audit_collections"
+    if raw is None:
+        return (AuditCollection("default", DATA_DIR),)
+    if not isinstance(raw, list):
+        raise ValueError(f"{where} must be a list")
+    if not raw:
+        raise ValueError(f"{where} must name at least one collection")
+    collections: list[AuditCollection] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"{where}[{index}] must be a mapping")
+        if "id" not in item:
+            raise ValueError(f"{where}[{index}].id is required")
+        if "path" not in item:
+            raise ValueError(f"{where}[{index}].path is required")
+        cid = _as_str(item["id"], f"{where}[{index}]", "id")
+        if not _COLLECTION_ID.fullmatch(cid):
+            raise ValueError(
+                f"{where}[{index}].id must be 1-32 letters, digits, '_' or '-'"
+            )
+        if any(c.id == cid for c in collections):
+            raise ValueError(f"duplicate audit collection id {cid!r} in {where}")
+        path = resolve_data_path(_as_str(item["path"], f"{where}[{index}]", "path"))
+        collections.append(AuditCollection(cid, path))
+    return tuple(collections)
 
 
 def _load_api_gateway_section(
@@ -282,6 +325,9 @@ def _load_api_gateway_section(
         audit_db=audit_db,
         clearing_db=clearing_db,
         eod_db=eod_db,
+        audit_collections=_load_audit_collections(
+            section.get("audit_collections"), section_name
+        ),
         order_retention_sec=order_retention_sec,
         market_data_cache_sec=market_data_cache_sec,
         log_level=_as_str(section.get("log_level", "info"), section_name, "log_level"),

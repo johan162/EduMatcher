@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from edumatcher.api_gateway.config import load_api_gateway_config
+from edumatcher.audit.service.snapshot import AuditCollection
 from edumatcher.config import DATA_DIR, STATS_DB_FILE
 
 
@@ -231,5 +232,61 @@ def test_invalid_config_shapes_raise(
 ) -> None:
     path = tmp_path / "engine_config.yaml"
     path.write_text(yaml_text)
+    with pytest.raises(ValueError, match=message):
+        load_api_gateway_config(path)
+
+
+# --- audit_collections (Audit GUI AG1) --------------------------------------
+
+
+def test_audit_collections_default_to_the_data_directory(tmp_path: Path) -> None:
+    """Decision D1's default: one collection, the shared data directory."""
+    path = tmp_path / "engine_config.yaml"
+    path.write_text("api_gateways:\n  desk:\n    port: 8080\n")
+    cfg = load_api_gateway_config(path)
+    assert cfg.audit_collections == (AuditCollection("default", DATA_DIR),)
+
+
+def test_audit_collections_resolve_in_the_data_directory(tmp_path: Path) -> None:
+    path = tmp_path / "engine_config.yaml"
+    path.write_text("""
+api_gateways:
+  desk:
+    audit_collections:
+    - id: class-1
+      path: data
+    - id: archive_2026
+      path: /srv/audit/2026
+""")
+    cfg = load_api_gateway_config(path)
+    assert cfg.audit_collections == (
+        AuditCollection("class-1", DATA_DIR),
+        AuditCollection("archive_2026", Path("/srv/audit/2026")),
+    )
+
+
+@pytest.mark.parametrize(
+    ("block", "message"),
+    [
+        ("audit_collections: data", "audit_collections must be a list"),
+        ("audit_collections: []", "audit_collections must name at least one"),
+        ("audit_collections:\n    - data", r"audit_collections\[0\] must be a mapping"),
+        ("audit_collections:\n    - path: data", r"audit_collections\[0\].id"),
+        ("audit_collections:\n    - id: a", r"audit_collections\[0\].path"),
+        (
+            "audit_collections:\n    - id: ../up\n      path: data",
+            r"audit_collections\[0\].id must be 1-32",
+        ),
+        (
+            "audit_collections:\n    - id: a\n      path: data\n    - id: a\n      path: x",
+            "duplicate audit collection id 'a'",
+        ),
+    ],
+)
+def test_invalid_audit_collections_raise(
+    block: str, message: str, tmp_path: Path
+) -> None:
+    path = tmp_path / "engine_config.yaml"
+    path.write_text(f"api_gateways:\n  desk:\n    {block}\n")
     with pytest.raises(ValueError, match=message):
         load_api_gateway_config(path)

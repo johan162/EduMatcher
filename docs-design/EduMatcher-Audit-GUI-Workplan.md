@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0 done). This plan orders the work needed to deliver the
+Status: **In progress** (AG0, AG1 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -54,7 +54,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 0 | AG0 | Shared "audit world" fixtures and API test harness | — | 2 d | ☑ | 2026-11-27 |
-| 1 | AG1 | Evidence collections, minimal snapshot descriptor and capability model | AG0, D1 | 1.5 d | ☐ | |
+| 1 | AG1 | Evidence collections, minimal snapshot descriptor and capability model | AG0, D1 | 1.5 d | ☑ | 2026-11-27 |
 | 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☐ | |
 | 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☐ | |
 | 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☐ | |
@@ -950,6 +950,7 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | ID | WP | Sev. | Finding | Resolution |
 |---|---|---|---|---|
 | AGF1 | AG0 | P3 | The engine publishes no `session.state` at startup; the phase it starts in is only on its STARTUP `system.book_checkpoint.<symbol>` (`phase`). A phase band (AG3/AG6, design §9.4) built from `session.state` alone has no phase before the first transition. | Recorded, with a world test pinning the STARTUP checkpoint phase. AG3 takes the initial phase from the checkpoint, and shows "unknown" where neither exists. |
+| AGF3 | AG1 | P3 | Creating a snapshot parses every record (through `iter_entries`) at about 91,000 records/s: a 52 MB, 92,000-record trail takes 1.0 s to pin and 0.85 s to read. The 10-million-event reference session (design §11.1) would take about 110 s per snapshot. | Acceptable for R0 (synchronous, one session). AG9 moves it into the `prepare` job; AG25 measures it against §11.1 and may switch the scan to `rawlines` (unparsed skipping). |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -995,3 +996,34 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 - Facts later WPs need: `auction.indicative.*` carries `eq_price_ticks` and
   `eq_qty`; the base world's read-only tests share a module-scoped build. A
   shared session fixture is left until a second test module needs it.
+
+### 8.2 AG1 done note (2026-11-27)
+
+- D1 default used: a gateway with no `audit_collections` has one collection,
+  `default`, the data directory. The derivative store is a parameter
+  (`create_snapshot(collection, store)`); AG2 passes `data/audit-gui/`.
+- Config key `api_gateways.<name>.audit_collections` (list of `{id, path}`;
+  ids `[A-Za-z0-9_-]{1,32}`, unique, at least one entry when present) in the
+  loader (`AuditCollection`), the verifier (`_API_INSTANCE_KEYS`, new
+  `_API_COLLECTION_KEYS` with S121 for unknown entry keys), config-gen field
+  comments (regenerated into config-gui), config-gui (types, zod, defaults,
+  codec, an id/path table in the Gateways tab) and the configuration
+  references (operator guide 005 and 050, reference manual 010 and 030).
+- `audit/service/snapshot.py`: `create_snapshot` hashes every file
+  (`audit_files`), copies the active file's complete lines into the store
+  (a torn tail is reported as `torn_bytes` and left out), scans the pinned
+  records once (`iter_entries`) and derives the id (`s-` + 20 hex) from
+  collection id, root and every file's name, kind, cutoff and hash, so an
+  unchanged trail gives the same snapshot. `open_snapshot(store, id)`
+  rejects malformed ids before touching the filesystem; `entries()` reads
+  the pinned copy plus the retained files, after checking each still has
+  its pinned size and hash (`SOURCE_CHANGED` / `SOURCE_MISSING`), and names
+  each record's source file relative to the collection.
+- `audit/service/capabilities.py`: capabilities `stories`, `causality`,
+  `prices`, `book`, `rerun`, `queue`, `sim_context`, `forensics`; the
+  reason codes are documented in its module docstring. `sim_context` and
+  `forensics` are `NOT_ATTACHED` until AG16 and AG4 attach their sources.
+  Re-run eligibility in AG1 checks only the engine start and recorded
+  config; gaps, restarts and initial book history are AG8/AG20.
+- Not in AG1 (AG8): manifest verification, per-run extents and ordering
+  mode, legacy/rotated/retired/missing-file states.

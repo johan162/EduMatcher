@@ -449,6 +449,9 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
       // its own defaults (the local engine/index buses, data/clearing.db).
       ...(gw.clearingDb !== undefined ? { clearing_db: gw.clearingDb } : {}),
       ...(gw.eodDb !== undefined ? { eod_db: gw.eodDb } : {}),
+      ...(gw.auditCollections !== undefined
+        ? { audit_collections: gw.auditCollections.map((c) => ({ id: c.id, path: c.path })) }
+        : {}),
       ...(gw.marketDataCacheSec !== undefined
         ? { market_data_cache_sec: gw.marketDataCacheSec }
         : {}),

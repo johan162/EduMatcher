@@ -1034,6 +1034,7 @@ class TestLayer2UnknownProcessKeys:
             "api_gateways:\n  desk:\n    prt: 1\n    rate_limit:\n      burts: 1\n"
             "    timeouts:\n      wait_ack: 1\n"
             "    credentials:\n      - api_key: k\n        gateway: GW01\n"
+            "    audit_collections:\n      - id: c\n        pth: data\n"
         )
         assert paths == [
             "log_server.client.connect_timout_sec",
@@ -1041,6 +1042,7 @@ class TestLayer2UnknownProcessKeys:
             "api_gateways.desk.rate_limit.burts",
             "api_gateways.desk.timeouts.wait_ack",
             "api_gateways.desk.credentials[0].gateway",
+            "api_gateways.desk.audit_collections[0].pth",
         ]
 
     def test_valid_blocks_report_nothing(self) -> None:
@@ -1048,6 +1050,7 @@ class TestLayer2UnknownProcessKeys:
             "alf_gateway:\n  port: 5565\n  enabled: true\n"
             "log_server:\n  client:\n    failover_dir: logs\n"
             "api_gateways:\n  desk:\n    host: 127.0.0.1\n    rate_limit: {burst: 5}\n"
+            "    audit_collections:\n      - {id: c, path: data}\n"
         )
 
     def test_non_mapping_block_is_left_to_its_own_check(self) -> None:

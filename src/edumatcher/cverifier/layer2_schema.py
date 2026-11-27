@@ -3252,6 +3252,7 @@ _API_INSTANCE_KEYS = frozenset(
         "audit_db",
         "clearing_db",
         "eod_db",
+        "audit_collections",
         "order_retention_sec",
         "market_data_cache_sec",
         "engine_pull_addr",
@@ -3266,6 +3267,7 @@ _API_INSTANCE_KEYS = frozenset(
 _API_RATE_LIMIT_KEYS = frozenset({"writes_per_second", "burst"})
 _API_TIMEOUT_KEYS = frozenset({"engine_auth_sec", "engine_reply_sec", "wait_ack_sec"})
 _API_CREDENTIAL_KEYS = frozenset({"api_key", "gateway_id", "description"})
+_API_COLLECTION_KEYS = frozenset({"id", "path"})
 
 
 def _report_unknown_keys(
@@ -3354,6 +3356,15 @@ def _check_unknown_process_keys(
                     credential,
                     _API_CREDENTIAL_KEYS,
                     f"{base}.credentials[{index}]",
+                    results,
+                )
+        collections = instance.get("audit_collections")
+        if isinstance(collections, list):
+            for index, collection in enumerate(collections):
+                _report_unknown_keys(
+                    collection,
+                    _API_COLLECTION_KEYS,
+                    f"{base}.audit_collections[{index}]",
                     results,
                 )
 

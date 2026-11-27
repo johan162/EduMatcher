@@ -326,6 +326,14 @@ export const apiCredentialSchema = z.object({
   description: z.string().optional(),
 });
 
+/** `audit_collections[].id`, as pm-api-gwy's loader checks it. */
+export const AUDIT_COLLECTION_ID = /^[A-Za-z0-9_-]{1,32}$/;
+
+export const auditCollectionSchema = z.object({
+  id: z.string().regex(AUDIT_COLLECTION_ID, "1-32 letters, digits, '_' or '-'"),
+  path: z.string().min(1),
+});
+
 export const apiGatewaySchema = z.object({
   name: z.string().min(1),
   enabled: z.boolean(),
@@ -337,6 +345,11 @@ export const apiGatewaySchema = z.object({
   auditDb: z.string().min(1).optional(),
   clearingDb: z.string().min(1).optional(),
   eodDb: z.string().min(1).optional(),
+  auditCollections: z
+    .array(auditCollectionSchema)
+    .min(1)
+    .refine((cols) => new Set(cols.map((c) => c.id)).size === cols.length, "duplicate collection id")
+    .optional(),
   marketDataCacheSec: z.number().nonnegative().optional(),
   enginePullAddr: z.string().min(1).optional(),
   enginePubAddr: z.string().min(1).optional(),
