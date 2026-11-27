@@ -595,6 +595,7 @@ The `⚠` state is the one to watch. A process that connected and then went
 quiet is not obviously broken from any single log line — there is nothing to
 see, which is precisely the problem. Alongside each row: pid, host, connect
 time, idle time, total log count and error count.
+Idle time is shown as `HH:MM:SS ago`, with total hours even after a day.
 
 The threshold is `PROCESS_SILENCE_SEC` (30 s by default) and is stated in the
 legend above the table, so the glyph is never ambiguous.

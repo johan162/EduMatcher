@@ -13,6 +13,14 @@ function idleSeconds(lastSeenAt: string): number {
   return (Date.now() - new Date(lastSeenAt).getTime()) / 1000;
 }
 
+function formatIdle(lastSeenAt: string): string {
+  const seconds = Math.max(0, Math.round(idleSeconds(lastSeenAt)));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")} ago`;
+}
+
 function statusGlyph(
   disconnectedAt: string | null,
   lastSeenAt: string,
@@ -103,9 +111,9 @@ export function ConnectionsView() {
             <th className="border-b border-border py-1 pr-2">
               Last seen{" "}
               <InfoTip label="Last seen">
-                How long ago the process last sent anything, or “disconnected”
-                if it closed its connection. A long silence on a live connection
-                is flagged with a warning mark.
+                How long ago the process last sent anything, in hours:minutes:seconds,
+                or “disconnected” if it closed its connection. A long silence on a
+                live connection is flagged with a warning mark.
               </InfoTip>
             </th>
             <th className="border-b border-border py-1 pr-2">
@@ -156,7 +164,7 @@ export function ConnectionsView() {
               <td className="py-1 pr-2 text-fg-subtle">
                 {row.disconnected_at
                   ? "disconnected"
-                  : `${idleSeconds(row.last_seen_at).toFixed(0)}s ago`}
+                  : formatIdle(row.last_seen_at)}
               </td>
               <td className="py-1 pr-2">{row.log_count.toLocaleString()}</td>
               <td className="py-1 pr-2 text-level-error">{row.errorCount}</td>
