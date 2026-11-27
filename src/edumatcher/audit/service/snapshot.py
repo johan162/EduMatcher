@@ -127,6 +127,15 @@ class RunInfo:
 
 
 @dataclass(frozen=True)
+class SymbolInfo:
+    """A symbol a priced record names, and the scale its records state
+    (None when none does)."""
+
+    symbol: str
+    tick_decimals: int | None
+
+
+@dataclass(frozen=True)
 class ManifestProblem:
     day: str | None
     message: str
@@ -163,6 +172,8 @@ class SnapshotDescriptor:
     #: The attached pm-sim-forensics report, when one could be read.
     forensics: ForensicsPin | None = None
     manifest: ManifestState = ManifestState("absent", 0, None, False, ())
+    #: Every priced symbol, by name.
+    symbols: tuple[SymbolInfo, ...] = ()
 
 
 class SnapshotUnavailable(Exception):
@@ -347,7 +358,7 @@ def _describe(
     first_ts = last_ts = first_topic = None
     runs: list[RunInfo] = []
     priced: set[str] = set()
-    scaled: set[str] = set()
+    scales: dict[str, int] = {}
     for e in iter_entries(paths):
         count += 1
         if first_ts is None:
@@ -369,14 +380,14 @@ def _describe(
         if e.topic.startswith(_PRICED) and isinstance(e.payload.get("symbol"), str):
             priced.add(e.payload["symbol"])
             if isinstance(e.payload.get("tick_decimals"), int):
-                scaled.add(e.payload["symbol"])
+                scales.setdefault(e.payload["symbol"], e.payload["tick_decimals"])
     evidence = Evidence(
         entries=count,
         first_topic=first_topic,
         with_envelope=with_envelope,
         book_observations=books,
         priced_symbols=frozenset(priced),
-        unscaled_symbols=frozenset(priced - scaled),
+        unscaled_symbols=frozenset(priced - scales.keys()),
         runs_without_config=tuple(
             (r.run_seq, r.started_ts) for r in runs if r.config_sha256 is None
         ),
@@ -395,6 +406,7 @@ def _describe(
         capabilities=evaluate(evidence),
         forensics=report.pin if report else None,
         manifest=manifest,
+        symbols=tuple(SymbolInfo(s, scales.get(s)) for s in sorted(priced)),
     )
 
 
@@ -433,6 +445,7 @@ def _load(directory: Path) -> SnapshotDescriptor:
         },
         forensics=_load_forensics(raw["forensics"]),
         manifest=_load_manifest(raw["manifest"]),
+        symbols=tuple(SymbolInfo(**s) for s in raw["symbols"]),
     )
 
 

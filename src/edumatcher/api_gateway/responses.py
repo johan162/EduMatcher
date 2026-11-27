@@ -1281,6 +1281,14 @@ class AuditManifest(BaseModel):
     problems: list[AuditManifestProblem]
 
 
+class AuditSymbol(BaseModel):
+    symbol: str
+    tick_decimals: int | None = Field(
+        description="The scale its records state; null when none does (prices "
+        "cannot be shown in money)."
+    )
+
+
 class AuditSnapshot(BaseModel):
     snapshot_id: str
     collection_id: str
@@ -1294,6 +1302,9 @@ class AuditSnapshot(BaseModel):
         description="Each analysis, and why it is unavailable when it is."
     )
     manifest: AuditManifest = Field(description="The evidence manifest when pinned.")
+    symbols: list[AuditSymbol] = Field(
+        description="Every symbol a priced record names, by name."
+    )
     forensics: AuditForensicsReport | None = Field(
         description="The attached `pm-sim-forensics` report (`forensics/` beside "
         "the collection); null when none is attached or it cannot be read."

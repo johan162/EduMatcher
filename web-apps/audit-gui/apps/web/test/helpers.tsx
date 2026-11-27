@@ -15,8 +15,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { act, render, screen } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { vi } from "vitest";
 import App from "@/App";
 import { useAuthStore, type Role } from "@/store/useAuthStore";
@@ -98,9 +98,17 @@ export function apiError(status: number, code: string, message = code, extra: Re
   return json(status, { error: { code, message, ...extra } });
 }
 
+let navigateInApp: ((to: number) => void) | null = null;
+
 function LocationProbe() {
   const location = useLocation();
+  navigateInApp = useNavigate();
   return <output data-testid="location">{location.pathname + location.search}</output>;
+}
+
+/** Browser Back (-1) or Forward (+1) inside the rendered app. */
+export function history(step: number): void {
+  act(() => navigateInApp!(step));
 }
 
 /** The location the router is at now. */

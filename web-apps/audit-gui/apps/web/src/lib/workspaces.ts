@@ -43,7 +43,7 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
         path: "/market",
         name: "Market",
         question: "What formed this symbol's market, and what happened just before and after this moment?",
-        built: false,
+        built: true,
         Icon: LineChart,
       },
       { path: "/participants", name: "Participants", question: "How did this gateway behave?", built: false, Icon: Users },

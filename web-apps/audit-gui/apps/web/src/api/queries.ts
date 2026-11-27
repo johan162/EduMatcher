@@ -5,7 +5,8 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/api/apiFetch";
-import { Collections, FindingPage, Snapshot, type SnapshotT } from "@/api/schemas";
+import { Collections, EventPage, FindingPage, Heatmap, Lifelines, Snapshot, Story, type SnapshotT } from "@/api/schemas";
+import { toTrade, type Trade } from "@/lib/flow";
 import { useSnapshotStore } from "@/store/useSnapshotStore";
 
 const V1 = "/api/v1/audit";
@@ -14,6 +15,13 @@ export const keys = {
   collections: ["audit", "collections"] as const,
   snapshot: (id: string) => ["audit", "snapshot", id] as const,
   gaps: (id: string) => ["audit", "gaps", id] as const,
+  heatmap: (id: string, symbol: string, from: string | null, to: string | null) =>
+    ["audit", "heatmap", id, symbol, from, to] as const,
+  lifelines: (id: string, symbol: string, from: string | null, to: string | null) =>
+    ["audit", "lifelines", id, symbol, from, to] as const,
+  trades: (id: string, symbol: string) => ["audit", "trades", id, symbol] as const,
+  story: (id: string, order: string, run: number | null) => ["audit", "story", id, order, run] as const,
+  orderEvents: (id: string, order: string) => ["audit", "order-events", id, order] as const,
 };
 
 export function useCollections() {
@@ -63,5 +71,93 @@ export function useGapCount(id: string) {
       return { count: page.count, lowerBound: page.has_more };
     },
     staleTime: Infinity,
+  });
+}
+
+/** Heatmap bins asked for: about one per 3 px of a wide canvas. */
+export const HEATMAP_BINS = 300;
+
+function windowQuery(id: string, from: string | null, to: string | null, extra: Record<string, string> = {}) {
+  const q = new URLSearchParams({ snapshot_id: id, ...extra });
+  if (from) q.set("from", from);
+  if (to) q.set("to", to);
+  return q;
+}
+
+export function useHeatmap(id: string, symbol: string, from: string | null, to: string | null) {
+  return useQuery({
+    queryKey: keys.heatmap(id, symbol, from, to),
+    queryFn: ({ signal }) =>
+      apiFetch(
+        `${V1}/market/${encodeURIComponent(symbol)}/heatmap?${windowQuery(id, from, to, { bins: String(HEATMAP_BINS) })}`,
+        Heatmap,
+        { signal },
+      ),
+    staleTime: Infinity,
+  });
+}
+
+export function useLifelines(id: string, symbol: string, from: string | null, to: string | null) {
+  return useQuery({
+    queryKey: keys.lifelines(id, symbol, from, to),
+    queryFn: ({ signal }) =>
+      apiFetch(`${V1}/market/${encodeURIComponent(symbol)}/lifelines?${windowQuery(id, from, to)}`, Lifelines, { signal }),
+    staleTime: Infinity,
+  });
+}
+
+/** Pages of trades read at most (1,000 each); past that the layer says so. */
+export const TRADE_PAGES = 5;
+
+/**
+ * The symbol's trades (`/events?topic=trade.executed`), for the trades
+ * layer and the flow strip. The snapshot's, not the window's: the route has
+ * no time filter, so the canvas clips them.
+ */
+export function useTrades(id: string, symbol: string) {
+  return useQuery({
+    queryKey: keys.trades(id, symbol),
+    queryFn: async ({ signal }) => {
+      const trades: Trade[] = [];
+      let after: string | null = null;
+      for (let page = 0; page < TRADE_PAGES; page++) {
+        const q = new URLSearchParams({ snapshot_id: id, topic: "trade.executed", symbol, limit: "1000" });
+        if (after) q.set("after", after);
+        const body = await apiFetch(`${V1}/events?${q}`, EventPage, { signal });
+        for (const e of body.events) {
+          const t = toTrade(e);
+          if (t) trades.push(t);
+        }
+        after = body.next_cursor;
+        if (!body.has_more) return { trades, truncated: false };
+      }
+      return { trades, truncated: true };
+    },
+    staleTime: Infinity,
+  });
+}
+
+export function useOrderStory(id: string, order: string, run: number | null) {
+  return useQuery({
+    queryKey: keys.story(id, order, run),
+    queryFn: ({ signal }) => {
+      const q = new URLSearchParams({ snapshot_id: id });
+      if (run !== null) q.set("run_id", String(run));
+      return apiFetch(`${V1}/stories/order/${encodeURIComponent(order)}?${q}`, Story, { signal });
+    },
+    staleTime: Infinity,
+  });
+}
+
+/** The order's raw records (one bounded page). */
+export function useOrderEvents(id: string, order: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.orderEvents(id, order),
+    queryFn: ({ signal }) =>
+      apiFetch(`${V1}/events?${new URLSearchParams({ snapshot_id: id, order_id: order, limit: "1000" })}`, EventPage, {
+        signal,
+      }),
+    staleTime: Infinity,
+    enabled,
   });
 }

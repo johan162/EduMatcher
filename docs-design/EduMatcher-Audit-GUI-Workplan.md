@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0-AG5 done). This plan orders the work needed to deliver the
+Status: **In progress** (AG0-AG6 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -59,7 +59,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☑ | 2026-11-27 |
 | 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☑ | 2026-11-27 |
 | 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☑ | 2026-11-27 |
-| 6 | AG6 | Market canvas (Analyse, R0 layers), story drawer, raw evidence | AG3, AG4, AG5 | 3 d | ☐ | |
+| 6 | AG6 | Market canvas (Analyse, R0 layers), story drawer, raw evidence | AG3, AG4, AG5 | 3 d | ☑ | 2026-11-27 |
 | 7 | AG7 | R0 acceptance, help text and holistic review | AG6 | 1 d | ☐ | |
 
 ### R1 — explain and verify (design AU-1 … AU-6)
@@ -962,6 +962,8 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF12 | AG4 | P3 | The report has no configured location. `pm-sim-forensics --out` defaults to `forensics/` beside the install's data dir whatever `--data` is, so for any other collection the operator must pass `--out <collection>/../forensics`; two collections with one parent share that place. | R0 convention: a collection's report is `forensics/findings.json` beside it (no path in any request). A report of the neighbouring collection is caught as `DIFFERENT_INPUTS`. A per-collection key, if wanted, belongs to AG8's source catalogue. |
 | AGF13 | AG5 | P3 | The evidence banner must show the manifest as "checked, unanchored", "failed" or "no manifest", but no route reported the manifest: AG1 left manifest verification to AG8. | The snapshot descriptor gained `manifest` (`absent`/`verified`/`failed`, entries, head hash, `anchored: false`, problems), verified with `audit.manifest.verify` when pinned; the head is part of the snapshot id. AG8 adds the full source catalogue (retired and missing states, anchoring). |
 | AGF14 | AG5 | P3 | The banner's gap count reads `/findings?code=ESEQ_GAP`, so the first view of a snapshot builds its whole replay session (AGF5): seconds for a class session, minutes at the 10-million-event reference. | Acceptable for R0: the banner says "counting…" meanwhile and an error is never a zero. AG9's `prepare` job builds the session before the first view. |
+| AGF15 | AG6 | P3 | Design §2 and §7.1 said the GUIs already chart with ECharts; they use Recharts (SVG), and no GUI had ECharts. | Kept ECharts by decision: it is the project's chart library going forward (pm-trader's OHLC chart is to be rewritten with it), and the canvas, custom series and brush fit dense heatmaps and up to 5,000 lifeline segments. Loaded on demand (one tree-shaken chunk). Design text corrected. |
+| AGF16 | AG6 | P3 | The Market canvas needed two things no route gave: the snapshot's symbols, and trades in a window (`/events` has no time filter). | The descriptor gained `symbols` (`{symbol, tick_decimals}`, from the pass that already found the priced symbols). Trades come from `/events?topic=trade.executed&symbol=` (at most 5 pages of 1,000; the layer says when it is cut) and are clipped to the window in the browser. AG10's typed filters and AG17's `/flows` replace this. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1189,3 +1191,49 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
   loads ECharts on demand.
 - Not in AG5: help drawer and help text, and the operator guide chapter
   (AG7, R0 acceptance); venue timezone and time controls (AG10).
+
+### 8.7 AG6 done note (2026-11-27)
+
+- Market workspace (`/market`): one symbol × time canvas drawn with
+  ECharts (AGF15) from the AG3 read models. Three stacked grids share the
+  receipt-clock time axis: the phase band; heatmap cells (bid and ask hues,
+  opacity by displayed depth), hatched masks (gap, halt) with a tooltip
+  naming the reason and what it means for the cells, lifelines (thickness
+  by displayed quantity, dashed while a stop is held, the selected one
+  thicker), end glyphs (● filled, × owner cancel, ⊗ system cancel,
+  ◌ expired, ▸ still resting, … cut by the window), trades (▲ buyer- and
+  ▼ seller-initiated, ◆ auction; never colour alone); the signed flow
+  strip per heatmap bin.
+- Table equivalents: a legend with every mark in words, the masks list,
+  the cadence line, and the lifelines as a keyboard listbox (arrows,
+  Home/End, Enter) with each end reason in text; aggregated lifelines show
+  the per-level table and say to brush a shorter interval.
+- The URL is the state: `symbol`, `from`/`to` (epoch ns), `order`/`run`/
+  `tab`. A brush or a click pushes history, so Back/Forward restore the
+  interval and the drawer. Interval changes are debounced (150 ms): one
+  heatmap and one lifeline request per settled interval.
+- Order drawer: Story (pm-audit-replay's narration, `run_id` from the
+  lifeline), Checks (the episodes' findings, or "No finding on this
+  order's episodes."), Raw evidence (the order's records with topic,
+  payload and `file:line`).
+- Backend: descriptor `symbols` (AGF16); the AG0 engine stub answers an
+  ADMIN's roster request so `/status` serves the GUI login.
+- Tests: Vitest 81 (option builder: cells, hatching and tooltips, glyphs,
+  trade shapes, selection, the custom-series encodings; page: click opens
+  story and raw lines, brush sets the URL with one request per read
+  model, text equivalents, keyboard, Back/Forward, masks list, 409 reason,
+  aggregation, symbol switch; contract test for all 8 routes read). The
+  option builder's tests were written first but first run with the
+  builder. Browser: `tests/test_audit_gui_e2e.py` (`-m e2e`) walks AU-0 on
+  the world with a planted gap and a forensics report: masks with reasons,
+  cadence, recorded end reasons, lifeline -> story -> raw lines, Back/
+  Forward, SKIPPED/ERROR shown as such, same-origin only. Passed first run.
+- Found in the browser, fixed and pinned by tests: ECharts reads a custom
+  series' `data[1]` as y unless `encode` says otherwise (the flow strip's
+  axis ran to 1.8e12); an item's `opacity: 0` also hid its label (the end
+  glyphs); phase labels overlapped where a phase lasts seconds.
+- Bundle: main 465 kB (145 kB gzip); ECharts one lazy chunk, 514 kB
+  (173 kB gzip), loaded only by Market.
+- Not in AG6: in-app help (AG7); Replay mode and illustrations (AG21/22);
+  a chart-bucket drill to its events and the market-context drawer tab
+  (AG12); news and true-value layers (AG16).

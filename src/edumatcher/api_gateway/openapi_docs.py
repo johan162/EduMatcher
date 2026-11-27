@@ -2452,6 +2452,10 @@ AUDIT_SNAPSHOT: dict[str, Any] = {
         },
         "forensics": {"available": True, "reason": None, "detail": ""},
     },
+    "symbols": [
+        {"symbol": "AAA", "tick_decimals": 2},
+        {"symbol": "BBB", "tick_decimals": 4},
+    ],
     "manifest": {
         "state": "verified",
         "entries": 1,

@@ -835,8 +835,16 @@ ROLES = {OPS: "ADMIN", T1: "TRADER", T2: "TRADER", T3: "TRADER", MM: "MARKET_MAK
 
 
 class _RoleEngine:
-    """Stands in for EngineClient where the audit routes need it: the key's
-    gateway is known (``authenticate``) and has a role (``resolve_role``)."""
+    """Stands in for EngineClient where the audit routes and the GUI's login
+    (``GET /status``) need it: the key's gateway is known (``authenticate``),
+    has a role (``resolve_role``), and an ADMIN's roster request is answered
+    with no connected gateway."""
+
+    def request_gateways(self, gateway_id: str) -> None:
+        """The roster request goes nowhere; ``await_topic`` answers it."""
+
+    async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
+        return {"gateways": []}
 
     async def authenticate(self, gateway_id: str, timeout: float) -> tuple[bool, str]:
         known = gateway_id in ROLES

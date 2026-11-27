@@ -142,6 +142,10 @@ def test_a_snapshot_is_created_and_described(app: Any, sid: str, base: World) ->
     assert body["entries"] > 0
     assert body["capabilities"]["rerun"] == {"available": True, "reason": None, "detail": ""}  # fmt: skip
     assert body["capabilities"]["forensics"]["reason"] == "NOT_ATTACHED"
+    assert body["symbols"] == [
+        {"symbol": sym, "tick_decimals": aw.TICK_DECIMALS[sym]}
+        for sym in sorted(aw.TICK_DECIMALS)
+    ]
     assert str(base.data) not in json.dumps(body)
 
 

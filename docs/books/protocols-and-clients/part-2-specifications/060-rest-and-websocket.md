@@ -3323,6 +3323,9 @@ active `audit.log`'s complete lines (a partial last line is reported as
 analysis whether the evidence supports it. The id is derived from that
 content: pinning an unchanged collection again returns the same snapshot.
 
+`symbols` lists every symbol a priced record names, with the
+`tick_decimals` its records state (null when none does).
+
 `manifest` is the evidence manifest (`audit/manifest.jsonl`) as `pm-audit-cli
 verify` checks it when pinned: `state` is `absent`, `verified` (the hash chain
 and every archive match) or `failed` (`problems` lists each, by `day`), with
@@ -3350,7 +3353,7 @@ capability is available only for a matching report; otherwise its reason is
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
+| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities", "symbols", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
 
 **Errors**
 

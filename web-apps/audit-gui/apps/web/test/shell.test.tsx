@@ -35,7 +35,6 @@ describe("shell", () => {
 
   it.each([
     ["/findings", "Findings"],
-    ["/market", "Market"],
     ["/participants", "Participants"],
     ["/explorer", "Explorer"],
     ["/integrity", "Integrity & Coverage"],

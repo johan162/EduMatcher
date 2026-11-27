@@ -141,7 +141,7 @@ or that performance was measured for this proposal.
 | Recorded market data | `pm-audit` subscribes to the engine publisher, so `book.*`, `depth.*`, `auction.indicative.*`/`auction.result.*` and `system.book_checkpoint.*` are retained alongside commands and trades. | The heatmap, spread and markout analyses use these recorded observations. Their publication cadence limits the time resolution; measure it per snapshot and show it. Do not assume every book change was published. |
 | `pm-sim-forensics` | Cross-store oracles over a finished simulation run (audit, stats, clearing, monitor, gateways): PASS, FAIL with sample rows, SKIPPED, or ERROR per check. | Import results into the Exchange-consistency lane with check ID and data scope. Do not re-implement them in the GUI backend. SKIPPED and ERROR are not PASS. |
 | Market simulator | Publishes `news.event` and `sim.value` on its own bus, which `pm-audit` does not record. It stores headlines and true-value jumps in `market_sim_news.db`. AI-trader gateways run named presets (strategy × execution × tempo × risk). pm-api-gwy already serves news history (`GET /api/v1/news`, any key) and live true values (`GET /api/v1/admin/sim`); no route serves true-value history. | Optional, separately labelled **simulator context** source (section 6). Not audit evidence, and absent in non-simulated sessions. Reuse the existing news reader; add only a read-only true-value history helper. |
-| ECharts adoption | Existing GUIs chart with ECharts (dash, clearing, log, trader). | Use ECharts heatmap/custom series for depth heatmaps and order lifelines. A new chart framework is not needed. |
+| ECharts adoption | The existing GUIs chart with Recharts (SVG); none uses ECharts yet. ECharts is the project's chosen chart library going forward: pm-trader's third-party OHLC chart is to be rewritten with it. | Use ECharts (canvas) custom series for depth heatmaps and order lifelines, loaded on demand. |
 
 ### 2.1 Identity and visibility
 
@@ -445,8 +445,9 @@ audit-gui/
 
 Use React Router, TanStack Query, Zustand, Zod, Tailwind, Radix/shadcn patterns,
 Vitest/Testing Library, and the established shell/help/table conventions.
-Use ECharts, as the other GUIs do. Its heatmap series draws the depth heatmap;
-a custom series draws order lifelines; canvas rendering with server-side
+Use ECharts, the project's chart library going forward (pm-trader's OHLC
+chart is to move to it too). Custom series draw the depth heatmap and the
+order lifelines on shared value axes; canvas rendering with server-side
 binning keeps dense sessions responsive. Simple SVG is sufficient for causal
 graphs and queue diagrams initially.
 

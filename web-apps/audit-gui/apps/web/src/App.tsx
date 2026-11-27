@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { WORKSPACES } from "@/lib/workspaces";
 import { LoginPage } from "@/pages/LoginPage";
+import { MarketPage } from "@/pages/MarketPage";
 import { NotInRelease, OverviewPage } from "@/pages/WorkspacePage";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -24,6 +25,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/overview" replace />} />
         <Route path="/overview" element={<OverviewPage />} />
+        <Route path="/market" element={<MarketPage />} />
         {WORKSPACES.filter((w) => !w.built).map((w) => (
           <Route key={w.path} path={w.path} element={<NotInRelease workspace={w} />} />
         ))}

@@ -85,11 +85,15 @@ function okSchema(route: string): OpenApiSchema {
 describe("GUI schemas match the released REST contract", () => {
   const routes = Object.keys(ROUTE_SCHEMAS);
 
-  it("reads the routes R0's shell needs", () => {
+  it("reads the routes R0 needs", () => {
     expect(routes.sort()).toEqual([
       "/api/v1/audit/collections",
+      "/api/v1/audit/events",
       "/api/v1/audit/findings",
+      "/api/v1/audit/market/{symbol}/heatmap",
+      "/api/v1/audit/market/{symbol}/lifelines",
       "/api/v1/audit/snapshots/{snapshot_id}",
+      "/api/v1/audit/stories/{entity_kind}/{entity_id}",
       "/api/v1/status",
     ]);
   });

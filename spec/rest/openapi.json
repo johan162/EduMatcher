@@ -20548,6 +20548,16 @@
                       "detail": ""
                     }
                   },
+                  "symbols": [
+                    {
+                      "symbol": "AAA",
+                      "tick_decimals": 2
+                    },
+                    {
+                      "symbol": "BBB",
+                      "tick_decimals": 4
+                    }
+                  ],
                   "manifest": {
                     "state": "verified",
                     "entries": 1,
@@ -20858,6 +20868,16 @@
                       "detail": ""
                     }
                   },
+                  "symbols": [
+                    {
+                      "symbol": "AAA",
+                      "tick_decimals": 2
+                    },
+                    {
+                      "symbol": "BBB",
+                      "tick_decimals": 4
+                    }
+                  ],
                   "manifest": {
                     "state": "verified",
                     "entries": 1,
@@ -25074,6 +25094,14 @@
             "$ref": "#/components/schemas/AuditManifest",
             "description": "The evidence manifest when pinned."
           },
+          "symbols": {
+            "items": {
+              "$ref": "#/components/schemas/AuditSymbol"
+            },
+            "type": "array",
+            "title": "Symbols",
+            "description": "Every symbol a priced record names, by name."
+          },
           "forensics": {
             "anyOf": [
               {
@@ -25098,6 +25126,7 @@
           "runs",
           "capabilities",
           "manifest",
+          "symbols",
           "forensics"
         ],
         "title": "AuditSnapshot"
@@ -25578,6 +25607,32 @@
           "evidence"
         ],
         "title": "AuditStoryLink"
+      },
+      "AuditSymbol": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "tick_decimals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Decimals",
+            "description": "The scale its records state; null when none does (prices cannot be shown in money)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "tick_decimals"
+        ],
+        "title": "AuditSymbol"
       },
       "BalanceRow": {
         "properties": {
