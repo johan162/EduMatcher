@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0, AG1 done). This plan orders the work needed to deliver the
+Status: **In progress** (AG0-AG2 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -55,7 +55,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 |---|---|---|---|---|---|---|
 | 0 | AG0 | Shared "audit world" fixtures and API test harness | — | 2 d | ☑ | 2026-11-27 |
 | 1 | AG1 | Evidence collections, minimal snapshot descriptor and capability model | AG0, D1 | 1.5 d | ☑ | 2026-11-27 |
-| 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☐ | |
+| 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☑ | 2026-11-27 |
 | 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☐ | |
 | 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☐ | |
 | 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☐ | |
@@ -270,7 +270,7 @@ nanosecond timestamps as strings, tick values with `tick_decimals`, and
 source references; `/stories/order/{id}` returns the replay story with link
 confidences; `/findings` returns existing replay anomaly codes in the right
 lanes (design §4.1); missing source is 503, unknown entity 404, invalid
-filter 422, unsupported capability a typed reason and not an empty list.
+filter 400 `VALIDATION` (AGF4), unsupported capability a typed reason and not an empty list.
 
 **Implementation worksteps.**
 
@@ -441,7 +441,7 @@ separate fields); per-run extents and ordering mode (`eseq` or legacy).
 **Test-first workstep.**
 
 - `POST /jobs` with each R1 kind returns 202. Identical requests are
-  de-duplicated, and unknown kinds or options return 422.
+  de-duplicated, and unknown kinds or options return 400 `VALIDATION` (AGF4).
 - Cancelling and timing out both leave no partial generation.
 - Killing the worker marks its job `failed`, with a reason, after restart.
 - Scratch directories are removed on success, failure and cancel.
@@ -471,7 +471,7 @@ never runs reconstruction.
 
 **Test-first workstep.**
 
-- Grammar: valid filters parse to typed chips. Unknown fields return 422
+- Grammar: valid filters parse to typed chips. Unknown fields return 400 `VALIDATION`
   with suggestions. Values reach SQL only as bound parameters, which a
   test proves with an injection attempt.
 - Cursors: a cursor is stable across pages and rejected for a different
@@ -951,6 +951,9 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 |---|---|---|---|---|
 | AGF1 | AG0 | P3 | The engine publishes no `session.state` at startup; the phase it starts in is only on its STARTUP `system.book_checkpoint.<symbol>` (`phase`). A phase band (AG3/AG6, design §9.4) built from `session.state` alone has no phase before the first transition. | Recorded, with a world test pinning the STARTUP checkpoint phase. AG3 takes the initial phase from the checkpoint, and shows "unknown" where neither exists. |
 | AGF3 | AG1 | P3 | Creating a snapshot parses every record (through `iter_entries`) at about 91,000 records/s: a 52 MB, 92,000-record trail takes 1.0 s to pin and 0.85 s to read. The 10-million-event reference session (design §11.1) would take about 110 s per snapshot. | Acceptable for R0 (synchronous, one session). AG9 moves it into the `prepare` job; AG25 measures it against §11.1 and may switch the scan to `rawlines` (unparsed skipping). |
+| AGF4 | AG2 | P3 | Design §8.1 and this plan say an invalid filter is `422`; the gateway answers every malformed parameter, body or cursor with `400 VALIDATION` (its error registry and the REST chapter's contract). | Code is right: the audit routes use `400 VALIDATION` with `field`. AG10's grammar errors follow it; design §8.1 corrected. |
+| AGF5 | AG2 | P2 | The first read of a snapshot runs the replay pipeline and builds the episode index at about 6,400 records/s (2.9 s for 18,450 records; pages afterwards about 1 ms). The 10-million-event reference (§11.1) would take about 26 minutes in a request. | Acceptable for R0 (one class session, one snapshot cached). AG9's `prepare` job must take this out of the API process before R1; AG25 measures it. |
+| AGF6 | AG2 | P3 | `Episode.run_seq` is read from payloads and is unset for most orders, so it cannot keep stories apart across a run reset. The replay's own run is each fact's `publisher_run` (0-based restart epoch). | `/stories` selects and filters by the episodes' `publisher_run`, exposed as `run` (and `run_id`), the same number `/events` reports. An id seen in two runs is `409 AMBIGUOUS_RUN` until `run_id` names one. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1027,3 +1030,38 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
   config; gaps, restarts and initial book history are AG8/AG20.
 - Not in AG1 (AG8): manifest verification, per-run extents and ordering
   mode, legacy/rotated/retired/missing-file states.
+
+### 8.3 AG2 done note (2026-11-27)
+
+- Routes under `/api/v1/audit`, all ADMIN (a role-matrix test covers every
+  route for TRADER, MARKET_MAKER and read-only keys and fails when a route
+  is added without it): `GET /collections`, `POST /snapshots` (R0: pins
+  synchronously; body `{collection_id}` only, extra fields refused),
+  `GET /snapshots/{id}`, `GET /events`, `GET /stories/{kind}/{id}`,
+  `GET /findings`. No route accepts or returns a path.
+- `audit/service/session.py`: `AuditService` (collections, the store
+  `data/audit-gui/` = `AUDIT_GUI_DIR`, an LRU of one session) and
+  `ReplaySession`: the snapshot's facts through `normalise` + `ordered`, and
+  the replay's own reconstruction, detectors and episode index, built once
+  into the snapshot's directory (`replay.db`). Stories are
+  `reader.episodes_by_anchor` + `reader.walk` rendered by
+  `render_json.objects`; findings are `render_json.anomalies`. No business
+  rule is re-derived.
+- `audit/service/findings.py`: every replay code mapped to the evidence,
+  consistency or operations lane (window-edge codes keep their severity);
+  a test fails when a code is added to `anomalies.py` without a lane. The
+  behaviour lane reports `NOT_IN_RELEASE`, never empty.
+- `/events`: canonical order, `key` (the replay's packed sort key), `run`,
+  `eseq`, both clocks, `*_ns` payload fields as strings, prices with their
+  `tick_decimals`, `source` file/line relative to the collection. Default
+  page 100, max 1,000; cursors carry snapshot and filter and are refused
+  for others.
+- Errors (registry, OpenAPI, REST chapter): `UNKNOWN_COLLECTION`,
+  `UNKNOWN_SNAPSHOT`, `UNKNOWN_ENTITY` (404), `AMBIGUOUS_RUN`,
+  `CAPABILITY_UNAVAILABLE` (409, with `reason`), `AUDIT_SOURCE_UNAVAILABLE`
+  (503, with `reason`). `make openapi` adds 18 schemas and changes none.
+- The REST chapter has "Audit (ADMIN)" in its endpoint index and a section
+  per route.
+- Not in AG2: ambiguous id prefixes return 404 (the selection list is
+  AG10); story depth is bounded (0-3) but the 200-node graph cap is AG12;
+  no `reproduce` blocks yet (AG10).

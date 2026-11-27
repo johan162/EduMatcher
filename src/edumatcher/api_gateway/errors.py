@@ -70,6 +70,27 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "The order id is unknown to the gateway, or absent from the audit trail.",
         "Unknown order ORD-20260806-00042",
     ),
+    "UNKNOWN_COLLECTION": ErrorCode(
+        404,
+        "UNKNOWN",
+        "No audit evidence collection with this id is configured "
+        "(`api_gateways.<name>.audit_collections`).",
+        "No audit collection 'class-9'",
+    ),
+    "UNKNOWN_SNAPSHOT": ErrorCode(
+        404,
+        "UNKNOWN",
+        "No audit evidence snapshot has this id (or the id is malformed). "
+        "Create one with `POST /audit/snapshots`.",
+        "No snapshot 's-0123456789abcdef0123'",
+    ),
+    "UNKNOWN_ENTITY": ErrorCode(
+        404,
+        "UNKNOWN",
+        "The snapshot holds no episode for this order, trade, quote, OCO, combo "
+        "or command id (an ambiguous prefix matches none).",
+        "No order '9f2c' in this snapshot",
+    ),
     "UNKNOWN_COMPANY": ErrorCode(
         404, "UNKNOWN", "No company profile for the symbol.", "No company for XYZ"
     ),
@@ -152,6 +173,21 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "nothing was sent. `reject_code` is the engine's.",
         "Order already filled",
     ),
+    "AMBIGUOUS_RUN": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The id appears in more than one engine run of the snapshot (a restart "
+        "reused it); `runs` lists them. Repeat with `run_id`.",
+        "The id appears in runs 1, 2: pass run_id",
+    ),
+    "CAPABILITY_UNAVAILABLE": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The snapshot's evidence cannot support this analysis; `reason` is a "
+        "stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty "
+        "result.",
+        "The snapshot holds no audit record",
+    ),
     "IDEMPOTENCY_KEY_REUSED": ErrorCode(
         409,
         "UNKNOWN",
@@ -224,6 +260,14 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "UNKNOWN",
         "The `pm-audit` index is not built or not running.",
         "Audit index unavailable",
+    ),
+    "AUDIT_SOURCE_UNAVAILABLE": ErrorCode(
+        503,
+        "UNKNOWN",
+        "The audit evidence a collection or snapshot reads is missing, or a "
+        "retained file changed after the snapshot pinned it; `reason` is "
+        "`SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result.",
+        "audit/audit-2026-06-15.log.zst was removed after the snapshot",
     ),
     "COMPANY_DB_UNAVAILABLE": ErrorCode(
         503,

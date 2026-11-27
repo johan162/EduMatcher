@@ -262,6 +262,9 @@ AUDIT_INDEX_DB_FILE = DATA_DIR / "audit_index.db"
 #: append-only, while the episode index is derived and is rebuilt
 #: whenever the reconstruction rules change.
 AUDIT_REPLAY_DB_FILE = DATA_DIR / "audit_replay.db"
+#: The Audit GUI's derivative store: evidence snapshots and what is built
+#: from them (decision D1). Never the evidence itself.
+AUDIT_GUI_DIR = DATA_DIR / "audit-gui"
 CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"
 #: pm-eod's settlement ledger (cash balances per trader).

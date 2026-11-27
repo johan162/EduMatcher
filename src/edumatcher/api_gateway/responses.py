@@ -1182,3 +1182,203 @@ class Balances(_Counted):
         description="False when pm-eod has not run here yet (no ledger): the "
         "lists are then empty because nothing is settled, not because of a fault."
     )
+
+
+# ---------------------------------------------------------------------------
+# Audit (ADMIN): evidence collections, snapshots and the replay's read model
+# ---------------------------------------------------------------------------
+
+
+class AuditCollectionRow(BaseModel):
+    id: str = Field(description="The collection id; requests name it, never a path.")
+    available: bool = Field(description="Whether its directory can be read now.")
+    reason: str | None = Field(
+        description="Why not, as a stable code (`SOURCE_MISSING`); null when available."
+    )
+    files: int = Field(ge=0, description="Audit files (active, parts, archives) found.")
+
+
+class AuditCollections(_Counted):
+    collections: list[AuditCollectionRow]
+
+
+class AuditSnapshotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    collection_id: str = Field(
+        min_length=1, max_length=32, description="The collection to pin, by id."
+    )
+
+
+class AuditSourceFile(BaseModel):
+    name: str = Field(description="Relative to the collection, e.g. `audit.log`.")
+    kind: Literal["active", "part", "archive"]
+    size: int = Field(ge=0, description="Bytes in the file when pinned.")
+    cutoff: int = Field(ge=0, description="Bytes the snapshot reads.")
+    torn_bytes: int = Field(
+        ge=0, description="A partial last line of the active file, left out."
+    )
+    sha256: str = Field(description="Hash of the bytes the snapshot reads.")
+
+
+class AuditRun(BaseModel):
+    run_seq: int | None = Field(description="The engine run (`system.startup`).")
+    started_ts: str = Field(description="Receipt time of its `system.startup`.")
+    config_sha256: str | None = Field(
+        description="Hash of the configuration it announced; null when none."
+    )
+
+
+class AuditCapability(BaseModel):
+    available: bool
+    reason: str | None = Field(description="Stable code; null when available.")
+    detail: str = Field(
+        description="The evidence behind the reason; empty when available."
+    )
+
+
+class AuditSnapshot(BaseModel):
+    snapshot_id: str
+    collection_id: str
+    created_at: str = Field(description="When it was first pinned (UTC).")
+    entries: int = Field(ge=0, description="Audit records it holds.")
+    first_ts: str | None = Field(description="Receipt time of its first record.")
+    last_ts: str | None = Field(description="Receipt time of its last record.")
+    files: list[AuditSourceFile]
+    runs: list[AuditRun]
+    capabilities: dict[str, AuditCapability] = Field(
+        description="Each analysis, and why it is unavailable when it is."
+    )
+
+
+class AuditSource(BaseModel):
+    file: str | None = Field(description="Audit file, relative to the collection.")
+    line: int = Field(description="1-based line in that file.")
+
+
+class AuditPrice(BaseModel):
+    name: str
+    raw: float = Field(description="As recorded (ticks for a `*_ticks` field).")
+    display: float | None = Field(
+        description="In money, with the recorded scale; null when no scale is known."
+    )
+    tick_decimals: int | None
+
+
+class AuditRecord(BaseModel):
+    key: str = Field(description="Canonical order key: run, sequence, receipt, read position.")  # fmt: skip
+    run: int = Field(
+        description="Engine restart epoch within the snapshot: 0 for the first "
+        "run, +1 at each later `system.startup`."
+    )
+    eseq: int | None = Field(description="Engine socket-wide sequence.")
+    topic_seq: int | None = Field(description="Per-topic sequence.")
+    receipt_ts: str = Field(description="pm-audit's receipt stamp, as recorded.")
+    receipt_ns: str = Field(description="The same, in epoch nanoseconds, as a string.")
+    topic: str
+    kind: str = Field(description="The topic with its gateway/symbol part removed.")
+    symbol: str | None
+    actor: str | None
+    msg_id: str | None
+    causation_id: str | None
+    correlation_id: str | None
+    late: bool = Field(description="Arrived after its reorder window closed.")
+    fields: dict[str, Any] = Field(
+        description="The recorded payload; every `*_ns` integer as a string."
+    )
+    prices: list[AuditPrice]
+    source: AuditSource
+
+
+class AuditEventPage(_Page):
+    snapshot_id: str
+    events: list[AuditRecord] = Field(description="In canonical order.")
+
+
+class AuditStoryEpisode(BaseModel):
+    id: int = Field(description="Episode id, local to the snapshot's index.")
+    kind: str
+    anchor: str
+    actor: str | None
+    correlation_id: str | None
+    root_msg_id: str | None
+    symbol: str | None
+    run: int = Field(description="Engine restart epoch, as `run` on `/events`.")
+    run_seq: int | None = Field(description="`run_seq` as a payload stated it, if any.")
+    opened: str
+    closed: str | None
+    outcome: str
+    summary: str
+    derived: dict[str, Any] = Field(
+        description="pm-audit-replay's derived facts (receipt-clock seconds)."
+    )
+
+
+class AuditStoryBeat(BaseModel):
+    episode: int
+    seq: int
+    sort_key: str
+    msg_id: str | None
+    causation_id: str | None
+    correlation_id: str | None
+    topic_seq: int | None
+    eseq: int | None
+    publisher_run: int
+    receipt_ts: str
+    topic: str
+    kind: str
+    role: str | None
+    late: bool
+    text: str = Field(description="The deterministic narration of this fact.")
+    source: AuditSource
+    fields: dict[str, Any]
+    prices: dict[str, float]
+
+
+class AuditStoryLink(BaseModel):
+    from_: int = Field(alias="from")
+    to: int
+    relation: str
+    confidence: Literal["RECORDED", "CERTAIN", "STRONG", "HEURISTIC", "NONE"]
+    evidence: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AuditFinding(BaseModel):
+    code: str = Field(description="The replay's finding code.")
+    severity: Literal["info", "warn", "error"]
+    lane: Literal["evidence", "consistency", "operations", "behaviour"]
+    episode: int
+    receipt_ts: str
+    detail: str
+    source: AuditSource
+    episode_kind: str | None = None
+    anchor: str | None = None
+
+
+class AuditStory(BaseModel):
+    snapshot_id: str
+    entity_kind: str
+    entity_id: str
+    run_id: int | None
+    depth: int
+    episodes: list[AuditStoryEpisode]
+    beats: list[AuditStoryBeat] = Field(description="In canonical order.")
+    links: list[AuditStoryLink]
+    anomalies: list[AuditFinding]
+
+
+class AuditLane(BaseModel):
+    available: bool
+    reason: str | None = None
+    count: int | None = Field(
+        description="Findings in the lane (all of them, not this page); null when "
+        "the lane is unavailable."
+    )
+
+
+class AuditFindingPage(_Page):
+    snapshot_id: str
+    lanes: dict[str, AuditLane]
+    findings: list[AuditFinding] = Field(description="Worst first, then by time.")

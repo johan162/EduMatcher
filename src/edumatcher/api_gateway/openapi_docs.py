@@ -29,7 +29,12 @@ from edumatcher.models.generated import news as news_msgs
 from edumatcher.models.generated import order as order_msgs
 from edumatcher.models.generated import risk as risk_msgs
 from edumatcher.models.generated import system as system_msgs
-from edumatcher.models.generated.order import topic_order_ack, topic_order_fill
+from edumatcher.models.generated.order import (
+    TOPIC_ORDER_NEW,
+    topic_order_ack,
+    topic_order_fill,
+)
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 API_DESCRIPTION = """\
 REST/JSON and WebSocket gateway for EduMatcher order entry and market data.
@@ -161,6 +166,20 @@ TAGS_METADATA: list[dict[str, str]] = [
             "Data lags fills by up to one clearing flush (5 s by default); raw "
             "trades are pruned after the retention window (90 days by default) "
             "while daily rows and close snapshots stay."
+        ),
+    },
+    {
+        "name": "audit",
+        "description": (
+            "ADMIN-only reads for the Audit GUI over operator-configured audit "
+            "evidence collections, named by id, never by path. A client pins a "
+            "collection as a snapshot (`POST /audit/snapshots`) and every read "
+            "names that snapshot, so pages, stories and findings never drift "
+            "onto later evidence. Missing or changed evidence is "
+            "`503 AUDIT_SOURCE_UNAVAILABLE` and an analysis the evidence cannot "
+            "support `409 CAPABILITY_UNAVAILABLE`, each with a stable `reason`; "
+            "neither is ever an empty result. Nanosecond times are decimal "
+            "strings."
         ),
     },
     {
@@ -2383,4 +2402,196 @@ CLEARING_BALANCES_REPLY: dict[str, Any] = {
     "as_of": _CL_PREV_DAY,
     "last_settled_date": _CL_PREV_DAY,
     "eod_db_available": True,
+}
+
+
+# ---------------------------------------------------------------------------
+# Audit (ADMIN)
+# ---------------------------------------------------------------------------
+
+AUDIT_COLLECTIONS: dict[str, Any] = {
+    "collections": [{"id": "default", "available": True, "reason": None, "files": 3}],
+    "count": 1,
+}
+
+AUDIT_SNAPSHOT: dict[str, Any] = {
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "collection_id": "default",
+    "created_at": "2026-06-15T15:40:02.118+00:00",
+    "entries": 184213,
+    "first_ts": "2026-06-15T07:00:00.001+00:00",
+    "last_ts": "2026-06-15T15:30:12.874+00:00",
+    "files": [
+        {
+            "name": "audit.log",
+            "kind": "active",
+            "size": 52114006,
+            "cutoff": 52113870,
+            "torn_bytes": 136,
+            "sha256": "9b1e0c4f6a2d8e7b5c3a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a39281706",
+        }
+    ],
+    "runs": [
+        {
+            "run_seq": 7,
+            "started_ts": "2026-06-15T07:00:00.001+00:00",
+            "config_sha256": "4d2a1e9c0b7f6a5e3d8c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2918",
+        }
+    ],
+    "capabilities": {
+        "stories": {"available": True, "reason": None, "detail": ""},
+        "causality": {"available": True, "reason": None, "detail": ""},
+        "prices": {"available": True, "reason": None, "detail": ""},
+        "book": {"available": True, "reason": None, "detail": ""},
+        "rerun": {"available": True, "reason": None, "detail": ""},
+        "queue": {"available": True, "reason": None, "detail": ""},
+        "sim_context": {
+            "available": False,
+            "reason": "NOT_ATTACHED",
+            "detail": "no simulator context database is attached",
+        },
+        "forensics": {
+            "available": False,
+            "reason": "NOT_ATTACHED",
+            "detail": "no pm-sim-forensics report is attached",
+        },
+    },
+}
+
+AUDIT_EVENTS: dict[str, Any] = {
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "events": [
+        {
+            "key": "00000001|0|0000000000000000412|2026-06-15T07:01:12.001000+00:00|000000000412",
+            "run": 1,
+            "eseq": 412,
+            "topic_seq": 17,
+            "receipt_ts": "2026-06-15T07:01:12.001+00:00",
+            "receipt_ns": "1781506872001000000",
+            "topic": TOPIC_TRADE_EXECUTED,
+            "kind": TOPIC_TRADE_EXECUTED,
+            "symbol": "AAPL",
+            "actor": None,
+            "msg_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X2",
+            "causation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+            "correlation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+            "late": False,
+            "fields": {
+                "id": "000001-000000004",
+                "symbol": "AAPL",
+                "price": 99.9,
+                "quantity": 200,
+                "buy_gateway_id": "MM01",
+                "sell_gateway_id": "TRADER02",
+                "aggressor_side": "SELL",
+                "ts_ns": "1781506872000000004",
+                "tick_decimals": 2,
+            },
+            "prices": [
+                {"name": "price", "raw": 99.9, "display": 99.9, "tick_decimals": 2}
+            ],
+            "source": {"file": "audit.log", "line": 413},
+        }
+    ],
+    "count": 1,
+    "has_more": True,
+    "next_cursor": "WyJzLTNmMWM5YTA3YmU1MmQ0ZTZhODEwIiwgImUzYjBjNDQyOThmYyIsIDQxM10",
+}
+
+AUDIT_STORY: dict[str, Any] = {
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "entity_kind": "order",
+    "entity_id": "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8",
+    "run_id": None,
+    "depth": 2,
+    "episodes": [
+        {
+            "id": 12,
+            "kind": "order",
+            "anchor": "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8",
+            "actor": "TRADER02",
+            "correlation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+            "root_msg_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+            "symbol": "AAPL",
+            "run": 1,
+            "run_seq": None,
+            "opened": "2026-06-15T07:01:10.001000+00:00",
+            "closed": "2026-06-15T07:01:12.001000+00:00",
+            "outcome": "FILLED",
+            "summary": "TRADER02 sell stop 30 AAPL @ 99.85: filled 30",
+            "derived": {"time_to_ack": 0.0},
+        }
+    ],
+    "beats": [
+        {
+            "episode": 12,
+            "seq": 0,
+            "sort_key": "00000001\u001f0\u001f0000000000000000398",
+            "msg_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+            "causation_id": None,
+            "correlation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+            "topic_seq": 9,
+            "eseq": 398,
+            "publisher_run": 1,
+            "receipt_ts": "2026-06-15T07:01:10.001+00:00",
+            "topic": TOPIC_ORDER_NEW,
+            "kind": TOPIC_ORDER_NEW,
+            "role": "submission",
+            "late": False,
+            "text": "TRADER02 submits a sell stop for 30 AAPL, stop 99.85",
+            "source": {"file": "audit.log", "line": 399},
+            "fields": {"id": "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8", "ts_ns": "1781506870000000000"},  # fmt: skip
+            "prices": {"stop_price_ticks": 99.85},
+        }
+    ],
+    "links": [
+        {
+            "from": 11,
+            "to": 12,
+            "relation": "triggered",
+            "confidence": "RECORDED",
+            "evidence": "order.triggered in the trade's chain",
+        }
+    ],
+    "anomalies": [],
+}
+
+AUDIT_FINDINGS: dict[str, Any] = {
+    "snapshot_id": "s-3f1c9a07be52d4e6a810",
+    "lanes": {
+        "evidence": {"available": True, "reason": None, "count": 1},
+        "consistency": {"available": True, "reason": None, "count": 1},
+        "operations": {"available": True, "reason": None, "count": 0},
+        "behaviour": {"available": False, "reason": "NOT_IN_RELEASE", "count": None},
+    },
+    # dict(...), not {...}: a "code" key in a literal reads as an API error
+    # code to tests/test_api_gateway_error_codes.py, and these are replay
+    # finding codes.
+    "findings": [
+        dict(
+            code="ESEQ_GAP",
+            severity="error",
+            lane="evidence",
+            episode=40,
+            receipt_ts="2026-06-15T07:01:20.001+00:00",
+            detail="eseq jumped from 151 to 154: 2 messages missing",
+            source={"file": "audit.log", "line": 152},
+            episode_kind="order",
+            anchor="9ab1c47f2e5d48a1b3c6f9078e2d15b4",
+        ),
+        dict(
+            code="TERMINAL_MISSING",
+            severity="info",
+            lane="consistency",
+            episode=31,
+            receipt_ts="2026-06-15T07:00:31.001+00:00",
+            detail="order still open when the window ended",
+            source={"file": "audit.log", "line": 120},
+            episode_kind="order",
+            anchor="1c0b9a8f7e6d5c4b3a2918f7e6d5c4b3",
+        ),
+    ],
+    "count": 2,
+    "has_more": False,
+    "next_cursor": None,
 }

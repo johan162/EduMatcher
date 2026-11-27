@@ -36,12 +36,14 @@ from edumatcher.api_gateway.config import (
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
 from edumatcher.api_gateway.sim_client import SimClient
-from edumatcher.config import REF_DATA_DIR, SIM_PUB_ADDR
+from edumatcher.audit.service.session import AuditService
+from edumatcher.config import AUDIT_GUI_DIR, REF_DATA_DIR, SIM_PUB_ADDR
 from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME, load_sectors
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.api_gateway.routers import (
     admin,
+    audit,
     bootstrap,
     clearing,
     history,
@@ -269,6 +271,8 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
     # Idempotency-Key replies live as long as finished orders do; with
     # eviction disabled (0) they still expire, so the store stays bounded.
     app.state.idempotency = IdempotencyStore(config.order_retention_sec or 3600)
+    # The Audit GUI's reads: no process, no socket, nothing read until asked.
+    app.state.audit = AuditService(config.audit_collections, AUDIT_GUI_DIR)
 
     default_openapi = app.openapi
 
@@ -386,6 +390,7 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
     app.include_router(clearing.router)
     app.include_router(admin.router)
     app.include_router(bootstrap.router)
+    app.include_router(audit.router)
     app.include_router(ws.router)
     return app
 

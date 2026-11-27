@@ -21,6 +21,7 @@ from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.main import create_app
 from edumatcher.api_gateway.routers import (
     admin,
+    audit,
     bootstrap,
     clearing,
     history,
@@ -30,7 +31,7 @@ from edumatcher.api_gateway.routers import (
 )
 from tests.api_gateway_error_scan import ROOT, route_codes
 
-_ROUTERS = (orders, reference, market, history, clearing, admin, bootstrap)
+_ROUTERS = (orders, reference, market, history, clearing, admin, bootstrap, audit)
 
 
 def _operations() -> list[tuple[str, str, Any, dict[str, Any]]]:

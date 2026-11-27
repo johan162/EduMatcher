@@ -583,7 +583,9 @@ Do not advertise these proposals as the released API.
 - Return counts with an `exact`/`lower_bound` qualification, or no total when
   expensive. Do not present one page's length as the complete result count.
 - Separate missing source/index (503), unknown retained entity (404), invalid
-  filters (422), forbidden caller (403), and unsupported analysis capability.
+  filters (400 `VALIDATION`, the gateway's code for every malformed
+  parameter), forbidden caller (403), and unsupported analysis capability
+  (409 `CAPABILITY_UNAVAILABLE`).
   Capability unavailability has a stable reason, not a successful empty result.
 - Include explicit partial/truncated states and continuation information.
   `null` plus reason means unknown/unavailable; zero means measured zero.
@@ -597,8 +599,8 @@ Do not advertise these proposals as the released API.
 - **Typed filter grammar.** The filter bar accepts a small, documented grammar
   such as `gateway:GW3 symbol:ABC end:cancel.owner lifetime<500ms phase:continuous`.
   The server parses it into enumerated fields, operators and typed values and
-  compiles them to parameterised queries. Unknown fields are a 422 with
-  suggestions, not ignored. The parsed form is returned so the UI can show
+  compiles them to parameterised queries. Unknown fields are a 400 `VALIDATION`
+  with suggestions, not ignored. The parsed form is returned so the UI can show
   chips. This is not a general expression language.
 - Every response carries a `reproduce` block: the equivalent API request and,
   where one exists, the `pm-audit-cli`/`pm-audit-replay` command line for the

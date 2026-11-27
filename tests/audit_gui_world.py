@@ -40,6 +40,8 @@ from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.audit.archive import archive_day, archive_lock
 from edumatcher.audit.main import _meta_section
+from edumatcher.audit.service.session import AuditService
+from edumatcher.audit.service.snapshot import AuditCollection
 from edumatcher.audit.writer import AuditFile
 from edumatcher.cli_version import package_version
 from edumatcher.config_deploy import deploy
@@ -818,14 +820,20 @@ class _RoleEngine:
 
 
 def make_audit_app(world: World, audit_db: Path | None = None) -> Any:
-    """The pm-api-gwy app over *world*, with a key for every role (see
-    tests/api_gateway_harness.py for driving it with ``call``)."""
+    """The pm-api-gwy app over *world* (its one audit collection is
+    ``world``), with a key for every role (see tests/api_gateway_harness.py
+    for driving it with ``call``)."""
     config = ApiGatewayConfig(
         swagger_enabled=False,
         audit_db=audit_db if audit_db is not None else world.data / "audit_index.db",
+        audit_collections=(AuditCollection("world", world.data),),
     )
     app = create_app(config)
     app.state.config = config
+    # The derivative store beside the collection, never inside it.
+    app.state.audit = AuditService(
+        config.audit_collections, world.data.parent / "audit-gui"
+    )
     app.state.engine = _RoleEngine()
     app.state.rate_limiter = RateLimiter(100, 100)
     app.state.sessions = SessionRegistry(

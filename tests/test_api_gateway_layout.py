@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute, APIWebSocketRoute
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.routers import (
     admin,
+    audit,
     bootstrap,
     clearing,
     history,
@@ -120,11 +121,17 @@ REST_ROUTES = {
     ("GET", "/admin/orders"),
     ("GET", "/admin/orders/{order_id}/audit"),
     ("POST", "/admin/indexes/{index_id}/rebalance"),
+    ("GET", "/audit/collections"),
+    ("POST", "/audit/snapshots"),
+    ("GET", "/audit/snapshots/{snapshot_id}"),
+    ("GET", "/audit/events"),
+    ("GET", "/audit/stories/{entity_kind}/{entity_id}"),
+    ("GET", "/audit/findings"),
 }
 
 WS_ROUTES = {"/ws/private", "/ws/market-data", "/ws/admin/monitor", "/ws/admin/sim"}
 
-_ROUTERS = (orders, reference, market, history, clearing, admin, bootstrap, ws)
+_ROUTERS = (orders, reference, market, history, clearing, admin, bootstrap, audit, ws)
 
 
 def test_rest_routes_are_exactly_the_v1_surface() -> None:

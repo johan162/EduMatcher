@@ -143,18 +143,29 @@ class Snapshot:
         self.descriptor = descriptor
         self._dir = directory
 
+    @property
+    def directory(self) -> Path:
+        """The snapshot's own directory in the store, for its derivatives."""
+        return self._dir
+
+    def paths(self) -> list[Path]:
+        """The files the snapshot reads, oldest first: retained files where
+        they are, the active one as pinned."""
+        root = Path(self.descriptor.source_root)
+        return [
+            self._dir / _PINNED if f.kind == "active" else root / f.name
+            for f in self.descriptor.files
+        ]
+
     def entries(self) -> Iterator[AuditEntry]:
         """The pinned records, oldest first, each naming its source file
         (relative to the collection) and line. Raises
         :class:`SnapshotUnavailable` if a retained file changed or went."""
-        root = Path(self.descriptor.source_root)
-        paths: list[Path] = []
+        paths = self.paths()
         names: dict[str, str] = {}
-        for f in self.descriptor.files:
-            path = self._dir / _PINNED if f.kind == "active" else root / f.name
+        for f, path in zip(self.descriptor.files, paths, strict=True):
             if f.kind != "active":
                 _check_retained(path, f)
-            paths.append(path)
             names[str(path)] = f.name
         for entry in iter_entries(paths):
             entry.file = names.get(entry.file or "", entry.file)

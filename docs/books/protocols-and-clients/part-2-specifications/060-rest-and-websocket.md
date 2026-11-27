@@ -140,6 +140,17 @@ optional parameters.
 | [POST /api/v1/admin/indexes/{index_id}/rebalance](#post-apiv1adminindexesindex_idrebalance) | Admin role | Rebalance one configured index |
 | [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Request a reference-data reload (currently refused by the engine) |
 
+### Audit (ADMIN)
+
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [GET /api/v1/audit/collections](#get-apiv1auditcollections) | Admin role | The configured audit evidence collections, by id |
+| [POST /api/v1/audit/snapshots](#post-apiv1auditsnapshots) | Admin role | Pin a collection as an evidence snapshot |
+| [GET /api/v1/audit/snapshots/{snapshot_id}](#get-apiv1auditsnapshotssnapshot_id) | Admin role | A snapshot's descriptor and capabilities |
+| [GET /api/v1/audit/events](#get-apiv1auditevents) | Admin role | A snapshot's records in canonical order |
+| [GET /api/v1/audit/stories/{entity_kind}/{entity_id}](#get-apiv1auditstoriesentity_kindentity_id) | Admin role | The replay story of one order, trade, quote, OCO, combo or command |
+| [GET /api/v1/audit/findings](#get-apiv1auditfindings) | Admin role | The replay's findings, by lane |
+
 ### Auth and roles
 
 - Trading and admin REST requests use `Authorization: Bearer <api_key>`.
@@ -215,6 +226,9 @@ the OpenAPI document lists all of them per operation.
 | `UNKNOWN_COMPANY` | `404` | `UNKNOWN` | No company profile for the symbol |
 | `UNKNOWN_GATEWAY` | `404` | `UNKNOWN` | No participant has the gateway id (`GET /admin/gateways/{id}/positions`, `/orders`) |
 | `UNKNOWN_SYMBOL` | `404` | `UNKNOWN` | The symbol is not in the venue's reference data (`GET /book/{symbol}`) |
+| `UNKNOWN_COLLECTION` | `404` | `UNKNOWN` | No audit evidence collection with this id is configured |
+| `UNKNOWN_SNAPSHOT` | `404` | `UNKNOWN` | No audit evidence snapshot has this id |
+| `UNKNOWN_ENTITY` | `404` | `UNKNOWN` | The snapshot holds no episode for this order, trade, quote, OCO, combo or command id |
 | `METHOD_NOT_ALLOWED` | `405` | `UNKNOWN` | The path exists but not for this method; the reply carries `Allow` |
 | `TRANSITION_REJECTED` | `409` | `UNKNOWN` | The engine refused the session transition |
 | `RELOAD_REJECTED` | `409` | `UNKNOWN` | The engine refused the reference reload |
@@ -227,6 +241,8 @@ the OpenAPI document lists all of them per operation.
 | `REBALANCE_REJECTED` | `409` | `UNKNOWN` | `pm-index` refused the rebalance |
 | `REPLACE_REJECTED` | `409` | engine's | The engine refused `replace`'s cancel (for example the order already filled); nothing was sent |
 | `IDEMPOTENCY_KEY_REUSED` | `409` | `UNKNOWN` | The `Idempotency-Key` was already used for a different request |
+| `AMBIGUOUS_RUN` | `409` | `UNKNOWN` | An audit id appears in more than one engine run of the snapshot; `runs` lists them, repeat with `run_id` |
+| `CAPABILITY_UNAVAILABLE` | `409` | `UNKNOWN` | The snapshot's evidence cannot support the analysis; `reason` is a stable code. Never an empty result |
 | `RATE_LIMIT` | `429` | `RATE_LIMITED` | Per-key write limit exceeded |
 | `INTERNAL_ERROR` | `500` | `INTERNAL_ERROR` | A gateway bug; the message carries no internals |
 | `INDEX_ERROR` | `502` | `UNKNOWN` | `pm-index` answered with an error |
@@ -236,6 +252,7 @@ the OpenAPI document lists all of them per operation.
 | `INDEX_TIMEOUT` | `503` | `UNKNOWN` | No `pm-index` reply in time |
 | `STATS_DB` | `503` | `UNKNOWN` | The `pm-stats` database is not present |
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | `UNKNOWN` | The `pm-audit` index is not built or not running |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | `UNKNOWN` | Audit evidence is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result |
 | `COMPANY_DB_UNAVAILABLE` | `503` | `UNKNOWN` | The company database is missing or unreadable |
 | `NEWS_DB_UNAVAILABLE` | `503` | `UNKNOWN` | pm-market-sim's news history cannot be read |
 | `CLEARING_DB` | `503` | `UNKNOWN` | The `pm-clearing` ledger is missing, locked or unreadable. Never answered as an empty ledger |
@@ -3256,6 +3273,212 @@ restart the engine to apply configuration changes.
 | `RELOAD_REJECTED` | `409` | Reload would change the symbol or index set |
 | `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 | `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+## Audit (ADMIN)
+
+The Audit GUI's reads over audit evidence (design
+`docs-design/EduMatcher-Audit-GUI.md`). Collections are configured on the
+server (`api_gateways.<name>.audit_collections`) and named by id; no route
+accepts a path. A client pins a collection as a **snapshot** and names that
+snapshot in every read, so pages, stories and findings stay on the evidence
+it pinned even while `audit.log` grows. Nanosecond times are decimal
+strings. Missing evidence and analyses the evidence cannot support are
+errors with a stable `reason`, never empty results.
+
+R0 limits: a snapshot's reconstruction runs in the gateway on first use and
+is kept for the most recent snapshot only; pinning parses every record
+(about 90,000 records/s).
+
+### `GET /api/v1/audit/collections`
+
+Purpose: the configured evidence collections, by id, and whether each can
+be read now.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | | | |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "collections": [{ "id", "available", "reason", "files" }], "count" }` | `reason` is `SOURCE_MISSING` when the directory cannot be read |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+
+### `POST /api/v1/audit/snapshots`
+
+Purpose: pin a collection as it is now: every file's size and SHA-256, the
+active `audit.log`'s complete lines (a partial last line is reported as
+`torn_bytes` and left out), the engine runs, the receipt-time extent, and per
+analysis whether the evidence supports it. The id is derived from that
+content: pinning an unchanged collection again returns the same snapshot.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `collection_id` | `Str` | yes | The collection, by id. No other field is accepted |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A query parameter, path value or body field is malformed (`limit` out of 1-1000, a cursor from another snapshot or filter, an unknown field); `field` names it |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_COLLECTION` | `404` | No collection with this id |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | The collection's directory does not exist (`SOURCE_MISSING`) |
+
+### `GET /api/v1/audit/snapshots/{snapshot_id}`
+
+Purpose: a snapshot's descriptor, as `POST /audit/snapshots` returned it.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `snapshot_id` | `Str` | yes (path) | The snapshot |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | as `POST /audit/snapshots` | The descriptor |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A query parameter, path value or body field is malformed (`limit` out of 1-1000, a cursor from another snapshot or filter, an unknown field); `field` names it |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+
+### `GET /api/v1/audit/events`
+
+Purpose: the snapshot's records in canonical order (engine restart epoch
+`run`, then the engine's sequence), each with its `key`, both clocks' raw
+values (`receipt_ts`/`receipt_ns`, the payload's `*_ns` fields as strings),
+every price with its recorded `tick_decimals`, and its `source` file and
+line.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `snapshot_id` | `Str` | yes | The snapshot |
+| `topic` | `Str` | no | Topic prefix, e.g. `trade.executed` |
+| `symbol` | `Symbol` | no | Records of this symbol |
+| `gateway` | `GatewayId` | no | Records of this gateway |
+| `order_id` | `Str` | no | Records naming this order |
+| `limit` | `Int` | no | Page size, 1-1000, default 100 |
+| `after` | `Cursor` | no | The previous page's `next_cursor`, with the same snapshot and filters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | paginated list envelope (`events`) + `snapshot_id` | One page of records |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A query parameter, path value or body field is malformed (`limit` out of 1-1000, a cursor from another snapshot or filter, an unknown field); `field` names it |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
+
+### `GET /api/v1/audit/stories/{entity_kind}/{entity_id}`
+
+Purpose: `pm-audit-replay`'s story of one entity: its episodes and those
+within `depth` links, every fact narrated (`beats[].text`), every link with
+its confidence (`RECORDED`, `CERTAIN`, `STRONG`, `HEURISTIC`, `NONE`), and the
+findings on them with their lane. A story never crosses into another engine
+run.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `entity_kind` | `Str` | yes (path) | `order`, `trade`, `quote`, `oco`, `combo` or `command` |
+| `entity_id` | `Str` | yes (path) | The id; an unambiguous prefix is accepted |
+| `snapshot_id` | `Str` | yes | The snapshot |
+| `run_id` | `Int` | no | The engine restart epoch (`run` on `/audit/events`), required when the id appears in several |
+| `depth` | `Int` | no | Links to follow, 0-3, default 2 |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "snapshot_id", "entity_kind", "entity_id", "run_id", "depth", "episodes", "beats", "links", "anomalies" }` | The story, in `pm-audit-replay --format json`'s vocabulary |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A query parameter, path value or body field is malformed (`limit` out of 1-1000, a cursor from another snapshot or filter, an unknown field); `field` names it |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+| `UNKNOWN_ENTITY` | `404` | No episode for this id in the snapshot (or an ambiguous prefix) |
+| `AMBIGUOUS_RUN` | `409` | The id appears in several runs; `runs` lists them |
+| `CAPABILITY_UNAVAILABLE` | `409` | The snapshot holds no audit record (`reason: NO_EVENTS`) |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
+
+### `GET /api/v1/audit/findings`
+
+Purpose: the replay's findings, worst first, each in its lane: `evidence`
+(the trail is incomplete here: gaps, restarts, missing envelopes or
+configuration), `consistency` (recorded facts break an exchange invariant),
+`operations` (participants, configuration, infrastructure). Codes and
+severities are the replay's own; window-edge findings such as
+`TERMINAL_MISSING` keep `info`. `lanes` counts every finding per lane; the
+`behaviour` lane is R2's and is `available: false` with
+`reason: NOT_IN_RELEASE`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `snapshot_id` | `Str` | yes | The snapshot |
+| `lane` | `Str` | no | `evidence`, `consistency`, `operations` or `behaviour` |
+| `severity` | `Str` | no | `info` (default), `warn` or `error`: that severity or worse |
+| `code` | `Str` | no | Only this finding code |
+| `limit` | `Int` | no | Page size, 1-1000, default 100 |
+| `after` | `Cursor` | no | The previous page's `next_cursor`, with the same snapshot and filters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | paginated list envelope (`findings`) + `snapshot_id`, `lanes` | One page of findings |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A query parameter, path value or body field is malformed (`limit` out of 1-1000, a cursor from another snapshot or filter, an unknown field); `field` names it |
+| `READ_ONLY` | `403` | Read-only key |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_SNAPSHOT` | `404` | No snapshot with this id |
+| `CAPABILITY_UNAVAILABLE` | `409` | The snapshot holds no audit record (`reason: NO_EVENTS`), or `lane=behaviour` (`reason: NOT_IN_RELEASE`) |
+| `AUDIT_SOURCE_UNAVAILABLE` | `503` | A retained file the snapshot pinned is missing (`SOURCE_MISSING`) or changed (`SOURCE_CHANGED`) |
 
 ## Operational notes
 

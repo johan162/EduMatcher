@@ -20309,6 +20309,1798 @@
           }
         ]
       }
+    },
+    "/api/v1/audit/collections": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Audit evidence collections",
+        "description": "The evidence collections this gateway is configured to read, by id.\n\nPaths stay on the server: a client names a collection by its id.\n`available` is false, with `reason`, when its directory cannot be read.",
+        "operationId": "audit_collections",
+        "responses": {
+          "200": {
+            "description": "The configured collections, by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditCollections"
+                },
+                "example": {
+                  "collections": [
+                    {
+                      "id": "default",
+                      "available": true,
+                      "reason": null,
+                      "files": 3
+                    }
+                  ],
+                  "count": 1
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit/snapshots": {
+      "post": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Pin a collection as a snapshot",
+        "description": "Pin a collection as it is now: every file's size and hash, the active\nfile's complete lines, the runs and what the evidence can support.\n\nPinning an unchanged collection again returns the same snapshot. R0 pins\nsynchronously; a large trail takes seconds (about 90,000 records/s).",
+        "operationId": "create_audit_snapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditSnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The snapshot's descriptor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditSnapshot"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "collection_id": "default",
+                  "created_at": "2026-06-15T15:40:02.118+00:00",
+                  "entries": 184213,
+                  "first_ts": "2026-06-15T07:00:00.001+00:00",
+                  "last_ts": "2026-06-15T15:30:12.874+00:00",
+                  "files": [
+                    {
+                      "name": "audit.log",
+                      "kind": "active",
+                      "size": 52114006,
+                      "cutoff": 52113870,
+                      "torn_bytes": 136,
+                      "sha256": "9b1e0c4f6a2d8e7b5c3a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a39281706"
+                    }
+                  ],
+                  "runs": [
+                    {
+                      "run_seq": 7,
+                      "started_ts": "2026-06-15T07:00:00.001+00:00",
+                      "config_sha256": "4d2a1e9c0b7f6a5e3d8c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2918"
+                    }
+                  ],
+                  "capabilities": {
+                    "stories": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "causality": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "prices": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "book": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "rerun": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "queue": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "sim_context": {
+                      "available": false,
+                      "reason": "NOT_ATTACHED",
+                      "detail": "no simulator context database is attached"
+                    },
+                    "forensics": {
+                      "available": false,
+                      "reason": "NOT_ATTACHED",
+                      "detail": "no pm-sim-forensics report is attached"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_COLLECTION`: No audit evidence collection with this id is configured (`api_gateways.<name>.audit_collections`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "UNKNOWN_COLLECTION": {
+                    "summary": "UNKNOWN_COLLECTION",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_COLLECTION",
+                        "message": "No audit collection 'class-9'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUDIT_SOURCE_UNAVAILABLE": {
+                    "summary": "AUDIT_SOURCE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "AUDIT_SOURCE_UNAVAILABLE",
+                        "message": "audit/audit-2026-06-15.log.zst was removed after the snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit/snapshots/{snapshot_id}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Snapshot descriptor and capabilities",
+        "description": "What a snapshot pinned (files, sizes, hashes, cutoffs, runs, extent)\nand, per analysis, whether its evidence supports it and why not.",
+        "operationId": "audit_snapshot",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "The snapshot, as `POST` returned it.",
+              "title": "Snapshot Id"
+            },
+            "description": "The snapshot, as `POST` returned it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The snapshot's descriptor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditSnapshot"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "collection_id": "default",
+                  "created_at": "2026-06-15T15:40:02.118+00:00",
+                  "entries": 184213,
+                  "first_ts": "2026-06-15T07:00:00.001+00:00",
+                  "last_ts": "2026-06-15T15:30:12.874+00:00",
+                  "files": [
+                    {
+                      "name": "audit.log",
+                      "kind": "active",
+                      "size": 52114006,
+                      "cutoff": 52113870,
+                      "torn_bytes": 136,
+                      "sha256": "9b1e0c4f6a2d8e7b5c3a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a39281706"
+                    }
+                  ],
+                  "runs": [
+                    {
+                      "run_seq": 7,
+                      "started_ts": "2026-06-15T07:00:00.001+00:00",
+                      "config_sha256": "4d2a1e9c0b7f6a5e3d8c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2918"
+                    }
+                  ],
+                  "capabilities": {
+                    "stories": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "causality": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "prices": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "book": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "rerun": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "queue": {
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
+                    },
+                    "sim_context": {
+                      "available": false,
+                      "reason": "NOT_ATTACHED",
+                      "detail": "no simulator context database is attached"
+                    },
+                    "forensics": {
+                      "available": false,
+                      "reason": "NOT_ATTACHED",
+                      "detail": "no pm-sim-forensics report is attached"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/events": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Audit records, canonically ordered",
+        "description": "The snapshot's records in canonical order (engine run, then its\nsequence), each with both clocks' raw values, every price with its\nrecorded scale, and the file and line it was read from.\n\nNanosecond times are decimal strings. Paging is by `next_cursor`, which\nis valid only for the same snapshot and filters.",
+        "operationId": "audit_events",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The snapshot every read is pinned to (`POST /audit/snapshots`).",
+              "title": "Snapshot Id"
+            },
+            "description": "The snapshot every read is pinned to (`POST /audit/snapshots`)."
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Topic prefix, e.g. `trade.executed`.",
+              "title": "Topic"
+            },
+            "description": "Topic prefix, e.g. `trade.executed`."
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Records of this symbol.",
+              "title": "Symbol"
+            },
+            "description": "Records of this symbol."
+          },
+          {
+            "name": "gateway",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Records of this gateway.",
+              "title": "Gateway"
+            },
+            "description": "Records of this gateway."
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Records naming this order.",
+              "title": "Order Id"
+            },
+            "description": "Records naming this order."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Rows per page (1-1000).",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Rows per page (1-1000)."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The previous page's `next_cursor`, with the same snapshot and filters.",
+              "title": "After"
+            },
+            "description": "The previous page's `next_cursor`, with the same snapshot and filters."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of records, in canonical order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventPage"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "events": [
+                    {
+                      "key": "00000001|0|0000000000000000412|2026-06-15T07:01:12.001000+00:00|000000000412",
+                      "run": 1,
+                      "eseq": 412,
+                      "topic_seq": 17,
+                      "receipt_ts": "2026-06-15T07:01:12.001+00:00",
+                      "receipt_ns": "1781506872001000000",
+                      "topic": "trade.executed",
+                      "kind": "trade.executed",
+                      "symbol": "AAPL",
+                      "actor": null,
+                      "msg_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X2",
+                      "causation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+                      "correlation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+                      "late": false,
+                      "fields": {
+                        "id": "000001-000000004",
+                        "symbol": "AAPL",
+                        "price": 99.9,
+                        "quantity": 200,
+                        "buy_gateway_id": "MM01",
+                        "sell_gateway_id": "TRADER02",
+                        "aggressor_side": "SELL",
+                        "ts_ns": "1781506872000000004",
+                        "tick_decimals": 2
+                      },
+                      "prices": [
+                        {
+                          "name": "price",
+                          "raw": 99.9,
+                          "display": 99.9,
+                          "tick_decimals": 2
+                        }
+                      ],
+                      "source": {
+                        "file": "audit.log",
+                        "line": 413
+                      }
+                    }
+                  ],
+                  "count": 1,
+                  "has_more": true,
+                  "next_cursor": "WyJzLTNmMWM5YTA3YmU1MmQ0ZTZhODEwIiwgImUzYjBjNDQyOThmYyIsIDQxM10"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUDIT_SOURCE_UNAVAILABLE": {
+                    "summary": "AUDIT_SOURCE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "AUDIT_SOURCE_UNAVAILABLE",
+                        "message": "audit/audit-2026-06-15.log.zst was removed after the snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/stories/{entity_kind}/{entity_id}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "An entity's story",
+        "description": "pm-audit-replay's story of one order, trade, quote, OCO, combo or\ncommand: its episodes and those within `depth` links, each fact narrated,\neach link with its confidence (`RECORDED` ... `HEURISTIC`), and the\nfindings on them in their lanes.\n\nA story never crosses into another engine run: an id a restart reused is\n`409 AMBIGUOUS_RUN` until `run_id` names one.",
+        "operationId": "audit_story",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entity_kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "order",
+                "trade",
+                "quote",
+                "oco",
+                "combo",
+                "command"
+              ],
+              "type": "string",
+              "description": "What the id names.",
+              "title": "Entity Kind"
+            },
+            "description": "What the id names."
+          },
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Order, trade, quote, OCO or combo id, or command id; an unambiguous prefix is accepted.",
+              "title": "Entity Id"
+            },
+            "description": "Order, trade, quote, OCO or combo id, or command id; an unambiguous prefix is accepted."
+          },
+          {
+            "name": "snapshot_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The snapshot every read is pinned to (`POST /audit/snapshots`).",
+              "title": "Snapshot Id"
+            },
+            "description": "The snapshot every read is pinned to (`POST /audit/snapshots`)."
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The engine run (`run` of `/events`), when the id appears in several.",
+              "title": "Run Id"
+            },
+            "description": "The engine run (`run` of `/events`), when the id appears in several."
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 3,
+              "minimum": 0,
+              "description": "Links to follow from the entity (0-3).",
+              "default": 2,
+              "title": "Depth"
+            },
+            "description": "Links to follow from the entity (0-3)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The episodes, beats, links and findings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditStory"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "entity_kind": "order",
+                  "entity_id": "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8",
+                  "run_id": null,
+                  "depth": 2,
+                  "episodes": [
+                    {
+                      "id": 12,
+                      "kind": "order",
+                      "anchor": "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8",
+                      "actor": "TRADER02",
+                      "correlation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+                      "root_msg_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+                      "symbol": "AAPL",
+                      "run": 1,
+                      "run_seq": null,
+                      "opened": "2026-06-15T07:01:10.001000+00:00",
+                      "closed": "2026-06-15T07:01:12.001000+00:00",
+                      "outcome": "FILLED",
+                      "summary": "TRADER02 sell stop 30 AAPL @ 99.85: filled 30",
+                      "derived": {
+                        "time_to_ack": 0.0
+                      }
+                    }
+                  ],
+                  "beats": [
+                    {
+                      "episode": 12,
+                      "seq": 0,
+                      "sort_key": "00000001\u001f0\u001f0000000000000000398",
+                      "msg_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+                      "causation_id": null,
+                      "correlation_id": "01J0Z8Q3M4N5P6R7S8T9V0W1X0",
+                      "topic_seq": 9,
+                      "eseq": 398,
+                      "publisher_run": 1,
+                      "receipt_ts": "2026-06-15T07:01:10.001+00:00",
+                      "topic": "order.new",
+                      "kind": "order.new",
+                      "role": "submission",
+                      "late": false,
+                      "text": "TRADER02 submits a sell stop for 30 AAPL, stop 99.85",
+                      "source": {
+                        "file": "audit.log",
+                        "line": 399
+                      },
+                      "fields": {
+                        "id": "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8",
+                        "ts_ns": "1781506870000000000"
+                      },
+                      "prices": {
+                        "stop_price_ticks": 99.85
+                      }
+                    }
+                  ],
+                  "links": [
+                    {
+                      "from": 11,
+                      "to": 12,
+                      "relation": "triggered",
+                      "confidence": "RECORDED",
+                      "evidence": "order.triggered in the trade's chain"
+                    }
+                  ],
+                  "anomalies": []
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_ENTITY`: The snapshot holds no episode for this order, trade, quote, OCO, combo or command id (an ambiguous prefix matches none). `UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_ENTITY": {
+                    "summary": "UNKNOWN_ENTITY",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_ENTITY",
+                        "message": "No order '9f2c' in this snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`AMBIGUOUS_RUN`: The id appears in more than one engine run of the snapshot (a restart reused it); `runs` lists them. Repeat with `run_id`. `CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AMBIGUOUS_RUN": {
+                    "summary": "AMBIGUOUS_RUN",
+                    "value": {
+                      "error": {
+                        "code": "AMBIGUOUS_RUN",
+                        "message": "The id appears in runs 1, 2: pass run_id",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "CAPABILITY_UNAVAILABLE": {
+                    "summary": "CAPABILITY_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "CAPABILITY_UNAVAILABLE",
+                        "message": "The snapshot holds no audit record",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUDIT_SOURCE_UNAVAILABLE": {
+                    "summary": "AUDIT_SOURCE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "AUDIT_SOURCE_UNAVAILABLE",
+                        "message": "audit/audit-2026-06-15.log.zst was removed after the snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/findings": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Findings by lane",
+        "description": "The replay's findings in separate lanes (design §4.1): `evidence`\n(the trail is incomplete here), `consistency` (recorded facts break an\nexchange invariant), `operations` (participants, configuration,\ninfrastructure). The `behaviour` lane is R2's and is reported as not\navailable, never as empty. Codes and severities are the replay's own;\nwindow-edge findings keep their `info` severity.",
+        "operationId": "audit_findings",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The snapshot every read is pinned to (`POST /audit/snapshots`).",
+              "title": "Snapshot Id"
+            },
+            "description": "The snapshot every read is pinned to (`POST /audit/snapshots`)."
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "evidence",
+                    "consistency",
+                    "operations",
+                    "behaviour"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this lane.",
+              "title": "Lane"
+            },
+            "description": "Only this lane."
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "info",
+                "warn",
+                "error"
+              ],
+              "type": "string",
+              "description": "At this severity or worse.",
+              "default": "info",
+              "title": "Severity"
+            },
+            "description": "At this severity or worse."
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this code.",
+              "title": "Code"
+            },
+            "description": "Only this code."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Rows per page (1-1000).",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Rows per page (1-1000)."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The previous page's `next_cursor`, with the same snapshot and filters.",
+              "title": "After"
+            },
+            "description": "The previous page's `next_cursor`, with the same snapshot and filters."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of findings, worst first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditFindingPage"
+                },
+                "example": {
+                  "snapshot_id": "s-3f1c9a07be52d4e6a810",
+                  "lanes": {
+                    "evidence": {
+                      "available": true,
+                      "reason": null,
+                      "count": 1
+                    },
+                    "consistency": {
+                      "available": true,
+                      "reason": null,
+                      "count": 1
+                    },
+                    "operations": {
+                      "available": true,
+                      "reason": null,
+                      "count": 0
+                    },
+                    "behaviour": {
+                      "available": false,
+                      "reason": "NOT_IN_RELEASE",
+                      "count": null
+                    }
+                  },
+                  "findings": [
+                    {
+                      "code": "ESEQ_GAP",
+                      "severity": "error",
+                      "lane": "evidence",
+                      "episode": 40,
+                      "receipt_ts": "2026-06-15T07:01:20.001+00:00",
+                      "detail": "eseq jumped from 151 to 154: 2 messages missing",
+                      "source": {
+                        "file": "audit.log",
+                        "line": 152
+                      },
+                      "episode_kind": "order",
+                      "anchor": "9ab1c47f2e5d48a1b3c6f9078e2d15b4"
+                    },
+                    {
+                      "code": "TERMINAL_MISSING",
+                      "severity": "info",
+                      "lane": "consistency",
+                      "episode": 31,
+                      "receipt_ts": "2026-06-15T07:00:31.001+00:00",
+                      "detail": "order still open when the window ended",
+                      "source": {
+                        "file": "audit.log",
+                        "line": 120
+                      },
+                      "episode_kind": "order",
+                      "anchor": "1c0b9a8f7e6d5c4b3a2918f7e6d5c4b3"
+                    }
+                  ],
+                  "count": 2,
+                  "has_more": false,
+                  "next_cursor": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_SNAPSHOT`: No audit evidence snapshot has this id (or the id is malformed). Create one with `POST /audit/snapshots`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_SNAPSHOT": {
+                    "summary": "UNKNOWN_SNAPSHOT",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SNAPSHOT",
+                        "message": "No snapshot 's-0123456789abcdef0123'",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CAPABILITY_UNAVAILABLE`: The snapshot's evidence cannot support this analysis; `reason` is a stable code (for example `NO_EVENTS`, `NOT_IN_RELEASE`). Not an empty result.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CAPABILITY_UNAVAILABLE": {
+                    "summary": "CAPABILITY_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "CAPABILITY_UNAVAILABLE",
+                        "message": "The snapshot holds no audit record",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`AUDIT_SOURCE_UNAVAILABLE`: The audit evidence a collection or snapshot reads is missing, or a retained file changed after the snapshot pinned it; `reason` is `SOURCE_MISSING` or `SOURCE_CHANGED`. Never an empty result. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUDIT_SOURCE_UNAVAILABLE": {
+                    "summary": "AUDIT_SOURCE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "AUDIT_SOURCE_UNAVAILABLE",
+                        "message": "audit/audit-2026-06-15.log.zst was removed after the snapshot",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -20658,6 +22450,101 @@
           }
         ]
       },
+      "AuditCapability": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Stable code; null when available."
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "The evidence behind the reason; empty when available."
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason",
+          "detail"
+        ],
+        "title": "AuditCapability"
+      },
+      "AuditCollectionRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The collection id; requests name it, never a path."
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "Whether its directory can be read now."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why not, as a stable code (`SOURCE_MISSING`); null when available."
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Files",
+            "description": "Audit files (active, parts, archives) found."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "available",
+          "reason",
+          "files"
+        ],
+        "title": "AuditCollectionRow"
+      },
+      "AuditCollections": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of items in the list."
+          },
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/AuditCollectionRow"
+            },
+            "type": "array",
+            "title": "Collections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "collections"
+        ],
+        "title": "AuditCollections"
+      },
       "AuditEvent": {
         "properties": {
           "timestamp": {
@@ -20717,6 +22604,1020 @@
           "payload"
         ],
         "title": "AuditEvent"
+      },
+      "AuditEventPage": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of items in the list."
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Whether another page follows."
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Pass back as `after` for the next page; null on the last page."
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRecord"
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "In canonical order."
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "has_more",
+          "next_cursor",
+          "snapshot_id",
+          "events"
+        ],
+        "title": "AuditEventPage"
+      },
+      "AuditFinding": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "The replay's finding code."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ],
+            "title": "Severity"
+          },
+          "lane": {
+            "type": "string",
+            "enum": [
+              "evidence",
+              "consistency",
+              "operations",
+              "behaviour"
+            ],
+            "title": "Lane"
+          },
+          "episode": {
+            "type": "integer",
+            "title": "Episode"
+          },
+          "receipt_ts": {
+            "type": "string",
+            "title": "Receipt Ts"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AuditSource"
+          },
+          "episode_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Episode Kind"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "lane",
+          "episode",
+          "receipt_ts",
+          "detail",
+          "source"
+        ],
+        "title": "AuditFinding"
+      },
+      "AuditFindingPage": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of items in the list."
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Whether another page follows."
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Pass back as `after` for the next page; null on the last page."
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "lanes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AuditLane"
+            },
+            "type": "object",
+            "title": "Lanes"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/AuditFinding"
+            },
+            "type": "array",
+            "title": "Findings",
+            "description": "Worst first, then by time."
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "has_more",
+          "next_cursor",
+          "snapshot_id",
+          "lanes",
+          "findings"
+        ],
+        "title": "AuditFindingPage"
+      },
+      "AuditLane": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count",
+            "description": "Findings in the lane (all of them, not this page); null when the lane is unavailable."
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "count"
+        ],
+        "title": "AuditLane"
+      },
+      "AuditPrice": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "raw": {
+            "type": "number",
+            "title": "Raw",
+            "description": "As recorded (ticks for a `*_ticks` field)."
+          },
+          "display": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display",
+            "description": "In money, with the recorded scale; null when no scale is known."
+          },
+          "tick_decimals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Decimals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "raw",
+          "display",
+          "tick_decimals"
+        ],
+        "title": "AuditPrice"
+      },
+      "AuditRecord": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Canonical order key: run, sequence, receipt, read position."
+          },
+          "run": {
+            "type": "integer",
+            "title": "Run",
+            "description": "Engine restart epoch within the snapshot: 0 for the first run, +1 at each later `system.startup`."
+          },
+          "eseq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eseq",
+            "description": "Engine socket-wide sequence."
+          },
+          "topic_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Seq",
+            "description": "Per-topic sequence."
+          },
+          "receipt_ts": {
+            "type": "string",
+            "title": "Receipt Ts",
+            "description": "pm-audit's receipt stamp, as recorded."
+          },
+          "receipt_ns": {
+            "type": "string",
+            "title": "Receipt Ns",
+            "description": "The same, in epoch nanoseconds, as a string."
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "The topic with its gateway/symbol part removed."
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "msg_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msg Id"
+          },
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "late": {
+            "type": "boolean",
+            "title": "Late",
+            "description": "Arrived after its reorder window closed."
+          },
+          "fields": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Fields",
+            "description": "The recorded payload; every `*_ns` integer as a string."
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/AuditPrice"
+            },
+            "type": "array",
+            "title": "Prices"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AuditSource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "run",
+          "eseq",
+          "topic_seq",
+          "receipt_ts",
+          "receipt_ns",
+          "topic",
+          "kind",
+          "symbol",
+          "actor",
+          "msg_id",
+          "causation_id",
+          "correlation_id",
+          "late",
+          "fields",
+          "prices",
+          "source"
+        ],
+        "title": "AuditRecord"
+      },
+      "AuditRun": {
+        "properties": {
+          "run_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Seq",
+            "description": "The engine run (`system.startup`)."
+          },
+          "started_ts": {
+            "type": "string",
+            "title": "Started Ts",
+            "description": "Receipt time of its `system.startup`."
+          },
+          "config_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Sha256",
+            "description": "Hash of the configuration it announced; null when none."
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_seq",
+          "started_ts",
+          "config_sha256"
+        ],
+        "title": "AuditRun"
+      },
+      "AuditSnapshot": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "collection_id": {
+            "type": "string",
+            "title": "Collection Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "When it was first pinned (UTC)."
+          },
+          "entries": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Entries",
+            "description": "Audit records it holds."
+          },
+          "first_ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Ts",
+            "description": "Receipt time of its first record."
+          },
+          "last_ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ts",
+            "description": "Receipt time of its last record."
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/AuditSourceFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "capabilities": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AuditCapability"
+            },
+            "type": "object",
+            "title": "Capabilities",
+            "description": "Each analysis, and why it is unavailable when it is."
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "collection_id",
+          "created_at",
+          "entries",
+          "first_ts",
+          "last_ts",
+          "files",
+          "runs",
+          "capabilities"
+        ],
+        "title": "AuditSnapshot"
+      },
+      "AuditSnapshotRequest": {
+        "properties": {
+          "collection_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Collection Id",
+            "description": "The collection to pin, by id."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "collection_id"
+        ],
+        "title": "AuditSnapshotRequest"
+      },
+      "AuditSource": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File",
+            "description": "Audit file, relative to the collection."
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line",
+            "description": "1-based line in that file."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "line"
+        ],
+        "title": "AuditSource"
+      },
+      "AuditSourceFile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Relative to the collection, e.g. `audit.log`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "active",
+              "part",
+              "archive"
+            ],
+            "title": "Kind"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size",
+            "description": "Bytes in the file when pinned."
+          },
+          "cutoff": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cutoff",
+            "description": "Bytes the snapshot reads."
+          },
+          "torn_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Torn Bytes",
+            "description": "A partial last line of the active file, left out."
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "Hash of the bytes the snapshot reads."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "cutoff",
+          "torn_bytes",
+          "sha256"
+        ],
+        "title": "AuditSourceFile"
+      },
+      "AuditStory": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "entity_kind": {
+            "type": "string",
+            "title": "Entity Kind"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "episodes": {
+            "items": {
+              "$ref": "#/components/schemas/AuditStoryEpisode"
+            },
+            "type": "array",
+            "title": "Episodes"
+          },
+          "beats": {
+            "items": {
+              "$ref": "#/components/schemas/AuditStoryBeat"
+            },
+            "type": "array",
+            "title": "Beats",
+            "description": "In canonical order."
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/AuditStoryLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "anomalies": {
+            "items": {
+              "$ref": "#/components/schemas/AuditFinding"
+            },
+            "type": "array",
+            "title": "Anomalies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "entity_kind",
+          "entity_id",
+          "run_id",
+          "depth",
+          "episodes",
+          "beats",
+          "links",
+          "anomalies"
+        ],
+        "title": "AuditStory"
+      },
+      "AuditStoryBeat": {
+        "properties": {
+          "episode": {
+            "type": "integer",
+            "title": "Episode"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "sort_key": {
+            "type": "string",
+            "title": "Sort Key"
+          },
+          "msg_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msg Id"
+          },
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "topic_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Seq"
+          },
+          "eseq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eseq"
+          },
+          "publisher_run": {
+            "type": "integer",
+            "title": "Publisher Run"
+          },
+          "receipt_ts": {
+            "type": "string",
+            "title": "Receipt Ts"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "late": {
+            "type": "boolean",
+            "title": "Late"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The deterministic narration of this fact."
+          },
+          "source": {
+            "$ref": "#/components/schemas/AuditSource"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Fields"
+          },
+          "prices": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Prices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "episode",
+          "seq",
+          "sort_key",
+          "msg_id",
+          "causation_id",
+          "correlation_id",
+          "topic_seq",
+          "eseq",
+          "publisher_run",
+          "receipt_ts",
+          "topic",
+          "kind",
+          "role",
+          "late",
+          "text",
+          "source",
+          "fields",
+          "prices"
+        ],
+        "title": "AuditStoryBeat"
+      },
+      "AuditStoryEpisode": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Episode id, local to the snapshot's index."
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "root_msg_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Msg Id"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "run": {
+            "type": "integer",
+            "title": "Run",
+            "description": "Engine restart epoch, as `run` on `/events`."
+          },
+          "run_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Seq",
+            "description": "`run_seq` as a payload stated it, if any."
+          },
+          "opened": {
+            "type": "string",
+            "title": "Opened"
+          },
+          "closed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "derived": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Derived",
+            "description": "pm-audit-replay's derived facts (receipt-clock seconds)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "anchor",
+          "actor",
+          "correlation_id",
+          "root_msg_id",
+          "symbol",
+          "run",
+          "run_seq",
+          "opened",
+          "closed",
+          "outcome",
+          "summary",
+          "derived"
+        ],
+        "title": "AuditStoryEpisode"
+      },
+      "AuditStoryLink": {
+        "properties": {
+          "from": {
+            "type": "integer",
+            "title": "From"
+          },
+          "to": {
+            "type": "integer",
+            "title": "To"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "RECORDED",
+              "CERTAIN",
+              "STRONG",
+              "HEURISTIC",
+              "NONE"
+            ],
+            "title": "Confidence"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "relation",
+          "confidence",
+          "evidence"
+        ],
+        "title": "AuditStoryLink"
       },
       "BalanceRow": {
         "properties": {
@@ -31095,6 +33996,10 @@
     {
       "name": "clearing",
       "description": "Read-only post-trade data from the pm-clearing ledger and pm-eod's settlement ledger. A TRADER or MARKET_MAKER key reads its own gateway (naming another is `403 SCOPE_DENIED`); an ADMIN key reads the venue; a read-only key reads nothing. Money on a row comes as `<name>_ticks` (as stored, ticks of `tick_decimals`) and `<name>` (display currency); only display values are summed across symbols. Settlement amounts are integer minor units (`*_minor`, 2 decimals). Data lags fills by up to one clearing flush (5 s by default); raw trades are pruned after the retention window (90 days by default) while daily rows and close snapshots stay."
+    },
+    {
+      "name": "audit",
+      "description": "ADMIN-only reads for the Audit GUI over operator-configured audit evidence collections, named by id, never by path. A client pins a collection as a snapshot (`POST /audit/snapshots`) and every read names that snapshot, so pages, stories and findings never drift onto later evidence. Missing or changed evidence is `503 AUDIT_SOURCE_UNAVAILABLE` and an analysis the evidence cannot support `409 CAPABILITY_UNAVAILABLE`, each with a stable `reason`; neither is ever an empty result. Nanosecond times are decimal strings."
     },
     {
       "name": "bootstrap",

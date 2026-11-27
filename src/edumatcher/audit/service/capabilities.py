@@ -29,6 +29,8 @@ Reason codes (stable; new codes may be added, none is renamed):
 ``NOT_ATTACHED``
     An optional source (simulator context, ``pm-sim-forensics`` report) is
     not attached to this snapshot.
+``NOT_IN_RELEASE``
+    The analysis belongs to a later release (the R2 behavioural lane).
 ``UNKNOWN_SNAPSHOT``
     No snapshot has this id (or the id is malformed).
 ``SOURCE_MISSING``
@@ -69,6 +71,7 @@ class Reason(str, Enum):
     NO_RECORDED_CONFIG = "NO_RECORDED_CONFIG"
     RERUN_UNAVAILABLE = "RERUN_UNAVAILABLE"
     NOT_ATTACHED = "NOT_ATTACHED"
+    NOT_IN_RELEASE = "NOT_IN_RELEASE"
     UNKNOWN_SNAPSHOT = "UNKNOWN_SNAPSHOT"
     SOURCE_MISSING = "SOURCE_MISSING"
     SOURCE_CHANGED = "SOURCE_CHANGED"
