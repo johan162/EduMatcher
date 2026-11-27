@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -26,6 +26,8 @@ export interface MarketTableProps {
   showAuction: boolean;
   onSelect: (symbol: string) => void;
   onToggleWatch: (symbol: string) => void;
+  /** Show only this zero-based page of the sorted rows; all of them when absent. */
+  page?: { index: number; size: number };
 }
 
 export function MarketTable({
@@ -36,6 +38,7 @@ export function MarketTable({
   showAuction,
   onSelect,
   onToggleWatch,
+  page,
 }: MarketTableProps) {
   const columns = useMemo<ColumnDef<MarketRow>[]>(
     () => [
@@ -139,7 +142,16 @@ export function MarketTable({
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const tableRows = table.getRowModel().rows;
+  const sortedRows = table.getRowModel().rows;
+  // Paged after sorting, so a page is a slice of the whole sorted list.
+  const tableRows = page
+    ? sortedRows.slice(page.index * page.size, (page.index + 1) * page.size)
+    : sortedRows;
+  // A new page starts at its first row, not where the previous one was scrolled to.
+  const pageIndex = page?.index;
+  useEffect(() => {
+    scrollRef.current?.scrollTo?.({ top: 0 });
+  }, [pageIndex]);
   const virtualizer = useVirtualizer({
     count: tableRows.length,
     getScrollElement: () => scrollRef.current,

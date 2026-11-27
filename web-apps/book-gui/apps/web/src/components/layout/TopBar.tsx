@@ -15,6 +15,7 @@ import { CompanyButton } from "../company/CompanyButton.js";
 import { HELP_TOPICS } from "../help/helpContent.js";
 import { useBookStore, type ConnectionState } from "../../store/useBookStore.js";
 import { usePrefsStore } from "../../store/usePrefsStore.js";
+import { AboutButton } from "./AboutButton.js";
 import appVersion from "../../version.json";
 
 const CONNECTION: Record<ConnectionState, ConnectionBadgeState> = {
@@ -36,7 +37,8 @@ export function TopBar() {
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-border bg-bg-subtle px-4 text-sm">
       <div className="flex shrink-0 items-baseline gap-2">
-        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <AboutButton app="pm-book" version={appVersion.version} />
+        <span className="font-mono font-bold text-sm text-fg">MarketSim</span>
         <span className="font-mono text-xs text-accent">pm-book</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>

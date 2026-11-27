@@ -12,14 +12,19 @@ export const PAGE_SIZES = [10, 30, 50, 100, 0] as const;
 interface PrefsStore {
   /** Participants per page on the Participants page. See `PAGE_SIZES`. */
   participantsPageSize: number;
+  /** Symbols per page on the Market Overview. */
+  marketPageSize: number;
   setParticipantsPageSize: (rows: number) => void;
+  setMarketPageSize: (rows: number) => void;
 }
 
 export const usePrefsStore = create<PrefsStore>()(
   persist(
     (set) => ({
       participantsPageSize: 30,
+      marketPageSize: 30,
       setParticipantsPageSize: (participantsPageSize) => set({ participantsPageSize }),
+      setMarketPageSize: (marketPageSize) => set({ marketPageSize }),
     }),
     { name: "trader-prefs" },
   ),

@@ -35,8 +35,8 @@ describe("HelpDrawer (§19.1)", () => {
     for (const t of HELP_TOPICS) {
       expect(screen.getByRole("button", { name: t.title })).toBeTruthy();
     }
-    // First topic content is visible (Getting Started → "What is EduMatcher?").
-    expect(screen.getByText("What is EduMatcher?")).toBeTruthy();
+    // First topic content is visible (Getting Started → "What is MarketSim?").
+    expect(screen.getByText("What is MarketSim?")).toBeTruthy();
   });
 
   it("switches content when a topic is selected", () => {

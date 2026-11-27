@@ -8,7 +8,7 @@ import { create } from "zustand";
 import type { CounterWindow, LiveGap, LogRow, MarketSession, ServerState } from "@edumatcher/log-types";
 import type { WsStatus } from "../lib/ws.js";
 
-const TAIL_MAX_ROWS = 2000;
+export const TAIL_MAX_ROWS = 2000;
 
 export type SourceState = "LIVE" | "RECONNECTING" | "LOG_SERVER_DOWN" | "HISTORY_UNAVAILABLE";
 

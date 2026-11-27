@@ -27,7 +27,7 @@ from edumatcher.engine.drop_copy import (
     DropCopyMessage,
     DropCopyPublisher,
 )
-from edumatcher.models.generated.drop_copy import make_drop_copy_event
+from edumatcher.models.generated.drop_copy import DropCopyEvent, make_drop_copy_event
 from edumatcher.models.message import decode
 from tests.conftest import free_ports
 
@@ -111,6 +111,48 @@ class TestPublish:
                 **fill,
             )
         ]
+
+    def test_fill_publication_does_not_validate(
+        self,
+        publisher: tuple[DropCopyPublisher, _FakeSocket],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Engine latency review 2026-11, P2: the validating builder is a third
+        of ``publish_fill``'s cost, twice per trade on the order path."""
+        pub, sock = publisher
+        monkeypatch.setattr(
+            drop_copy_module,
+            "make_drop_copy_event",
+            lambda **_kw: pytest.fail("publish_fill used the validating builder"),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            DropCopyEvent,
+            "validate",
+            lambda _self: pytest.fail("publish_fill validated its message"),
+        )
+
+        pub.publish_fill("GW01", **_fill())
+
+        assert len(sock.sent) == 1
+
+    def test_fill_frames_match_the_validating_builder_after_coercion(
+        self,
+        publisher: tuple[DropCopyPublisher, _FakeSocket],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        pub, sock = publisher
+        # An int price must still go out as a float; several trade ids.
+        fill = _fill(fill_price=150, trade_ids=["000001-000000001", "000001-2"])
+        monkeypatch.setattr(drop_copy_module, "now_ns", lambda: 456)
+
+        pub.publish_fill("GW01", **fill)
+
+        expected = make_drop_copy_event(
+            seq=1, timestamp=456, gateway_id="GW01", event_type="order.fill", **fill
+        )
+        assert sock.sent == [expected]
+        assert b'"fill_price":150.0' in sock.sent[0][1]
 
     def test_publish_sends_two_frames(
         self, publisher: tuple[DropCopyPublisher, _FakeSocket]

@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore.js";
 import { env } from "@/lib/env.js";
 import { Loader2, KeyRound } from "lucide-react";
 import type { BootstrapAdmin, BootstrapTrader, StatusResponse } from "@/types/index.js";
+import appVersion from "../version.json";
 
 /**
  * Probe with the candidate key passed explicitly rather than through
@@ -84,9 +85,13 @@ export function LoginPage() {
         className="w-[380px] bg-panel border border-line rounded-lg p-6 shadow-xl"
       >
         <div className="mb-6">
-          <h1 className="font-mono font-bold text-lg">EduMatcher</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="font-mono font-bold text-lg">MarketSim</h1>
+            <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
+          </div>
+          <p className="text-sm text-fg-dim">Financial Market Simulator</p>
           <p className="text-xs text-fg-faint">
-            {env("VITE_APP_TITLE", "EduMatcher Trading")} · pm-trading-ui
+            {env("VITE_APP_TITLE", "MarketSim Trading")} · pm-trading-ui
           </p>
         </div>
 

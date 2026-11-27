@@ -33,9 +33,15 @@ export function isValidWindow(window: string): window is WindowKey {
   return Object.hasOwn(WINDOW_SECONDS, window);
 }
 
+/**
+ * The window's start as `client_ts` is stored: ISO-8601 UTC with milliseconds.
+ * The bound is compared as a string, so it must keep the milliseconds: a
+ * cutoff of `…:00Z` sorts after `…:00.800Z` ('Z' > '.') and dropped every
+ * event in the cutoff's own second.
+ */
 export function windowToIsoFrom(window: string, now: Date = new Date()): string {
   const seconds = isValidWindow(window)
     ? WINDOW_SECONDS[window]
     : WINDOW_SECONDS[DEFAULT_WINDOW];
-  return new Date(now.getTime() - seconds * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  return new Date(now.getTime() - seconds * 1000).toISOString();
 }

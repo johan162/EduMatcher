@@ -98,7 +98,7 @@ make serve      # serve apps/web/dist/ via pm-trading-ui-serve, on :8093
 | ----------------------------------- | ------------------------- | ------------------------------------------------------ |
 | `VITE_API_BASE`                      | _(empty)_                   | Base URL for `pm-api-gwy` REST API; leave empty to use the dev proxy |
 | `VITE_WS_BASE`                       | _(empty)_                   | Base URL for WebSocket connections; leave empty to use the dev proxy |
-| `VITE_APP_TITLE`                     | `EduMatcher Trading`         | Browser tab title                                       |
+| `VITE_APP_TITLE`                     | `MarketSim Trading`          | Browser tab title                                       |
 | `VITE_MAX_OVERVIEW_SYMBOLS`          | `250`                        | Max symbols in the broad market-data subscription        |
 | `VITE_MAX_FOCUS_SYMBOLS`             | `25`                         | Max symbols in the focused depth/auction subscription     |
 | `VITE_CHART_HISTORY_TICKS`           | `1000`                       | Historical ticks fetched for intraday charts               |

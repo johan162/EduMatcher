@@ -10,10 +10,13 @@ import { LOG_LEVELS } from "@edumatcher/log-types";
 import { api } from "../lib/api.js";
 import { formatRowTs } from "../lib/formatTs.js";
 import { useUiConfig } from "../lib/useUiConfig.js";
-import { isGap, useLiveStore, type TailEntry } from "../store/useLiveStore.js";
+import { isGap, TAIL_MAX_ROWS, useLiveStore, type TailEntry } from "../store/useLiveStore.js";
 import { GapMarkerRow } from "../components/GapMarkerRow.js";
 import { LedgerPanels } from "../components/LedgerPanels.js";
+import { LiveModeHelp } from "../components/LiveModeHelp.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
+
+const HISTORY_LIMIT = 200;
 
 function filterFromParams(params: URLSearchParams): LogFilter {
   return {
@@ -49,7 +52,7 @@ export function ExplorerView() {
 
   const { data: historyData } = useQuery({
     queryKey: ["logs", filter],
-    queryFn: () => api.logs(filter, { limit: 200, direction: "DESC" }),
+    queryFn: () => api.logs(filter, { limit: HISTORY_LIMIT, direction: "DESC" }),
   });
   const { data: countData } = useQuery({
     queryKey: ["logs-count", filter],
@@ -152,6 +155,7 @@ export function ExplorerView() {
         >
           {live ? "▶ LIVE" : "history"}
         </button>
+        <LiveModeHelp bufferRows={TAIL_MAX_ROWS} historyRows={HISTORY_LIMIT} />
         <span className="ml-auto text-fg-subtle">
           {live ? `${filteredTail.length} in buffer` : `${countData?.count ?? "…"} matches`}
         </span>

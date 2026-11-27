@@ -51,7 +51,7 @@ from edumatcher.models.clock import now_ns
 from edumatcher.models.generated.drop_copy import (
     DropCopyEventEventType,
     DropCopyEventLiquidityFlag,
-    make_drop_copy_event,
+    make_drop_copy_event_unchecked,
     make_drop_copy_replay,
 )
 
@@ -169,8 +169,11 @@ class DropCopyPublisher:
             liquidity_flag=liquidity_flag,
         )
         self._log.append(msg)
+        # Unchecked: same frames as the validating builder at a third of the
+        # cost, and this runs twice per trade on the order path (engine
+        # latency review 2026-11, P2). Replay keeps the validating builder.
         self._pub.send_multipart(
-            make_drop_copy_event(
+            make_drop_copy_event_unchecked(
                 seq=msg.seq,
                 timestamp=msg.timestamp,
                 gateway_id=msg.gateway_id,

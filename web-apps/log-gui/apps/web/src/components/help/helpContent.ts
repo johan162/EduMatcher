@@ -12,7 +12,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "pm-log is the operator's view of the exchange's log. Every EduMatcher process writes its log lines to one collector, pm-log-srv; this app shows them live, lets you search the history, and turns repeated errors into issues someone can acknowledge.",
+          "pm-log is the operator's view of the exchange's log. Every MarketSim process writes its log lines to one collector, pm-log-srv; this app shows them live, lets you search the history, and turns repeated errors into issues someone can acknowledge.",
           "Data path: the processes → pm-log-srv → the pm-log bridge → this page. The bridge keeps a database (log.db) so history survives a browser reload."
         ]
       },
@@ -118,7 +118,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       },
       {
         "paragraphs": [
-          "Below: events per minute over the last hour, the processes with most errors, and the five latest errors. A burst in the chart with a high error rate usually points to one process in the second chart."
+          "Below: events per minute over the last hour, the processes with most errors in the last hour, and the five latest errors whatever their age. A burst in the chart with a high error rate usually points to one process in the second chart."
         ]
       }
     ]
@@ -129,7 +129,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The full log. The button in the filter bar switches between two modes."
+          "The full log. The button in the filter bar switches between two modes; the (?) beside it explains them."
         ],
         "terms": [
           {
@@ -272,7 +272,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every EduMatcher web app; the text after the word is specific to this one."
+          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every MarketSim web app; the text after the word is specific to this one."
         ],
         "terms": [
           {
@@ -300,7 +300,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     "blocks": [
       {
         "paragraphs": [
-          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every EduMatcher web app."
+          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every MarketSim web app."
         ],
         "terms": [
           {

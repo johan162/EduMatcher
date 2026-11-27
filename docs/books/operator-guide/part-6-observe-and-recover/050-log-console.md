@@ -451,7 +451,10 @@ of red is the signal.
 Below it, five meter tiles: total events, current error rate per minute,
 warnings in the last 60 s, process count, and log-server state. Then two
 charts — events over time (1-minute buckets over the last hour) and top
-processes by error count — and a compact list of the five most recent errors.
+processes by error count (`ERROR` and `CRITICAL` over the last hour) — and a
+compact list of the five most recent errors, whatever their age. With no errors
+in the last hour the second chart says so rather than staying blank, so it can
+be empty while older errors still show in the list below.
 
 The **error-rate tile is banded** — it carries a colour and a word (`normal`,
 `elevated`, `high`, `SEVERE`) rather than a bare number, because "18 errors a
@@ -472,6 +475,8 @@ toggled by the **▶ LIVE / history** button.
 - **LIVE** streams from the WebSocket into an in-memory ring buffer of the
   **most recent 2 000 rows**, newest first. Rows flash briefly as they arrive.
 - **history** queries `log.db` through the bridge and shows a match count.
+
+The **(?)** beside the button opens a short explanation of the two modes.
 
 The filter bar applies to both modes, and every filter is **kept in the URL
 query string** — so a filtered view is a link you can paste into a ticket or a
@@ -593,6 +598,7 @@ The `⚠` state is the one to watch. A process that connected and then went
 quiet is not obviously broken from any single log line — there is nothing to
 see, which is precisely the problem. Alongside each row: pid, host, connect
 time, idle time, total log count and error count.
+Idle time is shown as `HH:MM:SS ago`, with total hours even after a day.
 
 The threshold is `PROCESS_SILENCE_SEC` (30 s by default) and is stated in the
 legend above the table, so the glyph is never ambiguous.
