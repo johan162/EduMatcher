@@ -1,3 +1,33 @@
+## [v0.85.2] - 2026-11-27
+
+Release Type: minor
+
+### 📋 Summary
+This release adds an About dialog to every web app and makes the log console and Trading GUI easier to read. It also cuts drop-copy publishing cost on the engine's order path and adds the design and workplan for a new Audit GUI.
+
+### ✨ Additions
+- Added an About dialog to the Book, Clearing, Config, Dashboard, Log, Terminal and Trading GUIs, showing the app version, licence, copyright and project site
+- Added a help popup beside the log console Explorer's LIVE/history switch explaining what each mode shows
+- Added a table pager to the Trading GUI Market Overview, with a remembered page size
+
+### 🚀 Improvements
+- Improved drop-copy fill publishing on the engine's order path by using the unchecked message builder, about a third of the previous cost per message
+- Improved the log console's "top processes by error count" chart to say so when there were no errors in the last hour instead of staying blank
+- Improved the log console Connections view to show idle time as `HH:MM:SS ago`, with total hours even after a day
+
+### 🐛 Bug Fixes
+- Fixed log console time windows dropping events that arrived in the same second as the window's start
+
+### 📚 Documentation
+- Added an operator-guide section on engine latency and the host's CPU, covering why p99 is about ten times p50 and how power-saving CPU settings slow every message
+- Added the Audit GUI design proposal and its implementation workplan
+- Updated the log-console guide for the error chart, idle time and the popup button
+- Corrected the Trading GUI help for `Chg %`, which compares against the day's opening price
+
+### 🛠 Internal
+- Moved the Trading GUI Admin Gateways page to a shared table pager component
+- Added regression tests for drop-copy publishing, the log console dashboard, connections, time windows and LIVE help, and Market Overview paging
+
 ## [v0.85.1] - 2026-11-26
 
 Release Type: major
