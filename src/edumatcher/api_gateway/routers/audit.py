@@ -218,6 +218,7 @@ def _snapshot_body(d: SnapshotDescriptor) -> dict[str, Any]:
             }
             for cap, s in d.capabilities.items()
         },
+        "manifest": asdict(d.manifest),
         "forensics": (
             {
                 **asdict(d.forensics),

@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0-AG4 done). This plan orders the work needed to deliver the
+Status: **In progress** (AG0-AG5 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -58,7 +58,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☑ | 2026-11-27 |
 | 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☑ | 2026-11-27 |
 | 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☑ | 2026-11-27 |
-| 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☐ | |
+| 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☑ | 2026-11-27 |
 | 6 | AG6 | Market canvas (Analyse, R0 layers), story drawer, raw evidence | AG3, AG4, AG5 | 3 d | ☐ | |
 | 7 | AG7 | R0 acceptance, help text and holistic review | AG6 | 1 d | ☐ | |
 
@@ -960,6 +960,8 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF10 | AG3 | P3 | Building the market model runs at about 123,000 records/s (8.1 s for a generated 1-million-record session, after the replay's own 36 s normalise and order pass); a whole-session heatmap or lifeline query on it takes about 1.5 s, a 60 s window about 0.3 s. | Acceptable for R0 (built once per cached session). AG9 builds it in the worker with the session (AGF5); AG25 measures against §11.1. |
 | AGF11 | AG4 | P2 | `findings.json` recorded only `data_dir` (a host path) and the trade cut: nothing in it could show which trail, or which bytes of it, the checks read, so "a report whose inputs do not match the snapshot" could not be detected; nor did it name each check's data scope. | `pm-sim-forensics` now writes `inputs` (every audit file and store read: name, kind, size, SHA-256) and each check's `needs` (additive; its own test). The adapter compares the audit inputs with the snapshot's pinned files. A report without `inputs` is `REPORT_UNREADABLE` (no legacy path). |
 | AGF12 | AG4 | P3 | The report has no configured location. `pm-sim-forensics --out` defaults to `forensics/` beside the install's data dir whatever `--data` is, so for any other collection the operator must pass `--out <collection>/../forensics`; two collections with one parent share that place. | R0 convention: a collection's report is `forensics/findings.json` beside it (no path in any request). A report of the neighbouring collection is caught as `DIFFERENT_INPUTS`. A per-collection key, if wanted, belongs to AG8's source catalogue. |
+| AGF13 | AG5 | P3 | The evidence banner must show the manifest as "checked, unanchored", "failed" or "no manifest", but no route reported the manifest: AG1 left manifest verification to AG8. | The snapshot descriptor gained `manifest` (`absent`/`verified`/`failed`, entries, head hash, `anchored: false`, problems), verified with `audit.manifest.verify` when pinned; the head is part of the snapshot id. AG8 adds the full source catalogue (retired and missing states, anchoring). |
+| AGF14 | AG5 | P3 | The banner's gap count reads `/findings?code=ESEQ_GAP`, so the first view of a snapshot builds its whole replay session (AGF5): seconds for a class session, minutes at the 10-million-event reference. | Acceptable for R0: the banner says "counting…" meanwhile and an error is never a zero. AG9's `prepare` job builds the session before the first view. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1147,3 +1149,43 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 - Not in AG4: the `forensics_import` job (AG9); a report that read a torn
   active file does not match its snapshot (the snapshot leaves the partial
   line out), which is `DIFFERENT_INPUTS`: run the tool on a stopped sim.
+
+### 8.6 AG5 done note (2026-11-27)
+
+- `web-apps/audit-gui` (`pm-audit-ui`), scaffolded from clearing-gui:
+  `apps/web` (React, React Router, TanStack Query, Zustand, Zod, Tailwind),
+  `apps/serve` (static server with the same-origin `/api` proxy),
+  Dockerfile, compose, Makefile, `.env.example`, README. Ports 8097
+  (served) and 8197 (Vite). Shipped everywhere a GUI ships
+  (`tests/test_deployment_guis.py` requires it): the five compose files
+  (source, released, simulation, GUIs-only), the docker Makefile's lists,
+  URL lines and `dev` hints, `edumatcher.sh`'s container lists, URL line and
+  firewall range (8090-8097), the GHCR workflow's two matrices,
+  `mkghrelease.sh`, `mkbld.sh`'s version loop and `web-apps/Makefile`.
+- Login probes `GET /api/v1/status` and keeps an ADMIN key only, in
+  memory; TRADER, MARKET_MAKER and read-only keys are refused with a
+  message saying why. Logout drops the key, the snapshot and the cache.
+- Top bar: wordmark and About (the shared AboutButton), the collection
+  picker (ids only; an unreadable collection is listed with its reason and
+  cannot be chosen; choosing one is `POST /snapshots`), the "Historical
+  snapshot" label (id, records to ...), Explain, font size, the gateway's
+  state, log out.
+- Shell: the seven workspaces in their design groups (Triage, Investigate,
+  Trust, Conclude); the six not built say "Not in this release" with their
+  question. The evidence banner sits above every workspace: receipt-clock
+  extent, records, runs, recorder gaps (the replay's `ESEQ_GAP`; "at least"
+  past one page; "no recorder gap" only for a measured zero), manifest
+  (AGF13), forensics statuses, torn tail, unavailable capabilities with
+  reasons. It cannot be folded while the manifest failed or an attached,
+  matching forensics report has a FAIL or ERROR.
+- Tests (Vitest, 53): login, shell, picker, banner, a contract test
+  holding the four schemas the GUI reads to `spec/rest/openapi.json`, and
+  the serve contract. Python: a manifest-state test (absent, verified,
+  tampered).
+- `make -C web-apps/audit-gui build test typecheck` green. The image built
+  with podman serves the SPA (fallback for workspace paths) and proxies
+  `/api/*` with the key to `API_PROXY_TARGET`, checked against a stub.
+- Bundle: 433 kB JS (134 kB gzip), 14 kB CSS. No chart library yet; AG6
+  loads ECharts on demand.
+- Not in AG5: help drawer and help text, and the operator guide chapter
+  (AG7, R0 acceptance); venue timezone and time controls (AG10).

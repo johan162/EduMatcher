@@ -1,0 +1,42 @@
+# Single-service deployment of pm-audit-ui, the read-only audit review client.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8097. The static server serves the built web UI
+# and proxies /api/* to pm-api-gwy on the same origin; pm-api-gwy is the only
+# service the browser talks to. It reads the audit trail itself (its
+# `audit_collections`, ADMIN keys only): this container needs no audit file,
+# volume or other address.
+#
+# The default target suits Docker Desktop. On Podman, or on Linux Docker
+# without host-gateway support, export API_PROXY_TARGET before running
+# compose (host.containers.internal on Podman).
+services:
+  audit-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-audit-gui:latest
+    ports:
+      - "${AUDIT_GUI_PORT:-8097}:8097"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8097"
+      # REST proxy target: the server's only connection.
+      API_PROXY_TARGET: "${API_PROXY_TARGET:-http://host.docker.internal:8080}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8097/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

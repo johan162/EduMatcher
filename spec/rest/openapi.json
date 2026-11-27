@@ -20548,6 +20548,13 @@
                       "detail": ""
                     }
                   },
+                  "manifest": {
+                    "state": "verified",
+                    "entries": 1,
+                    "head_sha256": "5b0c4e7f1a2d3c9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c",
+                    "anchored": false,
+                    "problems": []
+                  },
                   "forensics": {
                     "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",
                     "size": 2391,
@@ -20850,6 +20857,13 @@
                       "reason": null,
                       "detail": ""
                     }
+                  },
+                  "manifest": {
+                    "state": "verified",
+                    "entries": 1,
+                    "head_sha256": "5b0c4e7f1a2d3c9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c",
+                    "anchored": false,
+                    "problems": []
                   },
                   "forensics": {
                     "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",
@@ -24583,6 +24597,84 @@
         ],
         "title": "AuditLifelines"
       },
+      "AuditManifest": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "absent",
+              "verified",
+              "failed"
+            ],
+            "title": "State",
+            "description": "`absent`: no `audit/manifest.jsonl`; `verified`: chain and archives check; `failed`: see `problems`."
+          },
+          "entries": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Entries"
+          },
+          "head_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha256",
+            "description": "Hash of the newest entry, to compare with a copy kept elsewhere."
+          },
+          "anchored": {
+            "type": "boolean",
+            "title": "Anchored",
+            "description": "Whether the head was checked against an independently kept copy. Always false in this release: a verified chain shows edits, not a rewritten chain."
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/AuditManifestProblem"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "entries",
+          "head_sha256",
+          "anchored",
+          "problems"
+        ],
+        "title": "AuditManifest"
+      },
+      "AuditManifestProblem": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day",
+            "description": "The day concerned; null for the chain itself."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "message"
+        ],
+        "title": "AuditManifestProblem"
+      },
       "AuditMask": {
         "properties": {
           "kind": {
@@ -24978,6 +25070,10 @@
             "title": "Capabilities",
             "description": "Each analysis, and why it is unavailable when it is."
           },
+          "manifest": {
+            "$ref": "#/components/schemas/AuditManifest",
+            "description": "The evidence manifest when pinned."
+          },
           "forensics": {
             "anyOf": [
               {
@@ -25001,6 +25097,7 @@
           "files",
           "runs",
           "capabilities",
+          "manifest",
           "forensics"
         ],
         "title": "AuditSnapshot"

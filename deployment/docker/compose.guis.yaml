@@ -221,6 +221,29 @@ services:
       # Clearing data is read by pm-api-gwy (clearing_db, eod_db), not here.
       API_PROXY_TARGET: "http://edumatcher:8080"
 
+  audit-gui:
+    build:
+      context: ../../web-apps/audit-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-audit-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-audit-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${AUDIT_GUI_PORT:-8097}:8097"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8097"
+      # The desk instance: log in with an ADMIN key (audit evidence is ADMIN-only).
+      # The audit trail is read by pm-api-gwy (audit_collections), not here.
+      API_PROXY_TARGET: "http://edumatcher:8080"
+
 volumes:
   log-gui-acks:
   terminal-gui-logs:

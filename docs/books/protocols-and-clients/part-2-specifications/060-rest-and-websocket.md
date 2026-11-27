@@ -3323,6 +3323,14 @@ active `audit.log`'s complete lines (a partial last line is reported as
 analysis whether the evidence supports it. The id is derived from that
 content: pinning an unchanged collection again returns the same snapshot.
 
+`manifest` is the evidence manifest (`audit/manifest.jsonl`) as `pm-audit-cli
+verify` checks it when pinned: `state` is `absent`, `verified` (the hash chain
+and every archive match) or `failed` (`problems` lists each, by `day`), with
+its entry count and `head_sha256`. `anchored` is always `false` in this
+release: no copy of the head kept elsewhere is checked, so `verified` shows an
+edited entry but not a rewritten chain ("checked, unanchored"). The head is
+part of the snapshot id.
+
 A `pm-sim-forensics` report in `forensics/` beside the collection (the
 tool's default `--out`) is pinned too: copied, hashed (the hash is part of
 the id) and described in `forensics` (hash, size, tool version, trade cut,
@@ -3342,7 +3350,7 @@ capability is available only for a matching report; otherwise its reason is
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
+| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities", "manifest", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
 
 **Errors**
 

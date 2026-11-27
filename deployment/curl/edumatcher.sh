@@ -15,7 +15,7 @@
 #
 # EM_STACK=sim in .env makes every command drive compose.ai-sim.yaml and the
 # 'edumatcher-sim' containers instead; the installer sets it with --sim.
-# EM_STACK=guis drives compose.guis.yaml: the seven web GUIs only, for an
+# EM_STACK=guis drives compose.guis.yaml: the eight web GUIs only, for an
 # exchange you run yourself with pipx; the installer sets it with --guis.
 #
 # Everything runs from this directory; there is nothing installed elsewhere.
@@ -35,7 +35,7 @@ die()   { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
 # file rather than derived from the project, which is why two installs collide
 # — see assert_no_foreign_stack below. detect_engine overrides both of these
 # for an AI-sim install.
-CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui edumatcher-book-gui edumatcher-dash-gui edumatcher-clearing-gui"
+CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui edumatcher-book-gui edumatcher-dash-gui edumatcher-clearing-gui edumatcher-audit-gui"
 CONTAINER_NAME="edumatcher"
 
 # Read one key out of .env without sourcing the whole file.
@@ -70,13 +70,13 @@ detect_engine() {
         COMPOSE_FILES="-f compose.guis.yaml"
         CONTAINER_NAME=""
         export EM_DATA_DIR="$(guis_data_dir)"
-        CONTAINERS="edumatcher-host-terminal-gui edumatcher-host-log-gui edumatcher-host-config-gui edumatcher-host-trader-gui edumatcher-host-book-gui edumatcher-host-dash-gui edumatcher-host-clearing-gui"
+        CONTAINERS="edumatcher-host-terminal-gui edumatcher-host-log-gui edumatcher-host-config-gui edumatcher-host-trader-gui edumatcher-host-book-gui edumatcher-host-dash-gui edumatcher-host-clearing-gui edumatcher-host-audit-gui"
         return
     fi
     if [[ "$(stack)" == "sim" ]]; then
         COMPOSE_FILES="-f compose.ai-sim.yaml"
         CONTAINER_NAME="edumatcher-sim"
-        CONTAINERS="edumatcher-sim edumatcher-sim-terminal-gui edumatcher-sim-log-gui edumatcher-sim-trader-gui edumatcher-sim-book-gui edumatcher-sim-dash-gui edumatcher-sim-clearing-gui"
+        CONTAINERS="edumatcher-sim edumatcher-sim-terminal-gui edumatcher-sim-log-gui edumatcher-sim-trader-gui edumatcher-sim-book-gui edumatcher-sim-dash-gui edumatcher-sim-clearing-gui edumatcher-sim-audit-gui"
         return
     fi
     COMPOSE_FILES="-f compose.yaml"
@@ -321,6 +321,7 @@ cmd_urls() {
     echo "  Order Book Viewer          http://localhost:${BOOK_GUI_PORT:-8094}"
     echo "  Operator Dashboard         http://localhost:${DASH_GUI_PORT:-8095}"
     echo "  Clearing GUI               http://localhost:${CLEARING_GUI_PORT:-8096}"
+    echo "  Audit GUI (ADMIN)          http://localhost:${AUDIT_GUI_PORT:-8097}"
     echo "  REST API docs              http://localhost:8080/docs"
 }
 
@@ -467,7 +468,7 @@ cmd_share() {
             warn "The gateways have no password — only do this on a network you control."
             echo "Apply it with: ./edumatcher.sh restart"
             echo "Students open: http://${ip}:${dash_port:-8095}"
-            echo "If they cannot connect, open the ports in the host firewall (8090-8096/tcp)."
+            echo "If they cannot connect, open the ports in the host firewall (8090-8097/tcp)."
             ;;
         off)
             set_env BIND_ADDR 127.0.0.1

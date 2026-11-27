@@ -12,6 +12,10 @@ browser names it by id, never by path (design §7.2).
   reported (``torn_bytes``) and left out;
 * the records' receipt-time extent, the engine runs (each
   ``system.startup``) and every capability's state (``capabilities``);
+* the evidence manifest (``audit/manifest.jsonl``) as ``pm-audit-cli
+  verify`` checks it: ``absent``, ``verified`` or ``failed`` with its
+  problems. No external anchor is configured (gate D1), so a verified chain
+  is "checked, unanchored": it shows edits, not a rewritten chain;
 * the ``pm-sim-forensics`` report beside the collection, when there is one:
   copied, hashed and compared with the pinned audit files
   (:mod:`edumatcher.audit.service.forensics`).
@@ -42,6 +46,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from edumatcher.audit import manifest as evidence_manifest
 from edumatcher.audit.query import AuditEntry, iter_entries
 from edumatcher.audit.rawlines import STARTUP, audit_files
 from edumatcher.models.generated.auction import (
@@ -122,6 +127,26 @@ class RunInfo:
 
 
 @dataclass(frozen=True)
+class ManifestProblem:
+    day: str | None
+    message: str
+
+
+@dataclass(frozen=True)
+class ManifestState:
+    """The evidence manifest when the snapshot was pinned."""
+
+    #: ``absent`` (no manifest), ``verified`` or ``failed``.
+    state: str
+    entries: int
+    #: Hash of its newest line: the value to compare with a kept copy.
+    head_sha256: str | None
+    #: Whether the head was checked against an independently kept copy.
+    anchored: bool
+    problems: tuple[ManifestProblem, ...]
+
+
+@dataclass(frozen=True)
 class SnapshotDescriptor:
     snapshot_id: str
     collection_id: str
@@ -137,6 +162,7 @@ class SnapshotDescriptor:
     capabilities: dict[Capability, CapabilityState]
     #: The attached pm-sim-forensics report, when one could be read.
     forensics: ForensicsPin | None = None
+    manifest: ManifestState = ManifestState("absent", 0, None, False, ())
 
 
 class SnapshotUnavailable(Exception):
@@ -197,19 +223,21 @@ def create_snapshot(collection: AuditCollection, store: Path) -> SnapshotDescrip
     try:
         files = tuple(_pin(path, root, work / _PINNED) for path in audit_files(root))
         report = attach(root, {f.name: (f.cutoff, f.sha256) for f in files}, work)
+        manifest = _manifest(root / "audit")
         material = json.dumps(
             [
                 collection.id,
                 str(root),
                 [(f.name, f.kind, f.cutoff, f.sha256) for f in files],
                 report.sha256 if report else None,
+                manifest.head_sha256,
             ]
         )
         snapshot_id = "s-" + hashlib.sha256(material.encode()).hexdigest()[:20]
         final = snapshots / snapshot_id
         if (final / _DESCRIPTOR).is_file():
             return _load(final)
-        descriptor = _describe(snapshot_id, collection, files, work, report)
+        descriptor = _describe(snapshot_id, collection, files, work, report, manifest)
         (work / _DESCRIPTOR).write_text(_dump(descriptor), encoding="utf-8")
         try:
             os.replace(work, final)
@@ -267,6 +295,23 @@ def _copy_complete_lines(path: Path, dest: Path) -> tuple[int, int, str]:
     return size, cutoff, digest.hexdigest()
 
 
+def _manifest(audit_dir: Path) -> ManifestState:
+    """The manifest under *audit_dir*, verified as ``pm-audit-cli verify``
+    does (chain, then each current day against its archive)."""
+    if not (audit_dir / evidence_manifest.MANIFEST_NAME).is_file():
+        return ManifestState("absent", 0, None, False, ())
+    problems = tuple(
+        ManifestProblem(p.day, p.message) for p in evidence_manifest.verify(audit_dir)
+    )
+    return ManifestState(
+        state="failed" if problems else "verified",
+        entries=len(evidence_manifest.read_entries(audit_dir)),
+        head_sha256=evidence_manifest.head_hash(audit_dir),
+        anchored=False,
+        problems=problems,
+    )
+
+
 def _check_retained(path: Path, pinned: SourceFile) -> None:
     try:
         size = path.stat().st_size
@@ -293,6 +338,7 @@ def _describe(
     files: tuple[SourceFile, ...],
     work: Path,
     report: Attachment | None,
+    manifest: ManifestState,
 ) -> SnapshotDescriptor:
     """One pass over the pinned records."""
     root = collection.path
@@ -348,6 +394,7 @@ def _describe(
         runs=tuple(runs),
         capabilities=evaluate(evidence),
         forensics=report.pin if report else None,
+        manifest=manifest,
     )
 
 
@@ -385,6 +432,17 @@ def _load(directory: Path) -> SnapshotDescriptor:
             for cap, s in raw["capabilities"].items()
         },
         forensics=_load_forensics(raw["forensics"]),
+        manifest=_load_manifest(raw["manifest"]),
+    )
+
+
+def _load_manifest(raw: dict[str, Any]) -> ManifestState:
+    return ManifestState(
+        state=raw["state"],
+        entries=raw["entries"],
+        head_sha256=raw["head_sha256"],
+        anchored=raw["anchored"],
+        problems=tuple(ManifestProblem(**p) for p in raw["problems"]),
     )
 
 

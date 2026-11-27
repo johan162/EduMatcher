@@ -74,11 +74,11 @@ PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pypr
 # Not VERSION: that already means "which PyPI release to install" for `make build`.
 TAG ?= dev
 GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui \
-              edumatcher-book-gui edumatcher-dash-gui edumatcher-clearing-gui
+              edumatcher-book-gui edumatcher-dash-gui edumatcher-clearing-gui edumatcher-audit-gui
 
-# The same seven as compose *service* names, which is what `build` and
+# The same eight as compose *service* names, which is what `build` and
 # `up -d <svc>` take. GUI= selects one for build-guis / up-all BUILD=1.
-GUI_SERVICES := log-gui terminal-gui trader-gui book-gui dash-gui clearing-gui config-gui
+GUI_SERVICES := log-gui terminal-gui trader-gui book-gui dash-gui clearing-gui audit-gui config-gui
 GUI ?=
 
 # Every container this stack owns, named as the compose files name them.
@@ -142,7 +142,7 @@ help:
 	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
 	@echo "  make down-all           Stop and remove every container"
 	@echo ""
-	@echo "  make build-guis                    Rebuild all seven web-app images"
+	@echo "  make build-guis                    Rebuild all eight web-app images"
 	@echo "  make build-guis GUI=terminal-gui   ... just one"
 	@echo "  make up-all BUILD=1                Rebuild the web-app images, then start"
 	@echo "  make up-all BUILD=1 GUI=log-gui    ... rebuilding only that one"
@@ -168,7 +168,7 @@ help:
 	@echo "  make ports              List the published ports"
 	@echo "  make mounts             Which directory is behind each container path"
 	@echo ""
-	@echo "  make ghcr-push          Push the seven non-sim images to GHCR as :dev (this arch only)"
+	@echo "  make ghcr-push          Push the nine non-sim images to GHCR as :dev (this arch only)"
 	@echo "  make ghcr-push TAG=x.y.z FORCE=1   ... as a release tag (see the warning)"
 	@echo "  make clean              Remove the container and the image"
 	@echo "  make clean-data         Delete ./data (the whole exchange state)"
@@ -243,11 +243,11 @@ build: check .env
 	$(DC) build
 
 # `up-all` deliberately does not pass --build. Compose would then re-evaluate
-# seven build contexts on every start, and the backend image is `make build`'s
+# eight build contexts on every start, and the backend image is `make build`'s
 # job. The consequence is that a change in web-apps/ is invisible until its
 # image is rebuilt explicitly — which is what this target is for.
 #
-#   make build-guis                       all seven
+#   make build-guis                       all eight
 #   make build-guis GUI=terminal-gui      one
 #   make up-all BUILD=1 [GUI=...]         rebuild, then start
 #
@@ -361,6 +361,7 @@ endif
 	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
 	@echo "  dash-gui      http://localhost:$${DASH_GUI_PORT:-8095}"
 	@echo "  clearing-gui  http://localhost:$${CLEARING_GUI_PORT:-8096}"
+	@echo "  audit-gui     http://localhost:$${AUDIT_GUI_PORT:-8097}"
 ifeq ($(CONFIG_GUI),1)
 	@echo "  config-gui    http://localhost:$${CONFIG_GUI_PORT:-8092}"
 endif
@@ -421,6 +422,7 @@ up-sim: check
 	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
 	@echo "  dash-gui      http://localhost:$${DASH_GUI_PORT:-8095}"
 	@echo "  clearing-gui  http://localhost:$${CLEARING_GUI_PORT:-8096}"
+	@echo "  audit-gui     http://localhost:$${AUDIT_GUI_PORT:-8097}"
 	@echo "'make sim-status' shows the processes; 'make down-sim' stops it."
 
 down-sim: check
@@ -593,6 +595,10 @@ dev-env: check
 		echo "# clearing-gui: web on 8196. No bridge and no environment needed — vite.config.ts"; \
 		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080."; \
 		published 8080 || echo "WARNING: port 8080 is not published on the host." >&2;; \
+	audit-gui) \
+		echo "# audit-gui: web on 8197. No bridge and no environment needed — vite.config.ts"; \
+		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080 (ADMIN keys only)."; \
+		published 8080 || echo "WARNING: port 8080 is not published on the host." >&2;; \
 	config-gui) \
 		echo "# config-gui talks to no backend at all. Nothing to set — just 'make dev'.";; \
 	*) echo "ERROR: unknown GUI '$(GUI)'. One of: $(GUI_SERVICES)" >&2; exit 1;; \
@@ -636,7 +642,7 @@ ghcr-push: check
 			fi; \
 			echo "==> WARNING: pushing single-arch ($$(uname -m)) images as '$(TAG)'";; \
 	esac; \
-	echo "==> building the seven non-sim images from this checkout"; \
+	echo "==> building the nine non-sim images from this checkout"; \
 	$(call stage_wheel,.wheel $(LOG_GUI_WHEEL_DIR)); \
 	$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build; \
 	echo "$$GHCR_TOKEN" | $(CONTAINER_ENGINE) login $(GHCR_REGISTRY) \

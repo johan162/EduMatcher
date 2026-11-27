@@ -1259,6 +1259,28 @@ class AuditForensicsReport(BaseModel):
     differing: list[str] = Field(description="Audit files the two disagree on.")
 
 
+class AuditManifestProblem(BaseModel):
+    day: str | None = Field(description="The day concerned; null for the chain itself.")
+    message: str
+
+
+class AuditManifest(BaseModel):
+    state: Literal["absent", "verified", "failed"] = Field(
+        description="`absent`: no `audit/manifest.jsonl`; `verified`: chain and "
+        "archives check; `failed`: see `problems`."
+    )
+    entries: int = Field(ge=0)
+    head_sha256: str | None = Field(
+        description="Hash of the newest entry, to compare with a copy kept elsewhere."
+    )
+    anchored: bool = Field(
+        description="Whether the head was checked against an independently kept "
+        "copy. Always false in this release: a verified chain shows edits, not a "
+        "rewritten chain."
+    )
+    problems: list[AuditManifestProblem]
+
+
 class AuditSnapshot(BaseModel):
     snapshot_id: str
     collection_id: str
@@ -1271,6 +1293,7 @@ class AuditSnapshot(BaseModel):
     capabilities: dict[str, AuditCapability] = Field(
         description="Each analysis, and why it is unavailable when it is."
     )
+    manifest: AuditManifest = Field(description="The evidence manifest when pinned.")
     forensics: AuditForensicsReport | None = Field(
         description="The attached `pm-sim-forensics` report (`forensics/` beside "
         "the collection); null when none is attached or it cannot be read."

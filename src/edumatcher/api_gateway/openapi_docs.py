@@ -2452,6 +2452,13 @@ AUDIT_SNAPSHOT: dict[str, Any] = {
         },
         "forensics": {"available": True, "reason": None, "detail": ""},
     },
+    "manifest": {
+        "state": "verified",
+        "entries": 1,
+        "head_sha256": "5b0c4e7f1a2d3c9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c",
+        "anchored": False,
+        "problems": [],
+    },
     "forensics": {
         "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",
         "size": 2391,

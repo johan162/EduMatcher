@@ -172,6 +172,35 @@ def test_a_missing_collection_directory_is_503(tmp_path: Path) -> None:
     assert body["collections"][0]["reason"] == "SOURCE_MISSING"
 
 
+def test_the_snapshot_reports_its_manifest_state(tmp_path: Path, base: World) -> None:
+    """Three separate states: no manifest, checked (no external anchor), failed."""
+    app = make_audit_app(base)
+    status, body = _post(app, "/snapshots", {"collection_id": "world"})
+    assert body["manifest"] == {
+        "state": "absent",
+        "entries": 0,
+        "head_sha256": None,
+        "anchored": False,
+        "problems": [],
+    }
+    world = build(tmp_path / "w", zstd_archive=True)
+    app = make_audit_app(world)
+    status, body = _post(app, "/snapshots", {"collection_id": "world"})
+    manifest = body["manifest"]
+    assert (manifest["state"], manifest["entries"], manifest["anchored"]) == ("verified", 1, False)  # fmt: skip
+    head = manifest["head_sha256"]
+    assert isinstance(head, str) and len(head) == 64
+    entry = world.parts_dir / "manifest.jsonl"
+    tampered = entry.read_text().replace('"lines":', '"lines":1')
+    assert tampered != entry.read_text()
+    entry.write_text(tampered)
+    status, body = _post(app, "/snapshots", {"collection_id": "world"})
+    failed = body["manifest"]
+    assert failed["state"] == "failed"
+    assert failed["head_sha256"] != head
+    assert failed["problems"] and failed["problems"][0]["day"] == aw.DAY
+
+
 def test_a_retained_file_removed_later_is_503_not_an_empty_page(
     tmp_path: Path,
 ) -> None:
