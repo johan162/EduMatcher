@@ -1237,6 +1237,28 @@ class AuditCapability(BaseModel):
     )
 
 
+class AuditForensicsInput(BaseModel):
+    name: str = Field(description="Relative to the data dir, e.g. `audit.log`, `stats.db`.")  # fmt: skip
+    kind: Literal["audit", "store"]
+    size: int = Field(ge=0)
+    sha256: str
+
+
+class AuditForensicsReport(BaseModel):
+    sha256: str = Field(description="Hash of the report as pinned.")
+    size: int = Field(ge=0)
+    tool_version: str | None
+    cut_trade_id: str | None = Field(
+        description="The highest trade id present in every trade store the checks compared."
+    )
+    statuses: dict[str, int] = Field(description="Checks per status, PASS included.")
+    inputs: list[AuditForensicsInput] = Field(description="Every file the checks read.")
+    inputs_match: bool = Field(
+        description="Whether its audit inputs are exactly the snapshot's audit files."
+    )
+    differing: list[str] = Field(description="Audit files the two disagree on.")
+
+
 class AuditSnapshot(BaseModel):
     snapshot_id: str
     collection_id: str
@@ -1248,6 +1270,10 @@ class AuditSnapshot(BaseModel):
     runs: list[AuditRun]
     capabilities: dict[str, AuditCapability] = Field(
         description="Each analysis, and why it is unavailable when it is."
+    )
+    forensics: AuditForensicsReport | None = Field(
+        description="The attached `pm-sim-forensics` report (`forensics/` beside "
+        "the collection); null when none is attached or it cannot be read."
     )
 
 
@@ -1345,16 +1371,41 @@ class AuditStoryLink(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class AuditForensicsScope(BaseModel):
+    stores: list[str] = Field(description="The stores the check reads.")
+    cut_trade_id: str | None = Field(description="Trades compared up to this id.")
+
+
+class AuditForensicsCheck(BaseModel):
+    id: str = Field(description="The pm-sim-forensics check id, e.g. `E2`.")
+    oracle: str | None
+    title: str | None
+    status: Literal["FAIL", "ERROR", "SKIPPED"]
+    violations: int | None
+    note: str
+    samples: list[Any] = Field(description="Sample rows, as the report holds them.")
+    scope: AuditForensicsScope
+
+
 class AuditFinding(BaseModel):
-    code: str = Field(description="The replay's finding code.")
+    origin: Literal["replay", "forensics"] = Field(
+        default="replay",
+        description="pm-audit-replay, or an imported pm-sim-forensics check.",
+    )
+    code: str = Field(
+        description="The replay's finding code, or `SIM_FORENSICS` for a check."
+    )
     severity: Literal["info", "warn", "error"]
     lane: Literal["evidence", "consistency", "operations", "behaviour"]
-    episode: int
-    receipt_ts: str
+    episode: int | None = Field(description="Null for a forensics check.")
+    receipt_ts: str | None = Field(description="Null for a forensics check.")
     detail: str
-    source: AuditSource
+    source: AuditSource | None = Field(description="Null for a forensics check.")
     episode_kind: str | None = None
     anchor: str | None = None
+    check: AuditForensicsCheck | None = Field(
+        default=None, description="The imported check, for `origin: forensics`."
+    )
 
 
 class AuditStory(BaseModel):
@@ -1378,9 +1429,21 @@ class AuditLane(BaseModel):
     )
 
 
+class AuditForensicsSummary(BaseModel):
+    available: bool = Field(description="Whether a matching report is merged.")
+    reason: str | None = Field(
+        description="`NOT_ATTACHED`, `REPORT_UNREADABLE` or `DIFFERENT_INPUTS`."
+    )
+    detail: str
+    statuses: dict[str, int] | None = Field(
+        description="The report's checks per status; null when none is readable."
+    )
+
+
 class AuditFindingPage(_Page):
     snapshot_id: str
     lanes: dict[str, AuditLane]
+    forensics: AuditForensicsSummary
     findings: list[AuditFinding] = Field(description="Worst first, then by time.")
 
 

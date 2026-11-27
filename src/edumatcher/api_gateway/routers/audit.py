@@ -46,7 +46,7 @@ from edumatcher.api_gateway.responses import (
 )
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
-from edumatcher.audit.service.capabilities import Reason
+from edumatcher.audit.service.capabilities import Capability, Reason
 from edumatcher.audit.service.findings import BEHAVIOUR, LANES
 from edumatcher.audit.service.market import MAX_BINS
 from edumatcher.audit.service.session import (
@@ -218,6 +218,14 @@ def _snapshot_body(d: SnapshotDescriptor) -> dict[str, Any]:
             }
             for cap, s in d.capabilities.items()
         },
+        "forensics": (
+            {
+                **asdict(d.forensics),
+                "inputs_match": d.forensics.inputs_match,
+            }
+            if d.forensics
+            else None
+        ),
     }
 
 
@@ -523,16 +531,34 @@ async def audit_findings(
     infrastructure). The `behaviour` lane is R2's and is reported as not
     available, never as empty. Codes and severities are the replay's own;
     window-edge findings keep their `info` severity.
+
+    An attached `pm-sim-forensics` report whose audit inputs match the
+    snapshot adds its FAIL (`error`), ERROR (`warn`) and SKIPPED (`info`)
+    checks to the consistency lane as `code: SIM_FORENSICS` rows with the
+    check, its samples and data scope; PASS and INFO are only counted in
+    `forensics.statuses`. A report on other inputs is not merged
+    (`forensics.reason: DIFFERENT_INPUTS`).
     """
     await require_admin(request, session)
     service = _service(request)
     digest = json.dumps([lane, severity, code])
     start = _decode_cursor(after, snapshot_id, digest) if after else 0
 
-    def work() -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    def work() -> (
+        tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]
+    ):
         if lane == BEHAVIOUR:
             require_behaviour_lane()
-        everything = service.session(snapshot_id).findings()
+        replay = service.session(snapshot_id)
+        everything = replay.findings()
+        attached = replay.descriptor.capabilities[Capability.FORENSICS]
+        report = replay.descriptor.forensics
+        summary = {
+            "available": attached.available,
+            "reason": attached.reason.value if attached.reason else None,
+            "detail": attached.detail,
+            "statuses": report.statuses if report else None,
+        }
         lanes: dict[str, dict[str, Any]] = {
             name: {"available": True, "reason": None, "count": 0}
             for name in LANES
@@ -553,14 +579,15 @@ async def audit_findings(
                 and at_least(row["severity"]) <= floor
             ):
                 chosen.append(row)
-        return chosen, lanes
+        return chosen, lanes, summary
 
-    chosen, lanes = await _analysing(work)
+    chosen, lanes, summary = await _analysing(work)
     page = chosen[start : start + limit]
     more = start + limit < len(chosen)
     return {
         "snapshot_id": snapshot_id,
         "lanes": lanes,
+        "forensics": summary,
         "findings": page,
         "count": len(page),
         "has_more": more,

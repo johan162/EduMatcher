@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Audit-GUI.md](EduMatcher-Audit-GUI.md) (1.1.0-design)
 
-Status: **In progress** (AG0-AG3 done). This plan orders the work needed to deliver the
+Status: **In progress** (AG0-AG4 done). This plan orders the work needed to deliver the
 whole design: the R0 thin slice, the R1 evidence workbench, and R2
 behavioural surveillance. Section numbers such as "design §9.4" refer to the
 companion design. Code takes precedence over both documents; a WP that finds
@@ -57,7 +57,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 1 | AG1 | Evidence collections, minimal snapshot descriptor and capability model | AG0, D1 | 1.5 d | ☑ | 2026-11-27 |
 | 2 | AG2 | Audit router skeleton: ADMIN guard, errors, events, stories, findings | AG1 | 2 d | ☑ | 2026-11-27 |
 | 3 | AG3 | Market read models: depth heatmap and order lifelines | AG2, D6 | 2.5 d | ☑ | 2026-11-27 |
-| 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☐ | |
+| 4 | AG4 | `pm-sim-forensics` report adapter in the consistency lane | AG1, AG2 | 1 d | ☑ | 2026-11-27 |
 | 5 | AG5 | `audit-gui` foundation: workspace, auth, shell, proxy, evidence banner | AG2 | 2 d | ☐ | |
 | 6 | AG6 | Market canvas (Analyse, R0 layers), story drawer, raw evidence | AG3, AG4, AG5 | 3 d | ☐ | |
 | 7 | AG7 | R0 acceptance, help text and holistic review | AG6 | 1 d | ☐ | |
@@ -958,6 +958,8 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
 | AGF8 | AG3 | P3 | The receipt clock (the only one on every record) has millisecond resolution, and one command's effects share a stamp: two fills in one command are one lifeline segment (base world `stop_bid`), and a mask can start where an observation does. | Recorded. Lifelines and heatmap say `clock: "receipt"`; changes at one instant collapse into one segment, which shows the state they reached. |
 | AGF9 | AG3 | P3 | Three lifeline inputs are not on the order's own records: iceberg refills appear only on `engine.trace` (published before the fill they follow); a quote leg's price and size are only on the causing `quote.new` (`quote.ack` names the legs); an order restored by a restart has no admission in its new run. | Iceberg slices follow the engine's documented rule (a fill uses the slice; the next shows when it is gone), not the trace. Quote legs are joined by `causation_id`, so an unenveloped trail has no quote lifelines. Orders with events but no admission in their run are counted (`without_admission`), not drawn. |
 | AGF10 | AG3 | P3 | Building the market model runs at about 123,000 records/s (8.1 s for a generated 1-million-record session, after the replay's own 36 s normalise and order pass); a whole-session heatmap or lifeline query on it takes about 1.5 s, a 60 s window about 0.3 s. | Acceptable for R0 (built once per cached session). AG9 builds it in the worker with the session (AGF5); AG25 measures against §11.1. |
+| AGF11 | AG4 | P2 | `findings.json` recorded only `data_dir` (a host path) and the trade cut: nothing in it could show which trail, or which bytes of it, the checks read, so "a report whose inputs do not match the snapshot" could not be detected; nor did it name each check's data scope. | `pm-sim-forensics` now writes `inputs` (every audit file and store read: name, kind, size, SHA-256) and each check's `needs` (additive; its own test). The adapter compares the audit inputs with the snapshot's pinned files. A report without `inputs` is `REPORT_UNREADABLE` (no legacy path). |
+| AGF12 | AG4 | P3 | The report has no configured location. `pm-sim-forensics --out` defaults to `forensics/` beside the install's data dir whatever `--data` is, so for any other collection the operator must pass `--out <collection>/../forensics`; two collections with one parent share that place. | R0 convention: a collection's report is `forensics/findings.json` beside it (no path in any request). A report of the neighbouring collection is caught as `DIFFERENT_INPUTS`. A per-collection key, if wanted, belongs to AG8's source catalogue. |
 | AGF2 | AG0 | P3 | Section 3 lists the gap, recorder restart and second run as part of "the base audit world"; AG0 step 2 lists them as variants. | Implemented as opt-in variants: `build(tmp, gap=True, ...)`. The base world is one gap-free run, so its tables stay exact. |
 
 ### 8.1 AG0 done note (2026-11-27)
@@ -1113,3 +1115,35 @@ resolution. Holistic reviews (AG7, AG25, AG33) add a subsection each.
   heatmap finds its window by bisection and lifelines stop at the first
   order admitted after it.
 - Not in AG3: trades, the flow strip and news/true-value bands (AG6, AG16).
+
+### 8.5 AG4 done note (2026-11-27)
+
+- `audit/service/forensics.py`: `attach` reads `forensics/findings.json`
+  beside the collection (AGF12), copies it into the snapshot
+  (`forensics.json`), hashes it (the hash is part of the snapshot id) and
+  compares its audit `inputs` with the pinned files (name, bytes read,
+  SHA-256; AGF11). Capability `forensics`: available for a matching report,
+  else `NOT_ATTACHED`, `REPORT_UNREADABLE` or `DIFFERENT_INPUTS` (new reason
+  codes). The descriptor's `forensics` block holds hash, size, tool
+  version, trade cut, checks per status, inputs, `inputs_match` and
+  `differing`; never the report's host path.
+- `/findings`: a matching report's FAIL (`error`), ERROR (`warn`) and
+  SKIPPED (`info`) checks are consistency-lane rows (`origin: forensics`,
+  `code: SIM_FORENSICS`, `check` with id, oracle, title, status,
+  violations, note, samples and `scope`: the stores it needs and the trade
+  cut), read from the pinned copy and sorted after the replay's findings of
+  the same severity. PASS and INFO are never findings; `forensics.statuses`
+  counts every check. A report on other inputs is shown on the descriptor
+  and not merged.
+- Contract: `AuditFinding.episode`, `receipt_ts` and `source` became
+  nullable and it gained `origin` and `check`; `AuditFindingPage` gained
+  `forensics`; `AuditSnapshot` gained `forensics`; five schemas added. No
+  client reads these routes yet (the GUI is AG5). REST chapter and the
+  reference manual's `pm-sim-forensics` section updated.
+- World: the `forensics_report` variant writes beside the data dir, where
+  the tool's default puts it.
+- Measured: negligible, as planned (one small JSON file; hashing the inputs
+  in `pm-sim-forensics` is one read of the trail and stores per run).
+- Not in AG4: the `forensics_import` job (AG9); a report that read a torn
+  active file does not match its snapshot (the snapshot leaves the partial
+  line out), which is `DIFFERENT_INPUTS`: run the tool on a stopped sim.

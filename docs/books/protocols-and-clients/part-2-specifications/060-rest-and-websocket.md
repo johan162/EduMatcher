@@ -3323,6 +3323,15 @@ active `audit.log`'s complete lines (a partial last line is reported as
 analysis whether the evidence supports it. The id is derived from that
 content: pinning an unchanged collection again returns the same snapshot.
 
+A `pm-sim-forensics` report in `forensics/` beside the collection (the
+tool's default `--out`) is pinned too: copied, hashed (the hash is part of
+the id) and described in `forensics` (hash, size, tool version, trade cut,
+checks per status, every input it read, and whether its audit inputs are
+exactly the snapshot's files: `inputs_match`, `differing`). The `forensics`
+capability is available only for a matching report; otherwise its reason is
+`NOT_ATTACHED`, `REPORT_UNREADABLE` (`forensics: null`) or
+`DIFFERENT_INPUTS`.
+
 **Arguments**
 
 | Name | Type | Req | Description |
@@ -3333,7 +3342,7 @@ content: pinning an unchanged collection again returns the same snapshot.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
+| `201 Created` | `{ "snapshot_id", "collection_id", "created_at", "entries", "first_ts", "last_ts", "files", "runs", "capabilities", "forensics" }` | The snapshot's descriptor; each capability is `{ "available", "reason", "detail" }` |
 
 **Errors**
 
@@ -3454,6 +3463,17 @@ severities are the replay's own; window-edge findings such as
 `behaviour` lane is R2's and is `available: false` with
 `reason: NOT_IN_RELEASE`.
 
+A matching `pm-sim-forensics` report (see `POST /audit/snapshots`) adds its
+checks to the consistency lane as `origin: "forensics"`,
+`code: "SIM_FORENSICS"` rows: `FAIL` as `error`, `ERROR` (the check itself
+broke) as `warn`, `SKIPPED` (its data was absent) as `info`, each with
+`check` (`id`, `oracle`, `title`, `status`, `violations`, `note`, `samples`,
+and `scope`: the stores it reads and the trade cut) and no episode, time or
+source. They sort after the replay's findings of the same severity. `PASS`
+and `INFO` checks are never findings; `forensics.statuses` counts every
+check. A report on other inputs is not merged (`forensics.reason:
+DIFFERENT_INPUTS`).
+
 **Arguments**
 
 | Name | Type | Req | Description |
@@ -3469,7 +3489,7 @@ severities are the replay's own; window-edge findings such as
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | paginated list envelope (`findings`) + `snapshot_id`, `lanes` | One page of findings |
+| `200 OK` | paginated list envelope (`findings`) + `snapshot_id`, `lanes`, `forensics` (`{ "available", "reason", "detail", "statuses" }`) | One page of findings |
 
 **Errors**
 

@@ -817,7 +817,8 @@ def _forensics(data: Path) -> Path:
         result("C1", "SKIPPED", [], "no clearing.db"),
         result("E4", "ERROR", [], "Traceback (most recent call last):\n  ...\nOSError: boom"),  # fmt: skip
     ]
-    out = data / "forensics"
+    # pm-sim-forensics' default --out: forensics/ beside the data dir.
+    out = data.parent / "forensics"
     with Dataset.open(data) as ds:
         write_forensics_report(ds, results, out, package_version())
     return out / "findings.json"

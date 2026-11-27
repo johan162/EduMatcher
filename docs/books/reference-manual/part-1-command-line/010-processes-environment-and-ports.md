@@ -2094,6 +2094,14 @@ checks: a count, not a verdict), `SKIPPED` (its data is absent) or `ERROR`
 (the check itself broke). `make forensics DATA=<dir> OUT=<dir> [SLOW=1]` wraps
 the command in a source checkout.
 
+`findings.json` holds the tool version, the trade cut (`cut_trade_id`: the
+highest trade id present in every trade store), each check with its status,
+violations, note, sample rows and the stores it `needs`, and `inputs`: every
+audit file and store the checks read (name relative to `--data`, `kind`
+`audit` or `store`, size, SHA-256). The Audit GUI attaches a report from
+`forensics/` beside a collection and uses `inputs` to tell whether it is
+about the trail it holds.
+
 **Exit codes:** `0` no check failed; `1` at least one `FAIL` or `ERROR` —
 that is the finding, see `report.md`; `2` usage error (unknown check ID,
 `--data` not a directory).

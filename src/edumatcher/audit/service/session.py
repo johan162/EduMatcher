@@ -42,6 +42,8 @@ from edumatcher.audit.replay.facts import Fact, normalise
 from edumatcher.audit.replay.ordering import ordered, pack_sort_key
 from edumatcher.audit.replay.pipeline import Reconstruction
 from edumatcher.audit.replay.render_text import Options
+from edumatcher.audit.replay.views import at_least
+from edumatcher.audit.service import forensics
 from edumatcher.audit.service.capabilities import Capability, Reason
 from edumatcher.audit.service.errors import (
     CapabilityUnavailable,
@@ -137,6 +139,7 @@ class ReplaySession:
     def __init__(self, snapshot: Snapshot) -> None:
         self.descriptor = snapshot.descriptor
         self.facts: list[Fact] = list(ordered(normalise(snapshot.entries())))
+        self._dir = snapshot.directory
         self._db = snapshot.directory / _INDEX
         if not self._index_is_current():
             self._build_index(snapshot)
@@ -207,7 +210,10 @@ class ReplaySession:
     # -- findings -------------------------------------------------------
 
     def findings(self) -> list[dict[str, Any]]:
-        """Every replay finding, worst first then by time, each in its lane."""
+        """Every replay finding (worst first, then by time) and, when a
+        matching pm-sim-forensics report is attached, its failed, broken and
+        skipped checks after the replay's of the same severity; each row in
+        its lane."""
         self._require(Capability.STORIES)
         if self._findings is None:
             with closing(episode_index.open_readonly(self._db)) as conn:
@@ -217,7 +223,11 @@ class ReplaySession:
                 obj.pop("type", None)
                 obj.pop("story", None)
                 obj["lane"] = lane_of(obj["code"])
+                obj["origin"] = "replay"
                 rows.append(obj)
+            if self.descriptor.capabilities[Capability.FORENSICS].available:
+                rows += forensics.findings(self._dir)
+            rows.sort(key=lambda row: at_least(row["severity"]))
             self._findings = rows
         return self._findings
 

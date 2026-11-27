@@ -29,6 +29,12 @@ Reason codes (stable; new codes may be added, none is renamed):
 ``NOT_ATTACHED``
     An optional source (simulator context, ``pm-sim-forensics`` report) is
     not attached to this snapshot.
+``REPORT_UNREADABLE``
+    The attached ``pm-sim-forensics`` ``findings.json`` is not a report this
+    version can read (not JSON, or without its checks and inputs).
+``DIFFERENT_INPUTS``
+    The attached ``pm-sim-forensics`` report read other audit files (or
+    other bytes of them) than the snapshot pins: it is about another trail.
 ``NOT_IN_RELEASE``
     The analysis belongs to a later release (the R2 behavioural lane).
 ``UNKNOWN_SNAPSHOT``
@@ -71,6 +77,8 @@ class Reason(str, Enum):
     NO_RECORDED_CONFIG = "NO_RECORDED_CONFIG"
     RERUN_UNAVAILABLE = "RERUN_UNAVAILABLE"
     NOT_ATTACHED = "NOT_ATTACHED"
+    REPORT_UNREADABLE = "REPORT_UNREADABLE"
+    DIFFERENT_INPUTS = "DIFFERENT_INPUTS"
     NOT_IN_RELEASE = "NOT_IN_RELEASE"
     UNKNOWN_SNAPSHOT = "UNKNOWN_SNAPSHOT"
     SOURCE_MISSING = "SOURCE_MISSING"
@@ -106,6 +114,8 @@ class Evidence:
     unscaled_symbols: frozenset[str]
     #: ``(run_seq, startup ts)`` of each run whose startup has no config.
     runs_without_config: tuple[tuple[int | None, str], ...]
+    #: The attached pm-sim-forensics report's state; None when none is.
+    forensics: CapabilityState | None = None
 
 
 def evaluate(ev: Evidence) -> dict[Capability, CapabilityState]:
@@ -133,7 +143,7 @@ def evaluate(ev: Evidence) -> dict[Capability, CapabilityState]:
     states[Capability.SIM_CONTEXT] = unavailable(
         Reason.NOT_ATTACHED, "no simulator context database is attached"
     )
-    states[Capability.FORENSICS] = unavailable(
+    states[Capability.FORENSICS] = ev.forensics or unavailable(
         Reason.NOT_ATTACHED, "no pm-sim-forensics report is attached"
     )
     return states

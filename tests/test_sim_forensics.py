@@ -7,6 +7,7 @@ SQL fails here rather than on the next simulation run.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterator
@@ -292,6 +293,31 @@ def test_cli_report_names_the_tool_version(
     assert main(["--data", str(data), "--out", str(out), "--check", "F1"]) == 0
     assert json.loads((out / "findings.json").read_text())["tool_version"] == "9.9.9"
     assert "- pm-sim-forensics: 9.9.9;" in (out / "report.md").read_text()
+
+
+def test_findings_name_their_inputs_and_each_checks_scope(
+    tmp_path: Path, data: Path
+) -> None:
+    """A reader of findings.json (the Audit GUI) can tell which audit files
+    and stores the checks read, byte for byte, and what each check needed."""
+    trail = data / "audit.log"
+    trail.write_text(
+        '[2026-06-15T07:00:00.001+00:00] [system.startup] {"run_seq": 1}\n'
+    )
+    out = tmp_path / "out"
+    main(["--data", str(data), "--out", str(out), "--check", "F1", "-q"])
+    report = json.loads((out / "findings.json").read_text())
+
+    def pinned(path: Path, kind: str) -> dict[str, object]:
+        raw = path.read_bytes()
+        name = path.relative_to(data).as_posix()
+        return {"name": name, "kind": kind, "size": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}  # fmt: skip
+
+    assert report["inputs"] == [
+        pinned(trail, "audit"),
+        pinned(data / "stats.db", "store"),
+    ]
+    assert [c["needs"] for c in report["checks"]] == [list(REGISTRY["F1"].needs)]
 
 
 def test_cli_rejects_unknown_check_ids(data: Path, tmp_path: Path) -> None:

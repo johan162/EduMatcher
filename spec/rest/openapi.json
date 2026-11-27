@@ -20543,10 +20543,38 @@
                       "detail": "no simulator context database is attached"
                     },
                     "forensics": {
-                      "available": false,
-                      "reason": "NOT_ATTACHED",
-                      "detail": "no pm-sim-forensics report is attached"
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
                     }
+                  },
+                  "forensics": {
+                    "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",
+                    "size": 2391,
+                    "tool_version": "0.86.0",
+                    "cut_trade_id": "000001-000000017",
+                    "statuses": {
+                      "PASS": 1,
+                      "FAIL": 1,
+                      "SKIPPED": 1,
+                      "ERROR": 1
+                    },
+                    "inputs": [
+                      {
+                        "name": "audit.log",
+                        "kind": "audit",
+                        "size": 412096,
+                        "sha256": "e3b7c1a09f8d6e5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b"
+                      },
+                      {
+                        "name": "stats.db",
+                        "kind": "store",
+                        "size": 98304,
+                        "sha256": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e"
+                      }
+                    ],
+                    "inputs_match": true,
+                    "differing": []
                   }
                 }
               }
@@ -20818,10 +20846,38 @@
                       "detail": "no simulator context database is attached"
                     },
                     "forensics": {
-                      "available": false,
-                      "reason": "NOT_ATTACHED",
-                      "detail": "no pm-sim-forensics report is attached"
+                      "available": true,
+                      "reason": null,
+                      "detail": ""
                     }
+                  },
+                  "forensics": {
+                    "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",
+                    "size": 2391,
+                    "tool_version": "0.86.0",
+                    "cut_trade_id": "000001-000000017",
+                    "statuses": {
+                      "PASS": 1,
+                      "FAIL": 1,
+                      "SKIPPED": 1,
+                      "ERROR": 1
+                    },
+                    "inputs": [
+                      {
+                        "name": "audit.log",
+                        "kind": "audit",
+                        "size": 412096,
+                        "sha256": "e3b7c1a09f8d6e5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b"
+                      },
+                      {
+                        "name": "stats.db",
+                        "kind": "store",
+                        "size": 98304,
+                        "sha256": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e"
+                      }
+                    ],
+                    "inputs_match": true,
+                    "differing": []
                   }
                 }
               }
@@ -21730,7 +21786,7 @@
           "audit"
         ],
         "summary": "Findings by lane",
-        "description": "The replay's findings in separate lanes (design §4.1): `evidence`\n(the trail is incomplete here), `consistency` (recorded facts break an\nexchange invariant), `operations` (participants, configuration,\ninfrastructure). The `behaviour` lane is R2's and is reported as not\navailable, never as empty. Codes and severities are the replay's own;\nwindow-edge findings keep their `info` severity.",
+        "description": "The replay's findings in separate lanes (design §4.1): `evidence`\n(the trail is incomplete here), `consistency` (recorded facts break an\nexchange invariant), `operations` (participants, configuration,\ninfrastructure). The `behaviour` lane is R2's and is reported as not\navailable, never as empty. Codes and severities are the replay's own;\nwindow-edge findings keep their `info` severity.\n\nAn attached `pm-sim-forensics` report whose audit inputs match the\nsnapshot adds its FAIL (`error`), ERROR (`warn`) and SKIPPED (`info`)\nchecks to the consistency lane as `code: SIM_FORENSICS` rows with the\ncheck, its samples and data scope; PASS and INFO are only counted in\n`forensics.statuses`. A report on other inputs is not merged\n(`forensics.reason: DIFFERENT_INPUTS`).",
         "operationId": "audit_findings",
         "security": [
           {
@@ -21865,7 +21921,7 @@
                     "consistency": {
                       "available": true,
                       "reason": null,
-                      "count": 1
+                      "count": 2
                     },
                     "operations": {
                       "available": true,
@@ -21878,8 +21934,20 @@
                       "count": null
                     }
                   },
+                  "forensics": {
+                    "available": true,
+                    "reason": null,
+                    "detail": "",
+                    "statuses": {
+                      "PASS": 1,
+                      "FAIL": 1,
+                      "SKIPPED": 1,
+                      "ERROR": 1
+                    }
+                  },
                   "findings": [
                     {
+                      "origin": "replay",
                       "code": "ESEQ_GAP",
                       "severity": "error",
                       "lane": "evidence",
@@ -21894,6 +21962,37 @@
                       "anchor": "9ab1c47f2e5d48a1b3c6f9078e2d15b4"
                     },
                     {
+                      "origin": "forensics",
+                      "code": "SIM_FORENSICS",
+                      "severity": "error",
+                      "lane": "consistency",
+                      "episode": null,
+                      "receipt_ts": null,
+                      "detail": "E2 FAIL: A fresh engine fed the audit's commands publishes what the live engine did",
+                      "source": null,
+                      "check": {
+                        "id": "E2",
+                        "oracle": "replay",
+                        "title": "A fresh engine fed the audit's commands publishes what the live engine did",
+                        "status": "FAIL",
+                        "violations": 1,
+                        "note": "1 output differs",
+                        "samples": [
+                          {
+                            "trade_id": "000001-000000004",
+                            "diffs": [
+                              "trade.executed.quantity: 200 != 199"
+                            ]
+                          }
+                        ],
+                        "scope": {
+                          "stores": [],
+                          "cut_trade_id": "000001-000000017"
+                        }
+                      }
+                    },
+                    {
+                      "origin": "replay",
                       "code": "TERMINAL_MISSING",
                       "severity": "info",
                       "lane": "consistency",
@@ -21908,7 +22007,7 @@
                       "anchor": "1c0b9a8f7e6d5c4b3a2918f7e6d5c4b3"
                     }
                   ],
-                  "count": 2,
+                  "count": 3,
                   "has_more": false,
                   "next_cursor": null
                 }
@@ -23442,10 +23541,20 @@
       },
       "AuditFinding": {
         "properties": {
+          "origin": {
+            "type": "string",
+            "enum": [
+              "replay",
+              "forensics"
+            ],
+            "title": "Origin",
+            "description": "pm-audit-replay, or an imported pm-sim-forensics check.",
+            "default": "replay"
+          },
           "code": {
             "type": "string",
             "title": "Code",
-            "description": "The replay's finding code."
+            "description": "The replay's finding code, or `SIM_FORENSICS` for a check."
           },
           "severity": {
             "type": "string",
@@ -23467,19 +23576,43 @@
             "title": "Lane"
           },
           "episode": {
-            "type": "integer",
-            "title": "Episode"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Episode",
+            "description": "Null for a forensics check."
           },
           "receipt_ts": {
-            "type": "string",
-            "title": "Receipt Ts"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Ts",
+            "description": "Null for a forensics check."
           },
           "detail": {
             "type": "string",
             "title": "Detail"
           },
           "source": {
-            "$ref": "#/components/schemas/AuditSource"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditSource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a forensics check."
           },
           "episode_kind": {
             "anyOf": [
@@ -23502,6 +23635,17 @@
               }
             ],
             "title": "Anchor"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditForensicsCheck"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The imported check, for `origin: forensics`."
           }
         },
         "type": "object",
@@ -23552,6 +23696,9 @@
             "type": "object",
             "title": "Lanes"
           },
+          "forensics": {
+            "$ref": "#/components/schemas/AuditForensicsSummary"
+          },
           "findings": {
             "items": {
               "$ref": "#/components/schemas/AuditFinding"
@@ -23568,9 +23715,276 @@
           "next_cursor",
           "snapshot_id",
           "lanes",
+          "forensics",
           "findings"
         ],
         "title": "AuditFindingPage"
+      },
+      "AuditForensicsCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The pm-sim-forensics check id, e.g. `E2`."
+          },
+          "oracle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oracle"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "FAIL",
+              "ERROR",
+              "SKIPPED"
+            ],
+            "title": "Status"
+          },
+          "violations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Violations"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "samples": {
+            "items": {},
+            "type": "array",
+            "title": "Samples",
+            "description": "Sample rows, as the report holds them."
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AuditForensicsScope"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "oracle",
+          "title",
+          "status",
+          "violations",
+          "note",
+          "samples",
+          "scope"
+        ],
+        "title": "AuditForensicsCheck"
+      },
+      "AuditForensicsInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Relative to the data dir, e.g. `audit.log`, `stats.db`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "audit",
+              "store"
+            ],
+            "title": "Kind"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "sha256"
+        ],
+        "title": "AuditForensicsInput"
+      },
+      "AuditForensicsReport": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "Hash of the report as pinned."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size"
+          },
+          "tool_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Version"
+          },
+          "cut_trade_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cut Trade Id",
+            "description": "The highest trade id present in every trade store the checks compared."
+          },
+          "statuses": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Statuses",
+            "description": "Checks per status, PASS included."
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditForensicsInput"
+            },
+            "type": "array",
+            "title": "Inputs",
+            "description": "Every file the checks read."
+          },
+          "inputs_match": {
+            "type": "boolean",
+            "title": "Inputs Match",
+            "description": "Whether its audit inputs are exactly the snapshot's audit files."
+          },
+          "differing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Differing",
+            "description": "Audit files the two disagree on."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha256",
+          "size",
+          "tool_version",
+          "cut_trade_id",
+          "statuses",
+          "inputs",
+          "inputs_match",
+          "differing"
+        ],
+        "title": "AuditForensicsReport"
+      },
+      "AuditForensicsScope": {
+        "properties": {
+          "stores": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stores",
+            "description": "The stores the check reads."
+          },
+          "cut_trade_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cut Trade Id",
+            "description": "Trades compared up to this id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "stores",
+          "cut_trade_id"
+        ],
+        "title": "AuditForensicsScope"
+      },
+      "AuditForensicsSummary": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "Whether a matching report is merged."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "`NOT_ATTACHED`, `REPORT_UNREADABLE` or `DIFFERENT_INPUTS`."
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "statuses": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statuses",
+            "description": "The report's checks per status; null when none is readable."
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "reason",
+          "detail",
+          "statuses"
+        ],
+        "title": "AuditForensicsSummary"
       },
       "AuditHeatmap": {
         "properties": {
@@ -24563,6 +24977,17 @@
             "type": "object",
             "title": "Capabilities",
             "description": "Each analysis, and why it is unavailable when it is."
+          },
+          "forensics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditForensicsReport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The attached `pm-sim-forensics` report (`forensics/` beside the collection); null when none is attached or it cannot be read."
           }
         },
         "type": "object",
@@ -24575,7 +25000,8 @@
           "last_ts",
           "files",
           "runs",
-          "capabilities"
+          "capabilities",
+          "forensics"
         ],
         "title": "AuditSnapshot"
       },

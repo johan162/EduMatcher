@@ -11,7 +11,10 @@ browser names it by id, never by path (design §7.2).
   lines are copied into the snapshot and its partial last line, if any, is
   reported (``torn_bytes``) and left out;
 * the records' receipt-time extent, the engine runs (each
-  ``system.startup``) and every capability's state (``capabilities``).
+  ``system.startup``) and every capability's state (``capabilities``);
+* the ``pm-sim-forensics`` report beside the collection, when there is one:
+  copied, hashed and compared with the pinned audit files
+  (:mod:`edumatcher.audit.service.forensics`).
 
 The id is derived from that content, so pinning an unchanged trail again
 gives the same snapshot. ``open_snapshot`` reads through a snapshot: the
@@ -54,6 +57,12 @@ from edumatcher.audit.service.capabilities import (
     Evidence,
     Reason,
     evaluate,
+)
+from edumatcher.audit.service.forensics import (
+    Attachment,
+    ForensicsInput,
+    ForensicsPin,
+    attach,
 )
 
 #: A snapshot id: ``s-`` and 20 hex digits of the content hash.
@@ -126,6 +135,8 @@ class SnapshotDescriptor:
     last_ts: str | None
     runs: tuple[RunInfo, ...]
     capabilities: dict[Capability, CapabilityState]
+    #: The attached pm-sim-forensics report, when one could be read.
+    forensics: ForensicsPin | None = None
 
 
 class SnapshotUnavailable(Exception):
@@ -185,14 +196,20 @@ def create_snapshot(collection: AuditCollection, store: Path) -> SnapshotDescrip
     work = Path(tempfile.mkdtemp(prefix=".new-", dir=snapshots))
     try:
         files = tuple(_pin(path, root, work / _PINNED) for path in audit_files(root))
+        report = attach(root, {f.name: (f.cutoff, f.sha256) for f in files}, work)
         material = json.dumps(
-            [collection.id, str(root), [(f.name, f.kind, f.cutoff, f.sha256) for f in files]]  # fmt: skip
+            [
+                collection.id,
+                str(root),
+                [(f.name, f.kind, f.cutoff, f.sha256) for f in files],
+                report.sha256 if report else None,
+            ]
         )
         snapshot_id = "s-" + hashlib.sha256(material.encode()).hexdigest()[:20]
         final = snapshots / snapshot_id
         if (final / _DESCRIPTOR).is_file():
             return _load(final)
-        descriptor = _describe(snapshot_id, collection, files, work)
+        descriptor = _describe(snapshot_id, collection, files, work, report)
         (work / _DESCRIPTOR).write_text(_dump(descriptor), encoding="utf-8")
         try:
             os.replace(work, final)
@@ -275,6 +292,7 @@ def _describe(
     collection: AuditCollection,
     files: tuple[SourceFile, ...],
     work: Path,
+    report: Attachment | None,
 ) -> SnapshotDescriptor:
     """One pass over the pinned records."""
     root = collection.path
@@ -316,6 +334,7 @@ def _describe(
         runs_without_config=tuple(
             (r.run_seq, r.started_ts) for r in runs if r.config_sha256 is None
         ),
+        forensics=report.state if report else None,
     )
     return SnapshotDescriptor(
         snapshot_id=snapshot_id,
@@ -328,6 +347,7 @@ def _describe(
         last_ts=last_ts,
         runs=tuple(runs),
         capabilities=evaluate(evidence),
+        forensics=report.pin if report else None,
     )
 
 
@@ -364,4 +384,19 @@ def _load(directory: Path) -> SnapshotDescriptor:
             )
             for cap, s in raw["capabilities"].items()
         },
+        forensics=_load_forensics(raw["forensics"]),
+    )
+
+
+def _load_forensics(raw: dict[str, Any] | None) -> ForensicsPin | None:
+    if raw is None:
+        return None
+    return ForensicsPin(
+        sha256=raw["sha256"],
+        size=raw["size"],
+        tool_version=raw["tool_version"],
+        cut_trade_id=raw["cut_trade_id"],
+        statuses=raw["statuses"],
+        inputs=tuple(ForensicsInput(**i) for i in raw["inputs"]),
+        differing=tuple(raw["differing"]),
     )

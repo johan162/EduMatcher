@@ -1,12 +1,19 @@
-"""Write the run's results as report.md and findings.json."""
+"""Write the run's results as report.md and findings.json.
+
+findings.json also lists its ``inputs``: every audit file and store the
+checks read (name relative to the data dir, size, SHA-256), so a reader such
+as the Audit GUI can tell whether a report is about the trail it holds. Each
+check names the stores it ``needs``: its data scope.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 from edumatcher.audit.rawlines import Unavailable, audit_files, run_config_text
-from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.dataset import STORES, Dataset
 from edumatcher.sim_forensics.explain import EXPLAIN, INTRO
 from edumatcher.sim_forensics.registry import Result
 
@@ -23,6 +30,7 @@ def write(ds: Dataset, results: list[Result], out_dir: Path, version: str) -> No
             "violations": r.violations,
             "note": r.note,
             "seconds": round(r.seconds, 3),
+            "needs": list(r.check.needs),
             "samples": r.samples,
         }
         for r in results
@@ -33,6 +41,7 @@ def write(ds: Dataset, results: list[Result], out_dir: Path, version: str) -> No
                 "data_dir": str(ds.data_dir),
                 "tool_version": version,
                 "cut_trade_id": ds.cut_trade_id,
+                "inputs": inputs(ds),
                 "checks": findings,
             },
             indent=2,
@@ -40,6 +49,23 @@ def write(ds: Dataset, results: list[Result], out_dir: Path, version: str) -> No
         ),
         encoding="utf-8",
     )
+
+
+def inputs(ds: Dataset) -> list[dict[str, object]]:
+    """The audit files (oldest first), then the stores present, each hashed."""
+    files = [(p, "audit") for p in audit_files(ds.data_dir)]
+    files += [(ds.data_dir / f"{name}.db", "store") for name in STORES if name in ds.stores]  # fmt: skip
+    out: list[dict[str, object]] = []
+    for path, kind in files:
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as fh:
+            while chunk := fh.read(1 << 20):
+                digest.update(chunk)
+                size += len(chunk)
+        name = path.relative_to(ds.data_dir).as_posix()
+        out.append({"name": name, "kind": kind, "size": size, "sha256": digest.hexdigest()})  # fmt: skip
+    return out
 
 
 def _run_version(ds: Dataset) -> str | None:

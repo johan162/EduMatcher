@@ -2450,11 +2450,30 @@ AUDIT_SNAPSHOT: dict[str, Any] = {
             "reason": "NOT_ATTACHED",
             "detail": "no simulator context database is attached",
         },
-        "forensics": {
-            "available": False,
-            "reason": "NOT_ATTACHED",
-            "detail": "no pm-sim-forensics report is attached",
-        },
+        "forensics": {"available": True, "reason": None, "detail": ""},
+    },
+    "forensics": {
+        "sha256": "9c1e0b7a6f5d4c3b2a1908f7e6d5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a",
+        "size": 2391,
+        "tool_version": "0.86.0",
+        "cut_trade_id": "000001-000000017",
+        "statuses": {"PASS": 1, "FAIL": 1, "SKIPPED": 1, "ERROR": 1},
+        "inputs": [
+            {
+                "name": "audit.log",
+                "kind": "audit",
+                "size": 412096,
+                "sha256": "e3b7c1a09f8d6e5c4b3a29180f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b",
+            },
+            {
+                "name": "stats.db",
+                "kind": "store",
+                "size": 98304,
+                "sha256": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
+            },
+        ],
+        "inputs_match": True,
+        "differing": [],
     },
 }
 
@@ -2560,15 +2579,22 @@ AUDIT_FINDINGS: dict[str, Any] = {
     "snapshot_id": "s-3f1c9a07be52d4e6a810",
     "lanes": {
         "evidence": {"available": True, "reason": None, "count": 1},
-        "consistency": {"available": True, "reason": None, "count": 1},
+        "consistency": {"available": True, "reason": None, "count": 2},
         "operations": {"available": True, "reason": None, "count": 0},
         "behaviour": {"available": False, "reason": "NOT_IN_RELEASE", "count": None},
+    },
+    "forensics": {
+        "available": True,
+        "reason": None,
+        "detail": "",
+        "statuses": {"PASS": 1, "FAIL": 1, "SKIPPED": 1, "ERROR": 1},
     },
     # dict(...), not {...}: a "code" key in a literal reads as an API error
     # code to tests/test_api_gateway_error_codes.py, and these are replay
     # finding codes.
     "findings": [
         dict(
+            origin="replay",
             code="ESEQ_GAP",
             severity="error",
             lane="evidence",
@@ -2580,6 +2606,32 @@ AUDIT_FINDINGS: dict[str, Any] = {
             anchor="9ab1c47f2e5d48a1b3c6f9078e2d15b4",
         ),
         dict(
+            origin="forensics",
+            code="SIM_FORENSICS",
+            severity="error",
+            lane="consistency",
+            episode=None,
+            receipt_ts=None,
+            detail="E2 FAIL: A fresh engine fed the audit's commands publishes what the live engine did",
+            source=None,
+            check={
+                "id": "E2",
+                "oracle": "replay",
+                "title": "A fresh engine fed the audit's commands publishes what the live engine did",
+                "status": "FAIL",
+                "violations": 1,
+                "note": "1 output differs",
+                "samples": [
+                    {
+                        "trade_id": "000001-000000004",
+                        "diffs": ["trade.executed.quantity: 200 != 199"],
+                    }
+                ],
+                "scope": {"stores": [], "cut_trade_id": "000001-000000017"},
+            },
+        ),
+        dict(
+            origin="replay",
             code="TERMINAL_MISSING",
             severity="info",
             lane="consistency",
@@ -2591,7 +2643,7 @@ AUDIT_FINDINGS: dict[str, Any] = {
             anchor="1c0b9a8f7e6d5c4b3a2918f7e6d5c4b3",
         ),
     ],
-    "count": 2,
+    "count": 3,
     "has_more": False,
     "next_cursor": None,
 }
